@@ -1,0 +1,5 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='800' height='1200' viewBox='0 0 800 1200' preserveAspectRatio='xMidYMid slice'>
+  <rect width='100%' height='100%' fill='#EC4899'/>
+  <text x='50%' y='48%' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='Poppins, sans-serif' font-size='48'>Weeve Story 2</text>
+  <text x='50%' y='58%' dominant-baseline='middle' text-anchor='middle' fill='white' font-family='Inter, sans-serif' font-size='24'>Another sample story</text>
+</svg>

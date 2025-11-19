@@ -1,0 +1,53 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: weeve
+      POSTGRES_PASSWORD: weeve
+      POSTGRES_DB: weeve_dev
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+
+  redis:
+    image: redis:7
+    restart: always
+    ports:
+      - '6379:6379'
+
+  minio:
+    image: minio/minio
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniopass
+    volumes:
+      - minio-data:/data
+    ports:
+      - '9000:9000'
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+      - minio
+    ports:
+      - '3000:3000'
+    environment:
+      DATABASE_URL: postgresql://weeve:weeve@db:5432/weeve_dev
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: miniopass
+      NEXTAUTH_URL: http://localhost:3000
+    volumes:
+      - ./:/app
+
+volumes:
+  db-data:
+  minio-data:
