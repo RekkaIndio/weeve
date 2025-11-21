@@ -1,0 +1,17 @@
+{
+    "buildCommand": "prisma generate && next build",
+    "framework": "nextjs",
+    "regions": [
+        "iad1"
+    ],
+    "env": {
+        "DATABASE_URL": "@database_url",
+        "REDIS_URL": "@redis_url",
+        "NEXTAUTH_SECRET": "@nextauth_secret",
+        "NEXTAUTH_URL": "@nextauth_url",
+        "S3_BUCKET": "@s3_bucket",
+        "MINIO_ENDPOINT": "@minio_endpoint",
+        "MINIO_ROOT_USER": "@minio_root_user",
+        "MINIO_ROOT_PASSWORD": "@minio_root_password"
+    }
+}

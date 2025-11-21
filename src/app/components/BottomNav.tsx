@@ -56,9 +56,8 @@ export default function BottomNav() {
               title={item.label}
             >
               <div
-                className={`flex flex-col items-center justify-center gap-1 px-2 py-1 rounded-md transition-colors ${
-                  isActive ? "text-[#EC1D99]" : "text-[#6B7280]"
-                }`}
+                className={`flex flex-col items-center justify-center gap-1 px-2 py-1 rounded-md transition-colors ${isActive ? "text-[#EC1D99]" : "text-[#6B7280]"
+                  }`}
                 aria-current={isActive ? "page" : undefined}
               >
                 <Icon className="w-6 h-6" />
