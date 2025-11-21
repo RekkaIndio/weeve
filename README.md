@@ -34,3 +34,13 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Update App Icons
+
+To use `weeve-logo.png` as the app icon and favicon:
+
+- Web: `weeve-logo.png` is included in `public/`. The Next.js app metadata now uses `/weeve-logo.png` for the favicon and Open Graph image.
+- Android: copy a suitably sized `weeve-logo.png` into `android/app/src/main/res/mipmap-*/weeve_logo.png` (mdpi/hdpi/xhdpi/xxhdpi/xxxhdpi) and/or `drawable/weeve_logo.png`. The adaptive icon `mipmap-anydpi-v26/ic_launcher.xml` now references `@drawable/weeve_logo`.
+- iOS: copy `weeve-logo.png` into `ios/App/App/Assets.xcassets/AppIcon.appiconset/weeve-logo.png` (add required sizes if needed). `Contents.json` references this filename.
+
+Note: You should replace the native image files with properly sized images for each platform density for best results.
