@@ -18,10 +18,11 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
     // Stitch Flow States
     const [showStitchMenu, setShowStitchMenu] = useState(false);
     const [stitchMode, setStitchMode] = useState<'video' | 'image' | 'text' | null>(null);
-    const [isRecording, setIsRecording] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [textContribution, setTextContribution] = useState("");
+    const videoInputRef = useRef<HTMLInputElement>(null);
+    const photoInputRef = useRef<HTMLInputElement>(null);
 
     // Edit Story States
     const [showMenu, setShowMenu] = useState(false);
@@ -41,21 +42,38 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
     };
 
     const handleStitchOption = (mode: 'video' | 'image' | 'text') => {
-        setStitchMode(mode);
         setShowStitchMenu(false);
+        setStitchMode(null);
+
         if (mode === 'video') {
-            // Simulate recording start
-            setIsRecording(true);
-            setTimeout(() => {
-                setIsRecording(false);
+            if (videoInputRef.current) {
+                videoInputRef.current.click();
+            } else {
                 simulateUpload('video');
-            }, 3000); // Record for 3 seconds
-        } else if (mode === 'image') {
-            simulateUpload('image');
+            }
+            return;
+        }
+
+        if (mode === 'image') {
+            if (photoInputRef.current) {
+                photoInputRef.current.click();
+            } else {
+                simulateUpload('image');
+            }
+            return;
+        }
+
+        if (mode === 'text') {
+            setStitchMode('text');
         }
     };
 
-    const simulateUpload = (type: 'video' | 'image' | 'text', content?: string) => {
+    type UploadOptions = {
+        content?: string;
+        file?: File;
+    };
+
+    const simulateUpload = (type: 'video' | 'image' | 'text', options?: UploadOptions) => {
         setIsUploading(true);
         setUploadProgress(0);
 
@@ -66,26 +84,40 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
 
             if (progress >= 100) {
                 clearInterval(interval);
-                completeContribution(type, content);
+                completeContribution(type, options);
             }
         }, 200);
     };
 
-    const completeContribution = (type: 'video' | 'image' | 'text', content?: string) => {
+    const completeContribution = (type: 'video' | 'image' | 'text', options?: UploadOptions) => {
         let mediaUrl = undefined;
-        let caption = content || "Just added a new part! ✨";
+        let caption = options?.content || "Just added a new part! ✨";
 
         if (type === 'video') {
-            mediaUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4";
-            caption = "Check out this view! 🎥";
+            if (options?.file) {
+                mediaUrl = URL.createObjectURL(options.file);
+            } else {
+                mediaUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4";
+            }
+            if (!options?.content) {
+                caption = "Check out this view! 🎥";
+            }
         } else if (type === 'image') {
-            mediaUrl = "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=1000&auto=format&fit=crop";
-            caption = "Captured this moment 📸";
+            if (options?.file) {
+                mediaUrl = URL.createObjectURL(options.file);
+            } else {
+                mediaUrl = "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=1000&auto=format&fit=crop";
+            }
+            if (!options?.content) {
+                caption = "Captured this moment 📸";
+            }
         }
 
         addContribution(story.id, caption, type, mediaUrl);
         setIsUploading(false);
         setStitchMode(null);
+        setShowStitchMenu(false);
+        setTextContribution("");
         // Auto-play the new segment
         setActiveIndex(story.contributions.length);
         setIsPlaying(true);
@@ -93,12 +125,54 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
 
     const handleTextSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!textContribution.trim()) return;
-        simulateUpload('text', textContribution);
+        const trimmed = textContribution.trim();
+        if (!trimmed) return;
+        setShowStitchMenu(false);
+        setStitchMode(null);
+        simulateUpload('text', { content: trimmed });
+        setTextContribution("");
+    };
+
+    const handleVideoCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            event.target.value = "";
+            return;
+        }
+
+        simulateUpload('video', { file });
+        event.target.value = "";
+    };
+
+    const handleImageCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            event.target.value = "";
+            return;
+        }
+
+        simulateUpload('image', { file });
+        event.target.value = "";
     };
 
     return (
         <div className="h-full flex flex-col bg-black text-white relative">
+            <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleVideoCapture}
+            />
+            <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleImageCapture}
+            />
             {/* Header */}
             <div className="absolute top-0 left-0 right-0 z-20 p-4 flex items-center justify-between bg-gradient-to-b from-black/90 via-black/50 to-transparent pointer-events-none">
                 <button onClick={() => router.back()} className="p-2 rounded-full glass hover:bg-white/10 transition-colors pointer-events-auto">
@@ -186,16 +260,6 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                     </>
                 ) : (
                     <div className="text-gray-500">No segments yet. Be the first!</div>
-                )}
-
-                {/* Recording Overlay */}
-                {isRecording && (
-                    <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center">
-                        <div className="w-20 h-20 rounded-full border-4 border-red-500 flex items-center justify-center animate-pulse">
-                            <div className="w-16 h-16 bg-red-500 rounded-full"></div>
-                        </div>
-                        <p className="mt-4 font-bold text-red-500">Recording...</p>
-                    </div>
                 )}
 
                 {/* Uploading Overlay */}
