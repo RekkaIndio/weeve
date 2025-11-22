@@ -4,9 +4,10 @@ import { useStore, Group } from "@/lib/store";
 import { useSearchParams } from 'next/navigation';
 import Link from "next/link";
 import { Search, TrendingUp, Sparkles, Clock, Users, Plus, X } from "lucide-react";
+import NotificationBell from "../components/NotificationBell";
 
 function DiscoverContent() {
-    const { stories, groups, addGroup } = useStore();
+    const { stories, groups, addGroup, currentUser } = useStore();
     const searchParams = useSearchParams();
     const tabParam = searchParams?.get('tab');
     const [activeCategory, setActiveCategory] = useState(tabParam || 'trending');
@@ -52,13 +53,21 @@ function DiscoverContent() {
         <div className="min-h-screen bg-black text-white p-4 pb-24">
             {/* Search Header */}
             <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md py-2 mb-6">
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
-                    <input
-                        type="text"
-                        placeholder="Search stories, people, tags..."
-                        className="w-full bg-gray-900 border border-gray-800 rounded-full py-3 pl-10 pr-4 text-sm focus:outline-none focus:border-[#EC1D99] transition-colors"
-                    />
+                <div className="flex items-center gap-3">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                        <input
+                            type="text"
+                            placeholder="Search stories, people, tags..."
+                            className="w-full bg-gray-900 border border-gray-800 rounded-full py-3 pl-10 pr-4 text-sm focus:outline-none focus:border-[#EC1D99] transition-colors"
+                        />
+                    </div>
+                    {currentUser && (
+                        <NotificationBell
+                            className="bg-gray-900/80 border border-gray-800"
+                            badgeClassName="bg-[#EC1D99]"
+                        />
+                    )}
                 </div>
             </div>
 

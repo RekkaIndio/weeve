@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useStore } from "@/lib/store";
-import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check } from "lucide-react";
+import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Camera } from "lucide-react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 export default function ProfilePage() {
   const { currentUser, stories, setCurrentUser } = useStore();
@@ -11,6 +13,8 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(currentUser?.name || '');
   const [editAvatar, setEditAvatar] = useState(currentUser?.avatar || '');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Invite Modal State
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -35,6 +39,76 @@ export default function ProfilePage() {
     setEditName(currentUser.name);
     setEditAvatar(currentUser.avatar || '');
     setIsEditing(false);
+  };
+
+  const handleAvatarClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${currentUser.id}-${Date.now()}.${fileExt}`;
+      const filePath = `user-avatars/${fileName}`;
+
+      // Upload to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const avatarUrl = urlData.publicUrl;
+
+      // Update user avatar in database
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar: avatarUrl })
+        .eq('user_id', currentUser.id);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setCurrentUser({
+        ...currentUser,
+        avatar: avatarUrl
+      });
+      setEditAvatar(avatarUrl);
+
+      toast.success('Avatar updated!');
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      toast.error('Failed to update avatar');
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const inviteCode = currentUser?.inviteCode || currentUser?.id || '';
@@ -95,15 +169,38 @@ export default function ProfilePage() {
 
       {/* Profile Info */}
       <div className="flex flex-col items-center px-4 mb-8">
-        <div className="relative mb-4 group">
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleAvatarChange}
+          className="hidden"
+        />
+
+        <div
+          className="relative mb-4 group cursor-pointer"
+          onClick={!isEditing ? handleAvatarClick : undefined}
+        >
           <img
             src={isEditing ? editAvatar : currentUser.avatar}
             alt={currentUser.name}
-            className="w-24 h-24 rounded-full border-4 border-black bg-gray-800 object-cover"
+            className={`w-24 h-24 rounded-full border-4 border-black bg-gray-800 object-cover ${uploadingAvatar ? 'opacity-50' : ''}`}
             onError={(e) => {
               (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${editName}`;
             }}
           />
+          {uploadingAvatar && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
+            </div>
+          )}
+          {!isEditing && !uploadingAvatar && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+              <Camera className="w-8 h-8 text-white" />
+            </div>
+          )}
           {isEditing && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
               <span className="text-xs font-bold">Preview</span>

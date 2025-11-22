@@ -21,6 +21,14 @@ export interface Group {
 
 export type MediaType = 'video' | 'image' | 'text';
 
+export interface TextStyle {
+    fontFamily: string;
+    fontSize: number;
+    textColor: string;
+    backgroundColor: string;
+    textAlign: 'left' | 'center' | 'right';
+}
+
 export interface Contribution {
     id: string;
     userId: string;
@@ -29,6 +37,7 @@ export interface Contribution {
     mediaType: MediaType;
     mediaUrl?: string; // URL for video or image
     timestamp: number;
+    textStyle?: TextStyle;
 }
 
 export interface Story {
@@ -44,6 +53,8 @@ export interface Story {
     maxWeeves?: number;
     coverImage?: string; // Thumbnail for the story
     theme?: string; // Visual theme for the story
+    groupId?: string;
+    groupAvatar?: string;
 }
 
 interface AppState {
@@ -54,13 +65,20 @@ interface AppState {
     groups: Group[];
 
     addStory: (story: Story) => void;
-    addContribution: (storyId: string, content: string, mediaType: MediaType, mediaUrl?: string) => void;
+    addContribution: (storyId: string, contribution: {
+        content: string;
+        mediaType: MediaType;
+        mediaUrl?: string;
+        textStyle?: TextStyle;
+    }) => void;
     updateStory: (id: string, updates: Partial<Story>) => void;
     setActiveWeeve: (id: string | null) => void;
     addGroup: (group: Group) => void;
     addTokens: (amount: number) => void;
     deductTokens: (amount: number) => boolean;
     setCurrentUser: (user: User | null) => void;
+    setStories: (stories: Story[]) => void;
+    setGroups: (groups: Group[]) => void;
     logoutUser: () => void;
 }
 
@@ -311,7 +329,7 @@ export const useStore = create<AppState>((set, get) => ({
     stories: MOCK_STORIES,
     activeWeeveId: null,
     friends: MOCK_FRIENDS,
-    groups: MOCK_GROUPS,
+    groups: [],
 
     addStory: (story) =>
         set((state) => ({ stories: [story, ...state.stories] })),
@@ -319,7 +337,7 @@ export const useStore = create<AppState>((set, get) => ({
     addGroup: (group) =>
         set((state) => ({ groups: [group, ...state.groups] })),
 
-    addContribution: (storyId, content, mediaType, mediaUrl) =>
+    addContribution: (storyId, contribution) =>
         set((state) => {
             if (!state.currentUser) return state;
             const storyIndex = state.stories.findIndex((s) => s.id === storyId);
@@ -329,9 +347,7 @@ export const useStore = create<AppState>((set, get) => ({
                 id: Math.random().toString(36).substr(2, 9),
                 userId: state.currentUser.id,
                 userName: state.currentUser.name,
-                content,
-                mediaType,
-                mediaUrl,
+                ...contribution,
                 timestamp: Date.now(), // Safe to use Date.now() here as this only runs client-side after hydration
             };
 
@@ -386,6 +402,10 @@ export const useStore = create<AppState>((set, get) => ({
     },
 
     setCurrentUser: (user) => set({ currentUser: user }),
+
+    setStories: (stories) => set({ stories }),
+
+    setGroups: (groups) => set({ groups }),
 
     logoutUser: () => set({ currentUser: null }),
 }));

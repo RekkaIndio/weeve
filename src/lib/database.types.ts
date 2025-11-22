@@ -63,6 +63,7 @@ export interface Database {
                     max_weeves: number | null
                     cover_image: string | null
                     theme: string | null
+                    group_id: string | null
                     created_at: string
                     updated_at: string
                 }
@@ -77,6 +78,7 @@ export interface Database {
                     max_weeves?: number | null
                     cover_image?: string | null
                     theme?: string | null
+                    group_id?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -91,6 +93,7 @@ export interface Database {
                     max_weeves?: number | null
                     cover_image?: string | null
                     theme?: string | null
+                    group_id?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -197,6 +200,7 @@ export interface Database {
                     avatar: string
                     member_count: number
                     is_private: boolean
+                    owner_id: string
                     created_at: string
                 }
                 Insert: {
@@ -206,6 +210,7 @@ export interface Database {
                     avatar: string
                     member_count?: number
                     is_private?: boolean
+                    owner_id: string
                     created_at?: string
                 }
                 Update: {
@@ -215,9 +220,54 @@ export interface Database {
                     avatar?: string
                     member_count?: number
                     is_private?: boolean
+                    owner_id?: string
                     created_at?: string
                 }
-                Relationships: []
+                Relationships: [
+                    {
+                        foreignKeyName: "groups_owner_id_fkey"
+                        columns: ["owner_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
+            group_members: {
+                Row: {
+                    id: string
+                    group_id: string
+                    user_id: string
+                    role: 'admin' | 'member'
+                    joined_at: string
+                }
+                Insert: {
+                    id?: string
+                    group_id: string
+                    user_id: string
+                    role?: 'admin' | 'member'
+                    joined_at?: string
+                }
+                Update: {
+                    id?: string
+                    group_id?: string
+                    user_id?: string
+                    role?: 'admin' | 'member'
+                    joined_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "group_members_group_id_fkey"
+                        columns: ["group_id"]
+                        referencedRelation: "groups"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "group_members_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
             }
             friendships: {
                 Row: {
@@ -253,6 +303,18 @@ export interface Database {
                     }
                 ]
             }
+        }
+        Views: {
+            [_ in never]: never
+        }
+        Functions: {
+            [_ in never]: never
+        }
+        Enums: {
+            [_ in never]: never
+        }
+        CompositeTypes: {
+            [_ in never]: never
         }
     }
 }

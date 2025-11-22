@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, PlusSquare, User, Bell, Users, Compass } from "lucide-react";
+import { Home, PlusSquare, User, Users, Compass } from "lucide-react";
 import { useStore } from "@/lib/store";
+import NotificationBell from "./NotificationBell";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -25,38 +26,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { label: "Profile", href: "/profile", icon: User },
     ];
 
-    // Pages where we should hide the header (login, signup, or full-screen experiences)
-    const hideHeaderRoutes = ['/login', '/signup', '/story', '/profile'];
-    const shouldHideHeader = hideHeaderRoutes.some(route => pathname?.startsWith(route));
+    const showHomeNotification = currentUser && pathname === "/";
+    const isHome = pathname === "/";
 
     return (
         <div className="flex justify-center min-h-screen bg-black text-white">
             {/* Mobile Container - Centered on Desktop */}
             <div className="w-full max-w-md bg-black h-screen flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-800">
 
-                {/* Floating Notification Bell - Top Right */}
-                {currentUser && !shouldHideHeader && (
-                    <Link
-                        href="/activity"
-                        className="fixed top-4 right-4 z-50 p-2 transition-all hover:scale-105"
-                        aria-label="Notifications"
-                        style={{ maxWidth: '448px', right: 'max(1rem, calc(50% - 224px + 1rem))' }}
-                    >
-                        <Bell
-                            className={`w-6 h-6 ${pathname === '/activity' ? 'text-[#EC1D99]' : 'text-white'}`}
-                            strokeWidth={1.5}
-                            style={{ filter: 'drop-shadow(0 0 2px rgba(107, 114, 128, 0.5))' }}
+                {showHomeNotification && (
+                    <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 pb-2 flex justify-end pointer-events-none">
+                        <NotificationBell
+                            count={notificationCount}
+                            className="bg-black/70 border border-white/10 backdrop-blur-md shadow-lg pointer-events-auto"
                         />
-                        {notificationCount > 0 && (
-                            <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#EC1D99] rounded-full flex items-center justify-center text-[9px] font-bold">
-                                {notificationCount > 9 ? '9+' : notificationCount}
-                            </span>
-                        )}
-                    </Link>
+                    </div>
                 )}
 
                 {/* Main Content */}
-                <main className="flex-1 overflow-y-auto scrollbar-hide">
+                <main className={`flex-1 min-h-0 ${isHome ? "overflow-hidden" : "overflow-y-auto scrollbar-hide"}`}>
                     {children}
                 </main>
 

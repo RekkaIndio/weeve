@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS stories (
   description TEXT NOT NULL,
   creator_id TEXT NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
   mode TEXT NOT NULL CHECK (mode IN ('invite', 'open')),
+  visibility TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private')),
   status TEXT NOT NULL CHECK (status IN ('active', 'completed')) DEFAULT 'active',
   current_turn_user_id TEXT,
   max_weeves INTEGER,
@@ -65,7 +66,22 @@ CREATE TABLE IF NOT EXISTS groups (
   avatar TEXT NOT NULL,
   member_count INTEGER DEFAULT 0,
   is_private BOOLEAN DEFAULT FALSE,
+  owner_id TEXT REFERENCES profiles(user_id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Ensure owner_id column exists for environments created before this column was added
+ALTER TABLE groups
+  ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES profiles(user_id) ON DELETE CASCADE;
+
+-- Group Members table (tracking membership and roles)
+CREATE TABLE IF NOT EXISTS group_members (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  group_id UUID NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'member')) DEFAULT 'member',
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(group_id, user_id)
 );
 
 -- Friendships table (user connections)
@@ -86,6 +102,8 @@ CREATE INDEX IF NOT EXISTS idx_contributions_story_id ON contributions(story_id)
 CREATE INDEX IF NOT EXISTS idx_contributions_user_id ON contributions(user_id);
 CREATE INDEX IF NOT EXISTS idx_story_participants_story_id ON story_participants(story_id);
 CREATE INDEX IF NOT EXISTS idx_story_participants_user_id ON story_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_group_id ON group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_user_id ON group_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_friendships_user_id ON friendships(user_id);
 CREATE INDEX IF NOT EXISTS idx_friendships_friend_id ON friendships(friend_id);
 
@@ -97,65 +115,137 @@ ALTER TABLE stories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE contributions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE story_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE friendships ENABLE ROW LEVEL SECURITY;
 
+-- Ensure visibility column exists for environments created before it was added
+ALTER TABLE stories
+  ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private'));
+
 -- Profiles: Anyone can read, users can update their own
+DROP POLICY IF EXISTS "Profiles are viewable by everyone" ON profiles;
 CREATE POLICY "Profiles are viewable by everyone" ON profiles
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can insert their own profile" ON profiles;
 CREATE POLICY "Users can insert their own profile" ON profiles
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Users can update their own profile" ON profiles;
 CREATE POLICY "Users can update their own profile" ON profiles
   FOR UPDATE USING (true);
 
 -- Stories: Anyone can read, only creator can delete
+DROP POLICY IF EXISTS "Stories are viewable by everyone" ON stories;
 CREATE POLICY "Stories are viewable by everyone" ON stories
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can create stories" ON stories;
 CREATE POLICY "Users can create stories" ON stories
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Stories can be updated by anyone" ON stories;
 CREATE POLICY "Stories can be updated by anyone" ON stories
   FOR UPDATE USING (true);
 
+DROP POLICY IF EXISTS "Creators can delete their stories" ON stories;
 CREATE POLICY "Creators can delete their stories" ON stories
   FOR DELETE USING (true);
 
 -- Contributions: Anyone can read, participants can insert
+DROP POLICY IF EXISTS "Contributions are viewable by everyone" ON contributions;
 CREATE POLICY "Contributions are viewable by everyone" ON contributions
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can add contributions" ON contributions;
 CREATE POLICY "Users can add contributions" ON contributions
   FOR INSERT WITH CHECK (true);
 
 -- Story Participants: Anyone can read, managed via app
+DROP POLICY IF EXISTS "Story participants are viewable by everyone" ON story_participants;
 CREATE POLICY "Story participants are viewable by everyone" ON story_participants
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Story participants can be added" ON story_participants;
 CREATE POLICY "Story participants can be added" ON story_participants
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Story participants can be removed" ON story_participants;
 CREATE POLICY "Story participants can be removed" ON story_participants
   FOR DELETE USING (true);
 
 -- Groups: Public groups readable by all, private groups need membership
+DROP POLICY IF EXISTS "Public groups are viewable by everyone" ON groups;
 CREATE POLICY "Public groups are viewable by everyone" ON groups
-  FOR SELECT USING (NOT is_private OR true);
+  FOR SELECT USING (NOT is_private OR true); -- Allow viewing all for now to see them in list, maybe filter in UI or refine later
 
+DROP POLICY IF EXISTS "Groups can be created" ON groups;
 CREATE POLICY "Groups can be created" ON groups
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
-CREATE POLICY "Groups can be updated" ON groups
-  FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "Groups can be updated by owner" ON groups;
+CREATE POLICY "Groups can be updated by owner" ON groups
+  FOR UPDATE USING (auth.uid()::text = owner_id);
+
+DROP POLICY IF EXISTS "Groups can be deleted by owner" ON groups;
+CREATE POLICY "Groups can be deleted by owner" ON groups
+  FOR DELETE USING (auth.uid()::text = owner_id);
+
+-- Group Members Policies
+DROP POLICY IF EXISTS "Group members viewable by everyone" ON group_members;
+CREATE POLICY "Group members viewable by everyone" ON group_members
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Anyone can join open groups" ON group_members;
+CREATE POLICY "Anyone can join open groups" ON group_members
+  FOR INSERT WITH CHECK (
+    auth.role() = 'authenticated' AND
+    (
+      EXISTS (
+        SELECT 1 FROM groups WHERE id = group_id AND is_private = false
+      ) OR
+      EXISTS (
+        SELECT 1 FROM groups WHERE id = group_id AND owner_id = auth.uid()::text
+      )
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can add members" ON group_members;
+CREATE POLICY "Admins can add members" ON group_members
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM group_members
+      WHERE group_id = group_members.group_id
+      AND user_id = auth.uid()::text
+      AND role = 'admin'
+    )
+  );
+
+DROP POLICY IF EXISTS "Admins can remove members" ON group_members;
+CREATE POLICY "Admins can remove members" ON group_members
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM group_members
+      WHERE group_id = group_members.group_id
+      AND user_id = auth.uid()::text
+      AND role = 'admin'
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can leave groups" ON group_members;
+CREATE POLICY "Users can leave groups" ON group_members
+  FOR DELETE USING (auth.uid()::text = user_id);
 
 -- Friendships: Users can manage their own friendships
+DROP POLICY IF EXISTS "Friendships are viewable by involved users" ON friendships;
 CREATE POLICY "Friendships are viewable by involved users" ON friendships
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Users can create friendships" ON friendships;
 CREATE POLICY "Users can create friendships" ON friendships
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Users can delete their friendships" ON friendships;
 CREATE POLICY "Users can delete their friendships" ON friendships
   FOR DELETE USING (true);
 
@@ -169,8 +259,50 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Apply updated_at trigger to tables
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_stories_updated_at ON stories;
 CREATE TRIGGER update_stories_updated_at BEFORE UPDATE ON stories
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- STORAGE BUCKETS
+-- Note: You might need to create these buckets manually in the dashboard if SQL creation is not supported by your plan/setup,
+-- but this SQL attempts to insert them if the storage schema is accessible.
+
+-- Create 'story-media' bucket for videos and images
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('story-media', 'story-media', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Create 'avatars' bucket for user profiles
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage Policies (RLS for Storage)
+
+-- Allow public read access to story-media
+DROP POLICY IF EXISTS "Public Access" ON storage.objects;
+CREATE POLICY "Public Access"
+ON storage.objects FOR SELECT
+USING ( bucket_id = 'story-media' );
+
+-- Allow authenticated users to upload to story-media
+DROP POLICY IF EXISTS "Authenticated users can upload" ON storage.objects;
+CREATE POLICY "Authenticated users can upload"
+ON storage.objects FOR INSERT
+WITH CHECK ( bucket_id = 'story-media' AND auth.role() = 'authenticated' );
+
+-- Allow public read access to avatars
+DROP POLICY IF EXISTS "Public Access Avatars" ON storage.objects;
+CREATE POLICY "Public Access Avatars"
+ON storage.objects FOR SELECT
+USING ( bucket_id = 'avatars' );
+
+-- Allow authenticated users to upload avatars
+DROP POLICY IF EXISTS "Authenticated users can upload avatars" ON storage.objects;
+CREATE POLICY "Authenticated users can upload avatars"
+ON storage.objects FOR INSERT
+WITH CHECK ( bucket_id = 'avatars' AND auth.role() = 'authenticated' );
