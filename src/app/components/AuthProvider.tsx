@@ -1,14 +1,14 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 import { usePathname, useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 import { useStore } from '@/lib/store';
-import { userProfileExists, getUserProfile } from '@/lib/firestore';
+import { getUserProfile, profileExists } from '@/lib/auth';
 
 interface AuthContextType {
-    user: FirebaseUser | null;
+    user: SupabaseUser | null;
     loading: boolean;
 }
 
@@ -20,64 +20,97 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<FirebaseUser | null>(null);
+    const [user, setUser] = useState<SupabaseUser | null>(null);
     const [loading, setLoading] = useState(true);
     const { setCurrentUser } = useStore();
     const router = useRouter();
     const pathname = usePathname();
 
     useEffect(() => {
-        if (!auth) {
-            console.warn('Auth not initialized, skipping onAuthStateChanged listener');
-            setLoading(false);
-            return;
-        }
-        const unsubscribe = onAuthStateChanged(auth!, async (firebaseUser) => {
-            console.log('[AuthProvider] Auth state changed:', firebaseUser?.uid || 'null');
-            setUser(firebaseUser);
-
-            if (firebaseUser) {
-                try {
-                    // Check if user profile exists in Firestore
-                    console.log('[AuthProvider] Checking if profile exists for:', firebaseUser.uid);
-                    const profileExists = await userProfileExists(firebaseUser.uid);
-                    console.log('[AuthProvider] Profile exists:', profileExists);
-
-                    if (profileExists) {
-                        // Get profile data from Firestore
-                        const profile = await getUserProfile(firebaseUser.uid);
-                        console.log('[AuthProvider] Profile data:', profile);
-
-                        // Sync Firebase user with app store
-                        const appUser = {
-                            id: firebaseUser.uid,
-                            name: profile?.displayName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-                            avatar: profile?.photoURL || firebaseUser.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${firebaseUser.uid}`,
-                            tokens: profile?.tokens || 100,
-                        };
-                        setCurrentUser(appUser);
-
-                        // Redirect to homepage if on auth pages
-                        if (pathname === '/login' || pathname === '/signup' || pathname === '/setup') {
-                            console.log('[AuthProvider] Redirecting to homepage from:', pathname);
-                            setTimeout(() => router.push('/'), 100);
-                        }
-                    } else {
-                        // New user - redirect to setup if not already there
-                        if (pathname !== '/setup') {
-                            console.log('[AuthProvider] Redirecting new user to setup from:', pathname);
-                            setTimeout(() => router.push('/setup'), 100);
-                        }
-                    }
-                } catch (error) {
-                    console.error('[AuthProvider] Error in auth flow:', error);
-                }
+        // Get initial session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setUser(session?.user ?? null);
+            if (session?.user) {
+                handleUserLogin(session.user);
+            } else {
+                setLoading(false);
             }
-            setLoading(false);
         });
 
-        return () => unsubscribe();
-    }, [auth, setCurrentUser, router, pathname]);
+        // Listen for auth changes
+        const {
+            data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log('[AuthProvider] Auth event:', event, 'User:', session?.user?.id || 'null');
+            setUser(session?.user ?? null);
+
+            if (session?.user) {
+                await handleUserLogin(session.user);
+            } else {
+                // User logged out
+                setCurrentUser(null);
+                setLoading(false);
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+    const handleUserLogin = async (supabaseUser: SupabaseUser) => {
+        try {
+            // Always set a default user first to prevent blank pages
+            const defaultUser = {
+                id: supabaseUser.id,
+                name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${supabaseUser.id}`,
+                tokens: 100,
+            };
+
+            // Set the default user immediately
+            setCurrentUser(defaultUser);
+            console.log('[AuthProvider] Set default user:', defaultUser);
+
+            // Then try to get profile from database
+            const hasProfile = await profileExists(supabaseUser.id);
+            console.log('[AuthProvider] Profile exists:', hasProfile);
+
+            if (hasProfile) {
+                // Get profile data from Supabase and update
+                const profile = await getUserProfile(supabaseUser.id);
+                console.log('[AuthProvider] Profile data:', profile);
+
+                if (profile) {
+                    // Update with database data
+                    const appUser = {
+                        id: supabaseUser.id,
+                        name: profile.name,
+                        avatar: profile.avatar,
+                        tokens: profile.tokens,
+                        inviteCode: profile.inviteCode,
+                    };
+                    setCurrentUser(appUser);
+                    console.log('[AuthProvider] Updated user with database data:', appUser);
+                }
+
+                // Redirect to homepage if on auth pages
+                if (pathname === '/login' || pathname === '/signup' || pathname === '/setup') {
+                    console.log('[AuthProvider] Redirecting to homepage from:', pathname);
+                    setTimeout(() => router.push('/'), 100);
+                }
+            } else {
+                // New user - redirect to setup if not already there
+                if (pathname !== '/setup') {
+                    console.log('[AuthProvider] Redirecting new user to setup from:', pathname);
+                    setTimeout(() => router.push('/setup'), 100);
+                }
+            }
+        } catch (error) {
+            console.error('[AuthProvider] Error in auth flow:', error);
+            // Even if there's an error, keep the default user we set earlier
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <AuthContext.Provider value={{ user, loading }}>

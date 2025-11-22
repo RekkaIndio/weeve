@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updateProfile } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { signUp } from "@/lib/auth";
 
 export default function SignUpPage() {
     const router = useRouter();
@@ -29,55 +28,16 @@ export default function SignUpPage() {
         setError("");
 
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth!, email, password);
+            const { user, error: authError } = await signUp(email, password, name);
 
-            // Update user profile with display name
-            await updateProfile(userCredential.user, {
-                displayName: name,
-            });
+            if (authError) throw authError;
+            if (!user) throw new Error('Signup failed');
 
-            // Redirect to setup page for profile completion
-            router.push('/setup');
-
-            // Fallback if router.push doesn't work immediately
-            setTimeout(() => {
-                if (window.location.pathname !== '/setup') {
-                    window.location.href = '/setup';
-                }
-            }, 1000);
+            // AuthProvider will redirect to /setup for new users
+            console.log('[Signup] Successfully signed up, redirecting to setup');
         } catch (err: any) {
+            console.error('[Signup] Error:', err);
             setError(err.message || "Failed to create account");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleGoogleSignUp = async () => {
-        console.log("Starting Google signup...");
-        setLoading(true);
-        setError("");
-
-        try {
-            const provider = new GoogleAuthProvider();
-            console.log("Opening Google popup...");
-            await signInWithPopup(auth!, provider);
-            console.log("Google signup successful");
-
-            // Redirect to setup page for profile completion
-            console.log("Redirecting to /setup...");
-            router.push('/setup');
-
-            // Fallback if router.push doesn't work immediately
-            setTimeout(() => {
-                console.log("Checking if redirect happened...");
-                if (window.location.pathname !== '/setup') {
-                    console.log("Router push didn't work, trying window.location...");
-                    window.location.href = '/setup';
-                }
-            }, 1000);
-        } catch (err: any) {
-            console.error("Google signup error:", err);
-            setError(err.message || "Failed to sign up with Google");
         } finally {
             setLoading(false);
         }
@@ -161,9 +121,8 @@ export default function SignUpPage() {
                     {/* Social Logins */}
                     <div className="grid grid-cols-2 gap-4">
                         <button
-                            onClick={handleGoogleSignUp}
-                            disabled={loading}
-                            className="flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 py-3 text-white hover:bg-white/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={true}
+                            className="flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 py-3 text-white opacity-50 cursor-not-allowed"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />

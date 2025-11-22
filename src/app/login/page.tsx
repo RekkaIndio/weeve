@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { signIn } from "@/lib/auth";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -23,91 +22,16 @@ export default function LoginPage() {
         setError("");
 
         try {
-            const result = await signInWithEmailAndPassword(auth!, email, password);
+            const { user, error: authError } = await signIn(email, password);
 
-            // Check if user has completed profile setup with timeout
-            const { userProfileExists } = await import('@/lib/firestore');
+            if (authError) throw authError;
+            if (!user) throw new Error('Login failed');
 
-            // Create a timeout promise
-            const timeoutPromise = new Promise<boolean>((resolve) => {
-                setTimeout(() => {
-                    resolve(true); // Assume profile exists on timeout to avoid blocking
-                }, 2000);
-            });
-
-            // Race the profile check against the timeout
-            const profileExists = await Promise.race([
-                userProfileExists(result.user.uid),
-                timeoutPromise
-            ]);
-
-            const targetPath = profileExists ? '/' : '/setup';
-
-            // Redirect based on profile status
-            router.push(targetPath);
-
-            // Fallback if router.push doesn't work immediately
-            setTimeout(() => {
-                if (window.location.pathname !== targetPath) {
-                    window.location.href = targetPath;
-                }
-            }, 1000);
+            // AuthProvider will handle redirect based on profile existence
+            console.log('[Login] Successfully signed in');
         } catch (err: any) {
+            console.error('[Login] Error:', err);
             setError(err.message || "Failed to log in");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleGoogleLogin = async () => {
-        console.log("Starting Google login...");
-        setLoading(true);
-        setError("");
-
-        try {
-            const provider = new GoogleAuthProvider();
-            console.log("Opening Google popup...");
-            const result = await signInWithPopup(auth!, provider);
-            console.log("Google signed in user:", result.user.uid);
-
-            // Check if user has completed profile setup with timeout
-            console.log("Checking profile existence...");
-            const { userProfileExists } = await import('@/lib/firestore');
-
-            // Create a timeout promise
-            const timeoutPromise = new Promise<boolean>((resolve) => {
-                setTimeout(() => {
-                    console.log("Profile check timed out, assuming profile exists to be safe");
-                    resolve(true); // Assume profile exists on timeout to avoid blocking
-                }, 2000);
-            });
-
-            // Race the profile check against the timeout
-            const profileExists = await Promise.race([
-                userProfileExists(result.user.uid),
-                timeoutPromise
-            ]);
-
-            console.log("Profile exists result:", profileExists);
-
-            const targetPath = profileExists ? '/' : '/setup';
-            console.log("Target path:", targetPath);
-
-            // Redirect based on profile status
-            console.log("Redirecting...");
-            router.push(targetPath);
-
-            // Fallback if router.push doesn't work immediately
-            setTimeout(() => {
-                console.log("Checking if redirect happened...");
-                if (window.location.pathname !== targetPath) {
-                    console.log("Router push didn't work, trying window.location...");
-                    window.location.href = targetPath;
-                }
-            }, 1000);
-        } catch (err: any) {
-            console.error("Google login error:", err);
-            setError(err.message || "Failed to sign in with Google");
         } finally {
             setLoading(false);
         }
@@ -191,9 +115,8 @@ export default function LoginPage() {
                     {/* Social Logins */}
                     <div className="grid grid-cols-2 gap-4">
                         <button
-                            onClick={handleGoogleLogin}
-                            disabled={loading}
-                            className="flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 py-3 text-white hover:bg-white/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={true}
+                            className="flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 py-3 text-white opacity-50 cursor-not-allowed"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />

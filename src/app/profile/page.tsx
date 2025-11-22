@@ -9,18 +9,19 @@ export default function ProfilePage() {
   const { currentUser, stories, setCurrentUser } = useStore();
   const [activeTab, setActiveTab] = useState<'weeves' | 'saved'>('weeves');
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(currentUser.name);
-  const [editAvatar, setEditAvatar] = useState(currentUser.avatar || '');
+  const [editName, setEditName] = useState(currentUser?.name || '');
+  const [editAvatar, setEditAvatar] = useState(currentUser?.avatar || '');
 
   // Invite Modal State
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const myStories = stories.filter(s => s.participants.some(p => p.id === currentUser.id));
+  const myStories = currentUser ? stories.filter(s => s.participants.some(p => p.id === currentUser.id)) : [];
   // Mock saved stories - in production this would come from the store/database
   const savedStories = stories.filter(s => s.id === 's1' || s.id === 's2');
 
   const handleSave = () => {
+    if (!currentUser) return;
     setCurrentUser({
       ...currentUser,
       name: editName,
@@ -30,12 +31,13 @@ export default function ProfilePage() {
   };
 
   const handleCancel = () => {
+    if (!currentUser) return;
     setEditName(currentUser.name);
     setEditAvatar(currentUser.avatar || '');
     setIsEditing(false);
   };
 
-  const inviteCode = currentUser.inviteCode || currentUser.id;
+  const inviteCode = currentUser?.inviteCode || currentUser?.id || '';
   const inviteLink = typeof window !== 'undefined' ? `${window.location.origin}?ref=${inviteCode}` : '';
 
   const handleCopyLink = async () => {
@@ -62,6 +64,15 @@ export default function ProfilePage() {
       }
     }
   };
+
+  // Show loading state if user is not yet loaded
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white pb-24 relative">

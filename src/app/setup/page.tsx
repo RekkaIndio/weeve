@@ -2,17 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { updateProfile } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { createUserProfile } from "@/lib/firestore";
+import { createUserProfile } from "@/lib/auth";
 import { useAuth } from "@/app/components/AuthProvider";
 
 export default function SetupPage() {
     const router = useRouter();
     const { user } = useAuth();
 
-    const [displayName, setDisplayName] = useState(user?.displayName || "");
-    const [avatar, setAvatar] = useState(user?.photoURL || "");
+    const [displayName, setDisplayName] = useState(user?.user_metadata?.name || "");
+    const [avatar, setAvatar] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
@@ -31,23 +29,20 @@ export default function SetupPage() {
         setError("");
 
         try {
-            // Update Firebase Auth profile
-            await updateProfile(user, {
-                displayName: displayName.trim(),
-                photoURL: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`,
-            });
-
-            // Create user profile in Firestore
-            await createUserProfile(
-                user.uid,
+            // Create user profile in Supabase
+            const finalAvatar = avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`;
+            const { error: profileError } = await createUserProfile(
+                user.id,
                 displayName.trim(),
-                user.email,
-                avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`
+                finalAvatar
             );
 
-            // Redirect to homepage
+            if (profileError) throw profileError;
+
+            // Redirect to homepage - AuthProvider will pick up the new profile
             router.push("/");
         } catch (err: any) {
+            console.error('[Setup] Error:', err);
             setError(err.message || "Failed to complete profile setup");
             setLoading(false);
         }
@@ -91,7 +86,7 @@ export default function SetupPage() {
                     {/* Avatar Preview */}
                     <div className="flex justify-center mb-4">
                         <img
-                            src={avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.uid}`}
+                            src={avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`}
                             alt="Avatar Preview"
                             className="w-24 h-24 rounded-full border-4 border-white/20"
                         />

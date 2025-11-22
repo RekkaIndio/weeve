@@ -18,6 +18,14 @@ export default function WalletPage() {
         }, 1000);
     };
 
+    if (!currentUser) {
+        return (
+            <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                <div className="text-gray-500">Loading...</div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-black text-white pb-24">
             {/* Header */}

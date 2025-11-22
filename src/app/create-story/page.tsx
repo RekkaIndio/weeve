@@ -17,6 +17,7 @@ export default function CreateStoryPage() {
   };
 
   const handleCreateStory = async (data: CreateStoryFormState) => {
+    if (!currentUser) return; // Safety check
     // Create new story object
     const newStory: Story = {
       id: Math.random().toString(36).substr(2, 9),
@@ -51,6 +52,14 @@ export default function CreateStoryPage() {
     // Redirect to the new story
     router.push(`/story/${newStory.id}`);
   };
+
+  if (!currentUser) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black text-white">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-black text-white">Loading...</div>}>

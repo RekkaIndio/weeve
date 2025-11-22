@@ -30,6 +30,14 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
 
     if (!story) return <div>Story not found</div>;
 
+    if (!currentUser) {
+        return (
+            <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                <div className="text-gray-500">Loading...</div>
+            </div>
+        );
+    }
+
     const activeSegment = story.contributions[activeIndex];
     const isMyTurn = story.currentTurnUserId === currentUser.id;
 

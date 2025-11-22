@@ -3,12 +3,14 @@
 import { useRouter } from "next/navigation";
 import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { signOut } from "@/lib/auth";
 
 export default function SettingsPage() {
     const router = useRouter();
     const { currentUser, logoutUser } = useStore();
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        await signOut();
         logoutUser();
         router.push('/login');
     };
@@ -43,6 +45,14 @@ export default function SettingsPage() {
             ]
         }
     ];
+
+    if (!currentUser) {
+        return (
+            <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                <div className="text-gray-500">Loading...</div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-black text-white pb-8">

@@ -14,6 +14,15 @@ export default function UserProfilePage() {
 
     if (!userId) return null;
 
+    // Show loading if currentUser is not yet loaded
+    if (!currentUser) {
+        return (
+            <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                <div className="text-gray-500">Loading...</div>
+            </div>
+        );
+    }
+
     // Find user in friends list or check if it's current user
     const user = userId === currentUser.id
         ? currentUser

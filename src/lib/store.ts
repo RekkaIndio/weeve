@@ -47,7 +47,7 @@ export interface Story {
 }
 
 interface AppState {
-    currentUser: User;
+    currentUser: User | null;
     stories: Story[];
     activeWeeveId: string | null;
     friends: User[];
@@ -60,7 +60,7 @@ interface AppState {
     addGroup: (group: Group) => void;
     addTokens: (amount: number) => void;
     deductTokens: (amount: number) => boolean;
-    setCurrentUser: (user: User) => void;
+    setCurrentUser: (user: User | null) => void;
     logoutUser: () => void;
 }
 
@@ -307,7 +307,7 @@ const MOCK_STORIES: Story[] = [
 ];
 
 export const useStore = create<AppState>((set, get) => ({
-    currentUser: MOCK_USER,
+    currentUser: null,
     stories: MOCK_STORIES,
     activeWeeveId: null,
     friends: MOCK_FRIENDS,
@@ -321,6 +321,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     addContribution: (storyId, content, mediaType, mediaUrl) =>
         set((state) => {
+            if (!state.currentUser) return state;
             const storyIndex = state.stories.findIndex((s) => s.id === storyId);
             if (storyIndex === -1) return state;
 
@@ -340,7 +341,7 @@ export const useStore = create<AppState>((set, get) => ({
                 contributions: [...updatedStories[storyIndex].contributions, newContribution],
                 currentTurnUserId: (() => {
                     const participants = updatedStories[storyIndex].participants;
-                    const currentIndex = participants.findIndex(p => p.id === state.currentUser.id);
+                    const currentIndex = participants.findIndex(p => p.id === state.currentUser!.id);
                     if (currentIndex === -1) return undefined;
                     const nextIndex = (currentIndex + 1) % participants.length;
                     return participants[nextIndex].id;
@@ -360,21 +361,24 @@ export const useStore = create<AppState>((set, get) => ({
     setActiveWeeve: (id) => set({ activeWeeveId: id }),
 
     addTokens: (amount) =>
-        set((state) => ({
-            currentUser: {
-                ...state.currentUser,
-                tokens: state.currentUser.tokens + amount,
-            },
-        })),
+        set((state) => {
+            if (!state.currentUser) return state;
+            return {
+                currentUser: {
+                    ...state.currentUser,
+                    tokens: state.currentUser.tokens + amount,
+                },
+            };
+        }),
 
     deductTokens: (amount) => {
         const state = get();
-        if (state.currentUser.tokens >= amount) {
+        if (state.currentUser && state.currentUser.tokens >= amount) {
             set((state) => ({
-                currentUser: {
+                currentUser: state.currentUser ? {
                     ...state.currentUser,
                     tokens: state.currentUser.tokens - amount,
-                },
+                } : null,
             }));
             return true;
         }
@@ -383,5 +387,5 @@ export const useStore = create<AppState>((set, get) => ({
 
     setCurrentUser: (user) => set({ currentUser: user }),
 
-    logoutUser: () => set({ currentUser: { id: 'guest', name: 'Guest', tokens: 0 } }),
+    logoutUser: () => set({ currentUser: null }),
 }));

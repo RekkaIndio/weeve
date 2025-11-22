@@ -28,7 +28,7 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
     };
 
     const handleRemoveParticipant = (userId: string) => {
-        if (userId === currentUser.id) return; // Can't remove self
+        if (userId === currentUser?.id) return; // Can't remove self
         setParticipants(participants.filter(p => p.id !== userId));
     };
 
@@ -123,12 +123,12 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
                                         <div>
                                             <p className="text-white font-medium font-sans">
                                                 {participant.name}
-                                                {participant.id === currentUser.id && <span className="text-gray-500 text-xs ml-2">(You)</span>}
+                                                {participant.id === currentUser?.id && <span className="text-gray-500 text-xs ml-2">(You)</span>}
                                             </p>
                                         </div>
                                     </div>
 
-                                    {participant.id !== currentUser.id && (
+                                    {participant.id !== currentUser?.id && (
                                         <button
                                             onClick={() => handleRemoveParticipant(participant.id)}
                                             className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"

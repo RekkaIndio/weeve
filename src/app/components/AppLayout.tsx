@@ -10,9 +10,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { currentUser, stories } = useStore();
 
     // Calculate if it's user's turn in any story
-    const myTurnCount = stories.filter(
+    const myTurnCount = currentUser ? stories.filter(
         (s) => s.status === "active" && s.currentTurnUserId === currentUser.id
-    ).length;
+    ).length : 0;
 
     // Mock notification count (you can replace this with actual notification logic)
     const notificationCount = 3;
@@ -35,7 +35,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="w-full max-w-md bg-black h-screen flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-800">
 
                 {/* Floating Notification Bell - Top Right */}
-                {currentUser.id !== 'guest' && !shouldHideHeader && (
+                {currentUser && !shouldHideHeader && (
                     <Link
                         href="/activity"
                         className="fixed top-4 right-4 z-50 p-2 transition-all hover:scale-105"
