@@ -2,9 +2,11 @@
 
 import { use, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useStore, type TextStyle } from "@/lib/store";
+import { useStore, type TextStyle, type Contribution, type User } from "@/lib/store";
+import { createStoryContribution } from "@/lib/data";
 import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, X, Loader2, Edit2, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp } from "lucide-react";
 import EditStoryModal from "@/app/components/EditStoryModal";
+import { toast } from "sonner";
 
 const FONT_OPTIONS = [
     { label: "Sans", value: "'Inter', 'Helvetica Neue', sans-serif" },
@@ -54,6 +56,8 @@ const ALIGN_OPTIONS: Array<{ value: TextStyle["textAlign"]; icon: typeof AlignLe
     { value: "right", icon: AlignRight },
 ];
 
+const EMPTY_CONTRIBUTIONS: Contribution[] = [];
+
 const DEFAULT_TEXT_STYLE: TextStyle = {
     fontFamily: "'Inter', 'Helvetica Neue', sans-serif",
     fontSize: 28,
@@ -75,7 +79,6 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
     const [showStitchMenu, setShowStitchMenu] = useState(false);
     const [stitchMode, setStitchMode] = useState<'video' | 'image' | 'text' | null>(null);
     const [isUploading, setIsUploading] = useState(false);
-    const [uploadProgress, setUploadProgress] = useState(0);
     const [textContribution, setTextContribution] = useState("");
     const [textStyleOptions, setTextStyleOptions] = useState<TextStyle>({ ...DEFAULT_TEXT_STYLE });
     const [mediaDraft, setMediaDraft] = useState<{ type: 'video' | 'image'; file?: File; previewUrl?: string } | null>(null);
@@ -92,6 +95,53 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
     // Edit Story States
     const [showMenu, setShowMenu] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
+
+    const contributions = story?.contributions ?? EMPTY_CONTRIBUTIONS;
+    const maxWeeves = typeof story?.maxWeeves === 'number' ? story.maxWeeves : null;
+    const contributionsCount = contributions.length;
+    const isAtCapacity = maxWeeves !== null && contributionsCount >= maxWeeves;
+    const isStoryComplete = story?.status === 'completed' || isAtCapacity;
+    const remainingSlots = maxWeeves !== null ? Math.max(maxWeeves - contributionsCount, 0) : null;
+    const activeSegment = contributions[activeIndex];
+    const activeTextStyle = useMemo<TextStyle>(() => ({
+        ...DEFAULT_TEXT_STYLE,
+        ...(activeSegment?.textStyle ?? {}),
+    }), [activeSegment?.textStyle]);
+    const hasCustomTextStyle = Boolean(activeSegment?.textStyle);
+    const isMyTurn = !isStoryComplete && story?.currentTurnUserId === currentUser?.id;
+    const hasContributions = contributions.length > 0;
+    const participantMap = useMemo(() => {
+        const map = new Map<string, User>();
+        (story?.participants ?? []).forEach((participant) => {
+            map.set(participant.id, participant);
+        });
+        return map;
+    }, [story?.participants]);
+    const timelineEntries = useMemo(() => {
+        const occurrences = new Map<string, number>();
+        const latestIndexByUser = new Map<string, number>();
+        contributions.forEach((contribution, index) => {
+            latestIndexByUser.set(contribution.userId, index);
+        });
+        return contributions.map((contribution, index) => {
+            const occurrence = (occurrences.get(contribution.userId) ?? 0) + 1;
+            occurrences.set(contribution.userId, occurrence);
+            return {
+                contribution,
+                index,
+                occurrence,
+                isLatestForUser: latestIndexByUser.get(contribution.userId) === index,
+            };
+        });
+    }, [contributions]);
+    const participantsWithoutContributions = useMemo(() => {
+        const contributors = new Set(contributions.map((contribution) => contribution.userId));
+        return (story?.participants ?? []).filter((participant) => !contributors.has(participant.id));
+    }, [story?.participants, contributions]);
+    const handleContributionSelect = useCallback((index: number) => {
+        setActiveIndex(index);
+        setIsPlaying(true);
+    }, [setActiveIndex, setIsPlaying]);
 
     const isComposerOpen = stitchMode !== null && !showStitchMenu;
     const composerTitle = useMemo(() => {
@@ -225,6 +275,12 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         };
     }, [mediaDraft?.previewUrl]);
 
+    useEffect(() => {
+        if (!isStoryComplete) return;
+        resetComposer();
+        setShowStitchMenu(false);
+    }, [isStoryComplete]);
+
     if (!story) return <div>Story not found</div>;
 
     if (!currentUser) {
@@ -235,15 +291,6 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         );
     }
 
-    const activeSegment = story.contributions[activeIndex];
-    const activeTextStyle = useMemo<TextStyle>(() => ({
-        ...DEFAULT_TEXT_STYLE,
-        ...(activeSegment?.textStyle ?? {}),
-    }), [activeSegment?.textStyle]);
-    const hasCustomTextStyle = Boolean(activeSegment?.textStyle);
-    const isMyTurn = story.currentTurnUserId === currentUser.id;
-    const showTimelineNodes = story.contributions.length > 1;
-
     const handleNext = () => {
         if (activeIndex < story.contributions.length - 1) {
             setActiveIndex(prev => prev + 1);
@@ -253,6 +300,12 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
     };
 
     const handleStitchOption = (mode: 'video' | 'image' | 'text') => {
+        if (isStoryComplete) {
+            toast.error('This story has reached its stitch limit.');
+            setShowStitchMenu(false);
+            return;
+        }
+
         setShowStitchMenu(false);
         resetComposer();
 
@@ -281,84 +334,83 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         }
     };
 
-    type UploadOptions = {
-        content?: string;
-        file?: File;
-        textStyle?: TextStyle;
-    };
-
-    const simulateUpload = (type: 'video' | 'image' | 'text', options?: UploadOptions) => {
-        setIsUploading(true);
-        setUploadProgress(0);
-
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += 10;
-            setUploadProgress(progress);
-
-            if (progress >= 100) {
-                clearInterval(interval);
-                completeContribution(type, options);
-            }
-        }, 200);
-    };
-
-    const completeContribution = (type: 'video' | 'image' | 'text', options?: UploadOptions) => {
-        let mediaUrl = undefined;
-        let caption = options?.content && options.content.trim().length > 0
-            ? options.content
-            : "Just added a new part! ✨";
-
-        if (type === 'video') {
-            if (options?.file) {
-                mediaUrl = URL.createObjectURL(options.file);
-            } else {
-                mediaUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4";
-            }
-            if (!options?.content || options.content.trim().length === 0) {
-                caption = "Check out this view! 🎥";
-            }
-        } else if (type === 'image') {
-            if (options?.file) {
-                mediaUrl = URL.createObjectURL(options.file);
-            } else {
-                mediaUrl = "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=1000&auto=format&fit=crop";
-            }
-            if (!options?.content || options.content.trim().length === 0) {
-                caption = "Captured this moment 📸";
-            }
+    const computeNextTurnUserId = (willComplete: boolean) => {
+        if (willComplete) {
+            return undefined;
         }
-
-        addContribution(story.id, {
-            content: caption,
-            mediaType: type,
-            mediaUrl,
-            textStyle: options?.textStyle,
-        });
-        setIsUploading(false);
-        resetComposer();
-        setShowStitchMenu(false);
-        // Auto-play the new segment
-        setActiveIndex(story.contributions.length);
-        setIsPlaying(true);
+        const participants = story.participants;
+        const currentIndex = participants.findIndex((p) => p.id === currentUser.id);
+        if (currentIndex === -1 || participants.length === 0) {
+            return story.currentTurnUserId;
+        }
+        const nextIndex = (currentIndex + 1) % participants.length;
+        return participants[nextIndex]?.id ?? story.currentTurnUserId;
     };
 
-    const handleComposerSubmit = (e?: React.FormEvent) => {
+    const handleComposerSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        if (!stitchMode) return;
+        if (!stitchMode || !currentUser) return;
 
-        const trimmed = textContribution.trim();
-        if (stitchMode === 'text' && trimmed.length === 0) {
+        if (isStoryComplete) {
+            toast.error('This story has reached its stitch limit.');
+            resetComposer();
+            setShowStitchMenu(false);
             return;
         }
 
-        simulateUpload(stitchMode, {
-            content: trimmed.length > 0 ? trimmed : undefined,
-            file: mediaDraft?.file,
-            textStyle: { ...textStyleOptions },
-        });
-        setShowStitchMenu(false);
-        resetComposer();
+        const trimmed = textContribution.trim();
+
+        if (stitchMode === 'text' && trimmed.length === 0) {
+            toast.error('Please add some text before posting.');
+            return;
+        }
+
+        const requiresFile = stitchMode === 'video' || stitchMode === 'image';
+        if (requiresFile && !mediaDraft?.file) {
+            toast.error(`Please select a ${stitchMode === 'video' ? 'video' : 'photo'} to upload.`);
+            return;
+        }
+
+        const caption = (() => {
+            if (trimmed.length > 0) return trimmed;
+            if (stitchMode === 'video') return 'Check out this view! 🎥';
+            if (stitchMode === 'image') return 'Captured this moment 📸';
+            return 'Just added a new part! ✨';
+        })();
+
+        const shouldPersistStyle = stitchMode === 'text' || trimmed.length > 0;
+        const textStylePayload = shouldPersistStyle ? { ...textStyleOptions } : undefined;
+
+        setIsUploading(true);
+
+        try {
+            const willComplete = maxWeeves !== null && story.contributions.length + 1 >= maxWeeves;
+            const computedNextTurnUserId = computeNextTurnUserId(willComplete);
+            const nextTurnUpdate = willComplete ? null : computedNextTurnUserId;
+            const { contribution } = await createStoryContribution({
+                storyId: story.id,
+                userId: currentUser.id,
+                userName: currentUser.name,
+                mediaType: stitchMode,
+                content: caption,
+                file: mediaDraft?.file,
+                textStyle: textStylePayload,
+                timestamp: Date.now(),
+                nextTurnUserId: nextTurnUpdate,
+            });
+
+            addContribution(story.id, contribution, { nextTurnUserId: nextTurnUpdate });
+            toast.success('Contribution posted!');
+            setActiveIndex(story.contributions.length);
+            setIsPlaying(true);
+            resetComposer();
+            setShowStitchMenu(false);
+        } catch (error) {
+            console.error('Error adding contribution:', error);
+            toast.error('Failed to post contribution. Please try again.');
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     const handleVideoCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -580,37 +632,80 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                 {isUploading && (
                     <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center">
                         <Loader2 className="w-12 h-12 text-[#EC1D99] animate-spin mb-4" />
-                        <p className="font-bold">Uploading... {uploadProgress}%</p>
+                        <p className="font-bold">Uploading...</p>
                     </div>
                 )}
             </div>
 
             {/* Timeline Controls */}
             <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-30 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
-                {/* Timeline Nodes */}
-                <div className="flex items-center gap-3 overflow-x-auto pb-4 scrollbar-hide px-2">
-                    {showTimelineNodes ? (
-                        story.contributions.map((c, idx) => (
+                <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap">
+                    {timelineEntries.map(({ contribution, index, occurrence, isLatestForUser }) => {
+                        const participant = participantMap.get(contribution.userId);
+                        const displayName = participant?.name ?? contribution.userName;
+                        const avatar = participant?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`;
+                        const isActive = index === activeIndex;
+                        const isCurrentTurn = isLatestForUser && story.currentTurnUserId === contribution.userId;
+
+                        return (
                             <button
-                                key={c.id}
-                                onClick={() => { setActiveIndex(idx); setIsPlaying(true); }}
-                                className={`shrink-0 w-12 h-12 rounded-full border-2 overflow-hidden transition-all duration-300 relative ${idx === activeIndex ? 'border-[#EC1D99] scale-110 ring-2 ring-[#EC1D99]/30 shadow-[0_0_15px_rgba(236,29,153,0.5)]' : 'border-gray-700 opacity-50 hover:opacity-80 hover:scale-105'
-                                    }`}
+                                key={`${contribution.id}-${index}`}
+                                type="button"
+                                onClick={() => handleContributionSelect(index)}
+                                className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none text-white"
                             >
-                                <img
-                                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${c.userName}`}
-                                    className="w-full h-full object-cover bg-gray-800"
-                                />
-                                {idx < story.contributions.length - 1 && (
-                                    <div className="absolute top-1/2 -right-4 w-4 h-0.5 bg-gray-700 -z-10"></div>
+                                <div
+                                    className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isActive
+                                        ? 'border-[#EC1D99] shadow-[0_0_15px_rgba(236,29,153,0.35)]'
+                                        : isCurrentTurn
+                                            ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]'
+                                            : 'border-gray-700'}`}
+                                >
+                                    <img
+                                        src={avatar}
+                                        alt={displayName}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                                <span className="text-[10px] text-gray-300 font-medium max-w-[64px] truncate" title={displayName}>
+                                    {displayName.split(' ').slice(0, 2).join(' ')}
+                                </span>
+                                <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {occurrence}</span>
+                                {isCurrentTurn && (
+                                    <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
                                 )}
                             </button>
-                        ))
-                    ) : story.contributions.length === 0 ? (
-                        <div className="text-xs text-gray-500 py-2">
-                            No stitches yet. Be the first to add one!
-                        </div>
-                    ) : null}
+                        );
+                    })}
+
+                    {participantsWithoutContributions.map((participant) => {
+                        const isCurrentTurn = story.currentTurnUserId === participant.id;
+                        return (
+                            <button
+                                key={`pending-${participant.id}`}
+                                type="button"
+                                disabled
+                                className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
+                            >
+                                <div
+                                    className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]' : 'border-gray-700'}`}
+                                >
+                                    <img
+                                        src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
+                                        alt={participant.name}
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                                <span className="text-[10px] text-gray-400 font-medium max-w-[64px] truncate" title={participant.name}>
+                                    {participant.name.split(' ').slice(0, 2).join(' ')}
+                                </span>
+                                <span className="text-[9px] uppercase tracking-wide text-gray-600">No part yet</span>
+                                {isCurrentTurn && (
+                                    <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
+                                )}
+                            </button>
+                        );
+                    })}
 
                     {isMyTurn && (
                         <button
@@ -622,33 +717,24 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                     )}
                 </div>
 
-                <div className="mt-2 flex items-center gap-4 overflow-x-auto pb-2 scrollbar-hide px-2 flex-nowrap">
-                    {story.participants.map((participant) => {
-                        const isCurrentTurn = story.currentTurnUserId === participant.id;
-                        return (
-                            <div key={participant.id} className="flex flex-col items-center gap-1 min-w-[56px]">
-                                <div
-                                    className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all ${isCurrentTurn ? 'border-[#EC1D99] shadow-[0_0_15px_rgba(236,29,153,0.35)]' : 'border-gray-700'}`}
-                                >
-                                    <img
-                                        src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
-                                        alt={participant.name}
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                                <span className="text-[10px] text-gray-400 font-medium max-w-[56px] truncate" title={participant.name}>
-                                    {participant.name.split(' ').slice(0, 2).join(' ')}
-                                </span>
-                                {isCurrentTurn && (
-                                    <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
+                {!hasContributions && (
+                    <div className="text-xs text-gray-500 px-2 pb-2">
+                        No stitches yet. Be the first to add one!
+                    </div>
+                )}
 
                 {/* Action Button */}
-                {isMyTurn ? (
+                {!isStoryComplete && remainingSlots !== null && (
+                    <div className="text-center text-[10px] text-gray-500 pb-2">
+                        {remainingSlots} stitch{remainingSlots === 1 ? '' : 'es'} remaining.
+                    </div>
+                )}
+
+                {isStoryComplete ? (
+                    <div className="text-center text-xs text-gray-500 py-2">
+                        Story complete — stitch limit reached.
+                    </div>
+                ) : isMyTurn ? (
                     <button
                         onClick={() => setShowStitchMenu(true)}
                         className="w-full bg-[#EC1D99] text-white font-bold py-3 rounded-full flex items-center justify-center gap-2 hover:bg-[#D41C84] transition-colors"
@@ -658,7 +744,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                     </button>
                 ) : (
                     <div className="text-center text-xs text-gray-500 py-2">
-                        Waiting for {story.participants.find(p => p.id === story.currentTurnUserId)?.name} to stitch...
+                        Waiting for {story.participants.find(p => p.id === story.currentTurnUserId)?.name ?? 'the next creator'} to stitch...
                     </div>
                 )}
             </div>

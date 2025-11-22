@@ -6,6 +6,7 @@ import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Cam
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { updateUserProfile } from "@/lib/auth";
 
 export default function ProfilePage() {
   const { currentUser, stories, setCurrentUser } = useStore();
@@ -24,14 +25,35 @@ export default function ProfilePage() {
   // Mock saved stories - in production this would come from the store/database
   const savedStories = stories.filter(s => s.id === 's1' || s.id === 's2');
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!currentUser) return;
-    setCurrentUser({
-      ...currentUser,
-      name: editName,
-      avatar: editAvatar
-    });
-    setIsEditing(false);
+    const trimmedName = editName.trim();
+    if (trimmedName.length === 0) {
+      toast.error('Display name cannot be empty');
+      return;
+    }
+
+    const trimmedAvatar = editAvatar.trim();
+    const updates: { name: string; avatar?: string } = { name: trimmedName };
+    if (trimmedAvatar.length > 0) {
+      updates.avatar = trimmedAvatar;
+    }
+
+    try {
+      const { error } = await updateUserProfile(currentUser.id, updates);
+      if (error) throw error;
+
+      setCurrentUser({
+        ...currentUser,
+        name: trimmedName,
+        avatar: trimmedAvatar.length > 0 ? trimmedAvatar : currentUser.avatar,
+      });
+      toast.success('Profile updated!');
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast.error('Failed to update profile');
+    }
   };
 
   const handleCancel = () => {
@@ -320,29 +342,82 @@ export default function ProfilePage() {
         {activeTab === 'weeves' ? (
           <>
             {myStories.map(story => {
-              const isWaiting = story.status === 'active' &&
-                story.currentTurnUserId &&
-                story.currentTurnUserId !== currentUser.id;
+              const sortedContributions = (story.contributions || [])
+                .slice()
+                .sort((a, b) => a.timestamp - b.timestamp);
+              const hasContributions = sortedContributions.length > 0;
+              const firstContribution = sortedContributions[0];
+              const waitingForFirstContribution = !hasContributions;
 
-              const waitingForUser = isWaiting
+              const waitingForUser = story.currentTurnUserId
                 ? story.participants.find(p => p.id === story.currentTurnUserId)
                 : null;
 
+              const isWaitingForNextCreator = !waitingForFirstContribution && story.status === 'active' && story.currentTurnUserId && story.currentTurnUserId !== currentUser.id;
+
+              const firstMediaType = firstContribution?.mediaType;
+              const firstMediaUrl = firstContribution?.mediaUrl;
+
               return (
                 <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden">
-                  <img
-                    src={story.coverImage || story.contributions[0]?.mediaUrl || "https://via.placeholder.com/300"}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
+                  {waitingForFirstContribution ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-3">
+                      <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-sm w-full max-w-[85%]">
+                        <div className="relative">
+                          <div className="w-12 h-12 rounded-full border-2 border-[#EC1D99]/70 p-0.5 animate-pulse">
+                            <img
+                              src={waitingForUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${waitingForUser?.name || 'Storyteller'}`}
+                              alt={waitingForUser?.name || 'Next creator'}
+                              className="w-full h-full rounded-full object-cover"
+                            />
+                          </div>
+                          <div className="absolute -bottom-1 -right-1 bg-[#EC1D99] rounded-full p-0.5">
+                            <div className="w-2 h-2 bg-white rounded-full animate-ping" />
+                          </div>
+                        </div>
+                        <span className="text-[11px] uppercase tracking-wide text-gray-300">Waiting for</span>
+                        <span className="text-sm font-bold text-white truncate max-w-full">
+                          {waitingForUser?.name?.split(' ')[0] || 'a collaborator'}
+                        </span>
+                      </div>
+                    </div>
+                  ) : firstMediaType === 'video' && firstMediaUrl ? (
+                    <video
+                      src={firstMediaUrl}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                    />
+                  ) : firstMediaType === 'image' && firstMediaUrl ? (
+                    <img
+                      src={firstMediaUrl}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      alt={story.title}
+                    />
+                  ) : firstContribution ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-3 text-center">
+                      <p className="text-sm font-semibold leading-snug line-clamp-5">
+                        {firstContribution.content}
+                      </p>
+                    </div>
+                  ) : (
+                    <img
+                      src={story.coverImage || "https://via.placeholder.com/300"}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      alt={story.title}
+                    />
+                  )}
 
-                  {/* Waiting Overlay */}
-                  {isWaiting && waitingForUser && (
+                  {!waitingForFirstContribution && isWaitingForNextCreator && waitingForUser && (
                     <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-2 text-center backdrop-blur-[2px]">
                       <div className="relative mb-2">
                         <div className="w-10 h-10 rounded-full border-2 border-[#EC1D99] p-0.5 animate-pulse">
                           <img
                             src={waitingForUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${waitingForUser.name}`}
                             className="w-full h-full rounded-full object-cover"
+                            alt={waitingForUser.name}
                           />
                         </div>
                         <div className="absolute -bottom-1 -right-1 bg-[#EC1D99] rounded-full p-0.5">
@@ -372,21 +447,83 @@ export default function ProfilePage() {
         ) : (
           <>
             {savedStories.length > 0 ? (
-              savedStories.map(story => (
-                <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden">
-                  <img
-                    src={story.coverImage || story.contributions[0]?.mediaUrl || "https://via.placeholder.com/300"}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  <div className="absolute top-2 right-2">
-                    <Bookmark className="w-4 h-4 text-white fill-white drop-shadow-md" />
-                  </div>
-                  <div className="absolute bottom-1 left-1 flex items-center gap-1 text-[10px] font-bold drop-shadow-md text-white">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                    {story.contributions.length}
-                  </div>
-                </Link>
-              ))
+              savedStories.map(story => {
+                const sortedContributions = (story.contributions || [])
+                  .slice()
+                  .sort((a, b) => a.timestamp - b.timestamp);
+                const hasContributions = sortedContributions.length > 0;
+                const firstContribution = sortedContributions[0];
+                const waitingForFirstContribution = !hasContributions;
+
+                const waitingForUser = story.currentTurnUserId
+                  ? story.participants.find(p => p.id === story.currentTurnUserId)
+                  : null;
+
+                const firstMediaType = firstContribution?.mediaType;
+                const firstMediaUrl = firstContribution?.mediaUrl;
+
+                return (
+                  <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden">
+                    {waitingForFirstContribution ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-3">
+                        <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-sm w-full max-w-[85%]">
+                          <div className="relative">
+                            <div className="w-12 h-12 rounded-full border-2 border-[#EC1D99]/70 p-0.5 animate-pulse">
+                              <img
+                                src={waitingForUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${waitingForUser?.name || 'Storyteller'}`}
+                                alt={waitingForUser?.name || 'Next creator'}
+                                className="w-full h-full rounded-full object-cover"
+                              />
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 bg-[#EC1D99] rounded-full p-0.5">
+                              <div className="w-2 h-2 bg-white rounded-full animate-ping" />
+                            </div>
+                          </div>
+                          <span className="text-[11px] uppercase tracking-wide text-gray-300">Waiting for</span>
+                          <span className="text-sm font-bold text-white truncate max-w-full">
+                            {waitingForUser?.name?.split(' ')[0] || 'a collaborator'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : firstMediaType === 'video' && firstMediaUrl ? (
+                      <video
+                        src={firstMediaUrl}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                      />
+                    ) : firstMediaType === 'image' && firstMediaUrl ? (
+                      <img
+                        src={firstMediaUrl}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        alt={story.title}
+                      />
+                    ) : firstContribution ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-3 text-center">
+                        <p className="text-sm font-semibold leading-snug line-clamp-5">
+                          {firstContribution.content}
+                        </p>
+                      </div>
+                    ) : (
+                      <img
+                        src={story.coverImage || "https://via.placeholder.com/300"}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        alt={story.title}
+                      />
+                    )}
+
+                    <div className="absolute top-2 right-2">
+                      <Bookmark className="w-4 h-4 text-white fill-white drop-shadow-md" />
+                    </div>
+                    <div className="absolute bottom-1 left-1 flex items-center gap-1 text-[10px] font-bold drop-shadow-md text-white">
+                      <div className="w-2 h-2 bg-white rounded-full"></div>
+                      {story.contributions.length}
+                    </div>
+                  </Link>
+                );
+              })
             ) : (
               <div className="col-span-3 flex flex-col items-center justify-center py-16 text-gray-500">
                 <Bookmark className="w-12 h-12 mb-3 opacity-50" />

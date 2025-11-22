@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { supabase } from './supabase';
 
 export interface User {
     id: string;
@@ -40,6 +41,14 @@ export interface Contribution {
     textStyle?: TextStyle;
 }
 
+export interface StoryComment {
+    id: string;
+    userId: string;
+    userName: string;
+    content: string;
+    timestamp: number;
+}
+
 export interface Story {
     id: string;
     title: string;
@@ -55,6 +64,9 @@ export interface Story {
     theme?: string; // Visual theme for the story
     groupId?: string;
     groupAvatar?: string;
+    likes: number;
+    likedBy: string[];
+    comments: StoryComment[];
 }
 
 interface AppState {
@@ -65,12 +77,16 @@ interface AppState {
     groups: Group[];
 
     addStory: (story: Story) => void;
-    addContribution: (storyId: string, contribution: {
+    addContribution: (storyId: string, contribution: Contribution | {
+        id?: string;
+        userId?: string;
+        userName?: string;
         content: string;
         mediaType: MediaType;
         mediaUrl?: string;
         textStyle?: TextStyle;
-    }) => void;
+        timestamp?: number;
+    }, options?: { nextTurnUserId?: string | null }) => void;
     updateStory: (id: string, updates: Partial<Story>) => void;
     setActiveWeeve: (id: string | null) => void;
     addGroup: (group: Group) => void;
@@ -79,6 +95,8 @@ interface AppState {
     setCurrentUser: (user: User | null) => void;
     setStories: (stories: Story[]) => void;
     setGroups: (groups: Group[]) => void;
+    toggleStoryLike: (storyId: string) => Promise<void>;
+    addStoryComment: (storyId: string, content: string) => Promise<void>;
     logoutUser: () => void;
 }
 
@@ -141,6 +159,17 @@ const MOCK_STORIES: Story[] = [
         status: 'active',
         coverImage: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_FRIENDS[0], MOCK_USER],
+        likes: 42,
+        likedBy: ['1', 'me'],
+        comments: [
+            {
+                id: 'cm1',
+                userId: '1',
+                userName: 'Alice',
+                content: 'This routine is goals! 💪',
+                timestamp: 1700000120000,
+            },
+        ],
         contributions: [
             {
                 id: 'c1',
@@ -172,6 +201,17 @@ const MOCK_STORIES: Story[] = [
         currentTurnUserId: 'me',
         coverImage: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_FRIENDS[1], MOCK_USER, MOCK_FRIENDS[2]],
+        likes: 18,
+        likedBy: ['2', 'me'],
+        comments: [
+            {
+                id: 'cm2',
+                userId: '3',
+                userName: 'Carol',
+                content: 'Kyoto is on my list! 🍂',
+                timestamp: 1700000250000,
+            },
+        ],
         contributions: [
             {
                 id: 'c3',
@@ -193,6 +233,24 @@ const MOCK_STORIES: Story[] = [
         status: 'active',
         coverImage: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER, MOCK_FRIENDS[0], MOCK_FRIENDS[1], MOCK_FRIENDS[2]],
+        likes: 67,
+        likedBy: ['me', '1', '2', '3'],
+        comments: [
+            {
+                id: 'cm3',
+                userId: '2',
+                userName: 'Bob',
+                content: 'Need to visit this rooftop spot! ☕',
+                timestamp: 1700000650000,
+            },
+            {
+                id: 'cm4',
+                userId: '1',
+                userName: 'Alice',
+                content: 'Night market time! 🍜',
+                timestamp: 1700000850000,
+            },
+        ],
         contributions: [
             {
                 id: 'c3_1',
@@ -268,6 +326,9 @@ const MOCK_STORIES: Story[] = [
         status: 'completed',
         coverImage: 'https://images.unsplash.com/photo-1556910103-1c02745a30bf?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER, MOCK_FRIENDS[0]],
+        likes: 9,
+        likedBy: ['me'],
+        comments: [],
         contributions: [
             {
                 id: 'c4_1',
@@ -289,6 +350,17 @@ const MOCK_STORIES: Story[] = [
         status: 'active',
         coverImage: 'https://images.unsplash.com/photo-1551632811-561732d1e306?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER, MOCK_FRIENDS[1], MOCK_FRIENDS[2]],
+        likes: 25,
+        likedBy: ['me', '2'],
+        comments: [
+            {
+                id: 'cm5',
+                userId: '2',
+                userName: 'Bob',
+                content: 'That view is unbelievable! 😍',
+                timestamp: 1700001150000,
+            },
+        ],
         contributions: [
             {
                 id: 'c5_1',
@@ -310,6 +382,9 @@ const MOCK_STORIES: Story[] = [
         status: 'completed',
         coverImage: 'https://images.unsplash.com/photo-1518998053901-5348d3969105?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER],
+        likes: 7,
+        likedBy: ['me'],
+        comments: [],
         contributions: [
             {
                 id: 'c6_1',
@@ -337,31 +412,67 @@ export const useStore = create<AppState>((set, get) => ({
     addGroup: (group) =>
         set((state) => ({ groups: [group, ...state.groups] })),
 
-    addContribution: (storyId, contribution) =>
+    addContribution: (storyId, contribution, options) =>
         set((state) => {
-            if (!state.currentUser) return state;
             const storyIndex = state.stories.findIndex((s) => s.id === storyId);
             if (storyIndex === -1) return state;
 
+            const currentStory = state.stories[storyIndex];
+            const maxWeeves = typeof currentStory.maxWeeves === 'number' ? currentStory.maxWeeves : null;
+
+            if (maxWeeves !== null && currentStory.contributions.length >= maxWeeves) {
+                return state;
+            }
+
+            const suppliedUserId = 'userId' in contribution ? contribution.userId : undefined;
+            const suppliedUserName = 'userName' in contribution ? contribution.userName : undefined;
+            const suppliedId = 'id' in contribution ? contribution.id : undefined;
+            const suppliedTimestamp = 'timestamp' in contribution ? contribution.timestamp : undefined;
+
+            const fallbackUserId = suppliedUserId ?? (state.currentUser ? state.currentUser.id : undefined);
+
+            if (!fallbackUserId) {
+                return state;
+            }
+
+            const fallbackUserName = suppliedUserName ?? (state.currentUser ? state.currentUser.name : 'Unknown User');
+
+            const timestamp = suppliedTimestamp ?? Date.now();
+
             const newContribution: Contribution = {
-                id: Math.random().toString(36).substr(2, 9),
-                userId: state.currentUser.id,
-                userName: state.currentUser.name,
-                ...contribution,
-                timestamp: Date.now(), // Safe to use Date.now() here as this only runs client-side after hydration
+                id: suppliedId ?? Math.random().toString(36).substr(2, 9),
+                userId: fallbackUserId,
+                userName: fallbackUserName,
+                content: contribution.content,
+                mediaType: contribution.mediaType,
+                mediaUrl: contribution.mediaUrl,
+                timestamp,
+                textStyle: contribution.textStyle,
             };
+
+            const updatedContributions = [...currentStory.contributions, newContribution];
+            const reachedCapacity = maxWeeves !== null && updatedContributions.length >= maxWeeves;
+
+            const nextTurnUserId = (() => {
+                if (options && Object.prototype.hasOwnProperty.call(options, 'nextTurnUserId')) {
+                    return options.nextTurnUserId ?? undefined;
+                }
+                if (reachedCapacity) {
+                    return undefined;
+                }
+                const participants = currentStory.participants;
+                const currentIndex = participants.findIndex((p) => p.id === fallbackUserId);
+                if (currentIndex === -1 || participants.length === 0) return currentStory.currentTurnUserId;
+                const nextIndex = (currentIndex + 1) % participants.length;
+                return participants[nextIndex]?.id ?? currentStory.currentTurnUserId;
+            })();
 
             const updatedStories = [...state.stories];
             updatedStories[storyIndex] = {
-                ...updatedStories[storyIndex],
-                contributions: [...updatedStories[storyIndex].contributions, newContribution],
-                currentTurnUserId: (() => {
-                    const participants = updatedStories[storyIndex].participants;
-                    const currentIndex = participants.findIndex(p => p.id === state.currentUser!.id);
-                    if (currentIndex === -1) return undefined;
-                    const nextIndex = (currentIndex + 1) % participants.length;
-                    return participants[nextIndex].id;
-                })()
+                ...currentStory,
+                contributions: updatedContributions,
+                currentTurnUserId: nextTurnUserId,
+                status: reachedCapacity ? 'completed' : currentStory.status,
             };
 
             return { stories: updatedStories };
@@ -406,6 +517,112 @@ export const useStore = create<AppState>((set, get) => ({
     setStories: (stories) => set({ stories }),
 
     setGroups: (groups) => set({ groups }),
+
+    toggleStoryLike: async (storyId) => {
+        const { currentUser } = get();
+        if (!currentUser) return;
+
+        const state = get();
+        const story = state.stories.find((s) => s.id === storyId);
+        if (!story) return;
+
+        const alreadyLiked = story.likedBy.includes(currentUser.id);
+
+        if (alreadyLiked) {
+            const { error } = await supabase
+                .from('story_likes')
+                .delete()
+                .match({ story_id: storyId, user_id: currentUser.id });
+
+            if (error) {
+                console.error('Failed to remove like:', error);
+                return;
+            }
+        } else {
+            const { error } = await supabase
+                .from('story_likes')
+                .insert({ story_id: storyId, user_id: currentUser.id });
+
+            if (error) {
+                console.error('Failed to add like:', error);
+                return;
+            }
+        }
+
+        const shouldLike = !alreadyLiked;
+
+        set((state) => {
+            const storyIndex = state.stories.findIndex((s) => s.id === storyId);
+            if (storyIndex === -1) return state;
+
+            const baseStory = state.stories[storyIndex];
+            const updatedLikedBy = shouldLike
+                ? Array.from(new Set([...baseStory.likedBy, currentUser.id]))
+                : baseStory.likedBy.filter((id) => id !== currentUser.id);
+
+            const updatedStory: Story = {
+                ...baseStory,
+                likedBy: updatedLikedBy,
+                likes: updatedLikedBy.length,
+            };
+
+            const updatedStories = [...state.stories];
+            updatedStories[storyIndex] = updatedStory;
+
+            return { stories: updatedStories };
+        });
+    },
+
+    addStoryComment: async (storyId, content) => {
+        const trimmed = content.trim();
+        if (!trimmed) return;
+
+        const { currentUser } = get();
+        if (!currentUser) return;
+
+        const timestamp = Date.now();
+
+        const { data: insertedComment, error } = await supabase
+            .from('story_comments')
+            .insert({
+                story_id: storyId,
+                user_id: currentUser.id,
+                user_name: currentUser.name,
+                content: trimmed,
+                timestamp,
+            })
+            .select()
+            .single();
+
+        if (error || !insertedComment) {
+            console.error('Failed to add comment:', error);
+            return;
+        }
+
+        const newComment: StoryComment = {
+            id: insertedComment.id,
+            userId: insertedComment.user_id,
+            userName: insertedComment.user_name,
+            content: insertedComment.content,
+            timestamp: insertedComment.timestamp ?? timestamp,
+        };
+
+        set((state) => {
+            const storyIndex = state.stories.findIndex((s) => s.id === storyId);
+            if (storyIndex === -1) return state;
+
+            const baseStory = state.stories[storyIndex];
+            const updatedStory: Story = {
+                ...baseStory,
+                comments: [...baseStory.comments, newComment].sort((a, b) => a.timestamp - b.timestamp),
+            };
+
+            const updatedStories = [...state.stories];
+            updatedStories[storyIndex] = updatedStory;
+
+            return { stories: updatedStories };
+        });
+    },
 
     logoutUser: () => set({ currentUser: null }),
 }));

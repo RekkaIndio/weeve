@@ -133,6 +133,21 @@ async function seedDatabase() {
                 timestamp: 1700000100000,
             },
         ] as any)
+
+        await supabase.from('story_likes').insert([
+            { story_id: story1.id, user_id: '1' },
+            { story_id: story1.id, user_id: 'me' },
+        ] as any)
+
+        await supabase.from('story_comments').insert([
+            {
+                story_id: story1.id,
+                user_id: '1',
+                user_name: 'Alice',
+                content: 'This routine is goals! 💪',
+                timestamp: 1700000120000,
+            },
+        ] as any)
         console.log('✅ Created story: Morning Routine')
 
         // Seed story: Travel Diaries
@@ -169,6 +184,21 @@ async function seedDatabase() {
                 media_type: 'image' as const,
                 media_url: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=1000&auto=format&fit=crop',
                 timestamp: 1700000200000,
+            },
+        ] as any)
+
+        await supabase.from('story_likes').insert([
+            { story_id: story2.id, user_id: '2' },
+            { story_id: story2.id, user_id: 'me' },
+        ] as any)
+
+        await supabase.from('story_comments').insert([
+            {
+                story_id: story2.id,
+                user_id: '3',
+                user_name: 'Carol',
+                content: 'Kyoto is on my list! 🍂',
+                timestamp: 1700000250000,
             },
         ] as any)
         console.log('✅ Created story: Travel Diaries')
@@ -259,6 +289,30 @@ async function seedDatabase() {
                 media_type: 'video' as const,
                 media_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
                 timestamp: 1700000900000,
+            },
+        ] as any)
+
+        await supabase.from('story_likes').insert([
+            { story_id: story3.id, user_id: 'me' },
+            { story_id: story3.id, user_id: '1' },
+            { story_id: story3.id, user_id: '2' },
+            { story_id: story3.id, user_id: '3' },
+        ] as any)
+
+        await supabase.from('story_comments').insert([
+            {
+                story_id: story3.id,
+                user_id: '2',
+                user_name: 'Bob',
+                content: 'Need to visit this rooftop spot! ☕',
+                timestamp: 1700000650000,
+            },
+            {
+                story_id: story3.id,
+                user_id: '1',
+                user_name: 'Alice',
+                content: 'Night market time! 🍜',
+                timestamp: 1700000850000,
             },
         ] as any)
         console.log('✅ Created story: Urban Jungle Adventure')

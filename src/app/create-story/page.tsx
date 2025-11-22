@@ -141,6 +141,9 @@ function CreateStoryContent() {
         maxWeeves: data.inviteCount,
         groupId: groupId || undefined,
         groupAvatar: groupInfo?.avatar,
+        likes: 0,
+        likedBy: [],
+        comments: [],
       };
 
       addStory(newStory);

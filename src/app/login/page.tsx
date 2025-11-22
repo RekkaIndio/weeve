@@ -33,6 +33,7 @@ export default function LoginPage() {
         } catch (err: any) {
             console.error('[Login] Error:', err);
             setError(err.message || "Failed to log in");
+        } finally {
             setLoading(false);
         }
     };

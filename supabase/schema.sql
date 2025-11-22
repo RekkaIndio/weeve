@@ -45,8 +45,66 @@ CREATE TABLE IF NOT EXISTS contributions (
   media_type TEXT NOT NULL CHECK (media_type IN ('video', 'image', 'text')),
   media_url TEXT,
   timestamp BIGINT NOT NULL,
+  text_style JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Story likes table (per-user likes)
+CREATE TABLE IF NOT EXISTS story_likes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  story_id UUID NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(story_id, user_id)
+);
+
+-- Story comments table
+CREATE TABLE IF NOT EXISTS story_comments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  story_id UUID NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
+  user_name TEXT NOT NULL,
+  content TEXT NOT NULL,
+  timestamp BIGINT NOT NULL DEFAULT (floor(extract(epoch FROM NOW()) * 1000)),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enforce max_weeves limit per story and auto-complete stories at capacity
+CREATE OR REPLACE FUNCTION enforce_story_contribution_limit()
+RETURNS TRIGGER AS $$
+DECLARE
+  max_limit INTEGER;
+  existing_count INTEGER;
+BEGIN
+  SELECT max_weeves INTO max_limit FROM stories WHERE id = NEW.story_id;
+
+  IF max_limit IS NULL OR max_limit <= 0 THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COUNT(*) INTO existing_count FROM contributions WHERE story_id = NEW.story_id;
+
+  IF existing_count >= max_limit THEN
+    RAISE EXCEPTION 'Contribution limit reached for this story';
+  END IF;
+
+  IF existing_count + 1 = max_limit THEN
+    UPDATE stories
+    SET status = 'completed',
+        current_turn_user_id = NULL,
+        updated_at = NOW()
+    WHERE id = NEW.story_id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS enforce_story_contribution_limit ON contributions;
+CREATE TRIGGER enforce_story_contribution_limit
+  BEFORE INSERT ON contributions
+  FOR EACH ROW
+  EXECUTE FUNCTION enforce_story_contribution_limit();
 
 -- Story participants table (many-to-many relationship)
 CREATE TABLE IF NOT EXISTS story_participants (
@@ -100,6 +158,10 @@ CREATE INDEX IF NOT EXISTS idx_stories_creator_id ON stories(creator_id);
 CREATE INDEX IF NOT EXISTS idx_stories_status ON stories(status);
 CREATE INDEX IF NOT EXISTS idx_contributions_story_id ON contributions(story_id);
 CREATE INDEX IF NOT EXISTS idx_contributions_user_id ON contributions(user_id);
+CREATE INDEX IF NOT EXISTS idx_story_likes_story_id ON story_likes(story_id);
+CREATE INDEX IF NOT EXISTS idx_story_likes_user_id ON story_likes(user_id);
+CREATE INDEX IF NOT EXISTS idx_story_comments_story_id ON story_comments(story_id);
+CREATE INDEX IF NOT EXISTS idx_story_comments_user_id ON story_comments(user_id);
 CREATE INDEX IF NOT EXISTS idx_story_participants_story_id ON story_participants(story_id);
 CREATE INDEX IF NOT EXISTS idx_story_participants_user_id ON story_participants(user_id);
 CREATE INDEX IF NOT EXISTS idx_group_members_group_id ON group_members(group_id);
@@ -113,6 +175,12 @@ CREATE INDEX IF NOT EXISTS idx_friendships_friend_id ON friendships(friend_id);
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE contributions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE story_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE story_comments ENABLE ROW LEVEL SECURITY;
+
+-- Ensure text_style column exists for environments created before this column was added
+ALTER TABLE contributions
+  ADD COLUMN IF NOT EXISTS text_style JSONB;
 ALTER TABLE story_participants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
@@ -160,6 +228,32 @@ CREATE POLICY "Contributions are viewable by everyone" ON contributions
 DROP POLICY IF EXISTS "Users can add contributions" ON contributions;
 CREATE POLICY "Users can add contributions" ON contributions
   FOR INSERT WITH CHECK (true);
+
+-- Story Likes Policies
+DROP POLICY IF EXISTS "Story likes are viewable by everyone" ON story_likes;
+CREATE POLICY "Story likes are viewable by everyone" ON story_likes
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Users can like stories" ON story_likes;
+CREATE POLICY "Users can like stories" ON story_likes
+  FOR INSERT WITH CHECK (auth.role() = 'authenticated' AND user_id = auth.uid()::text);
+
+DROP POLICY IF EXISTS "Users can remove their likes" ON story_likes;
+CREATE POLICY "Users can remove their likes" ON story_likes
+  FOR DELETE USING (auth.role() = 'authenticated' AND user_id = auth.uid()::text);
+
+-- Story Comments Policies
+DROP POLICY IF EXISTS "Story comments are viewable by everyone" ON story_comments;
+CREATE POLICY "Story comments are viewable by everyone" ON story_comments
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Users can comment on stories" ON story_comments;
+CREATE POLICY "Users can comment on stories" ON story_comments
+  FOR INSERT WITH CHECK (auth.role() = 'authenticated' AND user_id = auth.uid()::text);
+
+DROP POLICY IF EXISTS "Users can delete their comments" ON story_comments;
+CREATE POLICY "Users can delete their comments" ON story_comments
+  FOR DELETE USING (auth.role() = 'authenticated' AND user_id = auth.uid()::text);
 
 -- Story Participants: Anyone can read, managed via app
 DROP POLICY IF EXISTS "Story participants are viewable by everyone" ON story_participants;

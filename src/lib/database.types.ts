@@ -58,6 +58,7 @@ export interface Database {
                     description: string
                     creator_id: string
                     mode: 'invite' | 'open'
+                    visibility: 'public' | 'private'
                     status: 'active' | 'completed'
                     current_turn_user_id: string | null
                     max_weeves: number | null
@@ -73,6 +74,7 @@ export interface Database {
                     description: string
                     creator_id: string
                     mode: 'invite' | 'open'
+                    visibility?: 'public' | 'private'
                     status?: 'active' | 'completed'
                     current_turn_user_id?: string | null
                     max_weeves?: number | null
@@ -88,6 +90,7 @@ export interface Database {
                     description?: string
                     creator_id?: string
                     mode?: 'invite' | 'open'
+                    visibility?: 'public' | 'private'
                     status?: 'active' | 'completed'
                     current_turn_user_id?: string | null
                     max_weeves?: number | null
@@ -116,6 +119,7 @@ export interface Database {
                     media_type: 'video' | 'image' | 'text'
                     media_url: string | null
                     timestamp: number
+                    text_style: Json | null
                     created_at: string
                 }
                 Insert: {
@@ -127,6 +131,7 @@ export interface Database {
                     media_type: 'video' | 'image' | 'text'
                     media_url?: string | null
                     timestamp: number
+                    text_style?: Json | null
                     created_at?: string
                 }
                 Update: {
@@ -138,6 +143,7 @@ export interface Database {
                     media_type?: 'video' | 'image' | 'text'
                     media_url?: string | null
                     timestamp?: number
+                    text_style?: Json | null
                     created_at?: string
                 }
                 Relationships: [
@@ -149,6 +155,83 @@ export interface Database {
                     },
                     {
                         foreignKeyName: "contributions_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
+            story_likes: {
+                Row: {
+                    id: string
+                    story_id: string
+                    user_id: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    story_id: string
+                    user_id: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    story_id?: string
+                    user_id?: string
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "story_likes_story_id_fkey"
+                        columns: ["story_id"]
+                        referencedRelation: "stories"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "story_likes_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
+            story_comments: {
+                Row: {
+                    id: string
+                    story_id: string
+                    user_id: string
+                    user_name: string
+                    content: string
+                    timestamp: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    story_id: string
+                    user_id: string
+                    user_name: string
+                    content: string
+                    timestamp?: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    story_id?: string
+                    user_id?: string
+                    user_name?: string
+                    content?: string
+                    timestamp?: number
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "story_comments_story_id_fkey"
+                        columns: ["story_id"]
+                        referencedRelation: "stories"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "story_comments_user_id_fkey"
                         columns: ["user_id"]
                         referencedRelation: "profiles"
                         referencedColumns: ["user_id"]
