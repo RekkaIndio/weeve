@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/lib/store';
 import { getUserProfile, profileExists } from '@/lib/auth';
+import { toast } from 'sonner';
 
 interface AuthContextType {
     user: SupabaseUser | null;
@@ -64,6 +65,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     };
                     setCurrentUser(appUser);
                     console.log('[AuthProvider] Updated user with database data:', appUser);
+                } else {
+                    console.error('[AuthProvider] Failed to load profile data despite profileExists=true');
+                    toast.error('Failed to load user profile. Please try refreshing.');
                 }
 
                 // Redirect to homepage if on auth pages
@@ -82,6 +86,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             }
         } catch (error) {
             console.error('[AuthProvider] Error in auth flow:', error);
+            toast.error('Authentication error. Please try again.');
             // Even if there's an error, keep the default user we set earlier
         } finally {
             setLoading(false);

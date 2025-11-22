@@ -37,9 +37,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const showNavigation = user && !isAuthPage;
 
     return (
-        <div className="flex justify-center min-h-screen bg-black text-white">
+        <div className="flex justify-center min-h-[100dvh] bg-black text-white">
             {/* Mobile Container - Centered on Desktop */}
-            <div className="w-full max-w-md bg-black h-screen flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-800">
+            <div className="w-full max-w-md bg-black h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-800">
 
                 {showHomeNotification && (
                     <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 pb-2 flex justify-end pointer-events-none">

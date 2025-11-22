@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS stories (
   max_weeves INTEGER,
   cover_image TEXT,
   theme TEXT,
+  group_id UUID REFERENCES groups(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -189,6 +190,12 @@ ALTER TABLE friendships ENABLE ROW LEVEL SECURITY;
 -- Ensure visibility column exists for environments created before it was added
 ALTER TABLE stories
   ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('public', 'private'));
+
+-- Ensure group_id column exists for environments created before it was added
+ALTER TABLE stories
+  ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_stories_group_id ON stories(group_id);
 
 -- Profiles: Anyone can read, users can update their own
 DROP POLICY IF EXISTS "Profiles are viewable by everyone" ON profiles;
