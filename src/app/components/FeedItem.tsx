@@ -136,28 +136,30 @@ export default function FeedItem({ story }: FeedItemProps) {
                     {story.description}
                 </p>
 
-                <Link
-                    href={`/story/${story.id}`}
-                    className="flex items-center gap-2 mb-3 w-fit hover:opacity-80 transition-opacity"
-                >
+                <div className="flex items-center gap-2 mb-3 w-fit">
                     <div className="flex -space-x-2">
                         {story.participants.slice(0, 3).map((p) => {
                             const isActive = p.id === activeUserId;
                             return (
-                                <div key={p.id} className={`relative rounded-full ${isActive ? 'z-10 scale-110 transition-transform duration-300' : ''}`}>
+                                <Link
+                                    key={p.id}
+                                    href={`/profile/${p.id}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className={`relative rounded-full ${isActive ? 'z-10 scale-110 transition-transform duration-300' : ''}`}
+                                >
                                     <img
                                         src={p.avatar}
                                         alt={p.name}
                                         className={`w-10 h-10 rounded-full border-2 ${isActive ? 'border-[#EC1D99] shadow-[0_0_10px_#EC1D99]' : 'border-black'}`}
                                     />
-                                </div>
+                                </Link>
                             );
                         })}
                     </div>
-                    <span className="text-sm font-medium text-gray-300 ml-2">
+                    <Link href={`/story/${story.id}`} className="text-sm font-medium text-gray-300 ml-2 hover:text-white transition-colors">
                         {story.participants.length} Weevers
-                    </span>
-                </Link>
+                    </Link>
+                </div>
             </div>
         </div>
     );

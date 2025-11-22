@@ -36,7 +36,7 @@ export interface Story {
     title: string;
     description: string;
     creatorId: string;
-    mode: 'invite' | 'open';
+    visibility: 'public' | 'private';
     status: 'active' | 'completed';
     currentTurnUserId?: string;
     contributions: Contribution[];
@@ -119,7 +119,7 @@ const MOCK_STORIES: Story[] = [
         title: 'Morning Routine',
         description: 'Show us how you start your day! ☀️',
         creatorId: '1',
-        mode: 'open',
+        visibility: 'public',
         status: 'active',
         coverImage: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_FRIENDS[0], MOCK_USER],
@@ -149,7 +149,7 @@ const MOCK_STORIES: Story[] = [
         title: 'Travel Diaries',
         description: 'Where is the most beautiful place you have been?',
         creatorId: '2',
-        mode: 'invite',
+        visibility: 'private',
         status: 'active',
         currentTurnUserId: 'me',
         coverImage: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1000&auto=format&fit=crop',
@@ -171,7 +171,7 @@ const MOCK_STORIES: Story[] = [
         title: 'Urban Jungle Adventure',
         description: 'Exploring the hidden gems of the city 🏙️',
         creatorId: 'me',
-        mode: 'open',
+        visibility: 'public',
         status: 'active',
         coverImage: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER, MOCK_FRIENDS[0], MOCK_FRIENDS[1], MOCK_FRIENDS[2]],
@@ -246,7 +246,7 @@ const MOCK_STORIES: Story[] = [
         title: 'Cooking Class',
         description: 'Learning to make pasta from scratch! 🍝',
         creatorId: 'me',
-        mode: 'open',
+        visibility: 'public',
         status: 'completed',
         coverImage: 'https://images.unsplash.com/photo-1556910103-1c02745a30bf?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER, MOCK_FRIENDS[0]],
@@ -267,7 +267,7 @@ const MOCK_STORIES: Story[] = [
         title: 'Hiking Trip',
         description: 'Conquering the mountain peak 🏔️',
         creatorId: 'me',
-        mode: 'open',
+        visibility: 'public',
         status: 'active',
         coverImage: 'https://images.unsplash.com/photo-1551632811-561732d1e306?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER, MOCK_FRIENDS[1], MOCK_FRIENDS[2]],
@@ -288,7 +288,7 @@ const MOCK_STORIES: Story[] = [
         title: 'Art Gallery Visit',
         description: 'Getting inspired by modern art 🎨',
         creatorId: 'me',
-        mode: 'open',
+        visibility: 'public',
         status: 'completed',
         coverImage: 'https://images.unsplash.com/photo-1518998053901-5348d3969105?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER],
@@ -338,16 +338,13 @@ export const useStore = create<AppState>((set, get) => ({
             updatedStories[storyIndex] = {
                 ...updatedStories[storyIndex],
                 contributions: [...updatedStories[storyIndex].contributions, newContribution],
-                currentTurnUserId:
-                    updatedStories[storyIndex].mode === 'invite'
-                        ? (() => {
-                            const participants = updatedStories[storyIndex].participants;
-                            const currentIndex = participants.findIndex(p => p.id === state.currentUser.id);
-                            if (currentIndex === -1) return undefined;
-                            const nextIndex = (currentIndex + 1) % participants.length;
-                            return participants[nextIndex].id;
-                        })()
-                        : undefined
+                currentTurnUserId: (() => {
+                    const participants = updatedStories[storyIndex].participants;
+                    const currentIndex = participants.findIndex(p => p.id === state.currentUser.id);
+                    if (currentIndex === -1) return undefined;
+                    const nextIndex = (currentIndex + 1) % participants.length;
+                    return participants[nextIndex].id;
+                })()
             };
 
             return { stories: updatedStories };

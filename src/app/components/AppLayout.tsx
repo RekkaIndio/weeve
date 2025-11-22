@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, PlusSquare, User, Bell, Compass } from "lucide-react";
+import { Home, PlusSquare, User, Bell, Users, Compass } from "lucide-react";
 import { useStore } from "@/lib/store";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -14,18 +14,46 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         (s) => s.status === "active" && s.currentTurnUserId === currentUser.id
     ).length;
 
+    // Mock notification count (you can replace this with actual notification logic)
+    const notificationCount = 3;
+
     const navItems = [
         { label: "Home", href: "/", icon: Home },
         { label: "Discover", href: "/discover", icon: Compass },
         { label: "Create", href: "/create-story", icon: PlusSquare },
-        { label: "Activity", href: "/activity", icon: Bell },
+        { label: "Groups", href: "/groups", icon: Users },
         { label: "Profile", href: "/profile", icon: User },
     ];
+
+    // Pages where we should hide the header (login, signup, or full-screen experiences)
+    const hideHeaderRoutes = ['/login', '/signup', '/story', '/profile'];
+    const shouldHideHeader = hideHeaderRoutes.some(route => pathname?.startsWith(route));
 
     return (
         <div className="flex justify-center min-h-screen bg-black text-white">
             {/* Mobile Container - Centered on Desktop */}
             <div className="w-full max-w-md bg-black h-screen flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-800">
+
+                {/* Floating Notification Bell - Top Right */}
+                {currentUser.id !== 'guest' && !shouldHideHeader && (
+                    <Link
+                        href="/activity"
+                        className="fixed top-4 right-4 z-50 p-2 transition-all hover:scale-105"
+                        aria-label="Notifications"
+                        style={{ maxWidth: '448px', right: 'max(1rem, calc(50% - 224px + 1rem))' }}
+                    >
+                        <Bell
+                            className={`w-6 h-6 ${pathname === '/activity' ? 'text-[#EC1D99]' : 'text-white'}`}
+                            strokeWidth={1.5}
+                            style={{ filter: 'drop-shadow(0 0 2px rgba(107, 114, 128, 0.5))' }}
+                        />
+                        {notificationCount > 0 && (
+                            <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#EC1D99] rounded-full flex items-center justify-center text-[9px] font-bold">
+                                {notificationCount > 9 ? '9+' : notificationCount}
+                            </span>
+                        )}
+                    </Link>
+                )}
 
                 {/* Main Content */}
                 <main className="flex-1 overflow-y-auto scrollbar-hide">

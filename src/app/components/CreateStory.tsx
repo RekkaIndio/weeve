@@ -1,10 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronLeft, Loader } from "lucide-react";
-import StoryTemplates, { Template } from "./StoryTemplates";
-import ThemeSelector from "./ThemeSelector";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronLeft, Loader, Globe, Lock } from "lucide-react";
 
 export interface Friend {
   id: string;
@@ -17,13 +15,12 @@ export interface Friend {
 export interface CreateStoryFormState {
   title: string;
   description: string;
-  mode: "invite" | "open";
+  visibility: "public" | "private";
   selectedFriends: Friend[];
   orderedParticipants?: (Friend | null)[];
-  maxWeeves: string;
+
   inviteCount: number; // number of invite slots (1-10)
   hashtags?: string[];
-  theme?: string;
 }
 
 interface CreateStoryProps {
@@ -42,19 +39,21 @@ const CreateStory = ({
   onDeductTokens,
 }: CreateStoryProps) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteId = searchParams?.get('invite');
+
   const handleBack = onBack ?? (() => router.back());
   const [formState, setFormState] = useState<CreateStoryFormState>({
     title: "",
     description: "",
-    mode: "invite",
+    visibility: "private",
     selectedFriends: [],
     orderedParticipants: currentUser
       ? [{ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }, ...Array(3).fill(null)]
       : Array(4).fill(null),
-    maxWeeves: "",
+
     inviteCount: 3,
     hashtags: [],
-    theme: 'default',
   });
 
   const [hashtagInput, setHashtagInput] = useState("");
@@ -72,6 +71,32 @@ const CreateStory = ({
   const [allowReuse, setAllowReuse] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
+  // Handle invite query param
+  useEffect(() => {
+    if (inviteId && availableFriends.length > 0) {
+      const friendToInvite = availableFriends.find(f => f.id === inviteId);
+      if (friendToInvite) {
+        // Check if already added to avoid duplicates/infinite loop
+        setFormState(prev => {
+          if (prev.selectedFriends.some(f => f.id === friendToInvite.id)) return prev;
+
+          // Add to first available slot
+          const newParticipants = [...(prev.orderedParticipants || [])];
+          const emptyIndex = newParticipants.findIndex(p => p === null);
+          if (emptyIndex !== -1) {
+            newParticipants[emptyIndex] = friendToInvite;
+            return {
+              ...prev,
+              selectedFriends: [...prev.selectedFriends, friendToInvite],
+              orderedParticipants: newParticipants
+            };
+          }
+          return prev;
+        });
+      }
+    }
+  }, [inviteId, availableFriends]);
+
   // Make sure timers get cleared on unmount
   useEffect(() => {
     return () => {
@@ -85,12 +110,8 @@ const CreateStory = ({
   const isCreateDisabled = (() => {
     if (isLoading) return true;
     if (formState.title.trim().length === 0) return true;
-    if (formState.mode === "invite" && formState.selectedFriends.length === 0)
-      return true;
-    if (formState.mode === "open" && formState.maxWeeves !== "") {
-      const n = parseInt((formState.maxWeeves as unknown as string) || "0");
-      if (Number.isNaN(n) || n < 5 || n > 100) return true;
-    }
+    // Always require at least one friend for now since it's turn-based
+    if (formState.selectedFriends.length === 0) return true;
     return false;
   })();
 
@@ -120,16 +141,11 @@ const CreateStory = ({
     setFormState((prev) => ({ ...prev, description: value }));
   };
 
-  // Handle mode selection change
-  const handleModeChange = (mode: "invite" | "open") => {
+  // Handle visibility selection change
+  const handleVisibilityChange = (visibility: "public" | "private") => {
     setFormState((prev) => ({
       ...prev,
-      mode,
-      selectedFriends: [], // Reset friends when switching modes
-      orderedParticipants: mode === 'invite'
-        ? [currentUser ? { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar } : null, ...Array(prev.inviteCount).fill(null)]
-        : [],
-      maxWeeves: "", // Reset max weeves when switching modes
+      visibility,
     }));
     setError("");
   };
@@ -239,20 +255,7 @@ const CreateStory = ({
     });
   };
 
-  // Handle max weeves input change
-  const handleMaxWeevesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value === "" || /^\d+$/.test(value)) {
-      const numValue =
-        value === ""
-          ? ""
-          : Math.min(Math.max(parseInt(value), 5), 100).toString();
-      setFormState((prev) => ({
-        ...prev,
-        maxWeeves: value === "" ? "" : numValue,
-      }));
-    }
-  };
+
 
   // Handle form submission
   const handleCreateStory = async () => {
@@ -265,7 +268,7 @@ const CreateStory = ({
 
     const activeParticipants = (formState.orderedParticipants || []).filter(p => p !== null);
 
-    if (formState.mode === "invite" && activeParticipants.length < 2) {
+    if (activeParticipants.length < 2) {
       setError("Please add at least one friend to invite");
       if (friendsInputRef.current) friendsInputRef.current.focus();
       return;
@@ -327,28 +330,7 @@ const CreateStory = ({
     }));
   };
 
-  const handleTemplateSelect = (template: Template) => {
-    setFormState((prev) => ({
-      ...prev,
-      title: template.title,
-      description: template.description,
-      mode: template.mode,
-      inviteCount: template.inviteCount || prev.inviteCount,
-      maxWeeves: template.maxWeeves || "",
-      hashtags: template.hashtags,
-      orderedParticipants: template.mode === 'invite'
-        ? [currentUser ? { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar } : null, ...Array(template.inviteCount || 3).fill(null)]
-        : [],
-      selectedFriends: [], // Reset friends as template changes mode/structure
-    }));
-  };
 
-  const handleThemeSelect = (themeId: string) => {
-    setFormState((prev) => ({
-      ...prev,
-      theme: themeId,
-    }));
-  };
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
@@ -434,8 +416,7 @@ const CreateStory = ({
           )}
         </div>
 
-        {/* Templates */}
-        <StoryTemplates onSelect={handleTemplateSelect} />
+
 
         {/* Story Title Input */}
         <div className="mb-6">
@@ -463,253 +444,243 @@ const CreateStory = ({
           </p>
         </div>
 
-        {/* Story Mode Selection */}
-        <fieldset className="mb-6" aria-labelledby="story-mode-legend">
+        {/* Story Visibility Selection */}
+        <fieldset className="mb-6" aria-labelledby="story-visibility-legend">
           <legend
-            id="story-mode-legend"
+            id="story-visibility-legend"
             className="block text-sm font-medium text-gray-300 mb-4 font-sans"
           >
-            Story Mode
+            Visibility
           </legend>
 
           <div className="flex gap-4">
-            {/* Option 1: Closed */}
-            <div className="flex-1 flex items-start gap-3 p-3 rounded-lg hover:bg-gray-900 cursor-pointer transition-colors border border-transparent hover:border-gray-800">
-              <input
-                type="radio"
-                id="mode-invite"
-                name="mode"
-                value="invite"
-                checked={formState.mode === "invite"}
-                onChange={() => handleModeChange("invite")}
-                className="mt-1 w-5 h-5 accent-[#EC1D99] cursor-pointer"
-              />
+            {/* Option 1: Private */}
+            <div
+              onClick={() => handleVisibilityChange("private")}
+              className={`flex-1 flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all border ${formState.visibility === "private" ? "bg-[#EC1D99]/10 border-[#EC1D99]" : "bg-gray-900 border-transparent hover:border-gray-800"}`}
+            >
+              <div className={`mt-1 p-1 rounded-full ${formState.visibility === "private" ? "bg-[#EC1D99] text-white" : "bg-gray-800 text-gray-400"}`}>
+                <Lock className="w-4 h-4" />
+              </div>
               <div className="flex-1">
                 <label
-                  htmlFor="mode-invite"
                   className="text-sm font-medium text-white cursor-pointer block font-sans"
                 >
-                  Closed
+                  Private
                 </label>
                 <p
                   className="text-xs text-gray-500 mt-1 font-sans"
                 >
-                  Invite friends to take turns in order
+                  Only invited friends can see and contribute
                 </p>
               </div>
             </div>
 
-            {/* Option 2: Open */}
-            <div className="flex-1 flex items-start gap-3 p-3 rounded-lg hover:bg-gray-900 cursor-pointer transition-colors border border-transparent hover:border-gray-800">
-              <input
-                type="radio"
-                id="mode-open"
-                name="mode"
-                value="open"
-                checked={formState.mode === "open"}
-                onChange={() => handleModeChange("open")}
-                className="mt-1 w-5 h-5 accent-[#EC1D99] cursor-pointer"
-              />
+            {/* Option 2: Public */}
+            <div
+              onClick={() => handleVisibilityChange("public")}
+              className={`flex-1 flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-all border ${formState.visibility === "public" ? "bg-[#EC1D99]/10 border-[#EC1D99]" : "bg-gray-900 border-transparent hover:border-gray-800"}`}
+            >
+              <div className={`mt-1 p-1 rounded-full ${formState.visibility === "public" ? "bg-[#EC1D99] text-white" : "bg-gray-800 text-gray-400"}`}>
+                <Globe className="w-4 h-4" />
+              </div>
               <div className="flex-1">
                 <label
-                  htmlFor="mode-open"
                   className="text-sm font-medium text-white cursor-pointer block font-sans"
                 >
-                  Open
+                  Public
                 </label>
                 <p
                   className="text-xs text-gray-500 mt-1 font-sans"
                 >
-                  Anyone can join and add a weeve
+                  Anyone can see, but only invited friends can contribute
                 </p>
               </div>
             </div>
           </div>
         </fieldset>
 
-        {/* Number of Contributors (Invite Mode) */}
-        {formState.mode === "invite" && (
-          <div className="mb-6">
-            <label
-              htmlFor="invite-count"
-              className="block text-sm font-medium text-gray-300 mb-2 font-sans"
+        {/* Number of Contributors */}
+        <div className="mb-6">
+          <label
+            htmlFor="invite-count"
+            className="block text-sm font-medium text-gray-300 mb-2 font-sans"
+          >
+            Number of Contributors
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              id="invite-count"
+              type="range"
+              min={1}
+              max={10}
+              value={formState.inviteCount}
+              onChange={handleInviteCountChange}
+              className="w-full accent-[#EC1D99]"
+              aria-label="Number of contributors"
+              aria-valuemin={1}
+              aria-valuemax={10}
+              aria-valuenow={formState.inviteCount}
+              aria-describedby="invite-count-value"
+            />
+            <div
+              className="w-10 text-right text-sm text-white font-medium font-sans"
             >
-              Number of Contributors
-            </label>
-            <div className="flex items-center gap-3">
-              <input
-                id="invite-count"
-                type="range"
-                min={1}
-                max={10}
-                value={formState.inviteCount}
-                onChange={handleInviteCountChange}
-                className="w-full accent-[#EC1D99]"
-                aria-label="Number of contributors"
-                aria-valuemin={1}
-                aria-valuemax={10}
-                aria-valuenow={formState.inviteCount}
-                aria-describedby="invite-count-value"
-              />
-              <div
-                className="w-10 text-right text-sm text-white font-medium font-sans"
-              >
-                {formState.inviteCount}
-              </div>
-            </div>
-
-            {/* Slots visualization */}
-            <div className="mt-3 flex gap-2 items-center flex-wrap">
-              {Array.from({ length: (formState.inviteCount || 3) + 1 }).map((_, idx) => {
-                const friend = formState.orderedParticipants?.[idx];
-                const isCurrentUser = friend?.id === currentUser?.id;
-
-                return (
-                  <button
-                    key={`slot-${idx}`}
-                    type="button"
-                    draggable={!!friend}
-                    onDragStart={(e) => friend && handleDragStart(e, idx)}
-                    onDragEnd={() => setDraggedIndex(null)}
-                    onDragOver={(e) => handleDragOver(e, idx)}
-                    onDrop={(e) => handleDrop(e, idx)}
-                    onClick={() => {
-                      if (friend) {
-                        handleRemoveFriend(friend.id);
-                      } else {
-                        setSlotToFill(idx);
-                        if (friendsInputRef.current) {
-                          friendsInputRef.current.focus();
-                          setShowFriendDropdown(true);
-                        }
-                      }
-                    }}
-                    className={`w-10 h-10 flex items-center justify-center rounded-full border ${friend ? "bg-[#EC1D99]/20 ring-2 ring-[#EC1D99] border-transparent overflow-hidden cursor-move" : "border-gray-700 bg-gray-900"} text-sm text-white ${slotToFill === idx ? "ring-2 ring-[#EC1D99]" : ""} ${draggedIndex === idx ? "opacity-50" : ""}`}
-                    aria-label={`Slot ${idx + 1} ${friend ? `occupied by ${friend.name}` : "empty"}`}
-                  >
-                    {friend ? (
-                      <img
-                        src={friend.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
-                        alt={friend.name}
-                        className="w-full h-full object-cover rounded-full pointer-events-none"
-                      />
-                    ) : (
-                      <span className="text-gray-500">+</span>
-                    )}
-                  </button>
-                );
-              })}
+              {formState.inviteCount}
             </div>
           </div>
-        )}
 
-        {/* Conditional Field - Invite Specific People */}
-        {formState.mode === "invite" && (
-          <div className="mb-6 relative">
-            <div className="flex justify-between items-center mb-2">
-              <label
-                htmlFor="friends-input"
-                className="block text-sm font-medium text-gray-300 font-sans"
-              >
-                Add Friends
-              </label>
-              {currentUser && (
-                <div className="text-sm text-yellow-400 flex items-center gap-1 font-medium bg-yellow-500/10 px-2 py-1 rounded-full border border-yellow-500/20">
-                  <span>🪙</span>
-                  <span>{currentUser.tokens}</span>
-                </div>
-              )}
-            </div>
+          {/* Slots visualization */}
+          <div className="mt-3 flex gap-3 items-center flex-wrap max-w-[400px]">
+            {Array.from({ length: (formState.inviteCount || 3) + 1 }).map((_, idx) => {
+              const friend = formState.orderedParticipants?.[idx];
+              const isCurrentUser = friend?.id === currentUser?.id;
 
-            {/* Friend Search Input */}
-            <div className="relative">
-              <input
-                id="friends-input"
-                type="text"
-                value={friendSearchInput}
-                onChange={(e) => setFriendSearchInput(e.target.value)}
-                ref={friendsInputRef}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (filteredFriends.length > 0) {
-                      handleAddFriend(filteredFriends[0]);
+              return (
+                <button
+                  key={`slot-${idx}`}
+                  type="button"
+                  draggable={!!friend}
+                  onDragStart={(e) => friend && handleDragStart(e, idx)}
+                  onDragEnd={() => setDraggedIndex(null)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDrop={(e) => handleDrop(e, idx)}
+                  onClick={() => {
+                    if (friend) {
+                      handleRemoveFriend(friend.id);
+                    } else {
+                      setSlotToFill(idx);
+                      if (friendsInputRef.current) {
+                        friendsInputRef.current.focus();
+                        setShowFriendDropdown(true);
+                      }
                     }
-                  }
-                }}
-                onFocus={() => setShowFriendDropdown(true)}
-                onBlur={() =>
-                  setTimeout(() => setShowFriendDropdown(false), 200)
-                }
-                placeholder="Search and add friends"
-                disabled={
-                  (formState.orderedParticipants?.length || 0) >= formState.inviteCount + 1
-                }
-                className="w-full px-3 py-3 bg-gray-900 border border-gray-800 rounded-lg focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99] transition-colors text-white placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed font-sans"
-              />
-
-              {/* Friend Avatar Popup */}
-              {showFriendDropdown && filteredFriends.length > 0 && (
-                <div
-                  role="dialog"
-                  aria-label="Select a friend"
-                  className="absolute top-full left-0 right-0 mt-2 bg-gray-900 border border-gray-800 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto p-3"
+                  }}
+                  className={`w-16 h-16 flex items-center justify-center rounded-full border ${friend ? "bg-[#EC1D99]/20 ring-2 ring-[#EC1D99] border-transparent overflow-hidden cursor-move" : "border-gray-700 bg-gray-900"} text-lg text-white ${slotToFill === idx ? "ring-2 ring-[#EC1D99]" : ""} ${draggedIndex === idx ? "opacity-50" : ""}`}
+                  aria-label={`Slot ${idx + 1} ${friend ? `occupied by ${friend.name}` : "empty"}`}
                 >
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                    {filteredFriends.map((friend) => (
-                      <button
-                        key={friend.id}
-                        onClick={() => handleAddFriend(friend)}
-                        className="flex flex-col items-center gap-2 w-full hover:bg-gray-800 transition-colors p-2 rounded-md"
-                      >
-                        <img
-                          src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
-                          alt={friend.name}
-                          className="w-12 h-12 rounded-full border border-gray-700"
-                        />
-                        <span className="text-xs text-white text-center font-sans">
-                          {friend.name.split(" ").slice(0, 2).join(" ")}
-                        </span>
-                        {friend.isInfluencer && (
-                          <div className="flex items-center gap-1 bg-yellow-500/20 px-1.5 py-0.5 rounded text-[10px] text-yellow-400 border border-yellow-500/30">
-                            <span>🪙</span>
-                            <span>{friend.interactionCost}</span>
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Selected Friends Chips */}
-            {formState.selectedFriends.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {formState.selectedFriends.map((friend) => (
-                  <div
-                    key={friend.id}
-                    className="inline-flex items-center gap-2 px-3 py-1 bg-[#EC1D99]/20 text-white rounded-full text-sm border border-[#EC1D99]/30 font-sans"
-                  >
+                  {friend ? (
                     <img
-                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
+                      src={friend.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
                       alt={friend.name}
-                      className="w-6 h-6 rounded-full border border-gray-700"
+                      className="w-full h-full object-cover rounded-full pointer-events-none"
                     />
-                    <span>{friend.name.split(" ").slice(0, 2).join(" ")}</span>
-                    <button
-                      onClick={() => handleRemoveFriend(friend.id)}
-                      className="text-gray-400 hover:text-white transition-colors font-bold ml-1"
-                      aria-label={`Remove ${friend.name}`}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                  ) : (
+                    <span className="text-gray-500">+</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+
+        {/* Invite Specific People */}
+        <div className="mb-6 relative">
+          <div className="flex justify-between items-center mb-2">
+            <label
+              htmlFor="friends-input"
+              className="block text-sm font-medium text-gray-300 font-sans"
+            >
+              Add Friends
+            </label>
+            {currentUser && (
+              <div className="text-sm text-yellow-400 flex items-center gap-1 font-medium bg-yellow-500/10 px-2 py-1 rounded-full border border-yellow-500/20">
+                <span>🪙</span>
+                <span>{currentUser.tokens}</span>
               </div>
             )}
           </div>
-        )}
+
+          {/* Friend Search Input */}
+          <div className="relative">
+            <input
+              id="friends-input"
+              type="text"
+              value={friendSearchInput}
+              onChange={(e) => setFriendSearchInput(e.target.value)}
+              ref={friendsInputRef}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (filteredFriends.length > 0) {
+                    handleAddFriend(filteredFriends[0]);
+                  }
+                }
+              }}
+              onFocus={() => setShowFriendDropdown(true)}
+              onBlur={() =>
+                setTimeout(() => setShowFriendDropdown(false), 200)
+              }
+              placeholder="Search and add friends"
+              disabled={
+                (formState.orderedParticipants?.length || 0) >= formState.inviteCount + 1
+              }
+              className="w-full px-3 py-3 bg-gray-900 border border-gray-800 rounded-lg focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99] transition-colors text-white placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed font-sans"
+            />
+
+            {/* Friend Avatar Popup */}
+            {showFriendDropdown && filteredFriends.length > 0 && (
+              <div
+                role="dialog"
+                aria-label="Select a friend"
+                className="absolute top-full left-0 right-0 mt-2 bg-gray-900 border border-gray-800 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto p-3"
+              >
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                  {filteredFriends.map((friend) => (
+                    <button
+                      key={friend.id}
+                      onClick={() => handleAddFriend(friend)}
+                      className="flex flex-col items-center gap-2 w-full hover:bg-gray-800 transition-colors p-2 rounded-md"
+                    >
+                      <img
+                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
+                        alt={friend.name}
+                        className="w-12 h-12 rounded-full border border-gray-700"
+                      />
+                      <span className="text-xs text-white text-center font-sans">
+                        {friend.name.split(" ").slice(0, 2).join(" ")}
+                      </span>
+                      {friend.isInfluencer && (
+                        <div className="flex items-center gap-1 bg-yellow-500/20 px-1.5 py-0.5 rounded text-[10px] text-yellow-400 border border-yellow-500/30">
+                          <span>🪙</span>
+                          <span>{friend.interactionCost}</span>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Selected Friends Chips */}
+          {formState.selectedFriends.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {formState.selectedFriends.map((friend) => (
+                <div
+                  key={friend.id}
+                  className="inline-flex items-center gap-2 px-3 py-1 bg-[#EC1D99]/20 text-white rounded-full text-sm border border-[#EC1D99]/30 font-sans"
+                >
+                  <img
+                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
+                    alt={friend.name}
+                    className="w-6 h-6 rounded-full border border-gray-700"
+                  />
+                  <span>{friend.name.split(" ").slice(0, 2).join(" ")}</span>
+                  <button
+                    onClick={() => handleRemoveFriend(friend.id)}
+                    className="text-gray-400 hover:text-white transition-colors font-bold ml-1"
+                    aria-label={`Remove ${friend.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
 
         {/* Story Description Input */}
         <div className="mb-6">
@@ -793,11 +764,7 @@ const CreateStory = ({
           </div>
         </div>
 
-        {/* Theme Selector */}
-        <ThemeSelector
-          selectedTheme={formState.theme || 'default'}
-          onSelect={handleThemeSelect}
-        />
+
 
         {/* Location / Options (visual only) */}
         <div className="mb-6 border-t border-gray-800 pt-4">
@@ -852,29 +819,7 @@ const CreateStory = ({
           </div>
         </div>
 
-        {/* Conditional Field - Open to All */}
-        {formState.mode === "open" && (
-          <div className="mb-6">
-            <label
-              htmlFor="max-weeves"
-              className="block text-sm font-medium text-gray-300 mb-2"
-              style={{ fontFamily: "Poppins, sans-serif" }}
-            >
-              Max Weeves (optional)
-            </label>
-            <input
-              id="max-weeves"
-              type="number"
-              value={formState.maxWeeves}
-              onChange={handleMaxWeevesChange}
-              placeholder="Leave blank for unlimited"
-              min="5"
-              max="100"
-              className="w-full px-3 py-3 bg-gray-900 border border-gray-800 rounded-lg focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99] transition-colors text-white placeholder-gray-600"
-              style={{ fontFamily: "Inter, sans-serif" }}
-            />
-          </div>
-        )}
+
       </main>
 
       {/* Button Section - Sticky at Bottom */}

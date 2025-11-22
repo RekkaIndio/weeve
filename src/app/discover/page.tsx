@@ -1,15 +1,25 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useStore, Group } from "@/lib/store";
+import { useSearchParams } from 'next/navigation';
 import Link from "next/link";
 import { Search, TrendingUp, Sparkles, Clock, Users, Plus, X } from "lucide-react";
 
-export default function DiscoverPage() {
+function DiscoverContent() {
     const { stories, groups, addGroup } = useStore();
-    const [activeCategory, setActiveCategory] = useState('trending');
+    const searchParams = useSearchParams();
+    const tabParam = searchParams?.get('tab');
+    const [activeCategory, setActiveCategory] = useState(tabParam || 'trending');
     const [showCreateGroup, setShowCreateGroup] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
     const [newGroupDesc, setNewGroupDesc] = useState('');
+
+    // Update active category when URL param changes
+    useEffect(() => {
+        if (tabParam) {
+            setActiveCategory(tabParam);
+        }
+    }, [tabParam]);
 
     // Mock categories for visual variety
     const categories = [
@@ -183,5 +193,13 @@ export default function DiscoverPage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function DiscoverPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-black text-white">Loading...</div>}>
+            <DiscoverContent />
+        </Suspense>
     );
 }

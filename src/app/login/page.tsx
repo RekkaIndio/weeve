@@ -1,26 +1,116 @@
 "use client";
 
 import { useState } from "react";
-import { useStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 export default function LoginPage() {
     const router = useRouter();
-    const { setCurrentUser } = useStore();
 
-    const [name, setName] = useState("");
-    const [avatar, setAvatar] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(false);
 
-    const handleLogin = () => {
-        if (!name) return;
-        const user = {
-            id: `guest-${Date.now()}`,
-            name,
-            avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
-            tokens: 100,
-        };
-        setCurrentUser(user);
-        router.push("/");
+    const handleEmailLogin = async () => {
+        if (!email || !password) {
+            setError("Please fill in all fields");
+            return;
+        }
+
+        setLoading(true);
+        setError("");
+
+        try {
+            const result = await signInWithEmailAndPassword(auth, email, password);
+
+            // Check if user has completed profile setup with timeout
+            const { userProfileExists } = await import('@/lib/firestore');
+
+            // Create a timeout promise
+            const timeoutPromise = new Promise<boolean>((resolve) => {
+                setTimeout(() => {
+                    resolve(true); // Assume profile exists on timeout to avoid blocking
+                }, 2000);
+            });
+
+            // Race the profile check against the timeout
+            const profileExists = await Promise.race([
+                userProfileExists(result.user.uid),
+                timeoutPromise
+            ]);
+
+            const targetPath = profileExists ? '/' : '/setup';
+
+            // Redirect based on profile status
+            router.push(targetPath);
+
+            // Fallback if router.push doesn't work immediately
+            setTimeout(() => {
+                if (window.location.pathname !== targetPath) {
+                    window.location.href = targetPath;
+                }
+            }, 1000);
+        } catch (err: any) {
+            setError(err.message || "Failed to log in");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleLogin = async () => {
+        console.log("Starting Google login...");
+        setLoading(true);
+        setError("");
+
+        try {
+            const provider = new GoogleAuthProvider();
+            console.log("Opening Google popup...");
+            const result = await signInWithPopup(auth, provider);
+            console.log("Google signed in user:", result.user.uid);
+
+            // Check if user has completed profile setup with timeout
+            console.log("Checking profile existence...");
+            const { userProfileExists } = await import('@/lib/firestore');
+
+            // Create a timeout promise
+            const timeoutPromise = new Promise<boolean>((resolve) => {
+                setTimeout(() => {
+                    console.log("Profile check timed out, assuming profile exists to be safe");
+                    resolve(true); // Assume profile exists on timeout to avoid blocking
+                }, 2000);
+            });
+
+            // Race the profile check against the timeout
+            const profileExists = await Promise.race([
+                userProfileExists(result.user.uid),
+                timeoutPromise
+            ]);
+            
+            console.log("Profile exists result:", profileExists);
+
+            const targetPath = profileExists ? '/' : '/setup';
+            console.log("Target path:", targetPath);
+
+            // Redirect based on profile status
+            console.log("Redirecting...");
+            router.push(targetPath);
+
+            // Fallback if router.push doesn't work immediately
+            setTimeout(() => {
+                console.log("Checking if redirect happened...");
+                if (window.location.pathname !== targetPath) {
+                    console.log("Router push didn't work, trying window.location...");
+                    window.location.href = targetPath;
+                }
+            }, 1000);
+        } catch (err: any) {
+            console.error("Google login error:", err);
+            setError(err.message || "Failed to sign in with Google");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -82,7 +172,7 @@ export default function LoginPage() {
                 <div className="mb-6">
                     <img
                         src="/weeve-logo.png"
-                        alt="WeeVe Logo"
+                        alt="Weeve Logo"
                         className="w-24 h-24 object-contain"
                     />
                 </div>
@@ -91,11 +181,19 @@ export default function LoginPage() {
                 </h1>
 
                 <div className="space-y-4">
+                    {/* Error Message */}
+                    {error && (
+                        <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm">
+                            {error}
+                        </div>
+                    )}
+
                     {/* Social Logins */}
                     <div className="grid grid-cols-2 gap-4">
                         <button
-                            onClick={() => handleLogin()}
-                            className="flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 py-3 text-white hover:bg-white/20 transition-all active:scale-95"
+                            onClick={handleGoogleLogin}
+                            disabled={loading}
+                            className="flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 py-3 text-white hover:bg-white/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -106,8 +204,8 @@ export default function LoginPage() {
                             Google
                         </button>
                         <button
-                            onClick={() => handleLogin()}
-                            className="flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 py-3 text-white hover:bg-white/20 transition-all active:scale-95"
+                            disabled={true}
+                            className="flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 py-3 text-white opacity-50 cursor-not-allowed"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.74 1.18 0 2.45-1.03 3.93-.74 1.33.18 2.24.74 2.85 1.69-2.5 1.52-2.12 4.4.26 5.53-.69 1.79-1.68 3.58-3.08 5.06M12.03 5.31c-.15-1.53.86-2.98 2.24-3.55.29 1.71-1.07 3.21-2.24 3.55z" />
@@ -118,30 +216,35 @@ export default function LoginPage() {
 
                     <div className="relative flex items-center py-2">
                         <div className="flex-grow border-t border-white/20"></div>
-                        <span className="flex-shrink-0 mx-4 text-gray-400 text-sm">Or continue with</span>
+                        <span className="flex-shrink-0 mx-4 text-gray-400 text-sm">Or continue with email</span>
                         <div className="flex-grow border-t border-white/20"></div>
                     </div>
 
                     <input
+                        type="email"
                         className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
-                        placeholder="Your name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+                        placeholder="Email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleEmailLogin()}
+                        disabled={loading}
                     />
                     <input
+                        type="password"
                         className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
-                        placeholder="Avatar URL (optional)"
-                        value={avatar}
-                        onChange={(e) => setAvatar(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+                        placeholder="Password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleEmailLogin()}
+                        disabled={loading}
                     />
 
                     <button
-                        onClick={handleLogin}
-                        className="w-full rounded-lg bg-white text-black py-4 font-bold text-lg transition-all hover:bg-gray-100 active:scale-95 shadow-lg"
+                        onClick={handleEmailLogin}
+                        disabled={loading}
+                        className="w-full rounded-lg bg-white text-black py-4 font-bold text-lg transition-all hover:bg-gray-100 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Log In
+                        {loading ? "Logging in..." : "Log In"}
                     </button>
 
                     <p className="mt-6 text-center text-sm text-gray-300">

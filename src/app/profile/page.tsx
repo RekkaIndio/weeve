@@ -212,8 +212,7 @@ export default function ProfilePage() {
         {activeTab === 'weeves' ? (
           <>
             {myStories.map(story => {
-              const isWaiting = story.mode === 'invite' &&
-                story.status === 'active' &&
+              const isWaiting = story.status === 'active' &&
                 story.currentTurnUserId &&
                 story.currentTurnUserId !== currentUser.id;
 

@@ -14,19 +14,21 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WeeVe",
-  description: "WeeVe - share short-form moments",
+  title: "Weeve",
+  description: "Weeve - share short-form moments",
   icons: {
     icon: '/weeve-logo.png',
     shortcut: '/weeve-logo.png',
     apple: '/weeve-logo.png',
   },
   openGraph: {
-    title: 'WeeVe',
-    description: 'WeeVe - share short-form moments',
+    title: 'Weeve',
+    description: 'Weeve - share short-form moments',
     images: ['/weeve-logo.png'],
   },
 };
+
+import AuthProvider from "./components/AuthProvider";
 
 export default function RootLayout({
   children,
@@ -34,11 +36,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AppLayout>{children}</AppLayout>
+        <AuthProvider>
+          <AppLayout>{children}</AppLayout>
+        </AuthProvider>
       </body>
     </html>
   );

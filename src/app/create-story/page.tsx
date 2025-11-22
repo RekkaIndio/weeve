@@ -1,5 +1,7 @@
 'use client';
 
+import { Suspense } from 'react';
+
 import { useRouter } from 'next/navigation';
 import CreateStory, { CreateStoryFormState, Friend } from '@/app/components/CreateStory';
 import { useStore, Story, User } from '@/lib/store';
@@ -21,7 +23,7 @@ export default function CreateStoryPage() {
       title: data.title,
       description: data.description,
       creatorId: currentUser.id,
-      mode: data.mode,
+      visibility: data.visibility,
       status: 'active',
       // Use the ordered participants from the form
       participants: data.orderedParticipants
@@ -33,12 +35,11 @@ export default function CreateStoryPage() {
           tokens: 0
         })) || [currentUser],
       contributions: [],
-      maxWeeves: data.maxWeeves ? parseInt(data.maxWeeves) : undefined,
+
       // Set turn to the first participant in the ordered list
-      currentTurnUserId: data.mode === 'invite' && data.orderedParticipants
+      currentTurnUserId: data.orderedParticipants
         ? data.orderedParticipants.find(p => p !== null)?.id || currentUser.id
         : currentUser.id,
-      theme: data.theme
     };
 
     // Add to store
@@ -52,12 +53,14 @@ export default function CreateStoryPage() {
   };
 
   return (
-    <CreateStory
-      onBack={handleBack}
-      onCreateStory={handleCreateStory}
-      currentUser={currentUser}
-      availableFriends={friends}
-      onDeductTokens={deductTokens}
-    />
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-black text-white">Loading...</div>}>
+      <CreateStory
+        onBack={handleBack}
+        onCreateStory={handleCreateStory}
+        currentUser={currentUser}
+        availableFriends={friends}
+        onDeductTokens={deductTokens}
+      />
+    </Suspense>
   );
 }
