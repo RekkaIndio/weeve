@@ -83,11 +83,8 @@ const CreateStory = ({
     if (inviteId && availableFriends.length > 0) {
       const friendToInvite = availableFriends.find(f => f.id === inviteId);
       if (friendToInvite) {
-        // Check if already added to avoid duplicates/infinite loop
+        // Add to first available slot
         setFormState(prev => {
-          if (prev.selectedFriends.some(f => f.id === friendToInvite.id)) return prev;
-
-          // Add to first available slot
           const newParticipants = [...(prev.orderedParticipants || [])];
           const emptyIndex = newParticipants.findIndex(p => p === null);
           if (emptyIndex !== -1) {
@@ -122,15 +119,16 @@ const CreateStory = ({
     return false;
   })();
 
-  // Filter available friends based on search input and already selected
-  const filteredFriends = availableFriends.filter((friend) => {
-    const isSelected = formState.selectedFriends.some(
-      (f) => f.id === friend.id,
-    );
+  // Filter available friends based on search input (including current user)
+  const allAvailableFriends = currentUser
+    ? [{ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }, ...availableFriends]
+    : availableFriends;
+
+  const filteredFriends = allAvailableFriends.filter((friend) => {
     const matchesSearch = friend.name
       .toLowerCase()
       .includes(friendSearchInput.toLowerCase());
-    return !isSelected && matchesSearch;
+    return matchesSearch;
   });
 
   // Handle title input change
@@ -159,14 +157,6 @@ const CreateStory = ({
 
   // Handle adding a friend
   const handleAddFriend = (friend: Friend) => {
-    // Prevent duplicates
-    if (formState.selectedFriends.some((f) => f.id === friend.id)) {
-      setError("Friend already added");
-      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
-      errorTimeoutRef.current = window.setTimeout(() => setError(""), 2000);
-      return;
-    }
-
     // Check for influencer cost
     if (friend.isInfluencer && friend.interactionCost) {
       if (!onDeductTokens) {
@@ -220,18 +210,30 @@ const CreateStory = ({
   };
 
   // Handle removing a friend
-  const handleRemoveFriend = (friendId: string) => {
-    if (friendId === currentUser?.id) {
-      setError("You cannot remove yourself from the story.");
-      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
-      errorTimeoutRef.current = window.setTimeout(() => setError(""), 2000);
-      return;
-    }
-    setFormState((prev) => ({
-      ...prev,
-      selectedFriends: prev.selectedFriends.filter((f) => f.id !== friendId),
-      orderedParticipants: (prev.orderedParticipants || []).map(f => (f && f.id === friendId) ? null : f)
-    }));
+  const handleRemoveFriend = (friendId: string, slotIndex?: number) => {
+    setFormState((prev) => {
+      const newParticipants = [...(prev.orderedParticipants || [])];
+
+      // If slotIndex is provided, remove from that specific slot
+      // Otherwise, remove the first occurrence
+      if (slotIndex !== undefined) {
+        newParticipants[slotIndex] = null;
+      } else {
+        const index = newParticipants.findIndex(p => p && p.id === friendId);
+        if (index !== -1) {
+          newParticipants[index] = null;
+        }
+      }
+
+      // Rebuild selectedFriends from orderedParticipants
+      const newSelectedFriends = newParticipants.filter((p): p is Friend => p !== null && p.id !== currentUser?.id);
+
+      return {
+        ...prev,
+        selectedFriends: newSelectedFriends,
+        orderedParticipants: newParticipants
+      };
+    });
   };
 
   // Handle invite count (slider) change
@@ -578,7 +580,7 @@ const CreateStory = ({
                     onDrop={(e) => handleDrop(e, idx)}
                     onClick={() => {
                       if (friend) {
-                        handleRemoveFriend(friend.id);
+                        handleRemoveFriend(friend.id, idx);
                       } else {
                         setSlotToFill(idx);
                         if (friendsInputRef.current) {
@@ -705,29 +707,47 @@ const CreateStory = ({
             )}
           </div>
 
-          {/* Selected Friends Chips */}
-          {formState.selectedFriends.length > 0 && (
+          {/* Selected Friends Chips - Show based on orderedParticipants */}
+          {formState.orderedParticipants && formState.orderedParticipants.filter(p => p !== null).length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
-              {formState.selectedFriends.map((friend) => (
-                <div
-                  key={friend.id}
-                  className="inline-flex items-center gap-2 px-3 py-1 bg-[#EC1D99]/20 text-white rounded-full text-sm border border-[#EC1D99]/30 font-sans"
-                >
-                  <img
-                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
-                    alt={friend.name}
-                    className="w-6 h-6 rounded-full border border-gray-700"
-                  />
-                  <span>{friend.name.split(" ").slice(0, 2).join(" ")}</span>
-                  <button
-                    onClick={() => handleRemoveFriend(friend.id)}
-                    className="text-gray-400 hover:text-white transition-colors font-bold ml-1"
-                    aria-label={`Remove ${friend.name}`}
+              {formState.orderedParticipants.map((friend, slotIndex) => {
+                if (!friend) return null;
+                return (
+                  <div
+                    key={`friend-chip-slot-${slotIndex}`}
+                    className="inline-flex items-center gap-2 px-3 py-1 bg-[#EC1D99]/20 text-white rounded-full text-sm border border-[#EC1D99]/30 font-sans"
                   >
-                    ×
-                  </button>
-                </div>
-              ))}
+                    <img
+                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
+                      alt={friend.name}
+                      className="w-6 h-6 rounded-full border border-gray-700"
+                    />
+                    <span>{friend.name.split(" ").slice(0, 2).join(" ")}</span>
+                    <button
+                      onClick={() => {
+                        // Remove from this specific slot
+                        setFormState((prev) => {
+                          const newParticipants = [...(prev.orderedParticipants || [])];
+                          newParticipants[slotIndex] = null;
+
+                          // Rebuild selectedFriends from orderedParticipants
+                          const newSelectedFriends = newParticipants.filter((p): p is Friend => p !== null && p.id !== currentUser?.id);
+
+                          return {
+                            ...prev,
+                            selectedFriends: newSelectedFriends,
+                            orderedParticipants: newParticipants
+                          };
+                        });
+                      }}
+                      className="text-gray-400 hover:text-white transition-colors font-bold ml-1"
+                      aria-label={`Remove ${friend.name} from slot ${slotIndex + 1}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -26,6 +26,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const router = useRouter();
     const pathname = usePathname();
 
+    // Define public routes that don't require authentication
+    const publicRoutes = ['/login', '/signup', '/setup'];
+    const isPublicRoute = pathname && publicRoutes.includes(pathname);
+
     useEffect(() => {
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -34,6 +38,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 handleUserLogin(session.user);
             } else {
                 setLoading(false);
+                // Redirect to login if on a protected route
+                if (pathname && !isPublicRoute) {
+                    console.log('[AuthProvider] No session, redirecting to login from:', pathname);
+                    router.push('/login');
+                }
             }
         });
 
@@ -48,13 +57,20 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 await handleUserLogin(session.user);
             } else {
                 // User logged out
+                console.log('[AuthProvider] User logged out, clearing state');
                 setCurrentUser(null);
                 setLoading(false);
+
+                // Redirect to login if on a protected route
+                if (pathname && !isPublicRoute) {
+                    console.log('[AuthProvider] Redirecting to login from:', pathname);
+                    router.push('/login');
+                }
             }
         });
 
         return () => subscription.unsubscribe();
-    }, []);
+    }, [pathname]);
 
     const handleUserLogin = async (supabaseUser: SupabaseUser) => {
         try {
@@ -111,6 +127,34 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             setLoading(false);
         }
     };
+
+    // Show loading spinner while checking auth
+    if (loading) {
+        return (
+            <AuthContext.Provider value={{ user, loading }}>
+                <div className="min-h-screen bg-black flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="w-12 h-12 border-4 border-[#EC1D99] border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-gray-400 text-sm">Loading...</p>
+                    </div>
+                </div>
+            </AuthContext.Provider>
+        );
+    }
+
+    // If not authenticated and not on a public route, show loading while redirect happens
+    if (!user && !isPublicRoute) {
+        return (
+            <AuthContext.Provider value={{ user, loading }}>
+                <div className="min-h-screen bg-black flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="w-12 h-12 border-4 border-[#EC1D99] border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-gray-400 text-sm">Redirecting...</p>
+                    </div>
+                </div>
+            </AuthContext.Provider>
+        );
+    }
 
     return (
         <AuthContext.Provider value={{ user, loading }}>

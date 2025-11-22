@@ -10,9 +10,20 @@ export default function SettingsPage() {
     const { currentUser, logoutUser } = useStore();
 
     const handleLogout = async () => {
-        await signOut();
-        logoutUser();
-        router.push('/login');
+        try {
+            console.log('[Settings] Logging out...');
+            const { error } = await signOut();
+            if (error) {
+                console.error('[Settings] Logout error:', error);
+                return;
+            }
+            console.log('[Settings] Signout successful, clearing state');
+            logoutUser();
+            console.log('[Settings] Redirecting to login');
+            router.push('/login');
+        } catch (err) {
+            console.error('[Settings] Unexpected logout error:', err);
+        }
     };
 
     const sections = [

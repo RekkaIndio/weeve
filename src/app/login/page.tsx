@@ -27,12 +27,12 @@ export default function LoginPage() {
             if (authError) throw authError;
             if (!user) throw new Error('Login failed');
 
-            // AuthProvider will handle redirect based on profile existence
-            console.log('[Login] Successfully signed in');
+            console.log('[Login] Successfully signed in, user:', user.id);
+            // Redirect to homepage - AuthProvider will also handle setup redirect if needed
+            router.push('/');
         } catch (err: any) {
             console.error('[Login] Error:', err);
             setError(err.message || "Failed to log in");
-        } finally {
             setLoading(false);
         }
     };
