@@ -61,7 +61,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </main>
 
                 {/* Bottom Nav */}
-                {currentUser.id !== 'guest' && !['/login', '/signup'].includes(pathname || '') && (
+                {!['/login', '/signup'].includes(pathname || '') && (
                     <nav className="shrink-0 bg-black border-t border-gray-800 px-6 py-4 flex justify-between items-center z-50 safe-area-pb">
                         {navItems.map((item) => {
                             const isActive = pathname === item.href;
