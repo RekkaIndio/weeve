@@ -21,7 +21,7 @@ export async function createUserProfile(
     email: string | null,
     photoURL: string | null = null
 ): Promise<void> {
-    const userRef = doc(db, 'users', uid);
+    const userRef = doc(db!, 'users', uid);
 
     const userProfile: UserProfile = {
         uid,
@@ -42,7 +42,7 @@ export async function createUserProfile(
  */
 export async function userProfileExists(uid: string): Promise<boolean> {
     try {
-        const userRef = doc(db, 'users', uid);
+        const userRef = doc(db!, 'users', uid);
         const userSnap = await getDoc(userRef);
         return userSnap.exists();
     } catch (error) {
@@ -55,7 +55,7 @@ export async function userProfileExists(uid: string): Promise<boolean> {
  * Get user profile data from Firestore
  */
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-    const userRef = doc(db, 'users', uid);
+    const userRef = doc(db!, 'users', uid);
     const userSnap = await getDoc(userRef);
 
     if (userSnap.exists()) {
@@ -72,7 +72,7 @@ export async function updateUserProfile(
     uid: string,
     updates: Partial<UserProfile>
 ): Promise<void> {
-    const userRef = doc(db, 'users', uid);
+    const userRef = doc(db!, 'users', uid);
 
     await updateDoc(userRef, {
         ...updates,

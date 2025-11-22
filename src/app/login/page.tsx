@@ -23,7 +23,7 @@ export default function LoginPage() {
         setError("");
 
         try {
-            const result = await signInWithEmailAndPassword(auth, email, password);
+            const result = await signInWithEmailAndPassword(auth!, email, password);
 
             // Check if user has completed profile setup with timeout
             const { userProfileExists } = await import('@/lib/firestore');
@@ -67,7 +67,7 @@ export default function LoginPage() {
         try {
             const provider = new GoogleAuthProvider();
             console.log("Opening Google popup...");
-            const result = await signInWithPopup(auth, provider);
+            const result = await signInWithPopup(auth!, provider);
             console.log("Google signed in user:", result.user.uid);
 
             // Check if user has completed profile setup with timeout
@@ -87,7 +87,7 @@ export default function LoginPage() {
                 userProfileExists(result.user.uid),
                 timeoutPromise
             ]);
-            
+
             console.log("Profile exists result:", profileExists);
 
             const targetPath = profileExists ? '/' : '/setup';

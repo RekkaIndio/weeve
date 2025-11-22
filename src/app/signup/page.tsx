@@ -29,7 +29,7 @@ export default function SignUpPage() {
         setError("");
 
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            const userCredential = await createUserWithEmailAndPassword(auth!, email, password);
 
             // Update user profile with display name
             await updateProfile(userCredential.user, {
@@ -60,7 +60,7 @@ export default function SignUpPage() {
         try {
             const provider = new GoogleAuthProvider();
             console.log("Opening Google popup...");
-            await signInWithPopup(auth, provider);
+            await signInWithPopup(auth!, provider);
             console.log("Google signup successful");
 
             // Redirect to setup page for profile completion

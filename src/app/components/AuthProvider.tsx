@@ -27,7 +27,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const pathname = usePathname();
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        if (!auth) {
+            console.warn('Auth not initialized, skipping onAuthStateChanged listener');
+            setLoading(false);
+            return;
+        }
+        const unsubscribe = onAuthStateChanged(auth!, async (firebaseUser) => {
             console.log('[AuthProvider] Auth state changed:', firebaseUser?.uid || 'null');
             setUser(firebaseUser);
 
@@ -68,12 +73,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     console.error('[AuthProvider] Error in auth flow:', error);
                 }
             }
-
             setLoading(false);
         });
 
         return () => unsubscribe();
-    }, [setCurrentUser, router, pathname]);
+    }, [auth, setCurrentUser, router, pathname]);
 
     return (
         <AuthContext.Provider value={{ user, loading }}>
