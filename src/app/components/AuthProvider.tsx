@@ -1,8 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useStore } from '@/lib/store';
 import { getUserProfile, profileExists } from '@/lib/auth';
@@ -17,6 +17,10 @@ const AuthContext = createContext<AuthContextType>({
     loading: true,
 });
 
+const PUBLIC_ROUTES = ['/login', '/signup', '/setup'];
+
+const isPublicRoute = (path: string) => PUBLIC_ROUTES.includes(path);
+
 export const useAuth = () => useContext(AuthContext);
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -24,55 +28,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const [loading, setLoading] = useState(true);
     const { setCurrentUser } = useStore();
     const router = useRouter();
-    const pathname = usePathname();
 
-    // Define public routes that don't require authentication
-    const publicRoutes = ['/login', '/signup', '/setup'];
-    const isPublicRoute = pathname && publicRoutes.includes(pathname);
-
-    useEffect(() => {
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setUser(session?.user ?? null);
-            if (session?.user) {
-                handleUserLogin(session.user);
-            } else {
-                setLoading(false);
-                // Redirect to login if on a protected route
-                if (pathname && !isPublicRoute) {
-                    console.log('[AuthProvider] No session, redirecting to login from:', pathname);
-                    router.push('/login');
-                }
-            }
-        });
-
-        // Listen for auth changes
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (event, session) => {
-            console.log('[AuthProvider] Auth event:', event, 'User:', session?.user?.id || 'null');
-            setUser(session?.user ?? null);
-
-            if (session?.user) {
-                await handleUserLogin(session.user);
-            } else {
-                // User logged out
-                console.log('[AuthProvider] User logged out, clearing state');
-                setCurrentUser(null);
-                setLoading(false);
-
-                // Redirect to login if on a protected route
-                if (pathname && !isPublicRoute) {
-                    console.log('[AuthProvider] Redirecting to login from:', pathname);
-                    router.push('/login');
-                }
-            }
-        });
-
-        return () => subscription.unsubscribe();
-    }, [pathname]);
-
-    const handleUserLogin = async (supabaseUser: SupabaseUser) => {
+    const handleUserLogin = useCallback(async (supabaseUser: SupabaseUser) => {
         try {
             // Always set a default user first to prevent blank pages
             const defaultUser = {
@@ -85,6 +42,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             // Set the default user immediately
             setCurrentUser(defaultUser);
             console.log('[AuthProvider] Set default user:', defaultUser);
+            setLoading(false);
 
             // Then try to get profile from database
             const hasProfile = await profileExists(supabaseUser.id);
@@ -109,15 +67,17 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 }
 
                 // Redirect to homepage if on auth pages
-                if (pathname === '/login' || pathname === '/signup' || pathname === '/setup') {
-                    console.log('[AuthProvider] Redirecting to homepage from:', pathname);
-                    setTimeout(() => router.push('/'), 100);
+                const currentPath = window.location.pathname;
+                if (isPublicRoute(currentPath)) {
+                    console.log('[AuthProvider] Redirecting to homepage from:', currentPath);
+                    router.push('/');
                 }
             } else {
                 // New user - redirect to setup if not already there
-                if (pathname !== '/setup') {
-                    console.log('[AuthProvider] Redirecting new user to setup from:', pathname);
-                    setTimeout(() => router.push('/setup'), 100);
+                const currentPath = window.location.pathname;
+                if (currentPath !== '/setup') {
+                    console.log('[AuthProvider] Redirecting new user to setup from:', currentPath);
+                    router.push('/setup');
                 }
             }
         } catch (error) {
@@ -126,7 +86,80 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         } finally {
             setLoading(false);
         }
-    };
+    }, [router, setCurrentUser]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const initializeSession = async () => {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+
+                if (!isMounted) return;
+
+                if (error) throw error;
+
+                setUser(session?.user ?? null);
+
+                if (session?.user) {
+                    await handleUserLogin(session.user);
+                } else {
+                    setLoading(false);
+                    // Redirect to login if on a protected route
+                    const currentPath = window.location.pathname;
+                    if (!isPublicRoute(currentPath)) {
+                        console.log('[AuthProvider] No session, redirecting to login from:', currentPath);
+                        router.push('/login');
+                    }
+                }
+            } catch (error) {
+                console.error('[AuthProvider] Failed to initialize session:', error);
+                if (!isMounted) return;
+
+                setCurrentUser(null);
+                setLoading(false);
+
+                const currentPath = window.location.pathname;
+                if (!isPublicRoute(currentPath)) {
+                    console.log('[AuthProvider] Redirecting to login after init error from:', currentPath);
+                    router.push('/login');
+                }
+            }
+        };
+
+        initializeSession();
+
+        // Listen for auth changes
+        const {
+            data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (event, session) => {
+            if (!isMounted) return;
+
+            console.log('[AuthProvider] Auth event:', event, 'User:', session?.user?.id || 'null');
+            setUser(session?.user ?? null);
+
+            if (session?.user) {
+                await handleUserLogin(session.user);
+            } else {
+                // User logged out
+                console.log('[AuthProvider] User logged out, clearing state');
+                setCurrentUser(null);
+                setLoading(false);
+
+                // Redirect to login if on a protected route
+                const currentPath = window.location.pathname;
+                if (!isPublicRoute(currentPath)) {
+                    console.log('[AuthProvider] Redirecting to login from:', currentPath);
+                    router.push('/login');
+                }
+            }
+        });
+
+        return () => {
+            isMounted = false;
+            subscription.unsubscribe();
+        };
+    }, [handleUserLogin, router, setCurrentUser]);
 
     // Show loading spinner while checking auth
     if (loading) {
@@ -136,20 +169,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     <div className="flex flex-col items-center gap-4">
                         <div className="w-12 h-12 border-4 border-[#EC1D99] border-t-transparent rounded-full animate-spin"></div>
                         <p className="text-gray-400 text-sm">Loading...</p>
-                    </div>
-                </div>
-            </AuthContext.Provider>
-        );
-    }
-
-    // If not authenticated and not on a public route, show loading while redirect happens
-    if (!user && !isPublicRoute) {
-        return (
-            <AuthContext.Provider value={{ user, loading }}>
-                <div className="min-h-screen bg-black flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-4">
-                        <div className="w-12 h-12 border-4 border-[#EC1D99] border-t-transparent rounded-full animate-spin"></div>
-                        <p className="text-gray-400 text-sm">Redirecting...</p>
                     </div>
                 </div>
             </AuthContext.Provider>

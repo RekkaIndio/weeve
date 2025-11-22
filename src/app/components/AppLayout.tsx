@@ -4,11 +4,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, PlusSquare, User, Users, Compass } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { useAuth } from "./AuthProvider";
 import NotificationBell from "./NotificationBell";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const { currentUser, stories } = useStore();
+    const { user } = useAuth();
 
     // Calculate if it's user's turn in any story
     const myTurnCount = currentUser ? stories.filter(
@@ -28,6 +30,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     const showHomeNotification = currentUser && pathname === "/";
     const isHome = pathname === "/";
+
+    // Hide navigation on auth pages - check both pathname AND auth state
+    const authPages = ['/login', '/signup', '/setup'];
+    const isAuthPage = pathname && authPages.includes(pathname);
+    const showNavigation = user && !isAuthPage;
 
     return (
         <div className="flex justify-center min-h-screen bg-black text-white">
@@ -49,7 +56,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </main>
 
                 {/* Bottom Nav */}
-                {!['/login', '/signup'].includes(pathname || '') && (
+                {showNavigation && (
                     <nav className="shrink-0 bg-black border-t border-gray-800 px-6 py-4 flex justify-between items-center z-50 safe-area-pb">
                         {navItems.map((item) => {
                             const isActive = pathname === item.href;

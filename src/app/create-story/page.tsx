@@ -94,11 +94,25 @@ function CreateStoryContent() {
         .filter((participant): participant is Friend => participant !== null)
         .map(mapToUser);
 
-      if (!participantList.some((participant) => participant.id === currentUser.id)) {
-        participantList.unshift(mapToUser({ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }));
+      const uniqueParticipants: User[] = [];
+      const seenParticipantIds = new Set<string>();
+
+      for (const participant of participantList) {
+        if (!seenParticipantIds.has(participant.id)) {
+          uniqueParticipants.push(participant);
+          seenParticipantIds.add(participant.id);
+        }
       }
 
-      const participantsToInsert = participantList.map((participant, index) => ({
+      let creatorParticipant = uniqueParticipants.find((participant) => participant.id === currentUser.id);
+
+      if (!creatorParticipant) {
+        creatorParticipant = mapToUser({ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar });
+      }
+
+      const finalParticipants = [creatorParticipant, ...uniqueParticipants.filter((participant) => participant.id !== currentUser.id)];
+
+      const participantsToInsert = finalParticipants.map((participant, index) => ({
         story_id: newStoryId,
         user_id: participant.id,
         position: index,
@@ -123,7 +137,7 @@ function CreateStoryContent() {
         status: 'active',
         currentTurnUserId: currentUser.id,
         contributions: [],
-        participants: participantList,
+        participants: finalParticipants,
         maxWeeves: data.inviteCount,
         groupId: groupId || undefined,
         groupAvatar: groupInfo?.avatar,
