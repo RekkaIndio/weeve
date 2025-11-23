@@ -1,13 +1,41 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { signOut } from "@/lib/auth";
+import { signOut, updateUserProfile } from "@/lib/auth";
 
 export default function SettingsPage() {
     const router = useRouter();
-    const { currentUser, logoutUser } = useStore();
+    const { currentUser, logoutUser, setCurrentUser } = useStore();
+    const [isPrivate, setIsPrivate] = useState(currentUser?.isPrivate || false);
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    useEffect(() => {
+        if (currentUser?.isPrivate !== undefined) {
+            setIsPrivate(currentUser.isPrivate);
+        }
+    }, [currentUser?.isPrivate]);
+
+    const handlePrivacyToggle = async () => {
+        if (!currentUser || isUpdating) return;
+
+        setIsUpdating(true);
+        const newValue = !isPrivate;
+
+        try {
+            const { error } = await updateUserProfile(currentUser.id, { isPrivate: newValue });
+            if (error) throw error;
+
+            setIsPrivate(newValue);
+            setCurrentUser({ ...currentUser, isPrivate: newValue });
+        } catch (err) {
+            console.error('[Settings] Failed to update privacy:', err);
+        } finally {
+            setIsUpdating(false);
+        }
+    };
 
     const handleLogout = async () => {
         try {
@@ -113,9 +141,21 @@ export default function SettingsPage() {
                                     </div>
 
                                     {item.toggle ? (
-                                        <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full cursor-pointer bg-[#EC1D99]">
-                                            <span className="absolute left-6 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 transform translate-x-0"></span>
-                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (item.label === "Account Privacy") {
+                                                    handlePrivacyToggle();
+                                                }
+                                            }}
+                                            disabled={isUpdating && item.label === "Account Privacy"}
+                                            className={`relative w-12 h-6 transition duration-200 ease-in-out rounded-full overflow-hidden ${item.label === "Account Privacy" && isPrivate ? 'bg-[#EC1D99]' : 'bg-gray-700'
+                                                } ${isUpdating && item.label === "Account Privacy" ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                        >
+                                            <span className={`absolute top-1 ${item.label === "Account Privacy" && isPrivate ? 'left-7' : 'left-1'
+                                                } bg-white w-4 h-4 rounded-full transition-all duration-200`}></span>
+                                        </button>
                                     ) : (
                                         <ChevronRight className="w-5 h-5 text-gray-600" />
                                     )}

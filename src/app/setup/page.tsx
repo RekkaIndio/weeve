@@ -31,11 +31,20 @@ export default function SetupPage() {
         try {
             // Create user profile in Supabase
             const finalAvatar = avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`;
+            const referrerCode = localStorage.getItem('weeve_invite_code') || undefined;
+
             const { error: profileError } = await createUserProfile(
                 user.id,
                 displayName.trim(),
-                finalAvatar
+                finalAvatar,
+                undefined, // inviteCode (auto-generated)
+                referrerCode
             );
+
+            // Clear invite code
+            if (referrerCode) {
+                localStorage.removeItem('weeve_invite_code');
+            }
 
             if (profileError) throw profileError;
 

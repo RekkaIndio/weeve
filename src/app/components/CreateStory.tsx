@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, Loader, Globe, Lock } from "lucide-react";
+import { ChevronLeft, Loader, Globe, Lock, UserPlus } from "lucide-react";
 import NotificationBell from "./NotificationBell";
+import { searchUsers, addFriend, Friend as FriendType } from "@/lib/friends";
+import { toast } from "sonner";
 
 export interface Friend {
   id: string;
@@ -11,6 +13,7 @@ export interface Friend {
   avatar?: string;
   isInfluencer?: boolean;
   interactionCost?: number;
+  isFriend?: boolean;
 }
 
 export interface CreateStoryFormState {
@@ -119,17 +122,53 @@ const CreateStory = ({
     return false;
   })();
 
+  const [searchResults, setSearchResults] = useState<Friend[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
   // Filter available friends based on search input (including current user)
   const allAvailableFriends = currentUser
     ? [{ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }, ...availableFriends]
     : availableFriends;
 
-  const filteredFriends = allAvailableFriends.filter((friend) => {
-    const matchesSearch = friend.name
-      .toLowerCase()
-      .includes(friendSearchInput.toLowerCase());
-    return matchesSearch;
-  });
+  // Debounced search
+  useEffect(() => {
+    const search = async () => {
+      if (!friendSearchInput.trim() || !currentUser) {
+        setSearchResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        // Local filter first
+        const localMatches = allAvailableFriends.filter((friend) =>
+          friend.name.toLowerCase().includes(friendSearchInput.toLowerCase())
+        );
+
+        // Remote search
+        const remoteMatches = await searchUsers(friendSearchInput, currentUser.id);
+
+        // Merge and deduplicate
+        const combined = [...localMatches];
+        remoteMatches.forEach(remote => {
+          if (!combined.some(local => local.id === remote.id)) {
+            combined.push(remote);
+          }
+        });
+
+        setSearchResults(combined);
+      } catch (err) {
+        console.error("Search failed", err);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const timeoutId = setTimeout(search, 300);
+    return () => clearTimeout(timeoutId);
+  }, [friendSearchInput, currentUser, allAvailableFriends]);
+
+  const filteredFriends = friendSearchInput ? searchResults : allAvailableFriends;
 
   // Handle title input change
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -156,7 +195,7 @@ const CreateStory = ({
   };
 
   // Handle adding a friend
-  const handleAddFriend = (friend: Friend) => {
+  const handleAddFriend = async (friend: Friend) => {
     // Check for influencer cost
     if (friend.isInfluencer && friend.interactionCost) {
       if (!onDeductTokens) {
@@ -170,6 +209,19 @@ const CreateStory = ({
         if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
         errorTimeoutRef.current = window.setTimeout(() => setError(""), 3000);
         return;
+      }
+    }
+
+    // If not a friend yet, add them
+    if (friend.isFriend === false && currentUser) {
+      try {
+        await addFriend(currentUser.id, friend.id);
+        toast.success(`Added ${friend.name} as a friend!`);
+        // Update local state to reflect friendship? 
+        // Ideally we should refetch friends but for now we just proceed
+      } catch (err) {
+        console.error("Failed to add friend", err);
+        toast.error("Failed to add friend connection");
       }
     }
 
@@ -544,7 +596,31 @@ const CreateStory = ({
               min={2}
               max={10}
               value={formState.inviteCount}
-              onChange={handleInviteCountChange}
+              onChange={(e) => {
+                const newCount = parseInt(e.target.value);
+                setFormState(prev => {
+                  const currentParticipants = prev.orderedParticipants || [];
+                  // We need newCount + 1 slots (1 for user + newCount for friends)
+                  const targetLength = newCount + 1;
+
+                  let newParticipants;
+                  if (currentParticipants.length < targetLength) {
+                    // Add empty slots
+                    newParticipants = [...currentParticipants, ...Array(targetLength - currentParticipants.length).fill(null)];
+                  } else {
+                    // Remove slots from the end, but try to keep non-nulls if possible? 
+                    // For now just slice, which might remove friends. 
+                    // Ideally we should warn or prevent reducing if it removes friends.
+                    newParticipants = currentParticipants.slice(0, targetLength);
+                  }
+
+                  return {
+                    ...prev,
+                    inviteCount: newCount,
+                    orderedParticipants: newParticipants
+                  };
+                });
+              }}
               className="w-full accent-[#EC1D99]"
               aria-label="Number of contributors"
               aria-valuemin={2}
@@ -667,42 +743,60 @@ const CreateStory = ({
               }
               placeholder="Search and add friends"
               disabled={
-                (formState.orderedParticipants?.length || 0) >= formState.inviteCount + 1
+                !formState.orderedParticipants?.some(p => p === null)
               }
               className="w-full px-3 py-3 bg-gray-900 border border-gray-800 rounded-lg focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99] transition-colors text-white placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed font-sans"
             />
 
             {/* Friend Avatar Popup */}
-            {showFriendDropdown && filteredFriends.length > 0 && (
+            {showFriendDropdown && (
               <div
                 role="dialog"
                 aria-label="Select a friend"
                 className="absolute top-full left-0 right-0 mt-2 bg-gray-900 border border-gray-800 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto p-3"
               >
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                  {filteredFriends.map((friend) => (
-                    <button
-                      key={friend.id}
-                      onClick={() => handleAddFriend(friend)}
-                      className="flex flex-col items-center gap-2 w-full hover:bg-gray-800 transition-colors p-2 rounded-md"
-                    >
-                      <img
-                        src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
-                        alt={friend.name}
-                        className="w-12 h-12 rounded-full border border-gray-700"
-                      />
-                      <span className="text-xs text-white text-center font-sans">
-                        {friend.name.split(" ").slice(0, 2).join(" ")}
-                      </span>
-                      {friend.isInfluencer && (
-                        <div className="flex items-center gap-1 bg-yellow-500/20 px-1.5 py-0.5 rounded text-[10px] text-yellow-400 border border-yellow-500/30">
-                          <span>🪙</span>
-                          <span>{friend.interactionCost}</span>
+                {isSearching ? (
+                  <div className="flex items-center justify-center py-4 text-gray-400">
+                    <Loader className="w-5 h-5 animate-spin mr-2" />
+                    <span>Searching...</span>
+                  </div>
+                ) : filteredFriends.length > 0 ? (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                    {filteredFriends.map((friend) => (
+                      <button
+                        key={friend.id}
+                        onClick={() => handleAddFriend(friend)}
+                        className="flex flex-col items-center gap-2 w-full hover:bg-gray-800 transition-colors p-2 rounded-md relative group"
+                      >
+                        <div className="relative">
+                          <img
+                            src={friend.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
+                            alt={friend.name}
+                            className="w-12 h-12 rounded-full border border-gray-700"
+                          />
+                          {friend.isFriend === false && (
+                            <div className="absolute -bottom-1 -right-1 bg-[#EC1D99] rounded-full p-0.5">
+                              <UserPlus className="w-3 h-3 text-white" />
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                        <span className="text-xs text-white text-center font-sans">
+                          {friend.id === currentUser?.id ? "You" : friend.name.split(" ").slice(0, 2).join(" ")}
+                        </span>
+                        {friend.isInfluencer && (
+                          <div className="flex items-center gap-1 bg-yellow-500/20 px-1.5 py-0.5 rounded text-[10px] text-yellow-400 border border-yellow-500/30">
+                            <span>🪙</span>
+                            <span>{friend.interactionCost}</span>
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-500 text-sm">
+                    No users found
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   tokens INTEGER DEFAULT 100 NOT NULL,
   is_influencer BOOLEAN DEFAULT FALSE,
   interaction_cost INTEGER,
+  is_private BOOLEAN DEFAULT FALSE,
   invite_code TEXT UNIQUE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

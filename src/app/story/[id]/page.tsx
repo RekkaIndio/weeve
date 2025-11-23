@@ -4,6 +4,7 @@ import { use, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useStore, type TextStyle, type Contribution, type User } from "@/lib/store";
 import { createStoryContribution } from "@/lib/data";
+import { capturePhoto, captureVideo } from "@/lib/camera";
 import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, X, Loader2, Edit2, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp } from "lucide-react";
 import EditStoryModal from "@/app/components/EditStoryModal";
 import { toast } from "sonner";
@@ -85,8 +86,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
     const [textPosition, setTextPosition] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
     const [optionsExpanded, setOptionsExpanded] = useState(true);
     const dragStateRef = useRef<{ offsetX: number; offsetY: number; width: number; height: number; pointerId: number } | null>(null);
-    const videoInputRef = useRef<HTMLInputElement>(null);
-    const photoInputRef = useRef<HTMLInputElement>(null);
+
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
     const draggableTextRef = useRef<HTMLDivElement>(null);
     const optionsPanelRef = useRef<HTMLDivElement>(null);
@@ -299,10 +299,9 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         }
     };
 
-    const handleStitchOption = (mode: 'video' | 'image' | 'text') => {
+    const handleStitchOption = async (mode: 'video' | 'image' | 'text') => {
         if (isStoryComplete) {
             toast.error('This story has reached its stitch limit.');
-            setShowStitchMenu(false);
             return;
         }
 
@@ -315,22 +314,36 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         }
 
         if (mode === 'video') {
-            if (videoInputRef.current) {
-                videoInputRef.current.value = "";
-                videoInputRef.current.click();
-            } else {
-                setMediaDraft({ type: 'video' });
+            console.log('[Story] Requesting video capture');
+            const file = await captureVideo();
+            if (file) {
+                console.log('[Story] Video file received:', file.name, file.size);
+                const previewUrl = URL.createObjectURL(file);
+                setMediaDraft({ type: 'video', file, previewUrl });
+                setTextContribution("");
+                setTextStyleOptions({ ...DEFAULT_TEXT_STYLE });
                 setStitchMode('video');
+            } else {
+                console.log('[Story] No video file returned (user may have cancelled)');
+                toast.error('Video capture cancelled or failed. Please try again.');
             }
             return;
         }
 
-        if (photoInputRef.current) {
-            photoInputRef.current.value = "";
-            photoInputRef.current.click();
-        } else {
-            setMediaDraft({ type: 'image' });
-            setStitchMode('image');
+        if (mode === 'image') {
+            console.log('[Story] Requesting photo capture');
+            const file = await capturePhoto();
+            if (file) {
+                console.log('[Story] Photo file received:', file.name, file.size);
+                const previewUrl = URL.createObjectURL(file);
+                setMediaDraft({ type: 'image', file, previewUrl });
+                setTextContribution("");
+                setTextStyleOptions({ ...DEFAULT_TEXT_STYLE });
+                setStitchMode('image');
+            } else {
+                console.log('[Story] No photo file returned (user may have cancelled)');
+                toast.error('Photo capture cancelled or failed. Please try again.');
+            }
         }
     };
 
@@ -413,37 +426,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         }
     };
 
-    const handleVideoCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) {
-            event.target.value = "";
-            return;
-        }
 
-        const previewUrl = URL.createObjectURL(file);
-        setMediaDraft({ type: 'video', file, previewUrl });
-        setTextContribution("");
-        setTextStyleOptions({ ...DEFAULT_TEXT_STYLE });
-        setStitchMode('video');
-        setShowStitchMenu(false);
-        event.target.value = "";
-    };
-
-    const handleImageCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) {
-            event.target.value = "";
-            return;
-        }
-
-        const previewUrl = URL.createObjectURL(file);
-        setMediaDraft({ type: 'image', file, previewUrl });
-        setTextContribution("");
-        setTextStyleOptions({ ...DEFAULT_TEXT_STYLE });
-        setStitchMode('image');
-        setShowStitchMenu(false);
-        event.target.value = "";
-    };
 
     const handleEmojiInsert = (emoji: string) => {
         const textarea = textAreaRef.current;
@@ -466,22 +449,6 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
 
     return (
         <div ref={stageRef} className="h-full flex flex-col bg-black text-white relative">
-            <input
-                ref={videoInputRef}
-                type="file"
-                accept="video/*"
-                capture="environment"
-                className="hidden"
-                onChange={handleVideoCapture}
-            />
-            <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={handleImageCapture}
-            />
             {/* Header */}
             <div className="absolute top-0 left-0 right-0 z-20 p-4 flex items-center justify-between bg-gradient-to-b from-black/90 via-black/50 to-transparent pointer-events-none">
                 <button onClick={() => router.back()} className="p-2 rounded-full glass hover:bg-white/10 transition-colors pointer-events-auto">

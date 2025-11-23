@@ -5,12 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import CreateStory, { CreateStoryFormState, Friend } from '@/app/components/CreateStory';
 import { useStore, Story, User } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+
 
 function CreateStoryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const groupId = searchParams?.get('groupId');
-  const { addStory, currentUser, friends, deductTokens } = useStore();
+  const { addStory, currentUser, friends, deductTokens, fetchFriends } = useStore();
   const [groupInfo, setGroupInfo] = useState<{ name: string; avatar: string } | null>(null);
 
   // Fetch group info if groupId is present
@@ -19,6 +21,11 @@ function CreateStoryContent() {
       fetchGroupInfo();
     }
   }, [groupId]);
+
+  // Fetch friends on mount
+  useEffect(() => {
+    fetchFriends();
+  }, [fetchFriends]);
 
   const fetchGroupInfo = async () => {
     if (!groupId) return;
@@ -69,12 +76,23 @@ function CreateStoryContent() {
     if (!currentUser) return; // Safety check
 
     try {
+      // Ensure description is never empty (database requires NOT NULL)
+      const description = data.description.trim() || 'No description provided';
+
+      console.log('Creating story with data:', {
+        title: data.title,
+        description,
+        creator_id: currentUser.id,
+        visibility: data.visibility,
+        inviteCount: data.inviteCount,
+      });
+
       // 1. Create Story in Supabase
       const { data: storyData, error: storyError } = await supabase
         .from('stories')
         .insert({
           title: data.title,
-          description: data.description,
+          description: description,
           creator_id: currentUser.id,
           mode: 'invite', // Defaulting to invite mode for now based on UI
           visibility: data.visibility, // Assuming DB has visibility column or we map it
@@ -86,8 +104,13 @@ function CreateStoryContent() {
         .select()
         .single();
 
-      if (storyError) throw storyError;
+      if (storyError) {
+        console.error('Database error creating story:', storyError);
+        throw storyError;
+      }
       if (!storyData) throw new Error('Failed to create story');
+
+      console.log('Story created successfully:', storyData.id);
 
       const newStoryId = storyData.id;
       const participantList = (data.orderedParticipants || [])
@@ -120,18 +143,22 @@ function CreateStoryContent() {
 
       // 2. Add Participants
       if (participantsToInsert.length > 0) {
+        console.log('Adding participants:', participantsToInsert.length);
         const { error: participantsError } = await supabase
           .from('story_participants')
           .insert(participantsToInsert);
 
-        if (participantsError) throw participantsError;
+        if (participantsError) {
+          console.error('Database error adding participants:', participantsError);
+          throw participantsError;
+        }
       }
 
       // 3. Update Local Store for immediate feedback
       const newStory: Story = {
         id: newStoryId,
         title: data.title,
-        description: data.description,
+        description: description,
         creatorId: currentUser.id,
         visibility: data.visibility,
         status: 'active',
@@ -148,11 +175,14 @@ function CreateStoryContent() {
 
       addStory(newStory);
 
+      console.log('Story created and added to store, redirecting...');
       // Redirect to the new story
       router.push(`/story/${newStoryId}`);
 
     } catch (error) {
       console.error('Error creating story:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create story. Please try again.';
+      toast.error(errorMessage);
       alert('Failed to create story. Please try again.');
     }
   };

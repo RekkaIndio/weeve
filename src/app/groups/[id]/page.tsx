@@ -6,6 +6,7 @@ import { useAuth } from '@/app/components/AuthProvider';
 import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { capturePhoto } from '@/lib/camera';
 
 export default function GroupDetailsPage() {
     const params = useParams();
@@ -19,7 +20,6 @@ export default function GroupDetailsPage() {
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [isMember, setIsMember] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (id) fetchGroupDetails();
@@ -72,14 +72,10 @@ export default function GroupDetailsPage() {
         }
     };
 
-    const handleAvatarClick = () => {
-        if (isAdmin && fileInputRef.current) {
-            fileInputRef.current.click();
-        }
-    };
+    const handleAvatarClick = async () => {
+        if (!isAdmin) return;
 
-    const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
+        const file = await capturePhoto();
         if (!file) return;
 
         // Validate file type
@@ -130,9 +126,6 @@ export default function GroupDetailsPage() {
             toast.error('Failed to update avatar');
         } finally {
             setUploadingAvatar(false);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-            }
         }
     };
 
@@ -210,16 +203,6 @@ export default function GroupDetailsPage() {
 
             {/* Group Info */}
             <div className="flex flex-col items-center mb-8">
-                {/* Hidden file input */}
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleAvatarChange}
-                    className="hidden"
-                />
-
                 {/* Avatar with click handler for admins */}
                 <div
                     className={`relative mb-4 ${isAdmin ? 'cursor-pointer group' : ''}`}

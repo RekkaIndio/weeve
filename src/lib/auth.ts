@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { User } from '@supabase/supabase-js';
+import { addFriend } from './friends';
 
 export interface AuthUser {
     id: string;
@@ -8,6 +9,7 @@ export interface AuthUser {
     avatar: string;
     tokens: number;
     inviteCode?: string;
+    isPrivate?: boolean;
 }
 
 /**
@@ -106,6 +108,7 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
             avatar: data.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
             tokens: data.tokens || 100,
             inviteCode: data.invite_code,
+            isPrivate: data.is_private || false,
         };
     } catch (error) {
         console.error('[Auth] Get profile error:', error);
@@ -120,7 +123,8 @@ export async function createUserProfile(
     userId: string,
     name: string,
     avatar?: string,
-    inviteCode?: string
+    inviteCode?: string,
+    referrerCode?: string
 ): Promise<{ error: Error | null }> {
     try {
         const profileData = {
@@ -135,6 +139,21 @@ export async function createUserProfile(
         const { error } = await (supabase.from('profiles') as any).insert(profileData);
 
         if (error) throw error;
+
+        // Handle referrer
+        if (referrerCode) {
+            const { data: referrer } = await supabase
+                .from('profiles')
+                .select('user_id')
+                .eq('invite_code', referrerCode)
+                .single();
+
+            if (referrer) {
+                await addFriend(userId, referrer.user_id);
+                console.log(`[Auth] Added friend connection with referrer ${referrer.user_id}`);
+            }
+        }
+
         return { error: null };
     } catch (error) {
         console.error('[Auth] Create profile error:', error);
@@ -171,12 +190,19 @@ export async function profileExists(userId: string): Promise<boolean> {
  */
 export async function updateUserProfile(
     userId: string,
-    updates: Partial<{ name: string; avatar: string; tokens: number }>
+    updates: Partial<{ name: string; avatar: string; tokens: number; isPrivate: boolean }>
 ): Promise<{ error: Error | null }> {
     try {
+        // Convert camelCase to snake_case for database
+        const dbUpdates: any = {};
+        if (updates.name !== undefined) dbUpdates.name = updates.name;
+        if (updates.avatar !== undefined) dbUpdates.avatar = updates.avatar;
+        if (updates.tokens !== undefined) dbUpdates.tokens = updates.tokens;
+        if (updates.isPrivate !== undefined) dbUpdates.is_private = updates.isPrivate;
+
         const { error } = await (supabase
             .from('profiles') as any)
-            .update(updates)
+            .update(dbUpdates)
             .eq('user_id', userId);
 
         if (error) throw error;

@@ -1,21 +1,26 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Camera } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { updateUserProfile } from "@/lib/auth";
+import { capturePhoto } from "@/lib/camera";
 
 export default function ProfilePage() {
-  const { currentUser, stories, setCurrentUser } = useStore();
+  const { currentUser, stories, setCurrentUser, friends, fetchFriends } = useStore();
   const [activeTab, setActiveTab] = useState<'weeves' | 'saved'>('weeves');
+
+  useEffect(() => {
+    fetchFriends();
+  }, [fetchFriends]);
+
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(currentUser?.name || '');
   const [editAvatar, setEditAvatar] = useState(currentUser?.avatar || '');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Invite Modal State
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -63,14 +68,8 @@ export default function ProfilePage() {
     setIsEditing(false);
   };
 
-  const handleAvatarClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleAvatarClick = async () => {
+    const file = await capturePhoto();
     if (!file || !currentUser) return;
 
     // Validate file type
@@ -127,9 +126,6 @@ export default function ProfilePage() {
       toast.error('Failed to update avatar');
     } finally {
       setUploadingAvatar(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
     }
   };
 
@@ -189,18 +185,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Profile Info */}
       <div className="flex flex-col items-center px-4 mb-8">
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handleAvatarChange}
-          className="hidden"
-        />
-
         <div
           className="relative mb-4 group cursor-pointer"
           onClick={!isEditing ? handleAvatarClick : undefined}
@@ -291,8 +276,8 @@ export default function ProfilePage() {
                 <div className="text-xs text-gray-500">Contributions</div>
               </div>
               <div className="text-center">
-                <div className="font-bold text-lg">1.5k</div>
-                <div className="text-xs text-gray-500">Followers</div>
+                <div className="font-bold text-lg">{friends.length}</div>
+                <div className="text-xs text-gray-500">Friends</div>
               </div>
             </div>
 

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { supabase } from './supabase';
+import { getFriends } from './friends';
 
 export interface User {
     id: string;
@@ -9,6 +11,7 @@ export interface User {
     isInfluencer?: boolean;
     interactionCost?: number;
     inviteCode?: string;
+    isPrivate?: boolean;
 }
 
 export interface Group {
@@ -98,6 +101,7 @@ interface AppState {
     toggleStoryLike: (storyId: string) => Promise<void>;
     addStoryComment: (storyId: string, content: string) => Promise<void>;
     logoutUser: () => void;
+    fetchFriends: () => Promise<void>;
 }
 
 const MOCK_USER: User = {
@@ -105,7 +109,9 @@ const MOCK_USER: User = {
     name: 'Jay',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jay',
     tokens: 100,
+    interactionCost: 0,
     inviteCode: 'JAY-VIP-2024',
+    isPrivate: false,
 };
 
 const MOCK_FRIENDS: User[] = [
@@ -399,230 +405,244 @@ const MOCK_STORIES: Story[] = [
     },
 ];
 
-export const useStore = create<AppState>((set, get) => ({
-    currentUser: null,
-    stories: MOCK_STORIES,
-    activeWeeveId: null,
-    friends: MOCK_FRIENDS,
-    groups: [],
+export const useStore = create<AppState>()(
+    persist(
+        (set, get) => ({
+            currentUser: null,
+            stories: MOCK_STORIES,
+            activeWeeveId: null,
+            friends: [],
+            groups: [],
 
-    addStory: (story) =>
-        set((state) => ({ stories: [story, ...state.stories] })),
+            addStory: (story) =>
+                set((state) => ({ stories: [story, ...state.stories] })),
 
-    addGroup: (group) =>
-        set((state) => ({ groups: [group, ...state.groups] })),
+            addGroup: (group) =>
+                set((state) => ({ groups: [group, ...state.groups] })),
 
-    addContribution: (storyId, contribution, options) =>
-        set((state) => {
-            const storyIndex = state.stories.findIndex((s) => s.id === storyId);
-            if (storyIndex === -1) return state;
+            addContribution: (storyId, contribution, options) =>
+                set((state) => {
+                    const storyIndex = state.stories.findIndex((s) => s.id === storyId);
+                    if (storyIndex === -1) return state;
 
-            const currentStory = state.stories[storyIndex];
-            const maxWeeves = typeof currentStory.maxWeeves === 'number' ? currentStory.maxWeeves : null;
+                    const currentStory = state.stories[storyIndex];
+                    const maxWeeves = typeof currentStory.maxWeeves === 'number' ? currentStory.maxWeeves : null;
 
-            if (maxWeeves !== null && currentStory.contributions.length >= maxWeeves) {
-                return state;
-            }
+                    if (maxWeeves !== null && currentStory.contributions.length >= maxWeeves) {
+                        return state;
+                    }
 
-            const suppliedUserId = 'userId' in contribution ? contribution.userId : undefined;
-            const suppliedUserName = 'userName' in contribution ? contribution.userName : undefined;
-            const suppliedId = 'id' in contribution ? contribution.id : undefined;
-            const suppliedTimestamp = 'timestamp' in contribution ? contribution.timestamp : undefined;
+                    const suppliedUserId = 'userId' in contribution ? contribution.userId : undefined;
+                    const suppliedUserName = 'userName' in contribution ? contribution.userName : undefined;
+                    const suppliedId = 'id' in contribution ? contribution.id : undefined;
+                    const suppliedTimestamp = 'timestamp' in contribution ? contribution.timestamp : undefined;
 
-            const fallbackUserId = suppliedUserId ?? (state.currentUser ? state.currentUser.id : undefined);
+                    const fallbackUserId = suppliedUserId ?? (state.currentUser ? state.currentUser.id : undefined);
 
-            if (!fallbackUserId) {
-                return state;
-            }
+                    if (!fallbackUserId) {
+                        return state;
+                    }
 
-            const fallbackUserName = suppliedUserName ?? (state.currentUser ? state.currentUser.name : 'Unknown User');
+                    const fallbackUserName = suppliedUserName ?? (state.currentUser ? state.currentUser.name : 'Unknown User');
 
-            const timestamp = suppliedTimestamp ?? Date.now();
+                    const timestamp = suppliedTimestamp ?? Date.now();
 
-            const newContribution: Contribution = {
-                id: suppliedId ?? Math.random().toString(36).substr(2, 9),
-                userId: fallbackUserId,
-                userName: fallbackUserName,
-                content: contribution.content,
-                mediaType: contribution.mediaType,
-                mediaUrl: contribution.mediaUrl,
-                timestamp,
-                textStyle: contribution.textStyle,
-            };
+                    const newContribution: Contribution = {
+                        id: suppliedId ?? Math.random().toString(36).substr(2, 9),
+                        userId: fallbackUserId,
+                        userName: fallbackUserName,
+                        content: contribution.content,
+                        mediaType: contribution.mediaType,
+                        mediaUrl: contribution.mediaUrl,
+                        timestamp,
+                        textStyle: contribution.textStyle,
+                    };
 
-            const updatedContributions = [...currentStory.contributions, newContribution];
-            const reachedCapacity = maxWeeves !== null && updatedContributions.length >= maxWeeves;
+                    const updatedContributions = [...currentStory.contributions, newContribution];
+                    const reachedCapacity = maxWeeves !== null && updatedContributions.length >= maxWeeves;
 
-            const nextTurnUserId = (() => {
-                if (options && Object.prototype.hasOwnProperty.call(options, 'nextTurnUserId')) {
-                    return options.nextTurnUserId ?? undefined;
+                    const nextTurnUserId = (() => {
+                        if (options && Object.prototype.hasOwnProperty.call(options, 'nextTurnUserId')) {
+                            return options.nextTurnUserId ?? undefined;
+                        }
+                        if (reachedCapacity) {
+                            return undefined;
+                        }
+                        const participants = currentStory.participants;
+                        const currentIndex = participants.findIndex((p) => p.id === fallbackUserId);
+                        if (currentIndex === -1 || participants.length === 0) return currentStory.currentTurnUserId;
+                        const nextIndex = (currentIndex + 1) % participants.length;
+                        return participants[nextIndex]?.id ?? currentStory.currentTurnUserId;
+                    })();
+
+                    const updatedStories = [...state.stories];
+                    updatedStories[storyIndex] = {
+                        ...currentStory,
+                        contributions: updatedContributions,
+                        currentTurnUserId: nextTurnUserId,
+                        status: reachedCapacity ? 'completed' : currentStory.status,
+                    };
+
+                    return { stories: updatedStories };
+                }),
+
+            updateStory: (id, updates) =>
+                set((state) => ({
+                    stories: state.stories.map((s) =>
+                        s.id === id ? { ...s, ...updates } : s
+                    ),
+                })),
+
+            setActiveWeeve: (id) => set({ activeWeeveId: id }),
+
+            addTokens: (amount) =>
+                set((state) => {
+                    if (!state.currentUser) return state;
+                    return {
+                        currentUser: {
+                            ...state.currentUser,
+                            tokens: state.currentUser.tokens + amount,
+                        },
+                    };
+                }),
+
+            deductTokens: (amount) => {
+                const state = get();
+                if (state.currentUser && state.currentUser.tokens >= amount) {
+                    set((state) => ({
+                        currentUser: state.currentUser ? {
+                            ...state.currentUser,
+                            tokens: state.currentUser.tokens - amount,
+                        } : null,
+                    }));
+                    return true;
                 }
-                if (reachedCapacity) {
-                    return undefined;
+                return false;
+            },
+
+            setCurrentUser: (user) => set({ currentUser: user }),
+
+            setStories: (stories) => set({ stories }),
+
+            setGroups: (groups) => set({ groups }),
+
+            toggleStoryLike: async (storyId) => {
+                const { currentUser } = get();
+                if (!currentUser) return;
+
+                const state = get();
+                const story = state.stories.find((s) => s.id === storyId);
+                if (!story) return;
+
+                const alreadyLiked = story.likedBy.includes(currentUser.id);
+
+                if (alreadyLiked) {
+                    const { error } = await supabase
+                        .from('story_likes')
+                        .delete()
+                        .match({ story_id: storyId, user_id: currentUser.id });
+
+                    if (error) {
+                        console.error('Failed to remove like:', error);
+                        return;
+                    }
+                } else {
+                    const { error } = await supabase
+                        .from('story_likes')
+                        .insert({ story_id: storyId, user_id: currentUser.id });
+
+                    if (error) {
+                        console.error('Failed to add like:', error);
+                        return;
+                    }
                 }
-                const participants = currentStory.participants;
-                const currentIndex = participants.findIndex((p) => p.id === fallbackUserId);
-                if (currentIndex === -1 || participants.length === 0) return currentStory.currentTurnUserId;
-                const nextIndex = (currentIndex + 1) % participants.length;
-                return participants[nextIndex]?.id ?? currentStory.currentTurnUserId;
-            })();
 
-            const updatedStories = [...state.stories];
-            updatedStories[storyIndex] = {
-                ...currentStory,
-                contributions: updatedContributions,
-                currentTurnUserId: nextTurnUserId,
-                status: reachedCapacity ? 'completed' : currentStory.status,
-            };
+                const shouldLike = !alreadyLiked;
 
-            return { stories: updatedStories };
+                set((state) => {
+                    const storyIndex = state.stories.findIndex((s) => s.id === storyId);
+                    if (storyIndex === -1) return state;
+
+                    const baseStory = state.stories[storyIndex];
+                    const updatedLikedBy = shouldLike
+                        ? Array.from(new Set([...baseStory.likedBy, currentUser.id]))
+                        : baseStory.likedBy.filter((id) => id !== currentUser.id);
+
+                    const updatedStory: Story = {
+                        ...baseStory,
+                        likedBy: updatedLikedBy,
+                        likes: updatedLikedBy.length,
+                    };
+
+                    const updatedStories = [...state.stories];
+                    updatedStories[storyIndex] = updatedStory;
+
+                    return { stories: updatedStories };
+                });
+            },
+
+            addStoryComment: async (storyId, content) => {
+                const trimmed = content.trim();
+                if (!trimmed) return;
+
+                const { currentUser } = get();
+                if (!currentUser) return;
+
+                const timestamp = Date.now();
+
+                const { data: insertedComment, error } = await supabase
+                    .from('story_comments')
+                    .insert({
+                        story_id: storyId,
+                        user_id: currentUser.id,
+                        user_name: currentUser.name,
+                        content: trimmed,
+                        timestamp,
+                    })
+                    .select()
+                    .single();
+
+                if (error || !insertedComment) {
+                    console.error('Failed to add comment:', error);
+                    return;
+                }
+
+                const newComment: StoryComment = {
+                    id: insertedComment.id,
+                    userId: insertedComment.user_id,
+                    userName: insertedComment.user_name,
+                    content: insertedComment.content,
+                    timestamp: insertedComment.timestamp ?? timestamp,
+                };
+
+                set((state) => {
+                    const storyIndex = state.stories.findIndex((s) => s.id === storyId);
+                    if (storyIndex === -1) return state;
+
+                    const baseStory = state.stories[storyIndex];
+                    const updatedStory: Story = {
+                        ...baseStory,
+                        comments: [...baseStory.comments, newComment].sort((a, b) => a.timestamp - b.timestamp),
+                    };
+
+                    const updatedStories = [...state.stories];
+                    updatedStories[storyIndex] = updatedStory;
+
+                    return { stories: updatedStories };
+                });
+            },
+
+            logoutUser: () => set({ currentUser: null }),
+
+            fetchFriends: async () => {
+                const { currentUser } = get();
+                if (!currentUser) return;
+                const friends = await getFriends(currentUser.id);
+                set({ friends });
+            },
         }),
-
-    updateStory: (id, updates) =>
-        set((state) => ({
-            stories: state.stories.map((s) =>
-                s.id === id ? { ...s, ...updates } : s
-            ),
-        })),
-
-    setActiveWeeve: (id) => set({ activeWeeveId: id }),
-
-    addTokens: (amount) =>
-        set((state) => {
-            if (!state.currentUser) return state;
-            return {
-                currentUser: {
-                    ...state.currentUser,
-                    tokens: state.currentUser.tokens + amount,
-                },
-            };
-        }),
-
-    deductTokens: (amount) => {
-        const state = get();
-        if (state.currentUser && state.currentUser.tokens >= amount) {
-            set((state) => ({
-                currentUser: state.currentUser ? {
-                    ...state.currentUser,
-                    tokens: state.currentUser.tokens - amount,
-                } : null,
-            }));
-            return true;
+        {
+            name: 'weeve-storage',
+            partialize: (state) => ({ currentUser: state.currentUser }), // Only persist currentUser
         }
-        return false;
-    },
-
-    setCurrentUser: (user) => set({ currentUser: user }),
-
-    setStories: (stories) => set({ stories }),
-
-    setGroups: (groups) => set({ groups }),
-
-    toggleStoryLike: async (storyId) => {
-        const { currentUser } = get();
-        if (!currentUser) return;
-
-        const state = get();
-        const story = state.stories.find((s) => s.id === storyId);
-        if (!story) return;
-
-        const alreadyLiked = story.likedBy.includes(currentUser.id);
-
-        if (alreadyLiked) {
-            const { error } = await supabase
-                .from('story_likes')
-                .delete()
-                .match({ story_id: storyId, user_id: currentUser.id });
-
-            if (error) {
-                console.error('Failed to remove like:', error);
-                return;
-            }
-        } else {
-            const { error } = await supabase
-                .from('story_likes')
-                .insert({ story_id: storyId, user_id: currentUser.id });
-
-            if (error) {
-                console.error('Failed to add like:', error);
-                return;
-            }
-        }
-
-        const shouldLike = !alreadyLiked;
-
-        set((state) => {
-            const storyIndex = state.stories.findIndex((s) => s.id === storyId);
-            if (storyIndex === -1) return state;
-
-            const baseStory = state.stories[storyIndex];
-            const updatedLikedBy = shouldLike
-                ? Array.from(new Set([...baseStory.likedBy, currentUser.id]))
-                : baseStory.likedBy.filter((id) => id !== currentUser.id);
-
-            const updatedStory: Story = {
-                ...baseStory,
-                likedBy: updatedLikedBy,
-                likes: updatedLikedBy.length,
-            };
-
-            const updatedStories = [...state.stories];
-            updatedStories[storyIndex] = updatedStory;
-
-            return { stories: updatedStories };
-        });
-    },
-
-    addStoryComment: async (storyId, content) => {
-        const trimmed = content.trim();
-        if (!trimmed) return;
-
-        const { currentUser } = get();
-        if (!currentUser) return;
-
-        const timestamp = Date.now();
-
-        const { data: insertedComment, error } = await supabase
-            .from('story_comments')
-            .insert({
-                story_id: storyId,
-                user_id: currentUser.id,
-                user_name: currentUser.name,
-                content: trimmed,
-                timestamp,
-            })
-            .select()
-            .single();
-
-        if (error || !insertedComment) {
-            console.error('Failed to add comment:', error);
-            return;
-        }
-
-        const newComment: StoryComment = {
-            id: insertedComment.id,
-            userId: insertedComment.user_id,
-            userName: insertedComment.user_name,
-            content: insertedComment.content,
-            timestamp: insertedComment.timestamp ?? timestamp,
-        };
-
-        set((state) => {
-            const storyIndex = state.stories.findIndex((s) => s.id === storyId);
-            if (storyIndex === -1) return state;
-
-            const baseStory = state.stories[storyIndex];
-            const updatedStory: Story = {
-                ...baseStory,
-                comments: [...baseStory.comments, newComment].sort((a, b) => a.timestamp - b.timestamp),
-            };
-
-            const updatedStories = [...state.stories];
-            updatedStories[storyIndex] = updatedStory;
-
-            return { stories: updatedStories };
-        });
-    },
-
-    logoutUser: () => set({ currentUser: null }),
-}));
+    ));

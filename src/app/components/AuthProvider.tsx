@@ -32,20 +32,26 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
     const handleUserLogin = useCallback(async (supabaseUser: SupabaseUser) => {
         try {
-            // Always set a default user first to prevent blank pages
-            const defaultUser = {
-                id: supabaseUser.id,
-                name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
-                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${supabaseUser.id}`,
-                tokens: 100,
-            };
+            // Check if we already have this user loaded with full profile data
+            const state = useStore.getState();
+            if (state.currentUser && state.currentUser.id === supabaseUser.id && state.currentUser.avatar && !state.currentUser.avatar.includes('dicebear')) {
+                console.log('[AuthProvider] User already loaded with profile data, skipping default set');
+                setLoading(false);
+            } else {
+                // Only set default user if we don't have valid data yet
+                const defaultUser = {
+                    id: supabaseUser.id,
+                    name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+                    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${supabaseUser.id}`,
+                    tokens: 100,
+                };
+                setCurrentUser(defaultUser);
+                console.log('[AuthProvider] Set default user:', defaultUser);
+            }
 
-            // Set the default user immediately
-            setCurrentUser(defaultUser);
-            console.log('[AuthProvider] Set default user:', defaultUser);
             setLoading(false);
 
-            // Then try to get profile from database
+            // Always try to fetch latest profile data to ensure sync
             const hasProfile = await profileExists(supabaseUser.id);
             console.log('[AuthProvider] Profile exists:', hasProfile);
 
@@ -67,7 +73,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     console.log('[AuthProvider] Updated user with database data:', appUser);
                 } else {
                     console.error('[AuthProvider] Failed to load profile data despite profileExists=true');
-                    toast.error('Failed to load user profile. Please try refreshing.');
+                    // Don't show error toast here to avoid spamming user if it's a background refresh
                 }
 
                 // Redirect to homepage if on auth pages
@@ -86,8 +92,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             }
         } catch (error) {
             console.error('[AuthProvider] Error in auth flow:', error);
-            toast.error('Authentication error. Please try again.');
-            // Even if there's an error, keep the default user we set earlier
+            // Don't show toast for background auth errors
         } finally {
             setLoading(false);
         }
@@ -105,6 +110,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 if (error) throw error;
 
                 setUser(session?.user ?? null);
+                console.log('[AuthProvider] Session initialized:', session?.user?.id ? 'User found' : 'No user');
 
                 if (session?.user) {
                     await handleUserLogin(session.user);
@@ -142,6 +148,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
             console.log('[AuthProvider] Auth event:', event, 'User:', session?.user?.id || 'null');
             setUser(session?.user ?? null);
+
+            if (event === 'SIGNED_OUT') {
+                console.log('[AuthProvider] User explicitly signed out');
+                setCurrentUser(null);
+                setLoading(false);
+                router.push('/login');
+                return;
+            }
 
             if (session?.user) {
                 await handleUserLogin(session.user);

@@ -57,7 +57,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
                 {/* Bottom Nav */}
                 {showNavigation && (
-                    <nav className="shrink-0 bg-black border-t border-gray-800 px-6 py-4 flex justify-between items-center z-50 safe-area-pb">
+                    <nav className="shrink-0 bg-black border-t border-gray-800 px-6 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex justify-between items-center z-50">
                         {navItems.map((item) => {
                             const isActive = pathname === item.href;
                             return (

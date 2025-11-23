@@ -30,6 +30,7 @@ export const metadata: Metadata = {
 
 import AuthProvider from "./components/AuthProvider";
 import StoreInitializer from "./components/StoreInitializer";
+import InviteHandler from "./components/InviteHandler";
 
 import { Toaster } from 'sonner';
 
@@ -45,6 +46,7 @@ export default function RootLayout({
       >
         <AuthProvider>
           <StoreInitializer />
+          <InviteHandler />
           <AppLayout>{children}</AppLayout>
           <Toaster richColors position="top-center" />
         </AuthProvider>
