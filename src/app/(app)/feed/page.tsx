@@ -3,8 +3,8 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
-import FeedItem from "./components/FeedItem";
-import { useAuth } from "./components/AuthProvider";
+import FeedItem from "@/app/components/FeedItem";
+import { useAuth } from "@/app/components/AuthProvider";
 
 export default function Home() {
   const router = useRouter();

@@ -21,20 +21,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const notificationCount = 3;
 
     const navItems = [
-        { label: "Home", href: "/", icon: Home },
+        { label: "Home", href: "/feed", icon: Home },
         { label: "Discover", href: "/discover", icon: Compass },
         { label: "Create", href: "/create-story", icon: PlusSquare },
         { label: "Groups", href: "/groups", icon: Users },
         { label: "Profile", href: "/profile", icon: User },
     ];
 
-    const showHomeNotification = currentUser && pathname === "/";
-    const isHome = pathname === "/";
+    const showHomeNotification = currentUser && pathname === "/feed";
+    const isHome = pathname === "/feed";
 
-    // Hide navigation on auth pages - check both pathname AND auth state
-    const authPages = ['/login', '/signup', '/setup'];
-    const isAuthPage = pathname && authPages.includes(pathname);
-    const showNavigation = user && !isAuthPage;
+    const showNavigation = !!user;
 
     return (
         <div className="flex justify-center min-h-[100dvh] bg-black text-white">

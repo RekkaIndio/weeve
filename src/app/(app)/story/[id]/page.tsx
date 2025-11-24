@@ -870,91 +870,95 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                                 />
 
                                 <div className={`space-y-5 transition-all duration-300 ${optionsExpanded ? 'max-h-[520px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none overflow-hidden'}`}>
-                                    <div>
-                                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Font</p>
-                                        <div className="flex gap-2 overflow-x-auto pb-1">
-                                            {FONT_OPTIONS.map((font) => (
-                                                <button
-                                                    key={font.value}
-                                                    type="button"
-                                                    onClick={() => updateTextStyle('fontFamily', font.value)}
-                                                    className={`px-3 py-2 rounded-lg border transition-all ${textStyleOptions.fontFamily === font.value ? 'border-[#EC1D99] text-[#EC1D99]' : 'border-gray-800 text-gray-300 hover:border-gray-600'}`}
-                                                    style={{ fontFamily: font.value }}
-                                                >
-                                                    {font.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
+                                    {stitchMode === 'text' && (
+                                        <>
+                                            <div>
+                                                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Font</p>
+                                                <div className="flex gap-2 overflow-x-auto pb-1">
+                                                    {FONT_OPTIONS.map((font) => (
+                                                        <button
+                                                            key={font.value}
+                                                            type="button"
+                                                            onClick={() => updateTextStyle('fontFamily', font.value)}
+                                                            className={`px-3 py-2 rounded-lg border transition-all ${textStyleOptions.fontFamily === font.value ? 'border-[#EC1D99] text-[#EC1D99]' : 'border-gray-800 text-gray-300 hover:border-gray-600'}`}
+                                                            style={{ fontFamily: font.value }}
+                                                        >
+                                                            {font.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
 
-                                    <div>
-                                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Size</p>
-                                        <div className="flex gap-2 flex-wrap">
-                                            {FONT_SIZE_OPTIONS.map((size) => (
-                                                <button
-                                                    key={size}
-                                                    type="button"
-                                                    onClick={() => updateTextStyle('fontSize', size)}
-                                                    className={`px-3 py-2 rounded-lg border transition-all ${textStyleOptions.fontSize === size ? 'border-[#EC1D99] text-[#EC1D99]' : 'border-gray-800 text-gray-300 hover:border-gray-600'}`}
-                                                >
-                                                    {size}px
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
+                                            <div>
+                                                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Size</p>
+                                                <div className="flex gap-2 flex-wrap">
+                                                    {FONT_SIZE_OPTIONS.map((size) => (
+                                                        <button
+                                                            key={size}
+                                                            type="button"
+                                                            onClick={() => updateTextStyle('fontSize', size)}
+                                                            className={`px-3 py-2 rounded-lg border transition-all ${textStyleOptions.fontSize === size ? 'border-[#EC1D99] text-[#EC1D99]' : 'border-gray-800 text-gray-300 hover:border-gray-600'}`}
+                                                        >
+                                                            {size}px
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
 
-                                    <div>
-                                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Alignment</p>
-                                        <div className="flex gap-2">
-                                            {ALIGN_OPTIONS.map(({ value, icon: Icon }) => (
-                                                <button
-                                                    key={value}
-                                                    type="button"
-                                                    onClick={() => updateTextStyle('textAlign', value)}
-                                                    className={`p-2 rounded-lg border transition-all ${textStyleOptions.textAlign === value ? 'border-[#EC1D99] text-[#EC1D99]' : 'border-gray-800 text-gray-300 hover:border-gray-600'}`}
-                                                    aria-label={`Align ${value}`}
-                                                >
-                                                    <Icon className="w-5 h-5" />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
+                                            <div>
+                                                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Alignment</p>
+                                                <div className="flex gap-2">
+                                                    {ALIGN_OPTIONS.map(({ value, icon: Icon }) => (
+                                                        <button
+                                                            key={value}
+                                                            type="button"
+                                                            onClick={() => updateTextStyle('textAlign', value)}
+                                                            className={`p-2 rounded-lg border transition-all ${textStyleOptions.textAlign === value ? 'border-[#EC1D99] text-[#EC1D99]' : 'border-gray-800 text-gray-300 hover:border-gray-600'}`}
+                                                            aria-label={`Align ${value}`}
+                                                        >
+                                                            <Icon className="w-5 h-5" />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
 
-                                    <div>
-                                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Text Colour</p>
-                                        <div className="flex gap-2 flex-wrap">
-                                            {TEXT_COLOR_OPTIONS.map((color) => (
-                                                <button
-                                                    key={color}
-                                                    type="button"
-                                                    onClick={() => updateTextStyle('textColor', color)}
-                                                    className={`w-9 h-9 rounded-full border-2 transition-transform ${textStyleOptions.textColor === color ? 'border-white scale-110' : 'border-transparent'}`}
-                                                    style={{ backgroundColor: color }}
-                                                    aria-label={`Set text colour ${color}`}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
+                                            <div>
+                                                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Text Colour</p>
+                                                <div className="flex gap-2 flex-wrap">
+                                                    {TEXT_COLOR_OPTIONS.map((color) => (
+                                                        <button
+                                                            key={color}
+                                                            type="button"
+                                                            onClick={() => updateTextStyle('textColor', color)}
+                                                            className={`w-9 h-9 rounded-full border-2 transition-transform ${textStyleOptions.textColor === color ? 'border-white scale-110' : 'border-transparent'}`}
+                                                            style={{ backgroundColor: color }}
+                                                            aria-label={`Set text colour ${color}`}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
 
-                                    <div>
-                                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Background</p>
-                                        <div className="flex gap-2 flex-wrap">
-                                            {BACKGROUND_OPTIONS.map((color) => (
-                                                <button
-                                                    key={color}
-                                                    type="button"
-                                                    onClick={() => updateTextStyle('backgroundColor', color)}
-                                                    className={`w-12 h-9 rounded-lg border transition-all ${textStyleOptions.backgroundColor === color ? 'border-[#EC1D99]' : 'border-gray-800 hover:border-gray-600'}`}
-                                                    style={{
-                                                        background: color === 'transparent'
-                                                            ? 'linear-gradient(135deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)'
-                                                            : color,
-                                                    }}
-                                                    aria-label={color === 'transparent' ? 'No background' : `Background ${color}`}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
+                                            <div>
+                                                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Background</p>
+                                                <div className="flex gap-2 flex-wrap">
+                                                    {BACKGROUND_OPTIONS.map((color) => (
+                                                        <button
+                                                            key={color}
+                                                            type="button"
+                                                            onClick={() => updateTextStyle('backgroundColor', color)}
+                                                            className={`w-12 h-9 rounded-lg border transition-all ${textStyleOptions.backgroundColor === color ? 'border-[#EC1D99]' : 'border-gray-800 hover:border-gray-600'}`}
+                                                            style={{
+                                                                background: color === 'transparent'
+                                                                    ? 'linear-gradient(135deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)'
+                                                                    : color,
+                                                            }}
+                                                            aria-label={color === 'transparent' ? 'No background' : `Background ${color}`}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
 
                                     <div>
                                         <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Emojis</p>

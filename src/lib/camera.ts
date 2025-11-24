@@ -9,48 +9,36 @@ export async function capturePhoto(): Promise<File | null> {
     console.log('[Camera] capturePhoto called, isNative:', Capacitor.isNativePlatform());
 
     try {
-        console.log('[Camera] Requesting photo via Capacitor Camera plugin');
-        const useUriResult = Capacitor.isNativePlatform();
+        console.log('[Camera] Requesting photo via Capacitor Camera plugin (Base64 mode)');
+        // Use Base64 for maximum compatibility. DataUrl can be too large for some bridges, and Uri fails on Android.
         const image = await Camera.getPhoto({
             quality: 90,
             allowEditing: false,
-            resultType: useUriResult ? CameraResultType.Uri : CameraResultType.Base64,
-            source: CameraSource.Prompt,
+            resultType: CameraResultType.Base64,
+            source: CameraSource.Photos, // Force Gallery only for stability
         });
 
         console.log('[Camera] Photo captured');
 
-        let blob: Blob | null = null;
-
-        if (useUriResult && image.webPath) {
-            try {
-                const response = await fetch(image.webPath);
-                blob = await response.blob();
-                console.log('[Camera] Blob fetched from URI:', blob.type, blob.size);
-            } catch (uriError) {
-                console.error('[Camera] Failed to fetch blob from URI, falling back to base64 if available:', uriError);
-            }
+        if (!image.base64String) {
+            console.error('[Camera] No Base64 data returned from camera');
+            return null;
         }
 
-        if (!blob) {
-            if (!image.base64String) {
-                console.error('[Camera] No base64 data available to create blob');
-                return null;
+        // Convert Base64 to Blob manually to avoid fetch/URL issues
+        let blob: Blob | null = null;
+        try {
+            const byteCharacters = atob(image.base64String);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
             }
-
-            try {
-                const byteCharacters = atob(image.base64String);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                    byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                blob = new Blob([byteArray], { type: `image/${image.format || 'jpeg'}` });
-                console.log('[Camera] Blob constructed from base64:', blob.type, blob.size);
-            } catch (conversionError) {
-                console.error('[Camera] Failed to convert base64 string to blob:', conversionError);
-                return null;
-            }
+            const byteArray = new Uint8Array(byteNumbers);
+            blob = new Blob([byteArray], { type: `image/${image.format || 'jpeg'}` });
+            console.log('[Camera] Blob constructed from base64:', blob.type, blob.size);
+        } catch (conversionError) {
+            console.error('[Camera] Failed to convert base64 string to blob:', conversionError);
+            return null;
         }
 
         const extension = image.format || blob.type.split('/').pop() || 'jpg';
@@ -65,6 +53,7 @@ export async function capturePhoto(): Promise<File | null> {
             return file;
         }
 
+        // Fallback for environments where File constructor is not available
         const fallbackFile = Object.assign(blob, {
             name: fileName,
             lastModified: Date.now(),
@@ -99,7 +88,7 @@ export async function captureVideo(): Promise<File | null> {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'video/*';
-        input.capture = 'environment';  // Triggers camera on Android, but not reliable on iOS
+        // input.capture = 'environment';  // Removed to force Gallery selection
 
         input.onchange = (e) => {
             const file = (e.target as HTMLInputElement).files?.[0];

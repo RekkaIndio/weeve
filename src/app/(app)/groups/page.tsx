@@ -6,7 +6,7 @@ import type { Database } from '@/lib/database.types';
 import { useAuth } from '@/app/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import NotificationBell from "../components/NotificationBell";
+import NotificationBell from "@/app/components/NotificationBell";
 import { useStore } from '@/lib/store';
 import { fetchGroups as fetchGroupsData } from '@/lib/data';
 

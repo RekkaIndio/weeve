@@ -234,6 +234,67 @@ const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
     };
 };
 
+// Helper to compress image
+async function compressImage(file: File): Promise<Blob> {
+    // Only compress images
+    if (!file.type.startsWith('image/')) {
+        return file;
+    }
+
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+
+            // Calculate new dimensions (max 1920x1920)
+            let width = img.width;
+            let height = img.height;
+            const maxSize = 1920;
+
+            if (width > maxSize || height > maxSize) {
+                if (width > height) {
+                    height = Math.round((height * maxSize) / width);
+                    width = maxSize;
+                } else {
+                    width = Math.round((width * maxSize) / height);
+                    height = maxSize;
+                }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                reject(new Error('Could not get canvas context'));
+                return;
+            }
+
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Compress to JPEG 0.8
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    console.log(`[Upload] Compressed image: ${file.size} -> ${blob.size} bytes`);
+                    resolve(blob);
+                } else {
+                    reject(new Error('Canvas toBlob failed'));
+                }
+            }, 'image/jpeg', 0.8);
+        };
+
+        img.onerror = (err) => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Failed to load image for compression'));
+        };
+
+        img.src = url;
+    });
+}
+
 export async function createStoryContribution(options: CreateStoryContributionOptions): Promise<{ contribution: Contribution }> {
     console.log('[Upload] Starting contribution creation', {
         storyId: options.storyId,
@@ -243,7 +304,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
         fileType: options.file?.type,
     });
 
-    console.log('[Upload] Contribution handler version v5');
+    console.log('[Upload] Contribution handler version v6 (Compression)');
 
     let session: Session | null = null;
     try {
@@ -252,18 +313,59 @@ export async function createStoryContribution(options: CreateStoryContributionOp
             setTimeout(() => reject(new Error('Session retrieval timeout')), 10000); // 10 second timeout
         });
         const { data: sessionData, error: sessionError } = await Promise.race([sessionPromise, timeoutPromise]) as any;
+
         if (sessionError) {
             console.error('[Upload] Session retrieval error:', sessionError);
         }
+
         session = sessionData?.session ?? null;
-        const hasSession = !!sessionData?.session;
+
+        // Proactive token refresh if expiring soon (within 5 minutes)
+        if (session?.expires_at) {
+            const expiresAt = session.expires_at * 1000; // convert to ms
+            const now = Date.now();
+            const timeUntilExpiry = expiresAt - now;
+
+            console.log('[Upload] Token expiry check:', {
+                expiresAt: new Date(expiresAt).toISOString(),
+                timeUntilExpirySeconds: Math.round(timeUntilExpiry / 1000),
+            });
+
+            if (timeUntilExpiry < 5 * 60 * 1000) { // 5 minutes
+                console.log('[Upload] Token expiring soon, refreshing session proactively...');
+
+                const refreshPromise = supabase.auth.refreshSession();
+                const refreshTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Refresh timeout')), 5000));
+
+                try {
+                    const { data: refreshData, error: refreshError } = await Promise.race([refreshPromise, refreshTimeout]) as any;
+
+                    if (refreshError) {
+                        console.error('[Upload] Proactive refresh failed:', refreshError);
+                    } else if (refreshData?.session) {
+                        session = refreshData.session;
+                        console.log('[Upload] Session refreshed proactively');
+                    }
+                } catch (err) {
+                    console.error('[Upload] Proactive refresh timed out or failed:', err);
+                }
+            }
+        }
+
+        const hasSession = !!session;
         console.log('[Upload] Session check', {
-            hasSession: !!sessionData?.session,
-            userId: sessionData?.session?.user?.id,
-            expiresAt: sessionData?.session?.expires_at,
+            hasSession,
+            userId: session?.user?.id,
         });
+
         if (!hasSession) {
             console.warn('[Upload] No active auth session detected before upload');
+            // Try one last ditch refresh if no session at all
+            const { data: refreshData } = await supabase.auth.refreshSession();
+            if (refreshData.session) {
+                session = refreshData.session;
+                console.log('[Upload] Recovered session via refresh');
+            }
         }
     } catch (sessionCatchError) {
         console.error('[Upload] Unexpected error inspecting session:', sessionCatchError);
@@ -286,34 +388,28 @@ export async function createStoryContribution(options: CreateStoryContributionOp
         const objectPath = `${options.storyId}/${options.userId}/${Date.now()}-${randomSuffix()}.${extension}`;
 
         console.log('[Upload] Upload path:', objectPath);
-        console.log('[Upload] File details:', {
-            name: options.file.name,
-            size: options.file.size,
-            type: options.file.type,
-            extension,
-        });
 
-        const uploadContentType = options.file.type || `application/octet-stream`;
-        let baseBlob: Blob | null = null;
+        // Compress image if applicable
+        let uploadBlob: Blob;
+        let uploadContentType = options.file.type || 'application/octet-stream';
 
-        if (typeof (options.file as any).arrayBuffer === 'function') {
-            try {
-                console.log('[Upload] Preparing reusable Blob payload');
-                const buffer = await options.file.arrayBuffer();
-                console.log('[Upload] ArrayBuffer byteLength:', buffer.byteLength);
-                baseBlob = new Blob([buffer], { type: uploadContentType });
-            } catch (arrayBufferError) {
-                console.warn('[Upload] Failed to prepare reusable Blob payload, falling back to original file:', arrayBufferError);
-                baseBlob = null;
+        try {
+            if (options.file.type.startsWith('image/')) {
+                console.log('[Upload] Compressing image...');
+                uploadBlob = await compressImage(options.file);
+                uploadContentType = 'image/jpeg'; // We force JPEG in compression
+            } else {
+                uploadBlob = options.file;
             }
+        } catch (compressError) {
+            console.warn('[Upload] Compression failed, falling back to original file:', compressError);
+            uploadBlob = options.file;
         }
 
-        const createPayload = (): File | Blob => {
-            if (baseBlob) {
-                return baseBlob.slice(0, baseBlob.size, uploadContentType);
-            }
-            return options.file;
-        };
+        console.log('[Upload] Final payload details:', {
+            size: uploadBlob.size,
+            type: uploadContentType,
+        });
 
         let uploadSucceeded = false;
         let uploadError: any = null;
@@ -329,15 +425,10 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                 tokenPrefix: session.access_token.slice(0, 8),
             });
             try {
-                const restPayload = createPayload();
-                console.log('[Upload] REST payload prepared', {
-                    size: restPayload.size,
-                    type: (restPayload as File).type || uploadContentType,
-                });
                 await uploadFileToStorage({
                     bucket: STORY_MEDIA_BUCKET,
                     objectPath,
-                    file: restPayload,
+                    file: uploadBlob,
                     cacheControl: '3600',
                     upsert: false,
                     contentType: uploadContentType,
@@ -359,10 +450,13 @@ export async function createStoryContribution(options: CreateStoryContributionOp
             for (let attempt = 1; attempt <= maxRetries; attempt++) {
                 console.log(`[Upload] Upload attempt ${attempt}/${maxRetries} via Supabase SDK...`);
 
-                const attemptPayload = createPayload();
+                // Use the prepared blob directly
+                const attemptPayload = uploadBlob;
+                const finalContentType = uploadContentType;
+
                 console.log('[Upload] SDK payload prepared', {
                     size: attemptPayload.size,
-                    type: (attemptPayload as File).type || uploadContentType,
+                    type: finalContentType,
                 });
 
                 try {
@@ -371,12 +465,12 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                         .upload(objectPath, attemptPayload, {
                             cacheControl: '3600',
                             upsert: false,
-                            contentType: uploadContentType,
+                            contentType: finalContentType,
                         });
 
-                    // 2 minute timeout for large files
+                    // 5 minute timeout for large files on mobile
                     const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error('Upload timeout after 2 minutes')), 120000);
+                        setTimeout(() => reject(new Error('Upload timeout after 5 minutes')), 300000);
                     });
 
                     const uploadResult = await Promise.race([uploadPromise, timeoutPromise]) as any;
@@ -388,19 +482,26 @@ export async function createStoryContribution(options: CreateStoryContributionOp
 
                     if (error) {
                         console.error(`[Upload] Attempt ${attempt} failed:`, error);
+
+                        // Check for 401 Unauthorized and try to refresh session
+                        if (error.statusCode === '401' || error.message?.includes('jwt expired')) {
+                            console.warn('[Upload] 401 Unauthorized detected. Attempting to refresh session...');
+                            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+                            if (refreshError) {
+                                console.error('[Upload] Session refresh failed:', refreshError);
+                            } else if (refreshData.session) {
+                                console.log('[Upload] Session refreshed successfully. Retrying upload with new token...');
+                                // Update session variable for next loop if needed (though SDK handles it internally usually)
+                                session = refreshData.session;
+                            }
+                        }
+
                         try {
                             console.error('[Upload] Error details:', JSON.stringify(error, null, 2));
                         } catch (_) {
                             // ignore serialization errors
                         }
-                        if (uploadResult?.error?.statusCode || uploadResult?.error?.response) {
-                            console.error('[Upload] Error status:', uploadResult.error.statusCode);
-                            try {
-                                console.error('[Upload] Error response body:', uploadResult.error.response?.data || uploadResult.error.response?.text);
-                            } catch (responseError) {
-                                console.error('[Upload] Failed to log error response body:', responseError);
-                            }
-                        }
+
                         uploadError = error;
 
                         // If not last attempt, wait before retry

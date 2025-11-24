@@ -4,7 +4,7 @@ import { useStore, Group } from "@/lib/store";
 import { useSearchParams } from 'next/navigation';
 import Link from "next/link";
 import { Search, TrendingUp, Sparkles, Clock, Users, Plus, X } from "lucide-react";
-import NotificationBell from "../components/NotificationBell";
+import NotificationBell from "@/app/components/NotificationBell";
 
 function DiscoverContent() {
     const { stories, groups, addGroup, currentUser } = useStore();

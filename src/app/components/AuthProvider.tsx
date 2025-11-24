@@ -127,14 +127,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 console.error('[AuthProvider] Failed to initialize session:', error);
                 if (!isMounted) return;
 
-                setCurrentUser(null);
-                setLoading(false);
+                // Only clear user if we are sure it's an auth error, not a network error
+                // But for now, to be safe and avoid "mock content" flashes, we might want to keep the persisted user
+                // and just let the background refresh handle it.
+                // However, if the token is truly invalid, we should log out.
 
-                const currentPath = window.location.pathname;
-                if (!isPublicRoute(currentPath)) {
-                    console.log('[AuthProvider] Redirecting to login after init error from:', currentPath);
-                    router.push('/login');
-                }
+                // For now, let's NOT clear the user immediately on error, just stop loading.
+                // The onAuthStateChange will eventually catch an invalid session.
+                setLoading(false);
             }
         };
 
