@@ -31,10 +31,11 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const [searchResults, setSearchResults] = useState<Recipient[]>([]);
 
     useEffect(() => {
-        if (friends.length === 0 && currentUser) {
+        // Load friends when modal mounts or user changes so the list shows immediately
+        if (currentUser) {
             fetchFriends();
         }
-    }, [friends.length, fetchFriends, currentUser]);
+    }, [currentUser, fetchFriends]);
 
     useEffect(() => {
         if (!currentUser) return;
@@ -79,13 +80,14 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const handleDeviceShare = async () => {
         if (navigator.share) {
             try {
-                await navigator.share({
+                const shareResult = await navigator.share({
                     title: story.title,
                     text: `Check out "${story.title}" on Weeve!`,
                     url: storyUrl,
                 });
                 toast.success('Shared successfully!');
-                return;
+                onClose();
+                return shareResult;
             } catch (error) {
                 // User cancelled or share failed
                 if ((error as Error).name !== 'AbortError') {
@@ -194,11 +196,20 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const selectedCount = selectedRecipients.size;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm" onClick={onClose}>
+        <div
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm"
+            onClick={onClose}
+            role="presentation"
+            onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+        >
             <div
-                className="bg-gray-900 border border-gray-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[80vh]"
+                className="bg-gray-900 border border-gray-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md overflow-hidden flex flex-col max-h-[calc(100vh-88px)] sm:max-h-[80vh]"
                 style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
                 onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Share story dialog"
+                tabIndex={-1}
             >
                 {/* Header */}
                 <div className="p-4 border-b border-gray-800 flex justify-between items-center">
@@ -210,47 +221,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 120px)' }}>
-                    {/* Quick Share Options */}
-                    <div className="p-4 border-b border-gray-800">
-                        <h3 className="text-sm font-medium text-gray-400 mb-3">Quick Share</h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                            <button
-                                onClick={handleDeviceShare}
-                                className="flex flex-col items-center gap-2 p-4 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
-                            >
-                                <div className="w-12 h-12 rounded-full bg-[#EC1D99]/20 flex items-center justify-center">
-                                    <Share2 className="w-6 h-6 text-[#EC1D99]" />
-                                </div>
-                                <span className="text-sm font-medium text-white text-center">Device share</span>
-                            </button>
-
-                            <button
-                                onClick={handleWhatsAppShare}
-                                className="flex flex-col items-center gap-2 p-4 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
-                            >
-                                <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                                    <MessageCircle className="w-6 h-6 text-green-500" />
-                                </div>
-                                <span className="text-sm font-medium text-white">WhatsApp</span>
-                            </button>
-
-                            <button
-                                onClick={handleCopyLink}
-                                className="flex flex-col items-center gap-2 p-4 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
-                            >
-                                <div className={`w-12 h-12 rounded-full ${copied ? 'bg-green-500/20' : 'bg-white/10'} flex items-center justify-center`}>
-                                    {copied ? (
-                                        <Check className="w-6 h-6 text-green-500" />
-                                    ) : (
-                                        <Copy className="w-6 h-6 text-white" />
-                                    )}
-                                </div>
-                                <span className={`text-sm font-medium ${copied ? 'text-green-500' : 'text-white'}`}>
-                                    {copied ? 'Link copied' : 'Copy link'}
-                                </span>
-                            </button>
-                        </div>
-                    </div>
+                    {/* Quick Share options are now in footer (mobile-friendly) */}
 
                     {/* Send to Friends */}
                     <div className="p-4">
@@ -317,6 +288,46 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
 
                 {/* Footer */}
                 <div className="p-4 border-t border-gray-800 bg-gray-900" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                    {/* Quick Share - moved to footer */}
+                    <div className="pb-3">
+                        <div className="grid grid-cols-3 gap-3">
+                            <button
+                                onClick={handleDeviceShare}
+                                className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
+                            >
+                                <div className="w-10 h-10 rounded-full bg-[#EC1D99]/20 flex items-center justify-center">
+                                    <Share2 className="w-5 h-5 text-[#EC1D99]" />
+                                </div>
+                                <span className="text-xs text-white">Device</span>
+                            </button>
+
+                            <button
+                                onClick={handleWhatsAppShare}
+                                className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
+                            >
+                                <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                                    <MessageCircle className="w-5 h-5 text-green-500" />
+                                </div>
+                                <span className="text-xs text-white">WhatsApp</span>
+                            </button>
+
+                            <button
+                                onClick={handleCopyLink}
+                                className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
+                            >
+                                <div className={`w-10 h-10 rounded-full ${copied ? 'bg-green-500/20' : 'bg-white/10'} flex items-center justify-center`}>
+                                    {copied ? (
+                                        <Check className="w-5 h-5 text-green-500" />
+                                    ) : (
+                                        <Copy className="w-5 h-5 text-white" />
+                                    )}
+                                </div>
+                                <span className={`text-xs ${copied ? 'text-green-500' : 'text-white'}`}>
+                                    {copied ? 'Copied' : 'Copy'}
+                                </span>
+                            </button>
+                        </div>
+                    </div>
                     <div className="flex items-center justify-between mb-3 text-sm text-gray-400">
                         <span>{selectedCount > 0 ? `${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected` : 'Select recipients to send a notification'}</span>
                         {searchQuery && (
