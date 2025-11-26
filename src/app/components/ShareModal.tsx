@@ -283,6 +283,26 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                 )}
                             </div>
                         )}
+                        {/* Send button - placed inside content area rather than footer */}
+                        <div className="mt-4 p-2 bg-gray-900">
+                            <button
+                                onClick={handleSendToFriends}
+                                disabled={sending || selectedCount === 0}
+                                className="w-full bg-[#EC1D99] hover:bg-[#D41C84] disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                            >
+                                {sending ? (
+                                    <>
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        Sending...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send className="w-5 h-5" />
+                                        {selectedCount > 0 ? `Send to ${selectedCount} user${selectedCount === 1 ? '' : 's'}` : 'Select recipients'}
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -329,7 +349,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                         </div>
                     </div>
                     <div className="flex items-center justify-between mb-3 text-sm text-gray-400">
-                        <span>{selectedCount > 0 ? `${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected` : 'Select recipients to send a notification'}</span>
+                        <span>{selectedCount > 0 ? `${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected` : ''}</span>
                         {searchQuery && (
                             <button
                                 type="button"
