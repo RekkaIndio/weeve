@@ -41,7 +41,7 @@ export async function signUp(email: string, password: string, name: string): Pro
 /**
  * Sign in with email and password
  */
-export async function signIn(email: string, password: string): Promise<{ user: User | null; error: Error | null }> {
+export async function signIn(email: string, password: string): Promise<{ user: User | null; session: any | null; error: Error | null }> {
     try {
         const { data, error } = await supabase.auth.signInWithPassword({
             email,
@@ -51,10 +51,10 @@ export async function signIn(email: string, password: string): Promise<{ user: U
         if (error) throw error;
         if (!data.user) throw new Error('No user returned from signin');
 
-        return { user: data.user, error: null };
+        return { user: data.user, session: data.session, error: null };
     } catch (error) {
         console.error('[Auth] Signin error:', error);
-        return { user: null, error: error as Error };
+        return { user: null, session: null, error: error as Error };
     }
 }
 

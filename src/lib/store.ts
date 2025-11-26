@@ -61,6 +61,7 @@ export interface Story {
     description: string;
     creatorId: string;
     visibility: 'public' | 'private';
+    mode: 'invite' | 'open';
     status: 'active' | 'completed';
     currentTurnUserId?: string;
     contributions: Contribution[];
@@ -704,11 +705,11 @@ export const useStore = create<AppState>()(
                     const newStoryId = newStoryData.id;
 
                     // 3. Copy participants and update the target slot
+                    let slotFilled = false;
                     const participants = originalStory.story_participants.map((p: any) => {
                         // Check if this is the slot we are replacing
-                        // We need to know which participant corresponds to the slotIndex.
-                        // Assuming participants are ordered by position.
                         if (p.position === slotIndex) {
+                            slotFilled = true;
                             return {
                                 story_id: newStoryId,
                                 user_id: newParticipantId,
@@ -720,9 +721,19 @@ export const useStore = create<AppState>()(
                             story_id: newStoryId,
                             user_id: p.user_id,
                             position: p.position,
-                            status: p.status, // Keep original status for others? Or reset? Let's keep.
+                            status: p.status,
                         };
                     });
+
+                    // If the slot was empty (no existing participant at that position), add the new participant
+                    if (!slotFilled) {
+                        participants.push({
+                            story_id: newStoryId,
+                            user_id: newParticipantId,
+                            position: slotIndex,
+                            status: 'waiting',
+                        });
+                    }
 
                     const { error: participantsError } = await supabase
                         .from('story_participants')

@@ -4,6 +4,7 @@ import { Story, useStore, Contribution } from "@/lib/store";
 import { MessageCircle, Heart, Share2, X, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef, useMemo, FormEvent, useCallback } from "react";
+import ShareModal from "./ShareModal";
 
 interface FeedItemProps {
     story: Story;
@@ -69,6 +70,7 @@ export default function FeedItem({ story }: FeedItemProps) {
     const [showParticipantPicker, setShowParticipantPicker] = useState(false);
     const [showFriendPicker, setShowFriendPicker] = useState(false);
     const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
+    const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
     const captureFrameFromVideo = useCallback((video: HTMLVideoElement) => {
         if (typeof document === "undefined") {
@@ -620,7 +622,8 @@ export default function FeedItem({ story }: FeedItemProps) {
                 <div className="flex flex-col items-center gap-1">
                     <button
                         type="button"
-                        className="w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-white/20"
+                        onClick={() => setIsShareModalOpen(true)}
+                        className={`w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-white/20 transition-colors ${isShareModalOpen ? "text-[#EC1D99]" : "text-white"}`}
                         aria-label="Share story"
                     >
                         <Share2 className="w-6 h-6" />
@@ -771,6 +774,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                         // Touch handling functions
                         const handleTouchStart = (e: React.TouchEvent) => {
                             touchStartX.current = e.touches[0].clientX;
+                            touchEndX.current = e.touches[0].clientX; // Initialize to avoid stale values
                         };
 
                         const handleTouchMove = (e: React.TouchEvent) => {
@@ -854,7 +858,10 @@ export default function FeedItem({ story }: FeedItemProps) {
                                                 }}
                                             >
                                                 <button
-                                                    onClick={() => {
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        console.log("Slot clicked:", index, "isActive:", isActive);
                                                         if (isActive) {
                                                             setSelectedSlot(index);
                                                             setShowParticipantPicker(true);
@@ -862,7 +869,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                                                             setCurrentSlotIndex(index);
                                                         }
                                                     }}
-                                                    className={`relative group ${isActive ? '' : 'cursor-pointer'}`}
+                                                    className={`relative group ${isActive ? 'cursor-pointer' : 'cursor-pointer'}`}
                                                 >
                                                     <div className="w-64 h-64 rounded-3xl border-2 border-dashed border-white/30 overflow-hidden transition-all hover:border-[#EC1D99] bg-gray-800 relative">
                                                         {contribution || p ? (
@@ -872,6 +879,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                                                                         <video
                                                                             src={contribution.mediaUrl}
                                                                             className="weeve-inline-video w-full h-full object-cover"
+                                                                            autoPlay
                                                                             muted
                                                                             playsInline
                                                                             loop
@@ -879,6 +887,10 @@ export default function FeedItem({ story }: FeedItemProps) {
                                                                             controls={false}
                                                                             controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                                                                             disablePictureInPicture
+                                                                            onLoadedData={(event) => {
+                                                                                const element = event.currentTarget;
+                                                                                element.play().catch(() => null);
+                                                                            }}
                                                                         />
                                                                     ) : contribution.mediaType === 'image' ? (
                                                                         <img
@@ -1015,6 +1027,13 @@ export default function FeedItem({ story }: FeedItemProps) {
                         )}
                     </div>
                 </div>
+            )}
+
+            {isShareModalOpen && (
+                <ShareModal
+                    story={story}
+                    onClose={() => setIsShareModalOpen(false)}
+                />
             )}
         </div>
     );

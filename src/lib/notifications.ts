@@ -13,6 +13,7 @@ export type NotificationType =
     | 'story_liked'
     | 'story_commented'
     | 'story_participant_left'
+    | 'story_shared'
     | 'group_invite'
     | 'group_update'
     | 'group_joined'
@@ -330,6 +331,26 @@ export const notifyParticipantLeft = async (
         title: 'Participant Left Story',
         message: `${participantName} has left your story "${storyTitle}". You can invite someone else to fill their spot.`,
         data: { story_id: storyId },
+        action_url: `/story/${storyId}`,
+        read: false,
+    });
+};
+
+/**
+ * Notify user that a story has been shared with them
+ */
+export const notifyStoryShared = async (
+    storyId: string,
+    storyTitle: string,
+    recipientId: string,
+    sharerName: string
+) => {
+    await createNotification({
+        user_id: recipientId,
+        type: 'story_shared',
+        title: 'Story Shared with You',
+        message: `${sharerName} shared "${storyTitle}" with you`,
+        data: { story_id: storyId, sharer_name: sharerName },
         action_url: `/story/${storyId}`,
         read: false,
     });

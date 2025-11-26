@@ -24,25 +24,17 @@ export default function LoginPage() {
         setError("");
 
         try {
-            const { user, error: authError } = await signIn(email, password);
+            const { user, session, error: authError } = await signIn(email, password);
 
             if (authError) throw authError;
             if (!user) throw new Error('Login failed');
 
             console.log('[Login] Successfully signed in, user:', user.id);
 
-            // For mobile apps, wait for session to be available
-            if (Capacitor.isNativePlatform()) {
-                let attempts = 0;
-                while (attempts < 10) {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (session) {
-                        console.log('[Login] Session confirmed');
-                        break;
-                    }
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                    attempts++;
-                }
+            // Manually set the session if needed, though supabase client usually handles this
+            if (session) {
+                const { error: sessionError } = await supabase.auth.setSession(session);
+                if (sessionError) console.error('[Login] Error setting session:', sessionError);
             }
 
             // Redirect to homepage - AuthProvider will also handle setup redirect if needed
