@@ -65,6 +65,8 @@ export interface Database {
                     cover_image: string | null
                     theme: string | null
                     group_id: string | null
+                    hashtags: string[] | null
+                    turn_timer_hours: number | null
                     created_at: string
                     updated_at: string
                 }
@@ -81,6 +83,7 @@ export interface Database {
                     cover_image?: string | null
                     theme?: string | null
                     group_id?: string | null
+                    turn_timer_hours?: number | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -97,6 +100,7 @@ export interface Database {
                     cover_image?: string | null
                     theme?: string | null
                     group_id?: string | null
+                    turn_timer_hours?: number | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -381,6 +385,86 @@ export interface Database {
                     {
                         foreignKeyName: "friendships_friend_id_fkey"
                         columns: ["friend_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
+            friend_requests: {
+                Row: {
+                    id: string
+                    sender_id: string
+                    receiver_id: string
+                    status: 'pending' | 'accepted' | 'declined'
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    sender_id: string
+                    receiver_id: string
+                    status?: 'pending' | 'accepted' | 'declined'
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    sender_id?: string
+                    receiver_id?: string
+                    status?: 'pending' | 'accepted' | 'declined'
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "friend_requests_sender_id_fkey"
+                        columns: ["sender_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    },
+                    {
+                        foreignKeyName: "friend_requests_receiver_id_fkey"
+                        columns: ["receiver_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
+            notifications: {
+                Row: {
+                    id: string
+                    user_id: string
+                    type: string
+                    title: string
+                    message: string
+                    data: Json | null
+                    action_url: string | null
+                    read: boolean
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    type: string
+                    title: string
+                    message: string
+                    data?: Json | null
+                    action_url?: string | null
+                    read?: boolean
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    type?: string
+                    title?: string
+                    message?: string
+                    data?: Json | null
+                    action_url?: string | null
+                    read?: boolean
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "notifications_user_id_fkey"
+                        columns: ["user_id"]
                         referencedRelation: "profiles"
                         referencedColumns: ["user_id"]
                     }

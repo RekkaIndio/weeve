@@ -14,6 +14,7 @@ function DiscoverContent() {
     const [showCreateGroup, setShowCreateGroup] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
     const [newGroupDesc, setNewGroupDesc] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Update active category when URL param changes
     useEffect(() => {
@@ -29,6 +30,42 @@ function DiscoverContent() {
         { id: 'foryou', label: 'For You', icon: Sparkles, color: 'text-yellow-500' },
         { id: 'groups', label: 'Groups', icon: Users, color: 'text-green-500' },
     ];
+
+    // Filter stories based on search query
+    const filteredStories = stories.filter(story => {
+        if (!searchQuery.trim()) return true;
+
+        const query = searchQuery.toLowerCase();
+
+        // Search in title
+        if (story.title.toLowerCase().includes(query)) return true;
+
+        // Search in description
+        if (story.description.toLowerCase().includes(query)) return true;
+
+        // Search in hashtags
+        if (story.hashtags?.some(tag => tag.toLowerCase().includes(query))) return true;
+
+        // Search in participant names
+        if (story.participants.some(p => p.name.toLowerCase().includes(query))) return true;
+
+        return false;
+    });
+
+    // Filter groups based on search query
+    const filteredGroups = groups.filter(group => {
+        if (!searchQuery.trim()) return true;
+
+        const query = searchQuery.toLowerCase();
+
+        // Search in group name
+        if (group.name.toLowerCase().includes(query)) return true;
+
+        // Search in group description
+        if (group.description.toLowerCase().includes(query)) return true;
+
+        return false;
+    });
 
     const handleCreateGroup = (e: React.FormEvent) => {
         e.preventDefault();
@@ -59,6 +96,8 @@ function DiscoverContent() {
                         <input
                             type="text"
                             placeholder="Search stories, people, tags..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full bg-gray-900 border border-gray-800 rounded-full py-3 pl-10 pr-4 text-sm focus:outline-none focus:border-[#EC1D99] transition-colors"
                         />
                     </div>
@@ -103,59 +142,73 @@ function DiscoverContent() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-3">
-                        {groups.map(group => (
-                            <div key={group.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition-colors cursor-pointer">
-                                <img src={group.avatar} alt={group.name} className="w-12 h-12 rounded-full bg-gray-800" />
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-base">{group.name}</h3>
-                                    <p className="text-xs text-gray-400 line-clamp-1">{group.description}</p>
-                                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                                        <Users className="w-3 h-3" />
-                                        <span>{group.memberCount.toLocaleString()} members</span>
-                                        {group.isPrivate && <span className="bg-gray-800 px-1.5 rounded text-[10px]">Private</span>}
+                        {filteredGroups.length > 0 ? (
+                            filteredGroups.map(group => (
+                                <div key={group.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition-colors cursor-pointer">
+                                    <img src={group.avatar} alt={group.name} className="w-12 h-12 rounded-full bg-gray-800" />
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-base">{group.name}</h3>
+                                        <p className="text-xs text-gray-400 line-clamp-1">{group.description}</p>
+                                        <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                                            <Users className="w-3 h-3" />
+                                            <span>{group.memberCount.toLocaleString()} members</span>
+                                            {group.isPrivate && <span className="bg-gray-800 px-1.5 rounded text-[10px]">Private</span>}
+                                        </div>
                                     </div>
+                                    <button className="text-xs font-medium text-[#EC1D99] border border-[#EC1D99] px-3 py-1 rounded-full hover:bg-[#EC1D99] hover:text-white transition-colors">
+                                        Join
+                                    </button>
                                 </div>
-                                <button className="text-xs font-medium text-[#EC1D99] border border-[#EC1D99] px-3 py-1 rounded-full hover:bg-[#EC1D99] hover:text-white transition-colors">
-                                    Join
-                                </button>
+                            ))
+                        ) : (
+                            <div className="text-center py-12">
+                                <p className="text-gray-500">No groups found matching "{searchQuery}"</p>
                             </div>
-                        ))}
+                        )}
                     </div>
                 </div>
             ) : (
                 /* Masonry Grid (Simulated with 2 columns) */
                 <div className="grid grid-cols-2 gap-3">
-                    {stories.map((story, idx) => (
-                        <Link
-                            key={story.id}
-                            href={`/story/${story.id}`}
-                            className={`relative rounded-xl overflow-hidden group ${idx % 3 === 0 ? 'row-span-2 aspect-[9/16]' : 'aspect-square'}`}
-                        >
-                            <img
-                                src={story.coverImage || story.contributions[0]?.mediaUrl || "https://via.placeholder.com/400"}
-                                alt={story.title}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
-                                <h3 className="font-bold text-sm line-clamp-2 mb-1">{story.title}</h3>
-                                <div className="flex items-center gap-1 text-xs text-gray-300">
-                                    <div className="flex -space-x-1">
-                                        {story.participants.slice(0, 2).map(p => (
-                                            <img key={p.id} src={p.avatar} className="w-4 h-4 rounded-full border border-black" />
-                                        ))}
+                    {filteredStories.length > 0 ? (
+                        <>
+                            {filteredStories.map((story, idx) => (
+                                <Link
+                                    key={story.id}
+                                    href={`/story/${story.id}`}
+                                    className={`relative rounded-xl overflow-hidden group ${idx % 3 === 0 ? 'row-span-2 aspect-[9/16]' : 'aspect-square'}`}
+                                >
+                                    <img
+                                        src={story.coverImage || story.contributions[0]?.mediaUrl || "https://via.placeholder.com/400"}
+                                        alt={story.title}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
+                                        <h3 className="font-bold text-sm line-clamp-2 mb-1">{story.title}</h3>
+                                        <div className="flex items-center gap-1 text-xs text-gray-300">
+                                            <div className="flex -space-x-1">
+                                                {story.participants.slice(0, 2).map(p => (
+                                                    <img key={p.id} src={p.avatar} className="w-4 h-4 rounded-full border border-black" />
+                                                ))}
+                                            </div>
+                                            <span>{story.participants.length} weevers</span>
+                                        </div>
                                     </div>
-                                    <span>{story.participants.length} weevers</span>
-                                </div>
-                            </div>
-                        </Link>
-                    ))}
+                                </Link>
+                            ))}
 
-                    {/* Mock Placeholders to fill grid */}
-                    {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="bg-gray-900 rounded-xl aspect-square flex items-center justify-center text-gray-700">
-                            <span className="text-xs">Loading...</span>
+                            {/* Mock Placeholders to fill grid - only show when not searching */}
+                            {!searchQuery.trim() && [1, 2, 3, 4].map((i) => (
+                                <div key={i} className="bg-gray-900 rounded-xl aspect-square flex items-center justify-center text-gray-700">
+                                    <span className="text-xs">Loading...</span>
+                                </div>
+                            ))}
+                        </>
+                    ) : (
+                        <div className="col-span-2 text-center py-12">
+                            <p className="text-gray-500">No stories found matching "{searchQuery}"</p>
                         </div>
-                    ))}
+                    )}
                 </div>
             )}
 

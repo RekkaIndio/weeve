@@ -29,7 +29,7 @@ export default function LoginPage() {
 
             console.log('[Login] Successfully signed in, user:', user.id);
             // Redirect to homepage - AuthProvider will also handle setup redirect if needed
-            router.push('/');
+            router.push('/feed');
         } catch (err: any) {
             console.error('[Login] Error:', err);
             setError(err.message || "Failed to log in");

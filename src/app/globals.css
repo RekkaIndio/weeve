@@ -5,7 +5,8 @@
   --foreground: #171717;
 }
 
-@theme inline {
+/* Define CSS custom properties for theme colors and fonts */
+:root {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -27,19 +28,21 @@ body {
 
 @layer utilities {
   .glass {
-    @apply bg-black/30 backdrop-blur-md border border-white/10;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(var(--tw-backdrop-blur-md));
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
+}
 
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
 
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 
-  .safe-area-pb {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom);
 }

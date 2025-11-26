@@ -4,8 +4,10 @@ import { use, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useStore, type TextStyle, type Contribution, type User } from "@/lib/store";
 import { createStoryContribution } from "@/lib/data";
+import { leaveStory, deleteStory } from "@/lib/stories";
 import { capturePhoto, captureVideo } from "@/lib/camera";
-import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, X, Loader2, Edit2, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
+import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, X, Loader2, Edit2, LogOut, Trash, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp, FileVideo, Image as ImageIcon } from "lucide-react";
 import EditStoryModal from "@/app/components/EditStoryModal";
 import { toast } from "sonner";
 
@@ -78,6 +80,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
 
     // Stitch Flow States
     const [showStitchMenu, setShowStitchMenu] = useState(false);
+    const [mediaSourcePicker, setMediaSourcePicker] = useState<{ type: 'video' | 'image' } | null>(null);
     const [stitchMode, setStitchMode] = useState<'video' | 'image' | 'text' | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [textContribution, setTextContribution] = useState("");
@@ -95,6 +98,8 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
     // Edit Story States
     const [showMenu, setShowMenu] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
+    const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     const contributions = story?.contributions ?? EMPTY_CONTRIBUTIONS;
     const maxWeeves = typeof story?.maxWeeves === 'number' ? story.maxWeeves : null;
@@ -157,6 +162,19 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         }
         return false;
     }, [stitchMode, textContribution]);
+
+    const mediaPickerConfig = useMemo(() => {
+        if (!mediaSourcePicker) return null;
+        const isVideo = mediaSourcePicker.type === 'video';
+        return {
+            type: mediaSourcePicker.type,
+            heading: isVideo ? 'How do you want to add a video?' : 'How do you want to add a photo?',
+            takeLabel: isVideo ? 'Take Video' : 'Take Photo',
+            uploadLabel: isVideo ? 'Upload Video' : 'Upload Photo',
+            TakeIcon: isVideo ? Video : Camera,
+            UploadIcon: isVideo ? FileVideo : ImageIcon,
+        } as const;
+    }, [mediaSourcePicker]);
 
     const clampPosition = useCallback((left: number, top: number, width: number, height: number) => {
         if (!stageRef.current) return { left, top };
@@ -267,6 +285,35 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         setShowStitchMenu(false);
     };
 
+    const handleMediaPickerCancel = useCallback(() => {
+        setMediaSourcePicker(null);
+        setShowStitchMenu(true);
+    }, []);
+
+    const handleMediaSourceSelection = useCallback(async (type: 'video' | 'image', source: 'camera' | 'gallery') => {
+        setMediaSourcePicker(null);
+        console.log('[Story] Media source selected:', { type, source });
+        try {
+            const file = type === 'video' ? await captureVideo(source) : await capturePhoto(source);
+            if (file) {
+                console.log(`[Story] ${type} file received:`, file.name, file.size);
+                const previewUrl = URL.createObjectURL(file);
+                setMediaDraft({ type, file, previewUrl });
+                setTextContribution("");
+                setTextStyleOptions({ ...DEFAULT_TEXT_STYLE });
+                setStitchMode(type);
+            } else {
+                console.log(`[Story] No ${type} file returned (user may have cancelled)`);
+                toast.error(`${type === 'video' ? 'Video' : 'Photo'} capture cancelled or failed. Please try again.`);
+                setShowStitchMenu(true);
+            }
+        } catch (error) {
+            console.error(`[Story] ${type} capture failed:`, error);
+            toast.error(`${type === 'video' ? 'Video' : 'Photo'} capture failed. Please try again.`);
+            setShowStitchMenu(true);
+        }
+    }, [setMediaDraft, setTextContribution, setTextStyleOptions, setShowStitchMenu]);
+
     useEffect(() => {
         return () => {
             if (mediaDraft?.previewUrl) {
@@ -314,36 +361,23 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         }
 
         if (mode === 'video') {
-            console.log('[Story] Requesting video capture');
-            const file = await captureVideo();
-            if (file) {
-                console.log('[Story] Video file received:', file.name, file.size);
-                const previewUrl = URL.createObjectURL(file);
-                setMediaDraft({ type: 'video', file, previewUrl });
-                setTextContribution("");
-                setTextStyleOptions({ ...DEFAULT_TEXT_STYLE });
-                setStitchMode('video');
+            console.log('[Story] Video option selected');
+            if (Capacitor.isNativePlatform()) {
+                setMediaSourcePicker({ type: 'video' });
             } else {
-                console.log('[Story] No video file returned (user may have cancelled)');
-                toast.error('Video capture cancelled or failed. Please try again.');
+                await handleMediaSourceSelection('video', 'gallery');
             }
             return;
         }
 
         if (mode === 'image') {
-            console.log('[Story] Requesting photo capture');
-            const file = await capturePhoto();
-            if (file) {
-                console.log('[Story] Photo file received:', file.name, file.size);
-                const previewUrl = URL.createObjectURL(file);
-                setMediaDraft({ type: 'image', file, previewUrl });
-                setTextContribution("");
-                setTextStyleOptions({ ...DEFAULT_TEXT_STYLE });
-                setStitchMode('image');
+            console.log('[Story] Photo option selected');
+            if (Capacitor.isNativePlatform()) {
+                setMediaSourcePicker({ type: 'image' });
             } else {
-                console.log('[Story] No photo file returned (user may have cancelled)');
-                toast.error('Photo capture cancelled or failed. Please try again.');
+                await handleMediaSourceSelection('image', 'gallery');
             }
+            return;
         }
     };
 
@@ -426,6 +460,61 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         }
     };
 
+    // Check if current user is a participant (not creator)
+    const isUserParticipant = useMemo(() => {
+        if (!currentUser || !story) return false;
+        return story.participants.some(p => p.id === currentUser.id) && story.creatorId !== currentUser.id;
+    }, [currentUser, story]);
+
+    // Handle leaving the story
+    const handleLeaveStory = async () => {
+        if (!currentUser || !story) return;
+
+        setShowLeaveConfirm(false);
+        setShowMenu(false);
+
+        try {
+            const result = await leaveStory(story.id, currentUser.id, currentUser.name);
+
+            if (result.success) {
+                toast.success('You have left the story');
+                router.push('/profile');
+            } else {
+                toast.error(result.error || 'Failed to leave story');
+            }
+        } catch (error) {
+            console.error('Error leaving story:', error);
+            toast.error('An error occurred while leaving the story');
+        }
+    };
+
+    // Handle deleting the story (creators only)
+    const handleDeleteStory = async () => {
+        if (!currentUser || !story) return;
+
+        setShowDeleteConfirm(false);
+        setShowMenu(false);
+
+        try {
+            const result = await deleteStory(story.id, currentUser.id);
+
+            if (result.success) {
+                toast.success('Story deleted successfully');
+                // Redirect to group page if story belongs to a group, otherwise profile
+                if (story.groupId) {
+                    router.push(`/groups/${story.groupId}`);
+                } else {
+                    router.push('/profile');
+                }
+            } else {
+                toast.error(result.error || 'Failed to delete story');
+            }
+        } catch (error) {
+            console.error('Error deleting story:', error);
+            toast.error('An error occurred while deleting the story');
+        }
+    };
+
 
 
     const handleEmojiInsert = (emoji: string) => {
@@ -484,18 +573,41 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                     {showMenu && (
                         <div className="absolute top-full right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden pointer-events-auto z-50">
                             {story.creatorId === currentUser.id && (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            setShowEditModal(true);
+                                            setShowMenu(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors"
+                                    >
+                                        <Edit2 className="w-4 h-4 text-gray-400" />
+                                        <span className="text-sm font-medium text-white">Edit Story</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowDeleteConfirm(true);
+                                            setShowMenu(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-t border-gray-800"
+                                    >
+                                        <Trash className="w-4 h-4 text-red-400" />
+                                        <span className="text-sm font-medium text-red-400">Delete Story</span>
+                                    </button>
+                                </>
+                            )}
+                            {isUserParticipant && (
                                 <button
                                     onClick={() => {
-                                        setShowEditModal(true);
+                                        setShowLeaveConfirm(true);
                                         setShowMenu(false);
                                     }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors"
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-t border-gray-800"
                                 >
-                                    <Edit2 className="w-4 h-4 text-gray-400" />
-                                    <span className="text-sm font-medium text-white">Edit Story</span>
+                                    <LogOut className="w-4 h-4 text-red-400" />
+                                    <span className="text-sm font-medium text-red-400">Leave Story</span>
                                 </button>
                             )}
-                            {/* Add more options here if needed */}
                         </div>
                     )}
                 </div>
@@ -762,6 +874,41 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                 </div>
             )}
 
+            {mediaPickerConfig && (
+                <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex flex-col items-center justify-end pb-12 animate-in slide-in-from-bottom duration-300">
+                    <button
+                        onClick={handleMediaPickerCancel}
+                        className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white"
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+
+                    <h2 className="text-xl font-bold mb-8">{mediaPickerConfig.heading}</h2>
+
+                    <div className="flex gap-6 mb-8">
+                        <button
+                            onClick={() => handleMediaSourceSelection(mediaPickerConfig.type, 'camera')}
+                            className="flex flex-col items-center gap-2 group"
+                        >
+                            <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                                <mediaPickerConfig.TakeIcon className="w-8 h-8" />
+                            </div>
+                            <span className="text-sm font-medium">{mediaPickerConfig.takeLabel}</span>
+                        </button>
+
+                        <button
+                            onClick={() => handleMediaSourceSelection(mediaPickerConfig.type, 'gallery')}
+                            className="flex flex-col items-center gap-2 group"
+                        >
+                            <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                                <mediaPickerConfig.UploadIcon className="w-8 h-8" />
+                            </div>
+                            <span className="text-sm font-medium">{mediaPickerConfig.uploadLabel}</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Composer Overlay */}
             {isComposerOpen && (
                 <>
@@ -987,6 +1134,58 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                     story={story}
                     onClose={() => setShowEditModal(false)}
                 />
+            )}
+
+            {/* Leave Story Confirmation Modal */}
+            {showLeaveConfirm && (
+                <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full">
+                        <h2 className="text-xl font-bold mb-2">Leave Story?</h2>
+                        <p className="text-gray-400 text-sm mb-6">
+                            Are you sure you want to leave "<span className="text-white font-medium">{story.title}</span>"? This will free up your slot for someone else.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowLeaveConfirm(false)}
+                                className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleLeaveStory}
+                                className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+                            >
+                                Yes, Leave
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Story Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full">
+                        <h2 className="text-xl font-bold mb-2 text-red-400">Delete Story?</h2>
+                        <p className="text-gray-400 text-sm mb-6">
+                            Are you sure you want to permanently delete "<span className="text-white font-medium">{story.title}</span>"? This action cannot be undone and will remove all contributions, comments, and likes.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeleteStory}
+                                className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+                            >
+                                Yes, Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

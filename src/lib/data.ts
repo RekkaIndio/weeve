@@ -1,4 +1,5 @@
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
+import { getLatestSession, setLatestSession } from './auth-session';
 import { Story, Contribution, User, MediaType, TextStyle, Group, StoryComment } from './store';
 import type { Database, Json } from './database.types';
 import type { Session } from '@supabase/supabase-js';
@@ -243,10 +244,22 @@ async function compressImage(file: File): Promise<Blob> {
 
     return new Promise((resolve, reject) => {
         const img = new Image();
-        const url = URL.createObjectURL(file);
+        let objectUrl: string | null = null;
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+        const cleanup = () => {
+            if (timeoutId !== null) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+            if (objectUrl) {
+                URL.revokeObjectURL(objectUrl);
+                objectUrl = null;
+            }
+        };
 
         img.onload = () => {
-            URL.revokeObjectURL(url);
+            cleanup();
 
             // Calculate new dimensions (max 1920x1920)
             let width = img.width;
@@ -287,11 +300,23 @@ async function compressImage(file: File): Promise<Blob> {
         };
 
         img.onerror = (err) => {
-            URL.revokeObjectURL(url);
+            cleanup();
             reject(new Error('Failed to load image for compression'));
         };
 
-        img.src = url;
+        try {
+            objectUrl = URL.createObjectURL(file);
+            if (typeof window !== 'undefined') {
+                timeoutId = window.setTimeout(() => {
+                    cleanup();
+                    reject(new Error('Image load timeout during compression'));
+                }, 4000);
+            }
+            img.src = objectUrl;
+        } catch (objectUrlError) {
+            cleanup();
+            reject(objectUrlError instanceof Error ? objectUrlError : new Error('Failed to create object URL for compression'));
+        }
     });
 }
 
@@ -300,76 +325,125 @@ export async function createStoryContribution(options: CreateStoryContributionOp
         storyId: options.storyId,
         mediaType: options.mediaType,
         hasFile: !!options.file,
-        fileSize: options.file?.size,
-        fileType: options.file?.type,
     });
 
-    console.log('[Upload] Contribution handler version v6 (Compression)');
+    let session: Session | null = getLatestSession();
+    let sessionTimedOut = false;
+    const sessionFetchedFromCache = !!session;
 
-    let session: Session | null = null;
-    try {
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Session retrieval timeout')), 10000); // 10 second timeout
-        });
-        const { data: sessionData, error: sessionError } = await Promise.race([sessionPromise, timeoutPromise]) as any;
-
-        if (sessionError) {
-            console.error('[Upload] Session retrieval error:', sessionError);
-        }
-
-        session = sessionData?.session ?? null;
-
-        // Proactive token refresh if expiring soon (within 5 minutes)
-        if (session?.expires_at) {
-            const expiresAt = session.expires_at * 1000; // convert to ms
-            const now = Date.now();
-            const timeUntilExpiry = expiresAt - now;
-
-            console.log('[Upload] Token expiry check:', {
-                expiresAt: new Date(expiresAt).toISOString(),
-                timeUntilExpirySeconds: Math.round(timeUntilExpiry / 1000),
+    if (!session) {
+        try {
+            const timeoutPromise = new Promise<{ data: null; error: null; timedOut: true }>((resolve) => {
+                setTimeout(() => resolve({ data: null, error: null, timedOut: true }), 4000);
             });
 
-            if (timeUntilExpiry < 5 * 60 * 1000) { // 5 minutes
-                console.log('[Upload] Token expiring soon, refreshing session proactively...');
+            const sessionResult = await Promise.race([
+                supabase.auth.getSession().then((result) => ({ ...result, timedOut: false as const })).catch((error) => ({ data: null, error, timedOut: false as const })),
+                timeoutPromise,
+            ]);
 
-                const refreshPromise = supabase.auth.refreshSession();
-                const refreshTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Refresh timeout')), 5000));
+            if ('timedOut' in sessionResult && sessionResult.timedOut) {
+                sessionTimedOut = true;
+                console.warn('[Upload] Session retrieval timed out after 4s, continuing without cached session');
+            } else {
+                const { data: sessionData, error: sessionError } = sessionResult as { data: { session: Session | null } | null; error: any };
 
-                try {
-                    const { data: refreshData, error: refreshError } = await Promise.race([refreshPromise, refreshTimeout]) as any;
+                if (sessionError) {
+                    console.error('[Upload] Session retrieval error:', sessionError);
+                }
+
+                session = sessionData?.session ?? null;
+                setLatestSession(session ?? null);
+            }
+        } catch (sessionCatchError) {
+            console.error('[Upload] Unexpected error inspecting session:', sessionCatchError);
+            session = null;
+        }
+    }
+    console.log('[Upload] Session fetch result', {
+        hasSession: !!session,
+        timedOut: sessionTimedOut,
+        fromCache: sessionFetchedFromCache,
+    });
+
+    // Proactive token refresh if expiring soon (within 5 minutes)
+    if (session?.expires_at) {
+        const expiresAt = session.expires_at * 1000; // convert to ms
+        const now = Date.now();
+        const timeUntilExpiry = expiresAt - now;
+
+        if (timeUntilExpiry < 5 * 60 * 1000) { // 5 minutes
+            try {
+                const refreshTimeout = new Promise<{ data: null; error: Error; timedOut: true }>((resolve) => {
+                    setTimeout(() => resolve({ data: null, error: new Error('Refresh timeout'), timedOut: true }), 4000);
+                });
+
+                const refreshResult = await Promise.race([
+                    supabase.auth.refreshSession().then((result) => ({ ...result, timedOut: false as const })).catch((error) => ({ data: null, error, timedOut: false as const })),
+                    refreshTimeout,
+                ]);
+
+                if ('timedOut' in refreshResult && refreshResult.timedOut) {
+                    console.warn('[Upload] Proactive refresh timed out after 4s');
+                } else {
+                    const { data: refreshData, error: refreshError } = refreshResult as { data: { session: Session | null } | null; error: any };
 
                     if (refreshError) {
                         console.error('[Upload] Proactive refresh failed:', refreshError);
                     } else if (refreshData?.session) {
                         session = refreshData.session;
-                        console.log('[Upload] Session refreshed proactively');
+                        setLatestSession(session);
                     }
-                } catch (err) {
-                    console.error('[Upload] Proactive refresh timed out or failed:', err);
+                }
+            } catch (err) {
+                console.error('[Upload] Proactive refresh failed:', err);
+            }
+        }
+    }
+
+    let hasSession = !!session;
+    if (!hasSession) {
+        console.warn('[Upload] No active auth session detected before upload');
+        try {
+            const fallbackRefreshTimeout = new Promise<{ data: null; error: Error; timedOut: true }>((resolve) => {
+                setTimeout(() => resolve({ data: null, error: new Error('Refresh timeout'), timedOut: true }), 4000);
+            });
+
+            const refreshResult = await Promise.race([
+                supabase.auth.refreshSession().then((result) => ({ ...result, timedOut: false as const })).catch((error) => ({ data: null, error, timedOut: false as const })),
+                fallbackRefreshTimeout,
+            ]);
+
+            if ('timedOut' in refreshResult && refreshResult.timedOut) {
+                console.warn('[Upload] Session refresh timed out after 4s');
+            } else {
+                const { data: refreshData, error: refreshError } = refreshResult as { data: { session: Session | null } | null; error: any };
+                if (refreshError) {
+                    console.error('[Upload] Session refresh failed:', refreshError);
+                } else if (refreshData?.session) {
+                    session = refreshData.session;
+                    hasSession = true;
+                    setLatestSession(session);
                 }
             }
+        } catch (refreshCatchError) {
+            console.error('[Upload] Session refresh threw:', refreshCatchError);
         }
-
-        const hasSession = !!session;
-        console.log('[Upload] Session check', {
-            hasSession,
-            userId: session?.user?.id,
-        });
 
         if (!hasSession) {
-            console.warn('[Upload] No active auth session detected before upload');
-            // Try one last ditch refresh if no session at all
-            const { data: refreshData } = await supabase.auth.refreshSession();
-            if (refreshData.session) {
-                session = refreshData.session;
-                console.log('[Upload] Recovered session via refresh');
+            try {
+                const { data: retryData, error: retryError } = await supabase.auth.getSession();
+                if (retryError) {
+                    console.error('[Upload] Session retry failed:', retryError);
+                } else if (retryData?.session) {
+                    session = retryData.session;
+                    hasSession = true;
+                    setLatestSession(session);
+                }
+            } catch (retryCatchError) {
+                console.error('[Upload] Session retry threw:', retryCatchError);
             }
         }
-    } catch (sessionCatchError) {
-        console.error('[Upload] Unexpected error inspecting session:', sessionCatchError);
-        session = null;
     }
 
     let publicUrl: string | undefined;
@@ -387,43 +461,35 @@ export async function createStoryContribution(options: CreateStoryContributionOp
         const extension = getFileExtension(options.file);
         const objectPath = `${options.storyId}/${options.userId}/${Date.now()}-${randomSuffix()}.${extension}`;
 
-        console.log('[Upload] Upload path:', objectPath);
-
         // Compress image if applicable
         let uploadBlob: Blob;
         let uploadContentType = options.file.type || 'application/octet-stream';
 
         try {
             if (options.file.type.startsWith('image/')) {
-                console.log('[Upload] Compressing image...');
                 uploadBlob = await compressImage(options.file);
                 uploadContentType = 'image/jpeg'; // We force JPEG in compression
-            } else {
+            } else if (options.file.type.startsWith('video/')) {
+                // For video files, don't slice to avoid potential issues
                 uploadBlob = options.file;
+            } else {
+                // For other files, slice to ensure stable Blob
+                try {
+                    uploadBlob = options.file.slice(0, options.file.size, options.file.type);
+                } catch (sliceError) {
+                    console.warn('[Upload] File slice failed, falling back to original file:', sliceError);
+                    uploadBlob = options.file;
+                }
             }
         } catch (compressError) {
-            console.warn('[Upload] Compression failed, falling back to original file:', compressError);
+            console.warn('[Upload] Preparation failed, falling back to original file:', compressError);
             uploadBlob = options.file;
         }
-
-        console.log('[Upload] Final payload details:', {
-            size: uploadBlob.size,
-            type: uploadContentType,
-        });
 
         let uploadSucceeded = false;
         let uploadError: any = null;
 
-        console.log('[Upload] Session snapshot before upload strategy', {
-            hasSession: !!session,
-            hasAccessToken: !!session?.access_token,
-            tokenLength: session?.access_token?.length ?? 0,
-        });
-
         if (session?.access_token) {
-            console.log('[Upload] Attempting REST upload first', {
-                tokenPrefix: session.access_token.slice(0, 8),
-            });
             try {
                 await uploadFileToStorage({
                     bucket: STORY_MEDIA_BUCKET,
@@ -434,7 +500,6 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                     contentType: uploadContentType,
                     accessToken: session.access_token,
                 });
-                console.log('[Upload] REST upload successful!');
                 uploadSucceeded = true;
             } catch (restPrimaryError) {
                 console.error('[Upload] REST upload failed, will try Supabase SDK next:', restPrimaryError);
@@ -448,16 +513,9 @@ export async function createStoryContribution(options: CreateStoryContributionOp
             const maxRetries = 3;
 
             for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                console.log(`[Upload] Upload attempt ${attempt}/${maxRetries} via Supabase SDK...`);
-
                 // Use the prepared blob directly
                 const attemptPayload = uploadBlob;
                 const finalContentType = uploadContentType;
-
-                console.log('[Upload] SDK payload prepared', {
-                    size: attemptPayload.size,
-                    type: finalContentType,
-                });
 
                 try {
                     const uploadPromise = supabase.storage
@@ -468,16 +526,14 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                             contentType: finalContentType,
                         });
 
-                    // 5 minute timeout for large files on mobile
+                    // Timeout based on file type - longer for videos
+                    const isVideo = options.file.type.startsWith('video/');
+                    const timeoutMs = isVideo ? 600000 : 300000; // 10 min for video, 5 min for others
                     const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error('Upload timeout after 5 minutes')), 300000);
+                        setTimeout(() => reject(new Error(`Upload timeout after ${timeoutMs / 1000} seconds`)), timeoutMs);
                     });
 
                     const uploadResult = await Promise.race([uploadPromise, timeoutPromise]) as any;
-                    console.log(`[Upload] Supabase SDK attempt ${attempt} completed`, {
-                        hasData: !!uploadResult?.data,
-                        hasError: !!uploadResult?.error,
-                    });
                     const { data: uploadData, error } = uploadResult;
 
                     if (error) {
@@ -490,7 +546,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                             if (refreshError) {
                                 console.error('[Upload] Session refresh failed:', refreshError);
                             } else if (refreshData.session) {
-                                console.log('[Upload] Session refreshed successfully. Retrying upload with new token...');
+                                console.log('[Upload] Session refreshed successfully (retrying upload)');
                                 // Update session variable for next loop if needed (though SDK handles it internally usually)
                                 session = refreshData.session;
                             }
@@ -506,16 +562,11 @@ export async function createStoryContribution(options: CreateStoryContributionOp
 
                         // If not last attempt, wait before retry
                         if (attempt < maxRetries) {
-                            console.log(`[Upload] Waiting 2 seconds before retry...`);
                             await new Promise(resolve => setTimeout(resolve, 2000));
                             continue;
                         }
                     } else {
                         // Success!
-                        console.log('[Upload] Upload successful via Supabase SDK!');
-                        if (uploadData?.path) {
-                            console.log('[Upload] Uploaded path:', uploadData.path);
-                        }
                         uploadError = null;
                         uploadSucceeded = true;
                         break;
@@ -526,7 +577,6 @@ export async function createStoryContribution(options: CreateStoryContributionOp
 
                     // If not last attempt, wait before retry
                     if (attempt < maxRetries) {
-                        console.log(`[Upload] Waiting 2 seconds before retry...`);
                         await new Promise(resolve => setTimeout(resolve, 2000));
                         continue;
                     }
@@ -542,13 +592,11 @@ export async function createStoryContribution(options: CreateStoryContributionOp
             throw uploadError ?? new Error('Upload failed with unknown error');
         }
 
-        console.log('[Upload] Getting public URL...');
         const { data: urlData } = supabase.storage
             .from(STORY_MEDIA_BUCKET)
             .getPublicUrl(objectPath);
 
         publicUrl = urlData.publicUrl;
-        console.log('[Upload] Public URL obtained:', publicUrl);
     } else if (options.file) {
         console.warn('[Upload] File provided but lacks size metadata, skipping upload and keeping media_url undefined');
     }
@@ -557,21 +605,98 @@ export async function createStoryContribution(options: CreateStoryContributionOp
 
     const textStyleJson: Json | null = options.textStyle ? (options.textStyle as unknown as Json) : null;
 
-    console.log('[Upload] Inserting contribution to database...');
-    const { data: insertedContribution, error: contributionError } = await supabase
-        .from('contributions')
-        .insert({
-            story_id: options.storyId,
-            user_id: options.userId,
-            user_name: options.userName,
-            content: options.content,
-            media_type: options.mediaType,
-            media_url: publicUrl,
-            timestamp,
-            text_style: textStyleJson,
-        })
-        .select()
-        .single();
+    const insertPayload = {
+        story_id: options.storyId,
+        user_id: options.userId,
+        user_name: options.userName,
+        content: options.content,
+        media_type: options.mediaType,
+        media_url: publicUrl,
+        timestamp,
+        text_style: textStyleJson,
+    } as const;
+
+    let insertedContribution: any = null;
+    let contributionError: any = null;
+
+    const attemptRestInsert = async () => {
+        if (!session?.access_token) {
+            return false;
+        }
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const restResponse = await fetch(`${SUPABASE_URL}/rest/v1/contributions`, {
+                method: 'POST',
+                headers: {
+                    apikey: SUPABASE_ANON_KEY,
+                    Authorization: `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json',
+                    Prefer: 'return=representation',
+                },
+                body: JSON.stringify([insertPayload]),
+                signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+
+            if (!restResponse.ok) {
+                const errorText = await restResponse.text();
+                console.error('[Upload] REST insert failed', restResponse.status, errorText);
+                contributionError = new Error(`REST insert failed with status ${restResponse.status}`);
+                return false;
+            }
+
+            const restData = await restResponse.json();
+            insertedContribution = Array.isArray(restData) ? restData[0] ?? null : null;
+            contributionError = null;
+            return !!insertedContribution;
+        } catch (restInsertError) {
+            console.error('[Upload] REST insert error', restInsertError);
+            contributionError = restInsertError;
+            return false;
+        }
+    };
+
+    const attemptSdkInsert = async () => {
+        try {
+            const insertTimeoutMs = 4000;
+            const sdkInsertPromise = supabase
+                .from('contributions')
+                .insert(insertPayload)
+                .select()
+                .single();
+
+            const sdkResult = await Promise.race([
+                sdkInsertPromise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Insert timeout')), insertTimeoutMs)),
+            ]);
+
+            insertedContribution = sdkResult?.data ?? null;
+            contributionError = sdkResult?.error ?? null;
+            return !!insertedContribution && !contributionError;
+        } catch (sdkInsertError) {
+            console.warn('[Upload] SDK insert failed or timed out', sdkInsertError);
+            contributionError = sdkInsertError;
+            return false;
+        }
+    };
+
+    const restSucceeded = await attemptRestInsert();
+
+    if (!restSucceeded) {
+        const sdkSucceeded = await attemptSdkInsert();
+        if (!sdkSucceeded && session?.access_token) {
+            const restRetrySucceeded = await attemptRestInsert();
+            if (!restRetrySucceeded) {
+                contributionError = contributionError || new Error('All contribution insert attempts failed');
+            } else {
+                contributionError = null;
+            }
+        }
+    } else {
+        contributionError = null;
+    }
 
     if (contributionError) {
         console.error('[Upload] Database insert error:', contributionError);
@@ -587,23 +712,68 @@ export async function createStoryContribution(options: CreateStoryContributionOp
     }
 
     if (!insertedContribution) {
-        console.error('[Upload] No contribution data returned');
+        console.error('[Upload] No contribution data returned after both insert strategies');
         throw new Error('Contribution insert did not return data');
     }
 
-    console.log('[Upload] Contribution inserted successfully:', insertedContribution.id);
-
     if (options.nextTurnUserId !== undefined) {
-        console.log('[Upload] Updating story turn user...');
-        const { error: storyUpdateError } = await supabase
-            .from('stories')
-            .update({ current_turn_user_id: options.nextTurnUserId ?? null })
-            .eq('id', options.storyId);
+        const updatePayload = { current_turn_user_id: options.nextTurnUserId ?? null };
+        let updateSucceeded = false;
 
-        if (storyUpdateError) {
-            console.error('Failed to update story turn user:', storyUpdateError);
-        } else {
-            console.log('[Upload] Story turn updated successfully');
+        if (session?.access_token) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 4000);
+                const restResponse = await fetch(`${SUPABASE_URL}/rest/v1/stories?id=eq.${options.storyId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        apikey: SUPABASE_ANON_KEY,
+                        Authorization: `Bearer ${session.access_token}`,
+                        'Content-Type': 'application/json',
+                        Prefer: 'return=minimal',
+                    },
+                    body: JSON.stringify(updatePayload),
+                    signal: controller.signal,
+                });
+                clearTimeout(timeoutId);
+
+                if (!restResponse.ok) {
+                    const errorText = await restResponse.text();
+                    console.warn('[Upload] Story turn REST update failed', restResponse.status, errorText);
+                } else {
+                    updateSucceeded = true;
+                }
+            } catch (restUpdateError) {
+                console.warn('[Upload] Story turn REST update error', restUpdateError);
+            }
+        }
+
+        if (!updateSucceeded) {
+            try {
+                const updateTimeoutMs = 4000;
+                const updatePromise = supabase
+                    .from('stories')
+                    .update(updatePayload)
+                    .eq('id', options.storyId);
+
+                const updateResult = await Promise.race([
+                    updatePromise,
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Story turn update timeout')), updateTimeoutMs)),
+                ]);
+
+                const { error: storyUpdateError } = updateResult as { error?: unknown };
+                if (storyUpdateError) {
+                    console.error('[Upload] Story turn update failed via SDK:', storyUpdateError);
+                } else {
+                    updateSucceeded = true;
+                }
+            } catch (sdkUpdateError) {
+                console.error('[Upload] Story turn update error via SDK:', sdkUpdateError);
+            }
+        }
+
+        if (!updateSucceeded) {
+            console.warn('[Upload] Story turn update ultimately failed (continuing without blocking user)');
         }
     }
 
@@ -620,12 +790,14 @@ export async function createStoryContribution(options: CreateStoryContributionOp
         textStyle,
     };
 
-    console.log('[Upload] Contribution creation complete');
     return { contribution };
 }
 
 export async function fetchGroups(): Promise<Group[]> {
     try {
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+
         const { data, error } = await supabase
             .from('groups')
             .select('*')
@@ -636,6 +808,22 @@ export async function fetchGroups(): Promise<Group[]> {
             return [];
         }
 
+        // If user is logged in, check membership for each group
+        let membershipMap: Record<string, boolean> = {};
+        if (user) {
+            const { data: memberships, error: memberError } = await supabase
+                .from('group_members')
+                .select('group_id')
+                .eq('user_id', user.id);
+
+            if (!memberError && memberships) {
+                membershipMap = memberships.reduce((acc, m) => {
+                    acc[m.group_id] = true;
+                    return acc;
+                }, {} as Record<string, boolean>);
+            }
+        }
+
         return data.map((group): Group => ({
             id: group.id,
             name: group.name,
@@ -643,6 +831,7 @@ export async function fetchGroups(): Promise<Group[]> {
             avatar: group.avatar,
             memberCount: group.member_count,
             isPrivate: group.is_private,
+            isMember: membershipMap[group.id] || false,
         }));
     } catch (error) {
         console.error('Unexpected error fetching groups:', error);

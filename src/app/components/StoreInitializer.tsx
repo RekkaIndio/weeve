@@ -2,10 +2,11 @@
 
 import { useEffect, useRef } from 'react';
 import { useStore } from '@/lib/store';
-import { fetchUserStories, fetchGroups } from '@/lib/data';
+import { fetchGroups } from '@/lib/data';
+import { supabase } from '@/lib/supabase';
 
 export default function StoreInitializer() {
-    const { currentUser, setStories, setGroups } = useStore();
+    const { currentUser, setStories, setGroups, fetchStories } = useStore();
     const initializedRef = useRef(false);
 
     useEffect(() => {
@@ -17,10 +18,8 @@ export default function StoreInitializer() {
             // We'll keep it simple for now but could add a ref if we see double fetches.
 
             try {
-                console.log('Fetching stories for user:', currentUser.id);
-                const stories = await fetchUserStories(currentUser.id);
-                console.log('Fetched stories:', stories.length);
-                setStories(stories);
+                console.log('Fetching stories via store action...');
+                await fetchStories();
 
                 console.log('Fetching groups...');
                 const groups = await fetchGroups();
@@ -32,7 +31,61 @@ export default function StoreInitializer() {
         }
 
         loadData();
-    }, [currentUser, setStories, setGroups]);
+    }, [currentUser, setStories, setGroups, fetchStories]);
+
+    // Set up realtime subscriptions for story updates
+    useEffect(() => {
+        if (!currentUser) return;
+
+        console.log('Setting up realtime subscriptions for stories...');
+
+        // Subscribe to stories table changes
+        const storiesChannel = supabase
+            .channel('stories-changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'stories' },
+                (payload) => {
+                    console.log('Stories table changed:', payload);
+                    fetchStories();
+                }
+            )
+            .subscribe();
+
+        // Subscribe to contributions table changes
+        const contributionsChannel = supabase
+            .channel('contributions-changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'contributions' },
+                (payload) => {
+                    console.log('Contributions table changed:', payload);
+                    fetchStories();
+                }
+            )
+            .subscribe();
+
+        // Subscribe to story_participants table changes
+        const participantsChannel = supabase
+            .channel('participants-changes')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'story_participants' },
+                (payload) => {
+                    console.log('Story participants table changed:', payload);
+                    fetchStories();
+                }
+            )
+            .subscribe();
+
+        // Cleanup subscriptions on unmount
+        return () => {
+            console.log('Cleaning up realtime subscriptions...');
+            supabase.removeChannel(storiesChannel);
+            supabase.removeChannel(contributionsChannel);
+            supabase.removeChannel(participantsChannel);
+        };
+    }, [currentUser, fetchStories]);
 
     return null;
 }

@@ -1,44 +1,138 @@
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
 
+type CaptureInputElement = HTMLInputElement & { capture?: string };
+
+async function ensureNativePermissions() {
+    try {
+        const status = await Camera.checkPermissions();
+        if (status.camera === 'granted' && status.photos === 'granted') {
+            return;
+        }
+
+        const requested = await Camera.requestPermissions({ permissions: ['camera', 'photos'] });
+        if (requested.camera !== 'granted') {
+            throw new Error('Camera permission not granted');
+        }
+    } catch (permissionError) {
+        console.error('[Camera] Permission request failed:', permissionError);
+        throw permissionError;
+    }
+}
+
+function capturePhotoViaFileInput({ useCamera }: { useCamera: boolean }): Promise<File | null> {
+    return new Promise((resolve) => {
+        if (typeof document === 'undefined') {
+            resolve(null);
+            return;
+        }
+
+        const input = document.createElement('input') as CaptureInputElement;
+        input.type = 'file';
+        input.accept = 'image/*';
+        if (useCamera) {
+            input.capture = 'environment';
+        }
+
+        input.onchange = (event) => {
+            const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+            console.log('[Camera] File input returned photo:', file?.name, file?.size);
+            if (file && file.size > 25 * 1024 * 1024) {
+                console.error('[Camera] Photo file too large:', file.size);
+                alert('Photo is too large. Please use an image under 25MB.');
+                resolve(null);
+            } else {
+                resolve(file);
+            }
+            document.body.removeChild(input);
+        };
+
+        input.oncancel = () => {
+            console.log('[Camera] File input cancelled');
+            document.body.removeChild(input);
+            resolve(null);
+        };
+
+        input.style.display = 'none';
+        document.body.appendChild(input);
+        input.click();
+    });
+}
+
 /**
  * Capture a photo using the device camera or select from gallery
  * Uses Capacitor Camera plugin for native camera access
  */
-export async function capturePhoto(): Promise<File | null> {
-    console.log('[Camera] capturePhoto called, isNative:', Capacitor.isNativePlatform());
+export type PhotoCaptureMode = 'auto' | 'camera' | 'gallery';
+
+export async function capturePhoto(mode: PhotoCaptureMode = 'auto'): Promise<File | null> {
+    const isNative = Capacitor.isNativePlatform();
+    console.log('[Camera] capturePhoto called', { mode, isNative });
+
+    const fallbackToInput = (useCamera: boolean) => capturePhotoViaFileInput({ useCamera });
+
+    if (mode === 'gallery') {
+        if (!isNative) {
+            return fallbackToInput(false);
+        }
+        return capturePhotoWithPlugin(CameraSource.Photos, false);
+    }
+
+    if (mode === 'camera') {
+        if (!isNative) {
+            return fallbackToInput(true);
+        }
+        try {
+            await ensureNativePermissions();
+        } catch (permissionError) {
+            console.error('[Camera] Unable to obtain permissions for photo capture:', permissionError);
+            return null;
+        }
+        return capturePhotoWithPlugin(CameraSource.Camera, true);
+    }
+
+    // mode === 'auto'
+    if (!isNative) {
+        return fallbackToInput(false);
+    }
 
     try {
-        console.log('[Camera] Requesting photo via Capacitor Camera plugin (Base64 mode)');
-        // Use Base64 for maximum compatibility. DataUrl can be too large for some bridges, and Uri fails on Android.
+        await ensureNativePermissions();
+    } catch (permissionError) {
+        console.error('[Camera] Unable to obtain permissions for photo capture:', permissionError);
+        return null;
+    }
+
+    return capturePhotoWithPlugin(CameraSource.Prompt, true);
+}
+
+async function capturePhotoWithPlugin(source: CameraSource, useCameraFallback: boolean): Promise<File | null> {
+    const isNative = Capacitor.isNativePlatform();
+    try {
+        console.log('[Camera] Requesting photo via Capacitor Camera plugin (Base64 mode)', { source });
         const image = await Camera.getPhoto({
             quality: 90,
             allowEditing: false,
             resultType: CameraResultType.Base64,
-            source: CameraSource.Photos, // Force Gallery only for stability
+            source,
+            correctOrientation: true,
+            saveToGallery: false,
+            promptLabelHeader: 'Capture Photo',
+            promptLabelPhoto: 'Choose from Gallery',
+            promptLabelPicture: 'Take Photo',
+            webUseInput: !isNative,
         });
 
         console.log('[Camera] Photo captured');
 
         if (!image.base64String) {
             console.error('[Camera] No Base64 data returned from camera');
-            return null;
+            return capturePhotoViaFileInput({ useCamera: useCameraFallback });
         }
 
-        // Convert Base64 to Blob manually to avoid fetch/URL issues
-        let blob: Blob | null = null;
-        try {
-            const byteCharacters = atob(image.base64String);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            blob = new Blob([byteArray], { type: `image/${image.format || 'jpeg'}` });
-            console.log('[Camera] Blob constructed from base64:', blob.type, blob.size);
-        } catch (conversionError) {
-            console.error('[Camera] Failed to convert base64 string to blob:', conversionError);
-            return null;
+        const blob = base64ToBlob(image.base64String, image.format);
+        if (!blob) {
+            return capturePhotoViaFileInput({ useCamera: useCameraFallback });
         }
 
         const extension = image.format || blob.type.split('/').pop() || 'jpg';
@@ -53,14 +147,13 @@ export async function capturePhoto(): Promise<File | null> {
             return file;
         }
 
-        // Fallback for environments where File constructor is not available
         const fallbackFile = Object.assign(blob, {
             name: fileName,
             lastModified: Date.now(),
             type: blob.type || `image/${image.format}`,
         }) as File;
 
-        if (typeof (fallbackFile as any).size !== 'number') {
+        if (typeof (fallbackFile as { size?: number }).size !== 'number') {
             Object.defineProperty(fallbackFile, 'size', {
                 get() {
                     return blob.size;
@@ -71,50 +164,133 @@ export async function capturePhoto(): Promise<File | null> {
 
         console.log('[Camera] Photo file created (fallback):', fallbackFile.name, fallbackFile.type, fallbackFile.size);
         return fallbackFile;
-    } catch (error: any) {
+    } catch (error) {
         console.error('[Camera] Photo capture error:', error);
+        return capturePhotoViaFileInput({ useCamera: useCameraFallback });
+    }
+}
+
+function base64ToBlob(base64String: string, format?: string | null): Blob | null {
+    try {
+        const byteCharacters = atob(base64String);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        return new Blob([byteArray], { type: `image/${format || 'jpeg'}` });
+    } catch (error) {
+        console.error('[Camera] Failed to convert base64 string to blob:', error);
         return null;
     }
 }
 
-/**
- * Capture a video using the device camera or select from gallery
- * Uses file input since Capacitor Camera plugin doesn't support video
- */
-export async function captureVideo(): Promise<File | null> {
-    console.log('[Camera] captureVideo called - using file input');
+export type VideoCaptureMode = 'auto' | 'camera' | 'gallery';
 
+/**
+ * Capture a video using either the device camera or gallery.
+ * The default behaviour (`auto`) ensures web falls back to gallery while
+ * native platforms can choose based on user preference.
+ */
+export async function captureVideo(mode: VideoCaptureMode = 'auto'): Promise<File | null> {
+    const isNative = Capacitor.isNativePlatform();
+    console.log('[Camera] captureVideo called', { mode, isNative });
+
+    if (mode === 'gallery') {
+        return captureVideoFromGallery();
+    }
+
+    if (mode === 'camera') {
+        if (isNative) {
+            try {
+                await ensureNativePermissions();
+            } catch (permissionError) {
+                console.error('[Camera] Unable to obtain permissions for video capture:', permissionError);
+                return null;
+            }
+        }
+        return captureVideoFromCamera();
+    }
+
+    // mode === 'auto'
+    if (!isNative) {
+        return captureVideoFromGallery();
+    }
+
+    let useCamera = false;
+    try {
+        useCamera = window.confirm('Would you like to take a new video? Press Cancel to choose from gallery.');
+    } catch (confirmError) {
+        console.warn('[Camera] Video choice prompt failed, defaulting to gallery:', confirmError);
+    }
+
+    if (useCamera) {
+        try {
+            await ensureNativePermissions();
+        } catch (permissionError) {
+            console.error('[Camera] Unable to obtain permissions for video capture:', permissionError);
+            return null;
+        }
+        return captureVideoFromCamera();
+    }
+
+    return captureVideoFromGallery();
+}
+
+function captureVideoFromCamera(): Promise<File | null> {
+    console.log('[Camera] captureVideoFromCamera called - using file input capture');
+    return captureVideoViaFileInput({ useCamera: true });
+}
+
+function captureVideoFromGallery(): Promise<File | null> {
+    console.log('[Camera] captureVideoFromGallery called');
+    return captureVideoViaFileInput({ useCamera: false });
+}
+
+function captureVideoViaFileInput({ useCamera }: { useCamera: boolean }): Promise<File | null> {
     return new Promise((resolve) => {
-        const input = document.createElement('input');
+        if (typeof document === 'undefined') {
+            resolve(null);
+            return;
+        }
+
+        const input = document.createElement('input') as CaptureInputElement;
         input.type = 'file';
         input.accept = 'video/*';
-        // input.capture = 'environment';  // Removed to force Gallery selection
+        input.multiple = false;
 
-        input.onchange = (e) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            console.log('[Camera] Video file selected:', file?.name, file?.type, file?.size);
-            if (file && file.size > 100 * 1024 * 1024) { // 100MB limit
+        if (useCamera) {
+            input.capture = 'environment';
+        }
+
+        input.onchange = (event) => {
+            const file = (event.target as HTMLInputElement).files?.[0] ?? null;
+            console.log('[Camera] Video input returned:', file?.name, file?.type, file?.size);
+            if (file && file.size > 100 * 1024 * 1024) {
                 console.error('[Camera] Video file too large:', file.size);
-                alert('Video file is too large. Please select a video under 100MB.');
+                alert('Video file is too large. Please use a video under 100MB.');
+                cleanup();
                 resolve(null);
                 return;
             }
-            // Clean up
-            document.body.removeChild(input);
-            resolve(file || null);
+            cleanup();
+            resolve(file);
         };
 
         input.oncancel = () => {
             console.log('[Camera] Video input cancelled');
-            document.body.removeChild(input);
+            cleanup();
             resolve(null);
         };
 
-        // Attach to DOM to ensure events fire
+        function cleanup() {
+            if (input.parentNode) {
+                input.parentNode.removeChild(input);
+            }
+        }
+
         input.style.display = 'none';
         document.body.appendChild(input);
-
-        // Ensure it's called from a user gesture
         input.click();
     });
 }

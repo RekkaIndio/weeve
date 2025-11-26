@@ -18,6 +18,9 @@ export default function GroupSettingsPage() {
     const [description, setDescription] = useState('');
     const [isPrivate, setIsPrivate] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [showTransferModal, setShowTransferModal] = useState(false);
+    const [selectedNewOwner, setSelectedNewOwner] = useState<string | null>(null);
+    const [transferring, setTransferring] = useState(false);
 
     useEffect(() => {
         if (id && user) fetchGroupData();
@@ -124,6 +127,87 @@ export default function GroupSettingsPage() {
         }
     };
 
+    const handleLeaveGroup = async () => {
+        if (!user) return;
+
+        // Check if user is the owner
+        if (group.owner_id === user.id) {
+            // Check if there are other members
+            const otherMembers = members.filter(m => m.user_id !== user.id);
+
+            if (otherMembers.length === 0) {
+                // Solo owner - must delete group instead
+                toast.error('You are the only member. Please delete the group from the Danger Zone instead.');
+                return;
+            }
+
+            // Show transfer modal
+            setShowTransferModal(true);
+            return;
+        }
+
+        // Regular member or admin (non-owner) can leave directly
+        if (!confirm('Are you sure you want to leave this group?')) return;
+
+        try {
+            const { error } = await supabase
+                .from('group_members')
+                .delete()
+                .eq('group_id', id)
+                .eq('user_id', user.id);
+
+            if (error) throw error;
+            toast.success('Left group');
+            router.push('/groups');
+        } catch (error) {
+            console.error('Error leaving group:', error);
+            toast.error('Failed to leave group');
+        }
+    };
+
+    const handleTransferOwnership = async () => {
+        if (!selectedNewOwner || !user) return;
+
+        setTransferring(true);
+        try {
+            // Update group owner
+            const { error: ownerError } = await supabase
+                .from('groups')
+                .update({ owner_id: selectedNewOwner })
+                .eq('id', id);
+
+            if (ownerError) throw ownerError;
+
+            // Update new owner's role to admin (if not already)
+            const { error: roleError } = await supabase
+                .from('group_members')
+                .update({ role: 'admin' })
+                .eq('group_id', id)
+                .eq('user_id', selectedNewOwner);
+
+            if (roleError) throw roleError;
+
+            // Remove the leaving user from group
+            const { error: leaveError } = await supabase
+                .from('group_members')
+                .delete()
+                .eq('group_id', id)
+                .eq('user_id', user.id);
+
+            if (leaveError) throw leaveError;
+
+            toast.success('Ownership transferred successfully');
+            setShowTransferModal(false);
+            router.push('/groups');
+        } catch (error) {
+            console.error('Error transferring ownership:', error);
+            toast.error('Failed to transfer ownership');
+        } finally {
+            setTransferring(false);
+        }
+    };
+
+
     if (loading) return (
         <div className="min-h-screen bg-black flex items-center justify-center text-white">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
@@ -212,6 +296,22 @@ export default function GroupSettingsPage() {
                     </div>
                 </div>
 
+                {/* Leave Group Section */}
+                <div className="pt-8 border-t border-gray-800">
+                    <h2 className="text-lg font-bold text-gray-300 mb-4">Leave Group</h2>
+                    <p className="text-sm text-gray-500 mb-4">
+                        {group?.owner_id === user?.id
+                            ? "As the owner, you must transfer ownership before leaving."
+                            : "Leave this group and remove yourself from all group activities."}
+                    </p>
+                    <button
+                        onClick={handleLeaveGroup}
+                        className="w-full border border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white font-bold py-3 rounded-lg transition-colors"
+                    >
+                        Leave Group
+                    </button>
+                </div>
+
                 {/* Danger Zone */}
                 <div className="pt-8 border-t border-gray-800">
                     <h2 className="text-lg font-bold text-red-500 mb-4">Danger Zone</h2>
@@ -224,6 +324,70 @@ export default function GroupSettingsPage() {
                     </button>
                 </div>
             </div>
+
+            {/* Transfer Ownership Modal */}
+            {showTransferModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
+                        <button
+                            onClick={() => setShowTransferModal(false)}
+                            className="absolute right-4 top-4 text-gray-400 hover:text-white"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+                        <h2 className="text-xl font-bold mb-2">Transfer Ownership</h2>
+                        <p className="text-sm text-gray-400 mb-4">
+                            Select a new owner for this group before leaving.
+                        </p>
+                        <div className="space-y-2 max-h-60 overflow-y-auto mb-4">
+                            {members
+                                .filter(m => m.user_id !== user?.id)
+                                .map((member) => (
+                                    <button
+                                        key={member.id}
+                                        onClick={() => setSelectedNewOwner(member.user_id)}
+                                        className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${selectedNewOwner === member.user_id
+                                            ? 'bg-[#EC1D99]/20 border border-[#EC1D99]'
+                                            : 'bg-gray-800/50 hover:bg-gray-800 border border-transparent'
+                                            }`}
+                                    >
+                                        <img
+                                            src={member.profiles?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.user_id}`}
+                                            alt={member.profiles?.name}
+                                            className="w-10 h-10 rounded-full bg-gray-700"
+                                        />
+                                        <div className="flex-1 text-left">
+                                            <p className="font-medium">{member.profiles?.name || 'Unknown User'}</p>
+                                            <p className="text-xs text-gray-500 capitalize">{member.role}</p>
+                                        </div>
+                                        {selectedNewOwner === member.user_id && (
+                                            <div className="w-5 h-5 rounded-full bg-[#EC1D99] flex items-center justify-center">
+                                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                            </div>
+                                        )}
+                                    </button>
+                                ))}
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowTransferModal(false)}
+                                className="flex-1 border border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-white font-medium py-3 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleTransferOwnership}
+                                disabled={!selectedNewOwner || transferring}
+                                className="flex-1 bg-[#EC1D99] hover:bg-[#d61a88] text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {transferring ? 'Transferring...' : 'Transfer & Leave'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

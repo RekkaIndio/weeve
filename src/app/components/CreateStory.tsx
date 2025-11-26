@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Loader, Globe, Lock, UserPlus } from "lucide-react";
 import NotificationBell from "./NotificationBell";
-import { searchUsers, addFriend, Friend as FriendType } from "@/lib/friends";
+import { searchUsers, addFriend, Friend as FriendType, sendFriendRequest } from "@/lib/friends";
 import { toast } from "sonner";
 
 export interface Friend {
@@ -14,6 +14,7 @@ export interface Friend {
   isInfluencer?: boolean;
   interactionCost?: number;
   isFriend?: boolean;
+  friendRequestStatus?: 'none' | 'pending_sent' | 'pending_received' | 'accepted';
 }
 
 export interface CreateStoryFormState {
@@ -25,6 +26,9 @@ export interface CreateStoryFormState {
 
   inviteCount: number; // number of invite slots (1-10)
   hashtags?: string[];
+  allowComments: boolean;
+  allowReuse: boolean;
+  turnTimerHours?: number;
 }
 
 interface CreateStoryProps {
@@ -64,6 +68,9 @@ const CreateStory = ({
 
     inviteCount: 3,
     hashtags: [],
+    allowComments: true,
+    allowReuse: true,
+    turnTimerHours: undefined,
   });
 
   const [hashtagInput, setHashtagInput] = useState("");
@@ -77,9 +84,8 @@ const CreateStory = ({
   const [friendSearchInput, setFriendSearchInput] = useState("");
   const [showFriendDropdown, setShowFriendDropdown] = useState(false);
   const [slotToFill, setSlotToFill] = useState<number | null>(null);
-  const [allowComments, setAllowComments] = useState(true);
-  const [allowReuse, setAllowReuse] = useState(true);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
   // Handle invite query param
   useEffect(() => {
@@ -130,26 +136,33 @@ const CreateStory = ({
     ? [{ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }, ...availableFriends]
     : availableFriends;
 
-  // Debounced search
+  // Compute local filtered friends instantly (no debounce)
+  const localFilteredFriends = friendSearchInput.trim()
+    ? allAvailableFriends.filter((friend) =>
+      friend.name.toLowerCase().includes(friendSearchInput.toLowerCase())
+    )
+    : allAvailableFriends;
+
+  // Debounced remote search
   useEffect(() => {
     const search = async () => {
       if (!friendSearchInput.trim() || !currentUser) {
         setSearchResults([]);
+        setIsSearching(false);
         return;
       }
 
-      setIsSearching(true);
-      try {
-        // Local filter first
-        const localMatches = allAvailableFriends.filter((friend) =>
-          friend.name.toLowerCase().includes(friendSearchInput.toLowerCase())
-        );
+      // Only show searching if we have no local results
+      if (localFilteredFriends.length === 0) {
+        setIsSearching(true);
+      }
 
+      try {
         // Remote search
         const remoteMatches = await searchUsers(friendSearchInput, currentUser.id);
 
-        // Merge and deduplicate
-        const combined = [...localMatches];
+        // Merge with local results and deduplicate
+        const combined = [...localFilteredFriends];
         remoteMatches.forEach(remote => {
           if (!combined.some(local => local.id === remote.id)) {
             combined.push(remote);
@@ -157,18 +170,21 @@ const CreateStory = ({
         });
 
         setSearchResults(combined);
+        setIsSearching(false);
       } catch (err) {
         console.error("Search failed", err);
-      } finally {
         setIsSearching(false);
       }
     };
 
-    const timeoutId = setTimeout(search, 300);
+    const timeoutId = setTimeout(search, 400);
     return () => clearTimeout(timeoutId);
-  }, [friendSearchInput, currentUser, allAvailableFriends]);
+  }, [friendSearchInput, currentUser]);
 
-  const filteredFriends = friendSearchInput ? searchResults : allAvailableFriends;
+  // Final list to display: local results immediately, then enhanced with remote results
+  const filteredFriends = friendSearchInput.trim()
+    ? (searchResults.length > 0 ? searchResults : localFilteredFriends)
+    : allAvailableFriends;
 
   // Handle title input change
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -473,7 +489,7 @@ const CreateStory = ({
           </div>
         </div>
         {currentUser && (
-          <NotificationBell className="bg-black/70 border border-white/10 backdrop-blur-md shadow-lg" />
+          <NotificationBell userId={currentUser.id} className="bg-black/70 border border-white/10 backdrop-blur-md shadow-lg" />
         )}
       </header>
 
@@ -659,10 +675,8 @@ const CreateStory = ({
                         handleRemoveFriend(friend.id, idx);
                       } else {
                         setSlotToFill(idx);
-                        if (friendsInputRef.current) {
-                          friendsInputRef.current.focus();
-                          setShowFriendDropdown(true);
-                        }
+                        setShowFriendDropdown(true);
+                        // Don't auto-focus to avoid keyboard popup
                       }
                     }}
                     className={`w-16 h-16 flex items-center justify-center rounded-full border relative z-10 ${friend ? "bg-[#EC1D99]/20 ring-2 ring-[#EC1D99] border-transparent overflow-hidden cursor-move" : "border-gray-700 bg-gray-900"} text-lg text-white ${slotToFill === idx ? "ring-2 ring-[#EC1D99]" : ""} ${draggedIndex === idx ? "opacity-50" : ""}`}
@@ -738,9 +752,10 @@ const CreateStory = ({
                 }
               }}
               onFocus={() => setShowFriendDropdown(true)}
-              onBlur={() =>
-                setTimeout(() => setShowFriendDropdown(false), 200)
-              }
+              onBlur={() => {
+                // Longer delay to prevent premature closing
+                setTimeout(() => setShowFriendDropdown(false), 500);
+              }}
               placeholder="Search and add friends"
               disabled={
                 !formState.orderedParticipants?.some(p => p === null)
@@ -762,35 +777,97 @@ const CreateStory = ({
                   </div>
                 ) : filteredFriends.length > 0 ? (
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                    {filteredFriends.map((friend) => (
-                      <button
-                        key={friend.id}
-                        onClick={() => handleAddFriend(friend)}
-                        className="flex flex-col items-center gap-2 w-full hover:bg-gray-800 transition-colors p-2 rounded-md relative group"
-                      >
-                        <div className="relative">
-                          <img
-                            src={friend.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
-                            alt={friend.name}
-                            className="w-12 h-12 rounded-full border border-gray-700"
-                          />
-                          {friend.isFriend === false && (
-                            <div className="absolute -bottom-1 -right-1 bg-[#EC1D99] rounded-full p-0.5">
-                              <UserPlus className="w-3 h-3 text-white" />
+                    {filteredFriends.map((friend) => {
+                      const canAddToStory = friend.isFriend || friend.id === currentUser?.id;
+                      const showFriendRequestButton = !friend.isFriend &&
+                        friend.id !== currentUser?.id &&
+                        friend.friendRequestStatus === 'none';
+                      const isPendingSent = friend.friendRequestStatus === 'pending_sent';
+                      const isPendingReceived = friend.friendRequestStatus === 'pending_received';
+
+                      return (
+                        <div
+                          key={friend.id}
+                          onClick={(e) => {
+                            if (canAddToStory) {
+                              e.preventDefault();
+                              handleAddFriend(friend);
+                            }
+                          }}
+                          className={`flex flex-col items-center gap-2 w-full p-2 rounded-md relative group transition-colors ${canAddToStory ? 'cursor-pointer hover:bg-gray-800' : ''}`}
+                        >
+                          <div className="relative">
+                            <img
+                              src={friend.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
+                              alt={friend.name}
+                              className={`w-12 h-12 rounded-full border ${canAddToStory ? 'border-gray-700' : 'border-gray-600 opacity-60'}`}
+                            />
+                            {!friend.isFriend && friend.id !== currentUser?.id && (
+                              <div className="absolute -bottom-1 -right-1 bg-gray-700 rounded-full p-0.5">
+                                <UserPlus className="w-3 h-3 text-gray-400" />
+                              </div>
+                            )}
+                            {isPendingSent && (
+                              <div className="absolute -top-1 -right-1 bg-blue-500 rounded-full w-4 h-4 flex items-center justify-center">
+                                <span className="text-[8px]">...</span>
+                              </div>
+                            )}
+                            {isPendingReceived && (
+                              <div className="absolute -top-1 -right-1 bg-[#EC1D99] rounded-full w-4 h-4 flex items-center justify-center">
+                                <span className="text-[8px]">!</span>
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-xs text-white text-center font-sans">
+                            {friend.id === currentUser?.id ? "You" : friend.name.split(" ").slice(0, 2).join(" ")}
+                          </span>
+                          {friend.isInfluencer && (
+                            <div className="flex items-center gap-1 bg-yellow-500/20 px-1.5 py-0.5 rounded text-[10px] text-yellow-400 border border-yellow-500/30">
+                              <span>🪙</span>
+                              <span>{friend.interactionCost}</span>
+                            </div>
+                          )}
+
+                          {/* Action buttons */}
+                          {canAddToStory ? (
+                            // No button needed, entire card is clickable
+                            null
+                          ) : showFriendRequestButton ? (
+                            <button
+                              onMouseDown={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation(); // Prevent card click
+                                if (!currentUser) return;
+                                const success = await sendFriendRequest(currentUser.id, friend.id);
+                                if (success) {
+                                  toast.success(`Friend request sent to ${friend.name}`);
+                                  // Refresh the search to update status
+                                  setFriendSearchInput(friendSearchInput + ' ');
+                                  setTimeout(() => setFriendSearchInput(friendSearchInput), 10);
+                                } else {
+                                  toast.error('Could not send friend request');
+                                }
+                              }}
+                              className="w-full py-1 px-2 bg-gray-700 hover:bg-gray-600 text-white text-[10px] rounded-md transition-colors"
+                            >
+                              Send Request
+                            </button>
+                          ) : isPendingSent ? (
+                            <div className="w-full py-1 px-2 bg-blue-500/20 text-blue-400 text-[10px] rounded-md text-center border border-blue-500/30">
+                              Pending
+                            </div>
+                          ) : isPendingReceived ? (
+                            <div className="w-full py-1 px-2 bg-[#EC1D99]/20 text-[#EC1D99] text-[10px] rounded-md text-center border border-[#EC1D99]/30">
+                              Check Activity
+                            </div>
+                          ) : (
+                            <div className="w-full py-1 px-2 bg-gray-800 text-gray-500 text-[10px] rounded-md text-center">
+                              Not Available
                             </div>
                           )}
                         </div>
-                        <span className="text-xs text-white text-center font-sans">
-                          {friend.id === currentUser?.id ? "You" : friend.name.split(" ").slice(0, 2).join(" ")}
-                        </span>
-                        {friend.isInfluencer && (
-                          <div className="flex items-center gap-1 bg-yellow-500/20 px-1.5 py-0.5 rounded text-[10px] text-yellow-400 border border-yellow-500/30">
-                            <span>🪙</span>
-                            <span>{friend.interactionCost}</span>
-                          </div>
-                        )}
-                      </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-4 text-gray-500 text-sm">
@@ -812,7 +889,7 @@ const CreateStory = ({
                     className="inline-flex items-center gap-2 px-3 py-1 bg-[#EC1D99]/20 text-white rounded-full text-sm border border-[#EC1D99]/30 font-sans"
                   >
                     <img
-                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
+                      src={friend.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
                       alt={friend.name}
                       className="w-6 h-6 rounded-full border border-gray-700"
                     />
@@ -930,58 +1007,114 @@ const CreateStory = ({
         </div>
 
 
-
-        {/* Location / Options (visual only) */}
-        <div className="mb-6 border-t border-gray-800 pt-4">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div
-                  className="text-sm text-gray-300 font-medium font-sans"
-                >
-                  Allow comments
-                </div>
-                <div className="text-xs text-gray-500">
-                  Users can comment on this story
-                </div>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={allowComments}
-                  onChange={() => setAllowComments((a) => !a)}
-                  className="sr-only peer"
-                />
-                <span
-                  className={`w-11 h-6 rounded-full ${allowComments ? "bg-[#EC1D99]" : "bg-gray-700"}`}
-                ></span>
-              </label>
+        {/* Advanced Options - Collapsible */}
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+            className="w-full flex items-center justify-between p-4 bg-gray-900 border border-gray-800 rounded-lg hover:border-gray-700 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-300 font-sans">Advanced Options</span>
+              <span className="text-xs text-gray-500">({formState.turnTimerHours ? 'Timer set' : 'Optional'})</span>
             </div>
+            <svg
+              className={`w-5 h-5 text-gray-400 transition-transform ${showAdvancedOptions ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
 
-            <div className="flex items-center justify-between">
+          {showAdvancedOptions && (
+            <div className="mt-4 p-4 bg-gray-900 border border-gray-800 rounded-lg space-y-4">
+              {/* Turn Timer */}
               <div>
-                <div
-                  className="text-sm text-gray-300 font-medium font-sans"
+                <label htmlFor="turn-timer" className="block text-sm font-medium text-gray-300 mb-2 font-sans">
+                  Turn Timer
+                </label>
+                <select
+                  id="turn-timer"
+                  value={formState.turnTimerHours ?? ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? undefined : parseInt(e.target.value);
+                    setFormState(prev => ({ ...prev, turnTimerHours: value }));
+                  }}
+                  className="w-full px-3 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99] transition-colors text-white font-sans"
                 >
-                  Allow reuse of content
-                </div>
-                <div className="text-xs text-gray-500">
-                  Duet, Stitch, stickers and add to Story
-                </div>
+                  <option value="">No limit</option>
+                  <option value="12">12 hours</option>
+                  <option value="24">24 hours</option>
+                  <option value="48">48 hours</option>
+                  <option value="72">72 hours</option>
+                  <option value="168">1 week</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  How long each participant has to add their part
+                </p>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={allowReuse}
-                  onChange={() => setAllowReuse((a) => !a)}
-                  className="sr-only peer"
-                />
-                <span
-                  className={`w-11 h-6 rounded-full ${allowReuse ? "bg-[#EC1D99]" : "bg-gray-700"}`}
-                ></span>
-              </label>
+
+              {/* Allow Comments Toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-gray-300 font-medium font-sans">
+                    Allow comments
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Users can comment on this story
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formState.allowComments}
+                    onChange={() => {
+                      setFormState(prev => ({ ...prev, allowComments: !prev.allowComments }));
+                    }}
+                    className="sr-only peer"
+                  />
+                  <span
+                    className={`w-11 h-6 rounded-full transition-colors ${formState.allowComments ? "bg-[#EC1D99]" : "bg-gray-700"}`}
+                  >
+                    <span
+                      className={`block w-5 h-5 rounded-full bg-white shadow-lg transform transition-transform duration-200 ease-in-out ${formState.allowComments ? "translate-x-5" : "translate-x-0.5"} translate-y-0.5`}
+                    ></span>
+                  </span>
+                </label>
+              </div>
+
+              {/* Allow Reuse Toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm text-gray-300 font-medium font-sans">
+                    Allow reuse of content
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Duet, Stitch, stickers and add to Story
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formState.allowReuse}
+                    onChange={() => {
+                      setFormState(prev => ({ ...prev, allowReuse: !prev.allowReuse }));
+                    }}
+                    className="sr-only peer"
+                  />
+                  <span
+                    className={`w-11 h-6 rounded-full transition-colors ${formState.allowReuse ? "bg-[#EC1D99]" : "bg-gray-700"}`}
+                  >
+                    <span
+                      className={`block w-5 h-5 rounded-full bg-white shadow-lg transform transition-transform duration-200 ease-in-out ${formState.allowReuse ? "translate-x-5" : "translate-x-0.5"} translate-y-0.5`}
+                    ></span>
+                  </span>
+                </label>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
 

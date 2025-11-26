@@ -20,6 +20,7 @@ export default function GroupDetailsPage() {
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [isMember, setIsMember] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [activeTab, setActiveTab] = useState<'stories' | 'members'>('stories');
 
     useEffect(() => {
         if (id) fetchGroupDetails();
@@ -27,6 +28,8 @@ export default function GroupDetailsPage() {
 
     const fetchGroupDetails = async () => {
         try {
+            setLoading(true); // Explicitly set loading at start
+
             // Fetch group info
             const { data: groupData, error: groupError } = await supabase
                 .from('groups')
@@ -34,7 +37,18 @@ export default function GroupDetailsPage() {
                 .eq('id', id)
                 .single();
 
-            if (groupError) throw groupError;
+            if (groupError) {
+                console.error('Error fetching group:', groupError);
+                throw groupError;
+            }
+
+            if (!groupData) {
+                console.error('Group not found:', id);
+                toast.error('Group not found');
+                setLoading(false);
+                return;
+            }
+
             setGroup(groupData);
 
             // Fetch members
@@ -43,7 +57,11 @@ export default function GroupDetailsPage() {
                 .select('*, profiles:user_id(name, avatar)')
                 .eq('group_id', id);
 
-            if (membersError) throw membersError;
+            if (membersError) {
+                console.error('Error fetching members:', membersError);
+                throw membersError;
+            }
+
             setMembers(membersData || []);
 
             if (user) {
@@ -61,14 +79,16 @@ export default function GroupDetailsPage() {
 
             if (storiesError) {
                 console.error('Error fetching group stories:', storiesError);
+                // Don't throw here - stories are not critical for page load
             } else {
                 setStories(storiesData || []);
             }
         } catch (error) {
             console.error('Error fetching group details:', error);
             toast.error('Failed to load group details');
+            setGroup(null); // Ensure group is null so we show error state
         } finally {
-            setLoading(false);
+            setLoading(false); // Always clear loading state
         }
     };
 
@@ -151,30 +171,6 @@ export default function GroupDetailsPage() {
         }
     };
 
-    const handleLeave = async () => {
-        if (!user) return;
-        if (isAdmin && members.length > 1) {
-            // Ideally we should check if they are the ONLY admin, but for now simple check
-            // If they are the owner (which we track in groups table), they can't leave without deleting or transferring
-            if (group.owner_id === user.id) {
-                toast.error('Owners cannot leave. Delete the group in settings instead.');
-                return;
-            }
-        }
-        try {
-            const { error } = await supabase
-                .from('group_members')
-                .delete()
-                .eq('group_id', id)
-                .eq('user_id', user.id);
-            if (error) throw error;
-            toast.success('Left group');
-            router.push('/groups');
-        } catch (error) {
-            console.error('Error leaving group:', error);
-            toast.error('Failed to leave group');
-        }
-    };
 
     if (loading) return (
         <div className="min-h-screen bg-black flex items-center justify-center text-white">
@@ -241,7 +237,7 @@ export default function GroupDetailsPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex justify-center gap-4 mb-8">
+            <div className="flex justify-center mb-6">
                 {!isMember ? (
                     <button
                         onClick={handleJoin}
@@ -250,74 +246,97 @@ export default function GroupDetailsPage() {
                         Join Group
                     </button>
                 ) : (
-                    <>
-                        <Link
-                            href={`/create-story?groupId=${id}`}
-                            className="flex items-center gap-2 bg-[#EC1D99] text-white px-6 py-2 rounded-full font-bold hover:bg-[#d61a88] transition-colors"
-                        >
-                            <PlusSquare className="w-4 h-4" />
-                            Create Story
-                        </Link>
-                        <button
-                            onClick={handleLeave}
-                            className="border border-gray-700 text-gray-400 px-6 py-2 rounded-full font-medium hover:bg-gray-900 hover:text-white transition-colors"
-                        >
-                            Leave Group
-                        </button>
-                    </>
+                    <Link
+                        href={`/create-story?groupId=${id}`}
+                        className="flex items-center gap-2 bg-[#EC1D99] text-white px-6 py-2 rounded-full font-bold hover:bg-[#d61a88] transition-colors"
+                    >
+                        <PlusSquare className="w-4 h-4" />
+                        Create Story
+                    </Link>
                 )}
             </div>
 
-            {/* Stories Section */}
-            <div className="max-w-md mx-auto mb-8">
-                <h2 className="text-lg font-bold mb-4">Stories</h2>
-                {stories.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-3">
-                        {stories.map((story) => (
-                            <Link
-                                key={story.id}
-                                href={`/story/${story.id}`}
-                                className="relative rounded-xl overflow-hidden aspect-square group bg-gray-900"
-                            >
-                                <img
-                                    src={story.cover_image || "https://via.placeholder.com/400"}
-                                    alt={story.title}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
-                                    <h3 className="font-bold text-sm line-clamp-2 mb-1">{story.title}</h3>
-                                </div>
-                            </Link>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="text-center py-8 bg-gray-900/30 rounded-xl border border-gray-800 border-dashed">
-                        <p className="text-gray-500 text-sm">No stories yet</p>
-                        {isMember && (
-                            <p className="text-xs text-gray-600 mt-1">Be the first to create one!</p>
+            {/* Tabs */}
+            <div className="max-w-md mx-auto mb-6">
+                <div className="flex gap-2 border-b border-gray-800">
+                    <button
+                        onClick={() => setActiveTab('stories')}
+                        className={`flex-1 py-3 text-sm font-medium transition-colors relative ${activeTab === 'stories'
+                            ? 'text-white'
+                            : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                    >
+                        Stories
+                        {activeTab === 'stories' && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#EC1D99]" />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('members')}
+                        className={`flex-1 py-3 text-sm font-medium transition-colors relative ${activeTab === 'members'
+                            ? 'text-white'
+                            : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                    >
+                        Members
+                        {activeTab === 'members' && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#EC1D99]" />
+                        )}
+                    </button>
+                </div>
+            </div>
+
+            {/* Tab Content */}
+            <div className="max-w-md mx-auto">
+                {activeTab === 'stories' ? (
+                    /* Stories Tab */
+                    <div>
+                        {stories.length > 0 ? (
+                            <div className="grid grid-cols-2 gap-3">
+                                {stories.map((story) => (
+                                    <Link
+                                        key={story.id}
+                                        href={`/story/${story.id}`}
+                                        className="relative rounded-xl overflow-hidden aspect-square group bg-gray-900"
+                                    >
+                                        <img
+                                            src={story.cover_image || "https://via.placeholder.com/400"}
+                                            alt={story.title}
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
+                                            <h3 className="font-bold text-sm line-clamp-2 mb-1">{story.title}</h3>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8 bg-gray-900/30 rounded-xl border border-gray-800 border-dashed">
+                                <p className="text-gray-500 text-sm">No stories yet</p>
+                                {isMember && (
+                                    <p className="text-xs text-gray-600 mt-1">Be the first to create one!</p>
+                                )}
+                            </div>
                         )}
                     </div>
-                )}
-            </div>
-
-            {/* Members List */}
-            <div className="max-w-md mx-auto">
-                <h2 className="text-lg font-bold mb-4">Members</h2>
-                <div className="space-y-3">
-                    {members.map((member) => (
-                        <div key={member.id} className="flex items-center gap-3 bg-gray-900/50 p-3 rounded-xl">
-                            <img
-                                src={member.profiles?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.user_id}`}
-                                alt={member.profiles?.name}
-                                className="w-10 h-10 rounded-full bg-gray-800"
-                            />
-                            <div className="flex-1">
-                                <p className="font-medium">{member.profiles?.name || 'Unknown User'}</p>
-                                <p className="text-xs text-gray-500 capitalize">{member.role}</p>
+                ) : (
+                    /* Members Tab */
+                    <div className="space-y-3">
+                        {members.map((member) => (
+                            <div key={member.id} className="flex items-center gap-3 bg-gray-900/50 p-3 rounded-xl">
+                                <img
+                                    src={member.profiles?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.user_id}`}
+                                    alt={member.profiles?.name}
+                                    className="w-10 h-10 rounded-full bg-gray-800"
+                                />
+                                <div className="flex-1">
+                                    <p className="font-medium">{member.profiles?.name || 'Unknown User'}</p>
+                                    <p className="text-xs text-gray-500 capitalize">{member.role}</p>
+                                </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

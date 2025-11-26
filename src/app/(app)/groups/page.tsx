@@ -189,15 +189,17 @@ export default function GroupsPage() {
                                     )}
                                 </div>
                             </div>
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleJoinGroup(group.id, group.isPrivate, group.name);
-                                }}
-                                className="text-xs font-medium text-[#EC1D99] border border-[#EC1D99] px-3 py-1 rounded-full hover:bg-[#EC1D99] hover:text-white transition-colors"
-                            >
-                                Join
-                            </button>
+                            {!group.isMember && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleJoinGroup(group.id, group.isPrivate, group.name);
+                                    }}
+                                    className="text-xs font-medium text-[#EC1D99] border border-[#EC1D99] px-3 py-1 rounded-full hover:bg-[#EC1D99] hover:text-white transition-colors"
+                                >
+                                    Join
+                                </button>
+                            )}
                         </div>
                     ))}
 

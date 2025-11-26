@@ -1,7 +1,7 @@
 "use client";
 
-import { Story, useStore } from "@/lib/store";
-import { MessageCircle, Heart, Share2, X } from "lucide-react";
+import { Story, useStore, Contribution } from "@/lib/store";
+import { MessageCircle, Heart, Share2, X, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useRef, useMemo, FormEvent, useCallback } from "react";
 
@@ -58,9 +58,95 @@ export default function FeedItem({ story }: FeedItemProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
+    const [isForking, setIsForking] = useState(false);
+    const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+    const [showParticipantPicker, setShowParticipantPicker] = useState(false);
+    const [showFriendPicker, setShowFriendPicker] = useState(false);
+    const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
+
+    // Touch handling refs for swipe gestures
+    const touchStartX = useRef(0);
+    const touchEndX = useRef(0);
+
+    // Normalize participants to handle cases where position might be missing or duplicated (legacy data)
+    const normalizedParticipants = useMemo(() => {
+        if (!story.participants) return [];
+
+        const participants = [...story.participants];
+        const positions = participants.map(p => p.position ?? 0);
+        const hasDuplicates = new Set(positions).size !== positions.length;
+
+        // If we have duplicates (likely all 0s), re-assign positions sequentially
+        if (hasDuplicates) {
+            return participants.map((p, index) => ({
+                ...p,
+                position: index
+            }));
+        }
+
+        return participants;
+    }, [story.participants]);
+
+    // Pre-calculate slot content mapping to handle multi-slot users correctly
+    const slotContentMap = useMemo(() => {
+        const map = new Map<number, Contribution>();
+        const usedContributionIds = new Set<string>();
+
+        if (!normalizedParticipants || !story.contributions) return map;
+
+        const sortedParticipants = [...normalizedParticipants].sort((a, b) => (a.position || 0) - (b.position || 0));
+        const sortedContributions = [...story.contributions].sort((a, b) => a.timestamp - b.timestamp);
+
+        // Group contributions by user
+        const contributionsByUser = new Map<string, Contribution[]>();
+        for (const c of sortedContributions) {
+            if (!contributionsByUser.has(c.userId)) {
+                contributionsByUser.set(c.userId, []);
+            }
+            contributionsByUser.get(c.userId)?.push(c);
+        }
+
+        // 1. Map based on participants (Explicit Mapping)
+        for (const p of sortedParticipants) {
+            const userContribs = contributionsByUser.get(p.id) || [];
+            // Find first unused contribution for this user
+            const contrib = userContribs.find(c => !usedContributionIds.has(c.id));
+
+            if (contrib) {
+                map.set(p.position || 0, contrib);
+                usedContributionIds.add(contrib.id);
+            }
+        }
+
+        // 2. Fill gaps with remaining contributions (Implicit Mapping)
+        // This handles cases where a user has multiple contributions but only one participant entry (due to DB unique constraint)
+        const remainingContributions = sortedContributions.filter(c => !usedContributionIds.has(c.id));
+        const maxSlots = story.maxWeeves || 3;
+
+        for (let i = 0; i < maxSlots; i++) {
+            if (!map.has(i) && remainingContributions.length > 0) {
+                const nextContrib = remainingContributions.shift();
+                if (nextContrib) {
+                    map.set(i, nextContrib);
+                }
+            }
+        }
+
+        return map;
+    }, [normalizedParticipants, story.contributions, story.maxWeeves]);
+
     const toggleStoryLike = useStore((state) => state.toggleStoryLike);
     const addStoryComment = useStore((state) => state.addStoryComment);
+    const forkStory = useStore((state) => state.forkStory);
     const currentUser = useStore((state) => state.currentUser);
+    const friends = useStore((state) => state.friends);
+    const fetchFriends = useStore((state) => state.fetchFriends);
+
+    useEffect(() => {
+        if (showFriendPicker && friends.length === 0) {
+            fetchFriends();
+        }
+    }, [showFriendPicker, friends.length, fetchFriends]);
 
     const likedBy = useMemo(() => story.likedBy ?? [], [story.likedBy]);
     const comments = useMemo(() => story.comments ?? [], [story.comments]);
@@ -188,6 +274,35 @@ export default function FeedItem({ story }: FeedItemProps) {
         return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fallbackName)}`;
     }, [participantsMap]);
 
+    const handleForkStory = async (participantId: string) => {
+        console.log("handleForkStory called", { participantId, selectedSlot, storyId: story.id });
+        if (selectedSlot === null) {
+            console.error("No slot selected");
+            return;
+        }
+
+        try {
+            const newStoryId = await forkStory(story.id, selectedSlot, participantId);
+            console.log("forkStory result:", newStoryId);
+
+            setIsForking(false);
+            setSelectedSlot(null);
+            setShowParticipantPicker(false);
+            setShowFriendPicker(false);
+
+            if (newStoryId) {
+                // Ideally navigate to the new story or show a success message
+                // For now, let's just alert (or use a toast if available, but I'll stick to simple interaction)
+                alert("Story forked successfully! Check your profile or the feed.");
+            } else {
+                alert("Failed to fork story. Please try again.");
+            }
+        } catch (error) {
+            console.error("Error in handleForkStory:", error);
+            alert("An error occurred while forking the story.");
+        }
+    };
+
     return (
         <div ref={containerRef} className="relative w-full h-[calc(100vh-80px)] snap-start shrink-0 bg-gray-900 overflow-hidden">
             {/* Media Background */}
@@ -242,7 +357,7 @@ export default function FeedItem({ story }: FeedItemProps) {
             <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/90 pointer-events-none" />
 
             {/* Right Sidebar Actions */}
-            <div className="absolute right-4 bottom-24 flex flex-col items-center gap-6 text-white z-10">
+            <div className="absolute right-4 bottom-24 flex flex-col items-center gap-6 text-white z-20">
                 <div className="flex flex-col items-center gap-1">
                     <button
                         type="button"
@@ -254,17 +369,19 @@ export default function FeedItem({ story }: FeedItemProps) {
                     </button>
                     <span className="text-xs font-bold">{likeCount.toLocaleString()}</span>
                 </div>
-                <div className="flex flex-col items-center gap-1">
-                    <button
-                        type="button"
-                        onClick={() => setIsCommentsOpen(true)}
-                        className={`w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-white/20 transition-colors ${isCommentsOpen ? "text-[#EC1D99]" : "text-white"}`}
-                        aria-label="Open comments"
-                    >
-                        <MessageCircle className="w-6 h-6" />
-                    </button>
-                    <span className="text-xs font-bold">{comments.length}</span>
-                </div>
+                {story.allowComments !== false && (
+                    <div className="flex flex-col items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => setIsCommentsOpen(true)}
+                            className={`w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-white/20 transition-colors ${isCommentsOpen ? "text-[#EC1D99]" : "text-white"}`}
+                            aria-label="Open comments"
+                        >
+                            <MessageCircle className="w-6 h-6" />
+                        </button>
+                        <span className="text-xs font-bold">{comments.length}</span>
+                    </div>
+                )}
                 <div className="flex flex-col items-center gap-1">
                     <button
                         type="button"
@@ -275,13 +392,39 @@ export default function FeedItem({ story }: FeedItemProps) {
                     </button>
                     <span className="text-xs font-bold">Share</span>
                 </div>
+
+                {story.visibility === 'public' && (
+                    <div className="flex flex-col items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                console.log("Weeve button clicked, toggling isForking", !isForking);
+                                setIsForking(!isForking);
+                            }}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center border border-white/20 transition-all ${isForking ? "bg-[#EC1D99] text-white scale-110" : "bg-gray-800/50 backdrop-blur-sm text-[#EC1D99]"}`}
+                            aria-label="Fork story"
+                        >
+                            <span className="font-black text-lg">W</span>
+                        </button>
+                        <span className="text-xs font-bold">Weeve</span>
+                    </div>
+                )}
             </div>
 
             {/* Bottom Content */}
             <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 text-white z-10">
-                <h2 className="text-2xl font-bold mb-2 font-poppins shadow-black drop-shadow-md">
+                <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md">
                     {story.title}
                 </h2>
+                {story.hashtags && story.hashtags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                        {story.hashtags.map((tag, index) => (
+                            <span key={index} className="text-xs font-medium text-[#EC1D99] drop-shadow-md">
+                                #{tag}
+                            </span>
+                        ))}
+                    </div>
+                )}
                 <p className="text-sm text-gray-200 mb-6 line-clamp-2 max-w-[85%]">
                     {story.description}
                 </p>
@@ -348,25 +491,294 @@ export default function FeedItem({ story }: FeedItemProps) {
                                 })
                             )}
                         </div>
-                        <form onSubmit={handleCommentSubmit} className="flex items-center gap-3">
-                            <input
-                                type="text"
-                                value={commentText}
-                                onChange={(event) => setCommentText(event.target.value)}
-                                placeholder="Add a comment..."
-                                className="flex-1 rounded-full bg-white/10 border border-white/20 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]"
-                            />
-                            <button
-                                type="submit"
-                                disabled={!commentText.trim()}
-                                className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${commentText.trim() ? "bg-[#EC1D99] text-white" : "bg-gray-700 text-gray-400"}`}
-                            >
-                                Send
-                            </button>
-                        </form>
+                        {story.allowComments !== false ? (
+                            <form onSubmit={handleCommentSubmit} className="flex items-center gap-3">
+                                <input
+                                    type="text"
+                                    value={commentText}
+                                    onChange={(event) => setCommentText(event.target.value)}
+                                    placeholder="Add a comment..."
+                                    className="flex-1 rounded-full bg-white/10 border border-white/20 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]"
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={!commentText.trim()}
+                                    className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${commentText.trim() ? "bg-[#EC1D99] text-white" : "bg-gray-700 text-gray-400"}`}
+                                >
+                                    Send
+                                </button>
+                            </form>
+                        ) : (
+                            <div className="text-center py-3 px-4 bg-gray-800/50 rounded-lg">
+                                <p className="text-sm text-gray-400">Comments are disabled for this story</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
-        </div>
+
+            {/* Forking Overlay */}
+            {isForking && (
+                <div className="absolute inset-0 z-30 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-in fade-in duration-200">
+                    <div className="absolute top-6 right-6">
+                        <button onClick={() => setIsForking(false)} className="p-2 bg-white/10 rounded-full">
+                            <X className="w-6 h-6 text-white" />
+                        </button>
+                    </div>
+
+                    <h3 className="text-2xl font-bold text-white mb-2">Weeve In</h3>
+                    <p className="text-gray-300 text-center mb-6 max-w-xs">Swipe to select a spot to insert yourself or a friend into this story.</p>
+
+                    {(() => {
+                        const maxSlots = story.maxWeeves || 3;
+                        const currentIndex = currentSlotIndex;
+
+                        // Touch handling functions
+                        const handleTouchStart = (e: React.TouchEvent) => {
+                            touchStartX.current = e.touches[0].clientX;
+                        };
+
+                        const handleTouchMove = (e: React.TouchEvent) => {
+                            touchEndX.current = e.touches[0].clientX;
+                        };
+
+                        const handleTouchEnd = () => {
+                            const diff = touchStartX.current - touchEndX.current;
+                            const threshold = 50; // minimum swipe distance
+
+                            if (Math.abs(diff) > threshold) {
+                                if (diff > 0) {
+                                    // Swiped left - go to next
+                                    setCurrentSlotIndex((prev) => (prev < maxSlots - 1 ? prev + 1 : 0));
+                                } else {
+                                    // Swiped right - go to previous
+                                    setCurrentSlotIndex((prev) => (prev > 0 ? prev - 1 : maxSlots - 1));
+                                }
+                            }
+                        };
+
+                        return (
+                            <div className="w-full max-w-md mx-auto">
+                                {/* Stacked Carousel Container */}
+                                <div
+                                    className="relative h-80 mb-6 flex items-center justify-center"
+                                    onTouchStart={handleTouchStart}
+                                    onTouchMove={handleTouchMove}
+                                    onTouchEnd={handleTouchEnd}
+                                >
+                                    {Array.from({ length: maxSlots }).map((_, index) => {
+                                        // Find participant for this slot by matching position
+                                        const p = normalizedParticipants.find(p => p.position === index);
+                                        const contribution = slotContentMap.get(index);
+
+                                        // Find the user who made the contribution to show their avatar
+                                        const contributor = contribution
+                                            ? normalizedParticipants.find(np => np.id === contribution.userId)
+                                            : p;
+
+                                        // Calculate position and scale relative to current index
+                                        const offset = index - currentIndex;
+                                        const isActive = offset === 0;
+                                        const isPrev = offset === -1 || (currentIndex === 0 && index === maxSlots - 1);
+                                        const isNext = offset === 1 || (currentIndex === maxSlots - 1 && index === 0);
+
+                                        // Determine position and styling
+                                        let transform = '';
+                                        let zIndex = 0;
+                                        let opacity = 0;
+                                        let scale = 0.7;
+
+                                        if (isActive) {
+                                            transform = 'translateX(0)';
+                                            zIndex = 30;
+                                            opacity = 1;
+                                            scale = 1;
+                                        } else if (isPrev) {
+                                            transform = 'translateX(-60%)';
+                                            zIndex = 20;
+                                            opacity = 0.5;
+                                            scale = 0.75;
+                                        } else if (isNext) {
+                                            transform = 'translateX(60%)';
+                                            zIndex = 20;
+                                            opacity = 0.5;
+                                            scale = 0.75;
+                                        } else {
+                                            opacity = 0;
+                                            zIndex = 10;
+                                        }
+
+                                        return (
+                                            <div
+                                                key={`slot-${index}`}
+                                                className="absolute transition-all duration-300 ease-out"
+                                                style={{
+                                                    transform: `${transform} scale(${scale})`,
+                                                    zIndex,
+                                                    opacity,
+                                                }}
+                                            >
+                                                <button
+                                                    onClick={() => {
+                                                        if (isActive) {
+                                                            setSelectedSlot(index);
+                                                            setShowParticipantPicker(true);
+                                                        } else {
+                                                            setCurrentSlotIndex(index);
+                                                        }
+                                                    }}
+                                                    className={`relative group ${isActive ? '' : 'cursor-pointer'}`}
+                                                >
+                                                    <div className="w-64 h-64 rounded-3xl border-2 border-dashed border-white/30 overflow-hidden transition-all hover:border-[#EC1D99] bg-gray-800 relative">
+                                                        {contribution || p ? (
+                                                            contribution ? (
+                                                                <>
+                                                                    {contribution.mediaType === 'video' ? (
+                                                                        <video
+                                                                            src={contribution.mediaUrl}
+                                                                            className="w-full h-full object-cover"
+                                                                            muted
+                                                                            playsInline
+                                                                            loop
+                                                                        />
+                                                                    ) : contribution.mediaType === 'image' ? (
+                                                                        <img
+                                                                            src={contribution.mediaUrl || contributor?.avatar}
+                                                                            alt="Slot content"
+                                                                            className="w-full h-full object-cover"
+                                                                        />
+                                                                    ) : (
+                                                                        <div className="w-full h-full flex items-center justify-center p-4 bg-gray-900">
+                                                                            <p className="text-sm text-white text-center line-clamp-6 leading-tight font-medium">
+                                                                                {contribution.content}
+                                                                            </p>
+                                                                        </div>
+                                                                    )}
+                                                                    {/* Avatar Badge */}
+                                                                    {contributor && (
+                                                                        <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full border-2 border-black overflow-hidden">
+                                                                            <img src={contributor.avatar} alt={contributor.name} className="w-full h-full object-cover" />
+                                                                        </div>
+                                                                    )}
+                                                                </>
+                                                            ) : (
+                                                                <img
+                                                                    src={p?.avatar}
+                                                                    alt={p?.name}
+                                                                    className="w-full h-full object-cover opacity-50"
+                                                                />
+                                                            )
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center bg-gray-800/50">
+                                                                <UserPlus className="w-12 h-12 text-gray-500" />
+                                                            </div>
+                                                        )}
+
+                                                        {/* Overlay Icon for active slot */}
+                                                        {isActive && (
+                                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                                                                <div className="bg-[#EC1D99] rounded-full p-3 shadow-lg">
+                                                                    <UserPlus className="w-6 h-6 text-white" />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {isActive && (
+                                                        <span className="text-sm text-gray-300 font-medium mt-3 block">Slot {index + 1} of {maxSlots}</span>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Carousel Indicators */}
+                                <div className="flex justify-center gap-2">
+                                    {Array.from({ length: maxSlots }).map((_, index) => (
+                                        <button
+                                            key={`indicator-${index}`}
+                                            onClick={() => setCurrentSlotIndex(index)}
+                                            className={`w-2 h-2 rounded-full transition-all ${index === currentIndex
+                                                ? 'bg-[#EC1D99] w-6'
+                                                : 'bg-white/30 hover:bg-white/50'
+                                                }`}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
+            )}
+
+            {/* Participant Picker Modal */}
+            {
+                showParticipantPicker && (
+                    <div className="absolute inset-0 z-40 bg-black/90 flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
+                        <div className="w-full max-w-sm bg-[#1a1a2e] rounded-3xl p-6 border border-white/10">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-xl font-bold text-white">Who's jumping in?</h3>
+                                <button onClick={() => setShowParticipantPicker(false)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                                    <X className="w-5 h-5 text-gray-400" />
+                                </button>
+                            </div>
+
+                            {!showFriendPicker ? (
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={() => currentUser && handleForkStory(currentUser.id)}
+                                        className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
+                                    >
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#EC1D99] to-purple-600 p-[2px]">
+                                            <img src={currentUser?.avatar} alt="Me" className="w-full h-full rounded-full object-cover border-2 border-black" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="font-bold text-white group-hover:text-[#EC1D99] transition-colors">Me</p>
+                                            <p className="text-xs text-gray-400">Add myself to this slot</p>
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        onClick={() => setShowFriendPicker(true)}
+                                        className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
+                                    >
+                                        <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center">
+                                            <Users className="w-6 h-6 text-gray-300" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="font-bold text-white group-hover:text-[#EC1D99] transition-colors">A Friend</p>
+                                            <p className="text-xs text-gray-400">Invite a friend to this slot</p>
+                                        </div>
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <button onClick={() => setShowFriendPicker(false)} className="text-sm text-gray-400 hover:text-white">
+                                            &larr; Back
+                                        </button>
+                                    </div>
+                                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                                        {friends.map((friend) => (
+                                            <button
+                                                key={friend.id}
+                                                onClick={() => handleForkStory(friend.id)}
+                                                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors"
+                                            >
+                                                <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
+                                                <span className="font-medium text-white">{friend.name}</span>
+                                            </button>
+                                        ))}
+                                        {friends.length === 0 && (
+                                            <p className="text-center text-gray-500 py-4">No friends found.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 }

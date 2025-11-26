@@ -1,34 +1,59 @@
 PODS:
   - Capacitor (7.4.4):
     - CapacitorCordova
+  - CapacitorActionSheet (7.0.2):
+    - Capacitor
   - CapacitorCamera (7.0.2):
     - Capacitor
-  - CapacitorCordova (7.4.4)
-  - CapacitorHttp (0.0.1):
+  - CapacitorCommunityVideoRecorder (7.5.0):
     - Capacitor
+  - CapacitorCordova (7.4.4)
+  - CapacitorDialog (7.0.2):
+    - Capacitor
+  - CapacitorFilesystem (7.1.4):
+    - Capacitor
+    - IONFilesystemLib (~> 1.0.1)
+  - IONFilesystemLib (1.0.1)
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorActionSheet (from `../../node_modules/@capacitor/action-sheet`)"
   - "CapacitorCamera (from `../../node_modules/@capacitor/camera`)"
+  - "CapacitorCommunityVideoRecorder (from `../../node_modules/@capacitor-community/video-recorder`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
-  - "CapacitorHttp (from `../../node_modules/@capacitor/http`)"
+  - "CapacitorDialog (from `../../node_modules/@capacitor/dialog`)"
+  - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
+
+SPEC REPOS:
+  trunk:
+    - IONFilesystemLib
 
 EXTERNAL SOURCES:
   Capacitor:
     :path: "../../node_modules/@capacitor/ios"
+  CapacitorActionSheet:
+    :path: "../../node_modules/@capacitor/action-sheet"
   CapacitorCamera:
     :path: "../../node_modules/@capacitor/camera"
+  CapacitorCommunityVideoRecorder:
+    :path: "../../node_modules/@capacitor-community/video-recorder"
   CapacitorCordova:
     :path: "../../node_modules/@capacitor/ios"
-  CapacitorHttp:
-    :path: "../../node_modules/@capacitor/http"
+  CapacitorDialog:
+    :path: "../../node_modules/@capacitor/dialog"
+  CapacitorFilesystem:
+    :path: "../../node_modules/@capacitor/filesystem"
 
 SPEC CHECKSUMS:
   Capacitor: 358dd1c3fdd71d969547b17e159fd8a7736cb45f
+  CapacitorActionSheet: 12eb20a892c04c345573415d5d248a64ccd26ba4
   CapacitorCamera: f9e54db0a18bb218a8dc360907d63aaefe9209ff
+  CapacitorCommunityVideoRecorder: 67929c344800a00f57813383ff3aa43d718e55a8
   CapacitorCordova: bf648a636f3c153f652d312ae145fb508b6ffced
-  CapacitorHttp: 90d76cad4972b7e5abb13e163fea84ffa48d31af
+  CapacitorDialog: 5bf72a94b747fb339df6f64ef60812e5e4630ad2
+  CapacitorFilesystem: f9bd850c41e048180e5dc0cbb90f2033ede9d2cc
+  IONFilesystemLib: 89258b8e3e85465da93127d25d7ce37f977e8a6f
 
-PODFILE CHECKSUM: 182aef1364ef27f84843bdeecc9b2cd4a713ac1c
+PODFILE CHECKSUM: 49c9e9bc919a0e0278c0c03eca8365060ffb8158
 
 COCOAPODS: 1.16.2

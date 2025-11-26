@@ -45,5 +45,16 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Weeve needs access to your camera to take photos for stories.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Weeve needs access to your photo library to save stories.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Weeve needs access to your photo library to pick photos for stories.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

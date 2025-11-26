@@ -100,6 +100,10 @@ function CreateStoryContent() {
           max_weeves: data.inviteCount, // Using inviteCount as max_weeves/participants
           current_turn_user_id: currentUser.id, // Creator starts? Or first in list?
           group_id: groupId || null,
+          allow_comments: data.allowComments,
+          allow_reuse: data.allowReuse,
+          hashtags: data.hashtags,
+          turn_timer_hours: data.turnTimerHours || null,
         })
         .select()
         .single();
@@ -168,6 +172,7 @@ function CreateStoryContent() {
         maxWeeves: data.inviteCount,
         groupId: groupId || undefined,
         groupAvatar: groupInfo?.avatar,
+        hashtags: data.hashtags,
         likes: 0,
         likedBy: [],
         comments: [],

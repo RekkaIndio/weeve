@@ -12,6 +12,8 @@ export interface User {
     interactionCost?: number;
     inviteCode?: string;
     isPrivate?: boolean;
+    status?: 'accepted' | 'waiting' | 'declined'; // For story participants
+    position?: number; // Slot position in the story
 }
 
 export interface Group {
@@ -21,6 +23,7 @@ export interface Group {
     avatar: string;
     memberCount: number;
     isPrivate: boolean;
+    isMember?: boolean;
 }
 
 export type MediaType = 'video' | 'image' | 'text';
@@ -67,9 +70,15 @@ export interface Story {
     theme?: string; // Visual theme for the story
     groupId?: string;
     groupAvatar?: string;
+    hashtags?: string[];
     likes: number;
     likedBy: string[];
     comments: StoryComment[];
+    allowComments?: boolean;
+    allowReuse?: boolean;
+    turnTimerHours?: number;
+    created_at?: string;
+    updated_at?: string;
 }
 
 interface AppState {
@@ -102,6 +111,8 @@ interface AppState {
     addStoryComment: (storyId: string, content: string) => Promise<void>;
     logoutUser: () => void;
     fetchFriends: () => Promise<void>;
+    forkStory: (originalStoryId: string, slotIndex: number, newParticipantId: string) => Promise<string | null>;
+    fetchStories: () => Promise<void>;
 }
 
 const MOCK_USER: User = {
@@ -475,13 +486,17 @@ export const useStore = create<AppState>()(
                         return participants[nextIndex]?.id ?? currentStory.currentTurnUserId;
                     })();
 
-                    const updatedStories = [...state.stories];
-                    updatedStories[storyIndex] = {
-                        ...currentStory,
-                        contributions: updatedContributions,
-                        currentTurnUserId: nextTurnUserId,
-                        status: reachedCapacity ? 'completed' : currentStory.status,
-                    };
+                    const updatedStories = state.stories.map((story, index) => {
+                        if (index !== storyIndex) {
+                            return story;
+                        }
+                        return {
+                            ...story,
+                            contributions: updatedContributions,
+                            currentTurnUserId: nextTurnUserId,
+                            status: reachedCapacity ? 'completed' : story.status,
+                        };
+                    });
 
                     return { stories: updatedStories };
                 }),
@@ -639,6 +654,233 @@ export const useStore = create<AppState>()(
                 if (!currentUser) return;
                 const friends = await getFriends(currentUser.id);
                 set({ friends });
+            },
+
+            forkStory: async (originalStoryId: string, slotIndex: number, newParticipantId: string) => {
+                const { currentUser } = get();
+                if (!currentUser) return null;
+
+                try {
+                    // 1. Fetch original story details
+                    const { data: originalStory, error: fetchError } = await supabase
+                        .from('stories')
+                        .select(`
+                            *,
+                            contributions (*),
+                            story_participants (*)
+                        `)
+                        .eq('id', originalStoryId)
+                        .single();
+
+                    if (fetchError || !originalStory) {
+                        console.error('Error fetching original story:', fetchError);
+                        return null;
+                    }
+
+                    // 2. Create new story (copy metadata)
+                    const { data: newStoryData, error: createError } = await supabase
+                        .from('stories')
+                        .insert({
+                            title: originalStory.title,
+                            description: originalStory.description,
+                            creator_id: currentUser.id, // The forker becomes the creator of the new branch? Or keep original? Let's say forker.
+                            mode: originalStory.mode, // Copy mode from original story
+                            visibility: 'public', // Default to public for now
+                            status: 'active',
+                            max_weeves: originalStory.max_weeves,
+                            cover_image: originalStory.cover_image,
+                            theme: originalStory.theme,
+                            group_id: originalStory.group_id,
+                            current_turn_user_id: newParticipantId // Set turn to the new participant
+                        })
+                        .select()
+                        .single();
+
+                    if (createError || !newStoryData) {
+                        console.error('Error creating new story:', createError);
+                        return null;
+                    }
+
+                    const newStoryId = newStoryData.id;
+
+                    // 3. Copy participants and update the target slot
+                    const participants = originalStory.story_participants.map((p: any) => {
+                        // Check if this is the slot we are replacing
+                        // We need to know which participant corresponds to the slotIndex.
+                        // Assuming participants are ordered by position.
+                        if (p.position === slotIndex) {
+                            return {
+                                story_id: newStoryId,
+                                user_id: newParticipantId,
+                                position: p.position,
+                                status: 'waiting', // New participant is waiting
+                            };
+                        }
+                        return {
+                            story_id: newStoryId,
+                            user_id: p.user_id,
+                            position: p.position,
+                            status: p.status, // Keep original status for others? Or reset? Let's keep.
+                        };
+                    });
+
+                    const { error: participantsError } = await supabase
+                        .from('story_participants')
+                        .insert(participants);
+
+                    if (participantsError) {
+                        console.error('Error adding participants:', participantsError);
+                        // Should probably delete the story if this fails
+                        return null;
+                    }
+
+                    // 4. Copy contributions (excluding the one at the replaced slot)
+                    // We need to identify which contribution belongs to the replaced slot.
+                    // This is tricky if contributions aren't explicitly linked to slots/positions.
+                    // Strategy: Filter out contributions by the user who was at that slot in the original story.
+
+                    // Find the user ID of the participant at the target slot in the original story
+                    const originalParticipant = originalStory.story_participants.find((p: any) => p.position === slotIndex);
+                    const originalParticipantId = originalParticipant?.user_id;
+
+                    const contributionsToCopy = originalStory.contributions
+                        .filter((c: any) => c.user_id !== originalParticipantId)
+                        .map((c: any) => ({
+                            story_id: newStoryId,
+                            user_id: c.user_id,
+                            user_name: c.user_name,
+                            content: c.content,
+                            media_type: c.media_type,
+                            media_url: c.media_url,
+                            timestamp: c.timestamp,
+                            text_style: c.text_style
+                        }));
+
+                    if (contributionsToCopy.length > 0) {
+                        const { error: contributionsError } = await supabase
+                            .from('contributions')
+                            .insert(contributionsToCopy);
+
+                        if (contributionsError) {
+                            console.error('Error copying contributions:', contributionsError);
+                        }
+                    }
+
+                    // 5. Update local state (fetch the new story to ensure full data)
+                    // For now, we can just trigger a fetchStories or manually construct it.
+                    // Let's manually construct to be fast.
+                    // Actually, simpler to just return the ID and let the UI redirect or refresh.
+                    // But we should update the store.
+
+                    // We'll rely on fetchStories for now as constructing the full object with profiles is tedious here.
+                    // Or we can add a simple version.
+
+                    // Let's trigger a fetch in the background
+                    get().fetchStories();
+
+                    return newStoryId;
+
+                } catch (err) {
+                    console.error('Unexpected error in forkStory:', err);
+                    return null;
+                }
+            },
+
+            fetchStories: async () => {
+                const { currentUser } = get();
+
+                try {
+                    const { data: storiesData, error } = await supabase
+                        .from('stories')
+                        .select(`
+                            *,
+                            contributions (*),
+                            story_participants (
+                                *,
+                                profiles:user_id (id, name, avatar, is_influencer)
+                            ),
+                            story_likes (user_id),
+                            story_comments (
+                                *,
+                                profiles:user_id (name, avatar)
+                            )
+                        `)
+                        .order('created_at', { ascending: false });
+
+                    if (error) {
+                        console.error('Error fetching stories:', error);
+                        return;
+                    }
+
+                    if (!storiesData) return;
+
+                    const formattedStories: Story[] = storiesData.map((s: any) => {
+                        // Map participants
+                        const participants = s.story_participants.map((sp: any) => {
+                            // Handle case where profile might be missing (deleted user?)
+                            const profile = sp.profiles || { name: 'Unknown', avatar: '' };
+                            return {
+                                id: sp.user_id,
+                                name: profile.name,
+                                avatar: profile.avatar,
+                                tokens: 0, // Not needed for display
+                                isInfluencer: profile.is_influencer,
+                                status: sp.status,
+                                position: sp.position
+                            };
+                        }).sort((a: any, b: any) => (a.position || 0) - (b.position || 0));
+
+                        // Map contributions
+                        const contributions = s.contributions.map((c: any) => ({
+                            id: c.id,
+                            userId: c.user_id,
+                            userName: c.user_name,
+                            content: c.content,
+                            mediaType: c.media_type,
+                            mediaUrl: c.media_url,
+                            timestamp: c.timestamp,
+                            textStyle: c.text_style
+                        }));
+
+                        // Map comments
+                        const comments = s.story_comments.map((cm: any) => ({
+                            id: cm.id,
+                            userId: cm.user_id,
+                            userName: cm.user_name || cm.profiles?.name || 'Unknown',
+                            content: cm.content,
+                            timestamp: cm.timestamp
+                        }));
+
+                        // Map likes
+                        const likedBy = s.story_likes.map((l: any) => l.user_id);
+
+                        return {
+                            id: s.id,
+                            title: s.title,
+                            description: s.description,
+                            creatorId: s.creator_id,
+                            visibility: s.visibility,
+                            status: s.status,
+                            currentTurnUserId: s.current_turn_user_id,
+                            contributions,
+                            participants,
+                            maxWeeves: s.max_weeves,
+                            coverImage: s.cover_image,
+                            theme: s.theme,
+                            groupId: s.group_id,
+                            likes: likedBy.length,
+                            likedBy,
+                            comments,
+                            created_at: s.created_at,
+                            updated_at: s.updated_at
+                        };
+                    });
+
+                    set({ stories: formattedStories });
+
+                } catch (err) {
+                    console.error('Failed to fetch stories:', err);
+                }
             },
         }),
         {

@@ -1,9 +1,11 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useStore } from "@/lib/store";
+import { useStore, User } from "@/lib/store";
 import { Grid, UserPlus, ChevronLeft, Share2 } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export default function UserProfilePage() {
     const params = useParams();
@@ -24,11 +26,56 @@ export default function UserProfilePage() {
     }
 
     // Find user in friends list or check if it's current user
-    const user = userId === currentUser.id
-        ? currentUser
-        : friends.find(f => f.id === userId);
+    const [user, setUser] = useState<User | undefined>(
+        userId === currentUser.id
+            ? currentUser
+            : friends.find(f => f.id === userId)
+    );
+    const [loadingProfile, setLoadingProfile] = useState(false);
+
+    useEffect(() => {
+        async function fetchProfile() {
+            if (user || userId === currentUser?.id) return;
+
+            setLoadingProfile(true);
+            try {
+                const { data, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .single();
+
+                if (data) {
+                    setUser({
+                        id: data.user_id,
+                        name: data.name,
+                        avatar: data.avatar || undefined,
+                        tokens: data.tokens,
+                        isInfluencer: data.is_influencer || undefined,
+                        interactionCost: data.interaction_cost || undefined,
+                        inviteCode: data.invite_code || undefined,
+                        isPrivate: false // Assuming default for now, or fetch from DB if column exists
+                    });
+                }
+            } catch (err) {
+                console.error("Error fetching profile:", err);
+            } finally {
+                setLoadingProfile(false);
+            }
+        }
+
+        fetchProfile();
+    }, [userId, user, currentUser]);
 
     // If user not found (in a real app, fetch from API)
+    if (loadingProfile) {
+        return (
+            <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                <div className="text-gray-500">Loading profile...</div>
+            </div>
+        );
+    }
+
     if (!user) {
         return (
             <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">

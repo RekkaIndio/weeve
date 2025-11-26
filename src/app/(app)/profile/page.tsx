@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useStore } from "@/lib/store";
-import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Camera } from "lucide-react";
+import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Camera, Clock } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -11,7 +11,7 @@ import { capturePhoto } from "@/lib/camera";
 
 export default function ProfilePage() {
   const { currentUser, stories, setCurrentUser, friends, fetchFriends } = useStore();
-  const [activeTab, setActiveTab] = useState<'weeves' | 'saved'>('weeves');
+  const [activeTab, setActiveTab] = useState<'weeves' | 'saved' | 'waiting'>('weeves');
 
   useEffect(() => {
     fetchFriends();
@@ -26,7 +26,20 @@ export default function ProfilePage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const myStories = currentUser ? stories.filter(s => s.participants.some(p => p.id === currentUser.id)) : [];
+  const myStories = currentUser ? stories.filter(s => s.participants.some(p => p.id === currentUser.id && (p.status === 'accepted' || p.status === undefined))) : [];
+  // Waiting stories include: pending invites (status='waiting') OR active stories where it's the user's turn
+  const waitingStories = currentUser ? stories.filter(s => {
+    const userParticipant = s.participants.find(p => p.id === currentUser.id);
+    if (!userParticipant) return false;
+
+    // Show if pending invite
+    if (userParticipant.status === 'waiting') return true;
+
+    // Show if it's their turn in an active story
+    if (s.status === 'active' && s.currentTurnUserId === currentUser.id) return true;
+
+    return false;
+  }) : [];
   // Mock saved stories - in production this would come from the store/database
   const savedStories = stories.filter(s => s.id === 's1' || s.id === 's2');
 
@@ -320,11 +333,25 @@ export default function ProfilePage() {
         >
           <Bookmark className="w-6 h-6" />
         </button>
+        <button
+          onClick={() => setActiveTab('waiting')}
+          className={`flex-1 flex justify-center py-3 border-b-2 transition-colors ${activeTab === 'waiting'
+            ? 'border-white text-white'
+            : 'border-transparent text-gray-500 hover:text-gray-300'
+            }`}
+        >
+          <div className="relative">
+            <Clock className="w-6 h-6" />
+            {waitingStories.length > 0 && (
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#EC1D99] rounded-full border-2 border-black"></div>
+            )}
+          </div>
+        </button>
       </div>
 
       {/* Grid */}
       <div className="grid grid-cols-3 gap-0.5">
-        {activeTab === 'weeves' ? (
+        {activeTab === 'weeves' && (
           <>
             {myStories.map(story => {
               const sortedContributions = (story.contributions || [])
@@ -339,6 +366,7 @@ export default function ProfilePage() {
                 : null;
 
               const isWaitingForNextCreator = !waitingForFirstContribution && story.status === 'active' && story.currentTurnUserId && story.currentTurnUserId !== currentUser.id;
+              const isMyTurn = !waitingForFirstContribution && story.status === 'active' && story.currentTurnUserId === currentUser.id;
 
               const firstMediaType = firstContribution?.mediaType;
               const firstMediaUrl = firstContribution?.mediaUrl;
@@ -395,6 +423,14 @@ export default function ProfilePage() {
                     />
                   )}
 
+                  {!waitingForFirstContribution && isMyTurn && (
+                    <div className="absolute top-2 right-2 z-20">
+                      <div className="bg-[#EC1D99] text-white px-2 py-1 rounded-full text-[10px] font-bold shadow-lg animate-pulse border-2 border-white">
+                        Your Turn!
+                      </div>
+                    </div>
+                  )}
+
                   {!waitingForFirstContribution && isWaitingForNextCreator && waitingForUser && (
                     <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-2 text-center backdrop-blur-[2px]">
                       <div className="relative mb-2">
@@ -429,7 +465,9 @@ export default function ProfilePage() {
               <div key={i} className="aspect-[3/4] bg-gray-900/50"></div>
             ))}
           </>
-        ) : (
+        )}
+
+        {activeTab === 'saved' && (
           <>
             {savedStories.length > 0 ? (
               savedStories.map(story => {
@@ -514,6 +552,33 @@ export default function ProfilePage() {
                 <Bookmark className="w-12 h-12 mb-3 opacity-50" />
                 <p className="text-sm">No saved weeves yet</p>
                 <p className="text-xs mt-1">Tap the bookmark icon to save weeves</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'waiting' && (
+          <>
+            {waitingStories.length > 0 ? (
+              waitingStories.map(story => (
+                <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden border-2 border-[#EC1D99]/50">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-10">
+                    <div className="w-12 h-12 rounded-full bg-[#EC1D99] flex items-center justify-center mb-2 animate-pulse">
+                      <Clock className="w-6 h-6 text-white" />
+                    </div>
+                    <p className="text-xs font-bold text-white">Your Turn!</p>
+                  </div>
+                  <img
+                    src={story.coverImage || story.contributions[0]?.mediaUrl || "https://via.placeholder.com/300"}
+                    className="w-full h-full object-cover opacity-50"
+                    alt={story.title}
+                  />
+                </Link>
+              ))
+            ) : (
+              <div className="col-span-3 flex flex-col items-center justify-center py-16 text-gray-500">
+                <Clock className="w-12 h-12 mb-3 opacity-50" />
+                <p className="text-sm">No pending invites</p>
               </div>
             )}
           </>

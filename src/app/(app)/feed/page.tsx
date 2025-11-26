@@ -9,13 +9,15 @@ import { useAuth } from "@/app/components/AuthProvider";
 export default function Home() {
   const router = useRouter();
   const { user, loading } = useAuth();
-  const { stories } = useStore();
+  const { stories, fetchStories } = useStore();
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login");
+    } else if (user) {
+      fetchStories();
     }
-  }, [loading, router, user]);
+  }, [loading, router, user, fetchStories]);
 
   if (loading || !user) {
     return (

@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { setLatestSession } from '@/lib/auth-session';
 import { useStore } from '@/lib/store';
 import { getUserProfile, profileExists } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -79,8 +80,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 // Redirect to homepage if on auth pages
                 const currentPath = window.location.pathname;
                 if (isPublicRoute(currentPath)) {
-                    console.log('[AuthProvider] Redirecting to homepage from:', currentPath);
-                    router.push('/');
+                    console.log('[AuthProvider] Redirecting to feed from:', currentPath);
+                    router.push('/feed');
                 }
             } else {
                 // New user - redirect to setup if not already there
@@ -110,6 +111,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 if (error) throw error;
 
                 setUser(session?.user ?? null);
+                setLatestSession(session ?? null);
                 console.log('[AuthProvider] Session initialized:', session?.user?.id ? 'User found' : 'No user');
 
                 if (session?.user) {
@@ -148,11 +150,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
             console.log('[AuthProvider] Auth event:', event, 'User:', session?.user?.id || 'null');
             setUser(session?.user ?? null);
+            setLatestSession(session ?? null);
 
             if (event === 'SIGNED_OUT') {
                 console.log('[AuthProvider] User explicitly signed out');
                 setCurrentUser(null);
                 setLoading(false);
+                setLatestSession(null);
                 router.push('/login');
                 return;
             }

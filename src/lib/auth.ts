@@ -1,6 +1,6 @@
-import { supabase } from './supabase';
-import type { User } from '@supabase/supabase-js';
-import { addFriend } from './friends';
+import { supabase } from "./supabase";
+import type { User } from "@supabase/supabase-js";
+import { addFriend } from "./friends";
 
 export interface AuthUser {
     id: string;

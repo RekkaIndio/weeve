@@ -41,7 +41,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {showHomeNotification && (
                     <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 pb-2 flex justify-end pointer-events-none">
                         <NotificationBell
-                            count={notificationCount}
+                            userId={currentUser?.id}
                             className="bg-black/70 border border-white/10 backdrop-blur-md shadow-lg pointer-events-auto"
                         />
                     </div>
