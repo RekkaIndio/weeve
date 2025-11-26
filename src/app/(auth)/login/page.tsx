@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "@/lib/auth";
+import { Capacitor } from '@capacitor/core';
+import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -28,6 +30,21 @@ export default function LoginPage() {
             if (!user) throw new Error('Login failed');
 
             console.log('[Login] Successfully signed in, user:', user.id);
+
+            // For mobile apps, wait for session to be available
+            if (Capacitor.isNativePlatform()) {
+                let attempts = 0;
+                while (attempts < 10) {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (session) {
+                        console.log('[Login] Session confirmed');
+                        break;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    attempts++;
+                }
+            }
+
             // Redirect to homepage - AuthProvider will also handle setup redirect if needed
             router.push('/feed');
         } catch (err: any) {
