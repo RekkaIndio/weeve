@@ -245,7 +245,7 @@ async function compressImage(file: File): Promise<Blob> {
     return new Promise((resolve, reject) => {
         const img = new Image();
         let objectUrl: string | null = null;
-        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        let timeoutId: number | null = null;
 
         const cleanup = () => {
             if (timeoutId !== null) {
@@ -669,7 +669,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
 
             const sdkResult = await Promise.race([
                 sdkInsertPromise,
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Insert timeout')), insertTimeoutMs)),
+                new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Insert timeout')), insertTimeoutMs)),
             ]);
 
             insertedContribution = sdkResult?.data ?? null;
