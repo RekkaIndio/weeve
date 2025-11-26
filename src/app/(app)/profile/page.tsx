@@ -397,11 +397,15 @@ export default function ProfilePage() {
                   ) : firstMediaType === 'video' && firstMediaUrl ? (
                     <video
                       src={firstMediaUrl}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="weeve-inline-video w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       autoPlay
                       loop
                       muted
                       playsInline
+                      preload="auto"
+                      controls={false}
+                      controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
+                      disablePictureInPicture
                     />
                   ) : firstMediaType === 'image' && firstMediaUrl ? (
                     <img
@@ -511,11 +515,15 @@ export default function ProfilePage() {
                     ) : firstMediaType === 'video' && firstMediaUrl ? (
                       <video
                         src={firstMediaUrl}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        className="weeve-inline-video w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         autoPlay
                         loop
                         muted
                         playsInline
+                        preload="auto"
+                        controls={false}
+                        controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
+                        disablePictureInPicture
                       />
                     ) : firstMediaType === 'image' && firstMediaUrl ? (
                       <img

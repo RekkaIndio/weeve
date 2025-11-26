@@ -57,12 +57,71 @@ export default function FeedItem({ story }: FeedItemProps) {
     const [commentText, setCommentText] = useState("");
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const videoPreloadCache = useRef<Map<string, HTMLVideoElement>>(new Map());
+    const videoPosterCache = useRef<Map<string, string>>(new Map());
+    const videoReadyRef = useRef<Map<string, boolean>>(new Map());
+    const [videoReadyVersion, setVideoReadyVersion] = useState(0);
+    const [isVideoReady, setIsVideoReady] = useState(false);
+    const [isVideoVisible, setIsVideoVisible] = useState(false);
 
     const [isForking, setIsForking] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
     const [showParticipantPicker, setShowParticipantPicker] = useState(false);
     const [showFriendPicker, setShowFriendPicker] = useState(false);
     const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
+
+    const captureFrameFromVideo = useCallback((video: HTMLVideoElement) => {
+        if (typeof document === "undefined") {
+            return null;
+        }
+
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+
+        if (!width || !height) {
+            return null;
+        }
+
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            if (!context) {
+                return null;
+            }
+            context.drawImage(video, 0, 0, width, height);
+            return canvas.toDataURL('image/jpeg', 0.7);
+        } catch (error) {
+            console.debug('Unable to capture video frame for placeholder', error);
+            return null;
+        }
+    }, []);
+
+    const markVideoReady = useCallback((url: string, source?: HTMLVideoElement) => {
+        if (!url) {
+            return;
+        }
+
+        let didUpdate = false;
+
+        if (source && !videoPosterCache.current.has(url)) {
+            const snapshot = captureFrameFromVideo(source);
+            if (snapshot) {
+                videoPosterCache.current.set(url, snapshot);
+                didUpdate = true;
+            }
+        }
+
+        if (!videoReadyRef.current.get(url)) {
+            videoReadyRef.current.set(url, true);
+            didUpdate = true;
+        }
+
+        if (didUpdate) {
+            setVideoReadyVersion((value) => value + 1);
+        }
+    }, [captureFrameFromVideo]);
 
     // Touch handling refs for swipe gestures
     const touchStartX = useRef(0);
@@ -86,6 +145,51 @@ export default function FeedItem({ story }: FeedItemProps) {
 
         return participants;
     }, [story.participants]);
+
+    const toggleStoryLike = useStore((state) => state.toggleStoryLike);
+    const addStoryComment = useStore((state) => state.addStoryComment);
+    const forkStory = useStore((state) => state.forkStory);
+    const currentUser = useStore((state) => state.currentUser);
+    const friends = useStore((state) => state.friends);
+    const fetchFriends = useStore((state) => state.fetchFriends);
+
+    useEffect(() => {
+        if (showFriendPicker && friends.length === 0) {
+            fetchFriends();
+        }
+    }, [showFriendPicker, friends.length, fetchFriends]);
+
+    const likedBy = useMemo(() => story.likedBy ?? [], [story.likedBy]);
+    const comments = useMemo(() => story.comments ?? [], [story.comments]);
+
+    const contributions = useMemo(() => {
+        return (story.contributions || [])
+            .slice()
+            .sort((a, b) => a.timestamp - b.timestamp);
+    }, [story.contributions]);
+
+    const participantsMap = useMemo(() => {
+        return new Map(story.participants.map((participant) => [participant.id, participant]));
+    }, [story.participants]);
+
+    const sortedComments = useMemo(() => {
+        return comments.slice().sort((a, b) => a.timestamp - b.timestamp);
+    }, [comments]);
+
+    const isLiked = useMemo(() => {
+        if (!currentUser) return false;
+        return likedBy.includes(currentUser.id);
+    }, [currentUser, likedBy]);
+
+    const likeCount = useMemo(() => {
+        return typeof story.likes === "number" ? story.likes : likedBy.length;
+    }, [story.likes, likedBy]);
+
+    const contributionsCount = contributions.length;
+    const hasContributions = contributionsCount > 0;
+    const safeIndex = hasContributions ? currentIndex % contributionsCount : 0;
+    const currentContribution = hasContributions ? contributions[safeIndex] : undefined;
+    const mediaUrl = currentContribution?.mediaUrl || story.coverImage;
 
     // Pre-calculate slot content mapping to handle multi-slot users correctly
     const slotContentMap = useMemo(() => {
@@ -135,52 +239,6 @@ export default function FeedItem({ story }: FeedItemProps) {
         return map;
     }, [normalizedParticipants, story.contributions, story.maxWeeves]);
 
-    const toggleStoryLike = useStore((state) => state.toggleStoryLike);
-    const addStoryComment = useStore((state) => state.addStoryComment);
-    const forkStory = useStore((state) => state.forkStory);
-    const currentUser = useStore((state) => state.currentUser);
-    const friends = useStore((state) => state.friends);
-    const fetchFriends = useStore((state) => state.fetchFriends);
-
-    useEffect(() => {
-        if (showFriendPicker && friends.length === 0) {
-            fetchFriends();
-        }
-    }, [showFriendPicker, friends.length, fetchFriends]);
-
-    const likedBy = useMemo(() => story.likedBy ?? [], [story.likedBy]);
-    const comments = useMemo(() => story.comments ?? [], [story.comments]);
-
-    const contributions = useMemo(() => {
-        return (story.contributions || [])
-            .slice()
-            .sort((a, b) => a.timestamp - b.timestamp);
-    }, [story.contributions]);
-
-    const participantsMap = useMemo(() => {
-        return new Map(story.participants.map((participant) => [participant.id, participant]));
-    }, [story.participants]);
-
-    const sortedComments = useMemo(() => {
-        return comments.slice().sort((a, b) => a.timestamp - b.timestamp);
-    }, [comments]);
-
-    const isLiked = useMemo(() => {
-        if (!currentUser) return false;
-        return likedBy.includes(currentUser.id);
-    }, [currentUser, likedBy]);
-
-    const likeCount = useMemo(() => {
-        return typeof story.likes === "number" ? story.likes : likedBy.length;
-    }, [story.likes, likedBy]);
-
-    const contributionsCount = contributions.length;
-    const hasContributions = contributionsCount > 0;
-    const safeIndex = hasContributions ? currentIndex % contributionsCount : 0;
-    const currentContribution = hasContributions ? contributions[safeIndex] : undefined;
-
-    // If no contributions, use story cover
-    const mediaUrl = currentContribution?.mediaUrl || story.coverImage;
     const mediaType: 'video' | 'image' | 'text' = (() => {
         if (!hasContributions) {
             return story.coverImage ? 'image' : 'text';
@@ -189,11 +247,165 @@ export default function FeedItem({ story }: FeedItemProps) {
         if (currentContribution?.mediaType === 'image' && currentContribution.mediaUrl) return 'image';
         return 'text';
     })();
+    const mediaPlaceholder = useMemo(() => {
+        if (mediaType !== 'video') {
+            return null;
+        }
+
+        const url = currentContribution?.mediaUrl;
+        if (url) {
+            const cachedPoster = videoPosterCache.current.get(url);
+            if (cachedPoster) {
+                return cachedPoster;
+            }
+
+            const preloaded = videoPreloadCache.current.get(url);
+            if (preloaded && videoReadyRef.current.get(url)) {
+                const snapshot = captureFrameFromVideo(preloaded);
+                if (snapshot) {
+                    videoPosterCache.current.set(url, snapshot);
+                    return snapshot;
+                }
+            }
+        }
+
+        if (story.coverImage) {
+            return story.coverImage;
+        }
+
+        const previousContribution = contributionsCount > 1
+            ? contributions[(safeIndex - 1 + contributionsCount) % contributionsCount]
+            : undefined;
+
+        if (previousContribution?.mediaType === 'image' && previousContribution.mediaUrl) {
+            return previousContribution.mediaUrl;
+        }
+
+        return null;
+    }, [mediaType, currentContribution, story.coverImage, contributions, contributionsCount, safeIndex, videoReadyVersion, captureFrameFromVideo]);
     const activeUserId = currentContribution?.userId;
     const waitingParticipant = story.currentTurnUserId
         ? story.participants.find((p) => p.id === story.currentTurnUserId)
         : undefined;
     const waitingForFirstContribution = !hasContributions;
+
+    useEffect(() => {
+        if (mediaType !== 'video') {
+            setIsVideoVisible(false);
+            return;
+        }
+
+        setIsVideoVisible(false);
+
+        const video = videoRef.current;
+        if (!video) {
+            return;
+        }
+
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        video.preload = 'auto';
+    }, [mediaType, mediaUrl]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+
+        const cleanupFns: Array<() => void> = [];
+
+        for (const contribution of contributions) {
+            const mediaUrl = contribution.mediaUrl;
+            if (contribution.mediaType !== 'video' || !mediaUrl) {
+                continue;
+            }
+
+            if (videoPreloadCache.current.has(mediaUrl)) {
+                continue;
+            }
+
+            const preloadVideo = document.createElement('video');
+            preloadVideo.src = mediaUrl;
+            preloadVideo.preload = 'auto';
+            preloadVideo.muted = true;
+            preloadVideo.playsInline = true;
+
+            const handleReady = () => {
+                markVideoReady(mediaUrl, preloadVideo);
+                cleanup();
+            };
+
+            const handleError = () => {
+                cleanup();
+            };
+
+            const cleanup = () => {
+                preloadVideo.removeEventListener('canplaythrough', handleReady);
+                preloadVideo.removeEventListener('canplay', handleReady);
+                preloadVideo.removeEventListener('error', handleError);
+            };
+
+            preloadVideo.addEventListener('canplaythrough', handleReady);
+            preloadVideo.addEventListener('canplay', handleReady);
+            preloadVideo.addEventListener('error', handleError);
+
+            preloadVideo.load();
+
+            videoPreloadCache.current.set(mediaUrl, preloadVideo);
+            cleanupFns.push(cleanup);
+        }
+
+        return () => {
+            cleanupFns.forEach((fn) => fn());
+        };
+    }, [contributions, markVideoReady]);
+
+    useEffect(() => {
+        if (mediaType !== 'video' || !mediaUrl) {
+            setIsVideoReady(true);
+            setIsVideoVisible(false);
+            return;
+        }
+
+        const cachedReady = videoReadyRef.current.get(mediaUrl) ?? false;
+        setIsVideoReady(cachedReady);
+        setIsVideoVisible(false);
+
+        const video = videoRef.current;
+        if (!video) {
+            return;
+        }
+
+        const handleReady = () => {
+            markVideoReady(mediaUrl, video);
+            setIsVideoReady(true);
+        };
+
+        const handlePlaying = () => {
+            setIsVideoVisible(true);
+            markVideoReady(mediaUrl, video);
+        };
+
+        const handleWaiting = () => {
+            setIsVideoVisible(false);
+        };
+
+        video.addEventListener('canplay', handleReady);
+        video.addEventListener('canplaythrough', handleReady);
+        video.addEventListener('playing', handlePlaying);
+        video.addEventListener('waiting', handleWaiting);
+        video.addEventListener('pause', handleWaiting);
+        video.addEventListener('ended', handleWaiting);
+
+        return () => {
+            video.removeEventListener('canplay', handleReady);
+            video.removeEventListener('canplaythrough', handleReady);
+            video.removeEventListener('playing', handlePlaying);
+            video.removeEventListener('waiting', handleWaiting);
+            video.removeEventListener('pause', handleWaiting);
+            video.removeEventListener('ended', handleWaiting);
+        };
+    }, [mediaType, mediaUrl, markVideoReady]);
 
     // Intersection Observer to track visibility
     useEffect(() => {
@@ -225,7 +437,7 @@ export default function FeedItem({ story }: FeedItemProps) {
             return;
         }
 
-        let timeoutId: NodeJS.Timeout;
+        let timeoutId: NodeJS.Timeout | undefined;
 
         const handleNext = () => {
             setCurrentIndex((prev) => (prev + 1) % contributions.length);
@@ -237,14 +449,14 @@ export default function FeedItem({ story }: FeedItemProps) {
         }
 
         // For video, we rely on onEnded event, but we need to make sure it plays
-        if (mediaType === 'video' && videoRef.current) {
+        if (mediaType === 'video' && videoRef.current && isVideoReady) {
             videoRef.current.play().catch(e => console.log("Autoplay prevented:", e));
         }
 
         return () => {
             if (timeoutId) clearTimeout(timeoutId);
         };
-    }, [currentIndex, contributions.length, mediaType, isVisible, hasContributions, isCommentsOpen]);
+    }, [currentIndex, contributions.length, mediaType, isVisible, hasContributions, isCommentsOpen, isVideoReady]);
 
     const handleVideoEnded = () => {
         setCurrentIndex((prev) => {
@@ -328,16 +540,39 @@ export default function FeedItem({ story }: FeedItemProps) {
                     </div>
                 </div>
             ) : mediaType === 'video' && mediaUrl ? (
-                <video
-                    ref={videoRef}
-                    key={mediaUrl} // Force re-render on url change to ensure autoplay works
-                    src={mediaUrl}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    autoPlay
-                    muted={false}
-                    playsInline
-                    onEnded={handleVideoEnded}
-                />
+                <>
+                    {!isVideoVisible && (
+                        mediaPlaceholder ? (
+                            <img
+                                src={mediaPlaceholder}
+                                alt={story.title}
+                                className="absolute inset-0 w-full h-full object-cover"
+                            />
+                        ) : (
+                            <div className="absolute inset-0 bg-gradient-to-br from-black via-gray-900 to-black" />
+                        )
+                    )}
+                    <video
+                        ref={videoRef}
+                        key={mediaUrl} // Force re-render on url change to ensure autoplay works
+                        src={mediaUrl}
+                        className="weeve-inline-video absolute inset-0 w-full h-full object-cover"
+                        autoPlay
+                        muted={false}
+                        playsInline
+                        preload="auto"
+                        controls={false}
+                        controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
+                        disablePictureInPicture
+                        onEnded={handleVideoEnded}
+                        style={{
+                            opacity: isVideoVisible ? 1 : 0,
+                            visibility: isVideoVisible ? 'visible' : 'hidden',
+                            transition: "opacity 180ms ease-out",
+                            backgroundColor: '#000000'
+                        }}
+                    />
+                </>
             ) : mediaType === 'image' && mediaUrl ? (
                 <img
                     key={mediaUrl}
@@ -636,10 +871,14 @@ export default function FeedItem({ story }: FeedItemProps) {
                                                                     {contribution.mediaType === 'video' ? (
                                                                         <video
                                                                             src={contribution.mediaUrl}
-                                                                            className="w-full h-full object-cover"
+                                                                            className="weeve-inline-video w-full h-full object-cover"
                                                                             muted
                                                                             playsInline
                                                                             loop
+                                                                            preload="auto"
+                                                                            controls={false}
+                                                                            controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
+                                                                            disablePictureInPicture
                                                                         />
                                                                     ) : contribution.mediaType === 'image' ? (
                                                                         <img
@@ -712,73 +951,71 @@ export default function FeedItem({ story }: FeedItemProps) {
             )}
 
             {/* Participant Picker Modal */}
-            {
-                showParticipantPicker && (
-                    <div className="absolute inset-0 z-40 bg-black/90 flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
-                        <div className="w-full max-w-sm bg-[#1a1a2e] rounded-3xl p-6 border border-white/10">
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-xl font-bold text-white">Who's jumping in?</h3>
-                                <button onClick={() => setShowParticipantPicker(false)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                                    <X className="w-5 h-5 text-gray-400" />
+            {showParticipantPicker && (
+                <div className="absolute inset-0 z-40 bg-black/90 flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
+                    <div className="w-full max-w-sm bg-[#1a1a2e] rounded-3xl p-6 border border-white/10">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-xl font-bold text-white">Who's jumping in?</h3>
+                            <button onClick={() => setShowParticipantPicker(false)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                                <X className="w-5 h-5 text-gray-400" />
+                            </button>
+                        </div>
+
+                        {!showFriendPicker ? (
+                            <div className="space-y-3">
+                                <button
+                                    onClick={() => currentUser && handleForkStory(currentUser.id)}
+                                    className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
+                                >
+                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#EC1D99] to-purple-600 p-[2px]">
+                                        <img src={currentUser?.avatar} alt="Me" className="w-full h-full rounded-full object-cover border-2 border-black" />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="font-bold text-white group-hover:text-[#EC1D99] transition-colors">Me</p>
+                                        <p className="text-xs text-gray-400">Add myself to this slot</p>
+                                    </div>
+                                </button>
+
+                                <button
+                                    onClick={() => setShowFriendPicker(true)}
+                                    className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
+                                >
+                                    <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center">
+                                        <Users className="w-6 h-6 text-gray-300" />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="font-bold text-white group-hover:text-[#EC1D99] transition-colors">A Friend</p>
+                                        <p className="text-xs text-gray-400">Invite a friend to this slot</p>
+                                    </div>
                                 </button>
                             </div>
-
-                            {!showFriendPicker ? (
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={() => currentUser && handleForkStory(currentUser.id)}
-                                        className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
-                                    >
-                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#EC1D99] to-purple-600 p-[2px]">
-                                            <img src={currentUser?.avatar} alt="Me" className="w-full h-full rounded-full object-cover border-2 border-black" />
-                                        </div>
-                                        <div className="text-left">
-                                            <p className="font-bold text-white group-hover:text-[#EC1D99] transition-colors">Me</p>
-                                            <p className="text-xs text-gray-400">Add myself to this slot</p>
-                                        </div>
-                                    </button>
-
-                                    <button
-                                        onClick={() => setShowFriendPicker(true)}
-                                        className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
-                                    >
-                                        <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center">
-                                            <Users className="w-6 h-6 text-gray-300" />
-                                        </div>
-                                        <div className="text-left">
-                                            <p className="font-bold text-white group-hover:text-[#EC1D99] transition-colors">A Friend</p>
-                                            <p className="text-xs text-gray-400">Invite a friend to this slot</p>
-                                        </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <button onClick={() => setShowFriendPicker(false)} className="text-sm text-gray-400 hover:text-white">
+                                        &larr; Back
                                     </button>
                                 </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <button onClick={() => setShowFriendPicker(false)} className="text-sm text-gray-400 hover:text-white">
-                                            &larr; Back
+                                <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                                    {friends.map((friend) => (
+                                        <button
+                                            key={friend.id}
+                                            onClick={() => handleForkStory(friend.id)}
+                                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors"
+                                        >
+                                            <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
+                                            <span className="font-medium text-white">{friend.name}</span>
                                         </button>
-                                    </div>
-                                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                                        {friends.map((friend) => (
-                                            <button
-                                                key={friend.id}
-                                                onClick={() => handleForkStory(friend.id)}
-                                                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors"
-                                            >
-                                                <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
-                                                <span className="font-medium text-white">{friend.name}</span>
-                                            </button>
-                                        ))}
-                                        {friends.length === 0 && (
-                                            <p className="text-center text-gray-500 py-4">No friends found.</p>
-                                        )}
-                                    </div>
+                                    ))}
+                                    {friends.length === 0 && (
+                                        <p className="text-center text-gray-500 py-4">No friends found.</p>
+                                    )}
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     );
 }

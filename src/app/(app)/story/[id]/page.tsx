@@ -1205,6 +1205,15 @@ function VideoPlayer({ src, onComplete, isPlaying }: { src?: string, onComplete:
     const videoRef = useRef<HTMLVideoElement>(null);
     const [error, setError] = useState(false);
 
+    useEffect(() => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        video.preload = 'auto';
+    }, [src]);
+
     // Play or pause based on isPlaying
     useEffect(() => {
         const video = videoRef.current;
@@ -1263,12 +1272,15 @@ function VideoPlayer({ src, onComplete, isPlaying }: { src?: string, onComplete:
         <video
             ref={videoRef}
             src={src}
-            className="w-full h-full object-cover"
+            className="weeve-inline-video w-full h-full object-cover"
             playsInline
             muted
             autoPlay={isPlaying}
-            onEnded={onComplete}
+            preload="auto"
             controls={false}
+            controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
+            disablePictureInPicture
+            onEnded={onComplete}
         />
     );
 }
