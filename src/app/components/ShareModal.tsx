@@ -17,6 +17,7 @@ interface Recipient {
     name: string;
     avatar?: string;
     isFriend?: boolean;
+    inviteCode?: string;
 }
 
 export default function ShareModal({ story, onClose }: ShareModalProps) {
@@ -57,6 +58,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                     name: profile.name ?? 'Unknown user',
                     avatar: profile.avatar,
                     isFriend: profile.isFriend,
+                    inviteCode: profile.inviteCode,
                 })));
             } catch (error) {
                 console.error('User search failed:', error);
@@ -159,45 +161,61 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     };
 
     const recipientList = useMemo(() => {
-        const friendRecipients: Recipient[] = friends.map((friend) => ({
-            id: friend.id,
-            name: friend.name,
-            avatar: friend.avatar,
-            isFriend: true,
-        }));
+        const normalizedFriends = friends.map((friend) => {
+            const displayName = friend.name?.trim() || friend.inviteCode?.trim() || 'Unknown user';
+            const searchKey = `${displayName} ${friend.inviteCode ?? ''}`.toLowerCase();
+
+            return {
+                id: friend.id,
+                name: displayName,
+                avatar: friend.avatar,
+                isFriend: true,
+                inviteCode: friend.inviteCode,
+                searchKey,
+            };
+        });
 
         if (!currentUser) {
-            return friendRecipients;
+            return normalizedFriends.map(({ searchKey, ...recipient }) => recipient);
         }
 
         const trimmed = searchQuery.trim();
         if (trimmed.length >= 2) {
             const lowerQuery = trimmed.toLowerCase();
-            const localMatches = friendRecipients.filter((friend) =>
-                friend.name.toLowerCase().includes(lowerQuery)
+
+            const friendMatches = normalizedFriends.filter((friend) =>
+                friend.searchKey.includes(lowerQuery)
             );
 
-            const merged = new Map<string, Recipient>();
-            searchResults.forEach((result) => {
-                merged.set(result.id, result);
-            });
-            localMatches.forEach((match) => {
-                if (!merged.has(match.id)) {
-                    merged.set(match.id, match);
-                }
+            const remoteMatches = searchResults.map((result) => {
+                const displayName = result.name?.trim() || result.inviteCode?.trim() || 'Unknown user';
+                return {
+                    ...result,
+                    name: displayName,
+                    inviteCode: result.inviteCode,
+                    searchKey: `${displayName} ${result.inviteCode ?? ''}`.toLowerCase(),
+                };
             });
 
-            return Array.from(merged.values());
+            const merged = new Map<string, (Recipient & { searchKey: string })>();
+            friendMatches.forEach((match) => {
+                merged.set(match.id, match);
+            });
+            remoteMatches.forEach((match) => {
+                merged.set(match.id, match);
+            });
+
+            return Array.from(merged.values()).map(({ searchKey, ...recipient }) => recipient);
         }
 
-        return friendRecipients;
+        return normalizedFriends.map(({ searchKey, ...recipient }) => recipient);
     }, [friends, searchResults, searchQuery, currentUser]);
 
     const selectedCount = selectedRecipients.size;
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm pb-6 sm:pb-0"
             onClick={onClose}
             role="presentation"
             onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
@@ -227,15 +245,39 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                     <div className="p-4">
                         <h3 className="text-sm font-medium text-gray-400 mb-3">Send to Friends</h3>
 
-                        <div className="relative mb-4">
-                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(event) => setSearchQuery(event.target.value)}
-                                placeholder="Search for people (min 2 characters)"
-                                className="w-full rounded-xl bg-gray-800/70 border border-gray-700 pl-10 pr-4 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]"
-                            />
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="relative flex-1">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(event) => setSearchQuery(event.target.value)}
+                                    placeholder="Search for people (min 2 characters)"
+                                    className="w-full rounded-xl bg-gray-800/70 border border-gray-700 pl-10 pr-10 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]"
+                                />
+                                {searchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchQuery("")}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                                        aria-label="Clear search"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                            <button
+                                onClick={handleSendToFriends}
+                                disabled={sending || selectedCount === 0}
+                                aria-label={selectedCount > 0 ? `Send to ${selectedCount} selected recipient${selectedCount === 1 ? '' : 's'}` : 'Select recipients to send'}
+                                className="shrink-0 w-12 h-12 rounded-xl bg-[#EC1D99] hover:bg-[#D41C84] disabled:bg-gray-700 disabled:text-gray-500 flex items-center justify-center transition-colors"
+                            >
+                                {sending ? (
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <Send className="w-5 h-5 text-white" />
+                                )}
+                            </button>
                         </div>
 
                         {searchQuery.trim().length >= 2 && !searching && recipientList.length === 0 && (
@@ -249,7 +291,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                 <p className="text-sm">No friends yet</p>
                             </div>
                         ) : (
-                            <div className="space-y-2 max-h-72 overflow-y-auto pr-2 pb-1">
+                            <div className="space-y-2 pr-2 pb-1">
                                 {recipientList.map(recipient => {
                                     const isSelected = selectedRecipients.has(recipient.id);
                                     return (
@@ -283,31 +325,18 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                 )}
                             </div>
                         )}
-                        {/* Send button - placed inside content area rather than footer */}
-                        <div className="mt-4 p-2 bg-gray-900">
-                            <button
-                                onClick={handleSendToFriends}
-                                disabled={sending || selectedCount === 0}
-                                className="w-full bg-[#EC1D99] hover:bg-[#D41C84] disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-                            >
-                                {sending ? (
-                                    <>
-                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        Sending...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Send className="w-5 h-5" />
-                                        {selectedCount > 0 ? `Send to ${selectedCount} user${selectedCount === 1 ? '' : 's'}` : 'Select recipients'}
-                                    </>
-                                )}
-                            </button>
+                        <div className="flex items-center justify-between text-xs text-gray-400 mt-3 mb-2">
+                            <span>{selectedCount > 0 ? `${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected` : ''}</span>
+                            {sending && <span>Sending…</span>}
                         </div>
                     </div>
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-gray-800 bg-gray-900" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                <div
+                    className="p-4 pt-5 border-t border-gray-800 bg-gray-900"
+                    style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 28px) + 16px)' }}
+                >
                     {/* Quick Share - moved to footer */}
                     <div className="pb-3">
                         <div className="grid grid-cols-3 gap-3">
@@ -348,35 +377,6 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                             </button>
                         </div>
                     </div>
-                    <div className="flex items-center justify-between mb-3 text-sm text-gray-400">
-                        <span>{selectedCount > 0 ? `${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected` : ''}</span>
-                        {searchQuery && (
-                            <button
-                                type="button"
-                                onClick={() => setSearchQuery("")}
-                                className="text-xs text-[#EC1D99] hover:text-[#D41C84]"
-                            >
-                                Clear search
-                            </button>
-                        )}
-                    </div>
-                    <button
-                        onClick={handleSendToFriends}
-                        disabled={sending || selectedCount === 0}
-                        className="w-full bg-[#EC1D99] hover:bg-[#D41C84] disabled:bg-gray-700 disabled:text-gray-500 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-                    >
-                        {sending ? (
-                            <>
-                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                Sending...
-                            </>
-                        ) : (
-                            <>
-                                <Send className="w-5 h-5" />
-                                {selectedCount > 0 ? `Send to ${selectedCount} user${selectedCount === 1 ? '' : 's'}` : 'Select recipients'}
-                            </>
-                        )}
-                    </button>
                 </div>
             </div>
         </div>

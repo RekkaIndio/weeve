@@ -18,7 +18,9 @@ export interface Database {
                     user_id: string
                     name: string
                     avatar: string | null
+                    tagline: string | null
                     tokens: number
+                    is_private: boolean
                     is_influencer: boolean
                     interaction_cost: number | null
                     invite_code: string | null
@@ -30,7 +32,9 @@ export interface Database {
                     user_id: string
                     name: string
                     avatar?: string | null
+                    tagline?: string | null
                     tokens?: number
+                    is_private?: boolean
                     is_influencer?: boolean
                     interaction_cost?: number | null
                     invite_code?: string | null
@@ -42,7 +46,9 @@ export interface Database {
                     user_id?: string
                     name?: string
                     avatar?: string | null
+                    tagline?: string | null
                     tokens?: number
+                    is_private?: boolean
                     is_influencer?: boolean
                     interaction_cost?: number | null
                     invite_code?: string | null

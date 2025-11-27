@@ -220,6 +220,7 @@ const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
         description: story.description,
         creatorId: story.creator_id,
         visibility: story.visibility ?? 'private',
+        mode: story.mode ?? 'invite',
         status: story.status,
         currentTurnUserId: story.current_turn_user_id ?? undefined,
         contributions,

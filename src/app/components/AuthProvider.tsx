@@ -67,11 +67,17 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                         id: supabaseUser.id,
                         name: profile.name,
                         avatar: profile.avatar,
+                        tagline: profile.tagline,
                         tokens: profile.tokens,
                         inviteCode: profile.inviteCode,
                     };
-                    setCurrentUser(appUser);
-                    console.log('[AuthProvider] Updated user with database data:', appUser);
+                    const storeState = useStore.getState();
+                    if (storeState.profileUpdateInProgress) {
+                        console.log('[AuthProvider] Profile update in progress, skipping store overwrite');
+                    } else {
+                        setCurrentUser(appUser);
+                        console.log('[AuthProvider] Updated user with database data:', appUser);
+                    }
                 } else {
                     console.error('[AuthProvider] Failed to load profile data despite profileExists=true');
                     // Don't show error toast here to avoid spamming user if it's a background refresh

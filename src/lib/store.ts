@@ -7,6 +7,7 @@ export interface User {
     id: string;
     name: string;
     avatar?: string;
+    tagline?: string;
     tokens: number;
     isInfluencer?: boolean;
     interactionCost?: number;
@@ -88,6 +89,7 @@ interface AppState {
     activeWeeveId: string | null;
     friends: User[];
     groups: Group[];
+    profileUpdateInProgress: boolean;
 
     addStory: (story: Story) => void;
     addContribution: (storyId: string, contribution: Contribution | {
@@ -114,6 +116,7 @@ interface AppState {
     fetchFriends: () => Promise<void>;
     forkStory: (originalStoryId: string, slotIndex: number, newParticipantId: string) => Promise<string | null>;
     fetchStories: () => Promise<void>;
+    setProfileUpdateInProgress: (value: boolean) => void;
 }
 
 const MOCK_USER: User = {
@@ -174,6 +177,7 @@ const MOCK_STORIES: Story[] = [
         description: 'Show us how you start your day! ☀️',
         creatorId: '1',
         visibility: 'public',
+        mode: 'invite',
         status: 'active',
         coverImage: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_FRIENDS[0], MOCK_USER],
@@ -215,6 +219,7 @@ const MOCK_STORIES: Story[] = [
         description: 'Where is the most beautiful place you have been?',
         creatorId: '2',
         visibility: 'private',
+        mode: 'invite',
         status: 'active',
         currentTurnUserId: 'me',
         coverImage: 'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1000&auto=format&fit=crop',
@@ -248,6 +253,7 @@ const MOCK_STORIES: Story[] = [
         description: 'Exploring the hidden gems of the city 🏙️',
         creatorId: 'me',
         visibility: 'public',
+        mode: 'open',
         status: 'active',
         coverImage: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER, MOCK_FRIENDS[0], MOCK_FRIENDS[1], MOCK_FRIENDS[2]],
@@ -341,6 +347,7 @@ const MOCK_STORIES: Story[] = [
         description: 'Learning to make pasta from scratch! 🍝',
         creatorId: 'me',
         visibility: 'public',
+        mode: 'invite',
         status: 'completed',
         coverImage: 'https://images.unsplash.com/photo-1556910103-1c02745a30bf?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER, MOCK_FRIENDS[0]],
@@ -365,6 +372,7 @@ const MOCK_STORIES: Story[] = [
         description: 'Conquering the mountain peak 🏔️',
         creatorId: 'me',
         visibility: 'public',
+        mode: 'invite',
         status: 'active',
         coverImage: 'https://images.unsplash.com/photo-1551632811-561732d1e306?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER, MOCK_FRIENDS[1], MOCK_FRIENDS[2]],
@@ -397,6 +405,7 @@ const MOCK_STORIES: Story[] = [
         description: 'Getting inspired by modern art 🎨',
         creatorId: 'me',
         visibility: 'public',
+        mode: 'invite',
         status: 'completed',
         coverImage: 'https://images.unsplash.com/photo-1518998053901-5348d3969105?q=80&w=1000&auto=format&fit=crop',
         participants: [MOCK_USER],
@@ -425,6 +434,7 @@ export const useStore = create<AppState>()(
             activeWeeveId: null,
             friends: [],
             groups: [],
+            profileUpdateInProgress: false,
 
             addStory: (story) =>
                 set((state) => ({ stories: [story, ...state.stories] })),
@@ -537,6 +547,8 @@ export const useStore = create<AppState>()(
             },
 
             setCurrentUser: (user) => set({ currentUser: user }),
+
+            setProfileUpdateInProgress: (value) => set({ profileUpdateInProgress: value }),
 
             setStories: (stories) => set({ stories }),
 
@@ -871,6 +883,7 @@ export const useStore = create<AppState>()(
                             description: s.description,
                             creatorId: s.creator_id,
                             visibility: s.visibility,
+                            mode: s.mode ?? 'invite',
                             status: s.status,
                             currentTurnUserId: s.current_turn_user_id,
                             contributions,

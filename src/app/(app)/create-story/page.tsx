@@ -176,6 +176,7 @@ function CreateStoryContent() {
         likes: 0,
         likedBy: [],
         comments: [],
+        mode: 'invite',
       };
 
       addStory(newStory);
