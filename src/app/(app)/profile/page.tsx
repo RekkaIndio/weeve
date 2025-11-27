@@ -886,8 +886,9 @@ export default function ProfilePage() {
                         </div>
                     )}
                     {isEditing && !uploadingAvatar && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Camera className="w-8 h-8 text-white" />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/60 rounded-full opacity-100">
+                            <Camera className="w-7 h-7 text-white" />
+                            <span className="text-[10px] uppercase tracking-wide text-white/80">Change</span>
                         </div>
                     )}
                     {!isEditing && (
