@@ -57,6 +57,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <nav className="shrink-0 bg-black border-t border-gray-800 px-6 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex justify-between items-center z-50">
                         {navItems.map((item) => {
                             const isActive = pathname === item.href;
+                            const isCreate = item.label === 'Create';
+
+                            if (isCreate) {
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        className="flex flex-col items-center justify-center -mt-4"
+                                    >
+                                        <div className="w-12 h-12 bg-[#EC1D99] rounded-full flex items-center justify-center shadow-lg shadow-pink-500/20 transform transition-transform active:scale-95">
+                                            <item.icon className="w-6 h-6 text-white" />
+                                        </div>
+                                    </Link>
+                                );
+                            }
+
                             return (
                                 <Link
                                     key={item.href}
@@ -65,13 +81,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                         }`}
                                 >
                                     <div className="relative">
-                                        <item.icon className={`w-6 h-6 ${item.label === 'Create' ? 'w-7 h-7' : ''}`} />
+                                        <item.icon className="w-6 h-6" />
                                         {item.label === "Home" && myTurnCount > 0 && (
                                             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#EC1D99] rounded-full border-2 border-black" />
                                         )}
                                     </div>
-                                    {/* Hide labels for cleaner look, or keep small */}
-                                    {/* <span className="text-[10px] font-medium">{item.label}</span> */}
                                 </Link>
                             );
                         })}

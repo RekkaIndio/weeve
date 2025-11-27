@@ -368,8 +368,21 @@ export default function ProfilePage() {
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    const myStories = currentUser ? stories.filter(s => s.participants.some(p => p.id === currentUser.id && (p.status === 'accepted' || p.status === undefined))) : [];
-    // Waiting stories include: pending invites (status='waiting') OR active stories where it's the user's turn
+    // Main tab: Show stories where user is a participant BUT exclude stories where it's their turn (those go in timer tab)
+    const myStories = currentUser ? stories.filter(s => {
+        const userParticipant = s.participants.find(p => p.id === currentUser.id);
+        if (!userParticipant) return false;
+
+        // Must be accepted or undefined status
+        if (userParticipant.status !== 'accepted' && userParticipant.status !== undefined) return false;
+
+        // Exclude stories where it's the user's turn (those belong in the timer tab)
+        if (s.status === 'active' && s.currentTurnUserId === currentUser.id) return false;
+
+        return true;
+    }) : [];
+
+    // Timer tab: Stories that need user action - pending invites OR active stories where it's the user's turn
     const waitingStories = currentUser ? stories.filter(s => {
         const userParticipant = s.participants.find(p => p.id === currentUser.id);
         if (!userParticipant) return false;
@@ -1096,9 +1109,11 @@ export default function ProfilePage() {
 
                                     {!waitingForFirstContribution && isMyTurn && (
                                         <div className="absolute top-2 right-2 z-20">
-                                            <div className="bg-[#EC1D99] text-white px-2 py-1 rounded-full text-[10px] font-bold shadow-lg animate-pulse border-2 border-white">
-                                                Your Turn!
-                                            </div>
+                                            <img
+                                                src="/weeve-logo.png"
+                                                alt="Your Turn"
+                                                className="w-6 h-6 animate-glow-pulse drop-shadow-md"
+                                            />
                                         </div>
                                     )}
 
@@ -1235,21 +1250,66 @@ export default function ProfilePage() {
                 {activeTab === 'waiting' && (
                     <>
                         {waitingStories.length > 0 ? (
-                            waitingStories.map(story => (
-                                <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden border-2 border-[#EC1D99]/50">
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-10">
-                                        <div className="w-12 h-12 rounded-full bg-[#EC1D99] flex items-center justify-center mb-2 animate-pulse">
-                                            <Clock className="w-6 h-6 text-white" />
+                            waitingStories.map(story => {
+                                const sortedContributions = (story.contributions || [])
+                                    .slice()
+                                    .sort((a, b) => a.timestamp - b.timestamp);
+                                const lastContribution = sortedContributions[sortedContributions.length - 1];
+
+                                const mediaType = lastContribution?.mediaType;
+                                const mediaUrl = lastContribution?.mediaUrl;
+                                const content = lastContribution?.content;
+
+                                return (
+                                    <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden border-2 border-[#EC1D99]/50">
+                                        <div className="absolute top-2 right-2 z-20">
+                                            <img
+                                                src="/weeve-logo.png"
+                                                alt="Your Turn"
+                                                className="w-6 h-6 animate-glow-pulse drop-shadow-md"
+                                            />
                                         </div>
-                                        <p className="text-xs font-bold text-white">Your Turn!</p>
-                                    </div>
-                                    <img
-                                        src={story.coverImage || story.contributions[0]?.mediaUrl || "https://via.placeholder.com/300"}
-                                        className="w-full h-full object-cover opacity-50"
-                                        alt={story.title}
-                                    />
-                                </Link>
-                            ))
+
+                                        {mediaType === 'video' && mediaUrl ? (
+                                            <video
+                                                src={mediaUrl}
+                                                className="weeve-inline-video w-full h-full object-cover opacity-60"
+                                                autoPlay
+                                                loop
+                                                muted
+                                                playsInline
+                                                preload="auto"
+                                                controls={false}
+                                                disablePictureInPicture
+                                            />
+                                        ) : mediaType === 'image' && mediaUrl ? (
+                                            <img
+                                                src={mediaUrl}
+                                                className="w-full h-full object-cover opacity-60"
+                                                alt={story.title}
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = "https://placehold.co/600x800/1a1a1a/EC1D99?text=Weeve";
+                                                }}
+                                            />
+                                        ) : content ? (
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-3 text-center">
+                                                <p className="text-sm font-semibold leading-snug line-clamp-5 opacity-80">
+                                                    {content}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <img
+                                                src={story.coverImage || "https://via.placeholder.com/300"}
+                                                className="w-full h-full object-cover opacity-50"
+                                                alt={story.title}
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = "https://placehold.co/600x800/1a1a1a/EC1D99?text=Weeve";
+                                                }}
+                                            />
+                                        )}
+                                    </Link>
+                                )
+                            })
                         ) : (
                             <div className="col-span-3 flex flex-col items-center justify-center py-16 text-gray-500">
                                 <Clock className="w-12 h-12 mb-3 opacity-50" />

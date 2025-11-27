@@ -88,7 +88,17 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
     const [mediaDraft, setMediaDraft] = useState<{ type: 'video' | 'image'; file?: File; previewUrl?: string } | null>(null);
     const [textPosition, setTextPosition] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
     const [optionsExpanded, setOptionsExpanded] = useState(true);
-    const dragStateRef = useRef<{ offsetX: number; offsetY: number; width: number; height: number; pointerId: number } | null>(null);
+    const dragStateRef = useRef<{
+        offsetX: number;
+        offsetY: number;
+        minLeft: number;
+        maxLeft: number;
+        minTop: number;
+        maxTop: number;
+        viewportLeft: number;
+        viewportTop: number;
+        pointerId: number
+    } | null>(null);
 
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
     const draggableTextRef = useRef<HTMLDivElement>(null);
@@ -221,36 +231,74 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
 
     const handleDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
         event.preventDefault();
-        if (!draggableTextRef.current) return;
+        if (!draggableTextRef.current || !stageRef.current) return;
+
         const rect = draggableTextRef.current.getBoundingClientRect();
+        const viewport = stageRef.current.getBoundingClientRect();
+        const panelHeight = optionsPanelRef.current?.getBoundingClientRect().height ?? 0;
+        const bottomPadding = Math.max(panelHeight, 80);
+
+        // Pre-calculate constraints
+        const minLeft = 16;
+        const maxLeft = Math.max(minLeft, viewport.width - rect.width - 16);
+        const minTop = 16;
+        const maxTop = Math.max(minTop, viewport.height - rect.height - bottomPadding - 16);
+
         dragStateRef.current = {
             offsetX: event.clientX - rect.left,
             offsetY: event.clientY - rect.top,
-            width: rect.width,
-            height: rect.height,
+            minLeft,
+            maxLeft,
+            minTop,
+            maxTop,
+            viewportLeft: viewport.left,
+            viewportTop: viewport.top,
             pointerId: event.pointerId,
         };
         draggableTextRef.current.setPointerCapture(event.pointerId);
+
+        // Ensure we're using transform during drag for performance
+        draggableTextRef.current.style.transition = 'none';
     };
 
     const handleDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
         event.preventDefault();
         const dragState = dragStateRef.current;
-        if (!dragState || !stageRef.current) return;
-        const viewport = stageRef.current.getBoundingClientRect();
-        const rawLeft = event.clientX - viewport.left - dragState.offsetX;
-        const rawTop = event.clientY - viewport.top - dragState.offsetY;
-        const clamped = clampPosition(rawLeft, rawTop, dragState.width, dragState.height);
-        setTextPosition(clamped);
+        if (!dragState || !draggableTextRef.current) return;
+
+        // Use cached constraints - absolutely NO DOM reads here!
+        const rawLeft = event.clientX - dragState.viewportLeft - dragState.offsetX;
+        const rawTop = event.clientY - dragState.viewportTop - dragState.offsetY;
+
+        const left = Math.min(Math.max(rawLeft, dragState.minLeft), dragState.maxLeft);
+        const top = Math.min(Math.max(rawTop, dragState.minTop), dragState.maxTop);
+
+        // Direct DOM update for maximum performance (bypassing React render cycle)
+        // We use transform: translate3d for GPU acceleration
+        draggableTextRef.current.style.transform = `translate3d(${left}px, ${top}px, 0)`;
     };
 
-    const handleDragEnd = () => {
-        if (dragStateRef.current && draggableTextRef.current) {
+    const handleDragEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+        const dragState = dragStateRef.current;
+        if (dragState && draggableTextRef.current) {
             try {
-                draggableTextRef.current.releasePointerCapture(dragStateRef.current.pointerId);
+                draggableTextRef.current.releasePointerCapture(dragState.pointerId);
             } catch (err) {
                 // ignore
             }
+
+            // Calculate final position to sync with React state
+            const rawLeft = event.clientX - dragState.viewportLeft - dragState.offsetX;
+            const rawTop = event.clientY - dragState.viewportTop - dragState.offsetY;
+
+            const left = Math.min(Math.max(rawLeft, dragState.minLeft), dragState.maxLeft);
+            const top = Math.min(Math.max(rawTop, dragState.minTop), dragState.maxTop);
+
+            // Sync final position to React state
+            setTextPosition({ left, top });
+
+            // We don't reset transform here because the JSX now uses transform for positioning.
+            // React will update the transform prop with the new position on the next render.
         }
         dragStateRef.current = null;
     };
@@ -936,12 +984,14 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                             className="pointer-events-auto select-none cursor-grab active:cursor-grabbing"
                             style={{
                                 position: 'absolute',
-                                left: `${textPosition.left}px`,
-                                top: `${textPosition.top}px`,
+                                left: 0,
+                                top: 0,
+                                transform: `translate3d(${textPosition.left}px, ${textPosition.top}px, 0)`,
                                 fontFamily: textStyleOptions.fontFamily,
                                 fontSize: textStyleOptions.fontSize,
                                 color: textStyleOptions.textColor,
                                 textAlign: textStyleOptions.textAlign,
+                                touchAction: 'none', // Prevent browser scrolling/zooming while dragging
                             }}
                             onPointerDown={handleDragStart}
                             onPointerMove={handleDragMove}

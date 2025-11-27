@@ -25,11 +25,15 @@ export default function UserProfilePage() {
         );
     }
 
-    // Find user in friends list or check if it's current user
+    // Redirect to main profile if it's the current user (check this first!)
+    if (userId === currentUser.id) {
+        router.replace('/profile');
+        return null;
+    }
+
+    // Find user in friends list or fetch from database
     const [user, setUser] = useState<User | undefined>(
-        userId === currentUser.id
-            ? currentUser
-            : friends.find(f => f.id === userId)
+        friends.find(f => f.id === userId)
     );
     const [loadingProfile, setLoadingProfile] = useState(false);
 
@@ -88,12 +92,6 @@ export default function UserProfilePage() {
                 </button>
             </div>
         );
-    }
-
-    // Redirect to main profile if it's the current user
-    if (user.id === currentUser.id) {
-        router.replace('/profile');
-        return null;
     }
 
     const userStories = stories.filter(s => s.participants.some(p => p.id === user.id));

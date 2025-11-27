@@ -57,3 +57,21 @@ video.weeve-inline-video::-webkit-media-controls-overlay-play-button,
 video.weeve-inline-video::-webkit-media-controls-enclosure {
   display: none !important;
 }
+
+@keyframes glow-pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 2px rgba(236, 29, 153, 0.5));
+  }
+
+  50% {
+    opacity: 0.8;
+    filter: drop-shadow(0 0 8px rgba(236, 29, 153, 0.8));
+  }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
