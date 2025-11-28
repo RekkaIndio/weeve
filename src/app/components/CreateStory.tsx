@@ -459,7 +459,7 @@ const CreateStory = ({
   return (
     <div className="flex flex-col min-h-full bg-black text-white">
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-black/90 backdrop-blur-md border-b border-gray-800 px-4 py-4 flex items-center justify-between gap-3">
+      <header className="sticky top-0 z-20 bg-black/90 backdrop-blur-md border-b border-gray-800 px-4 py-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
             onClick={handleBack}

@@ -113,7 +113,7 @@ const parseTextStyle = (value: Json | null): TextStyle | undefined => {
     }
 
     const record = value as Record<string, unknown>;
-    const { fontFamily, fontSize, textColor, backgroundColor, textAlign } = record;
+    const { fontFamily, fontSize, textColor, backgroundColor, textAlign, elements } = record;
 
     if (typeof fontFamily !== 'string') return undefined;
     if (typeof fontSize !== 'number') return undefined;
@@ -121,12 +121,23 @@ const parseTextStyle = (value: Json | null): TextStyle | undefined => {
     if (typeof backgroundColor !== 'string') return undefined;
     if (textAlign !== 'left' && textAlign !== 'center' && textAlign !== 'right') return undefined;
 
+    let parsedElements: any[] | undefined = undefined;
+    if (Array.isArray(elements)) {
+        parsedElements = elements.map((el: any) => ({
+            id: el.id,
+            content: el.content,
+            style: el.style, // We could recursively parse this but simple pass-through is likely fine for now given the structure
+            position: el.position
+        }));
+    }
+
     return {
         fontFamily,
         fontSize,
         textColor,
         backgroundColor,
         textAlign,
+        elements: parsedElements,
     };
 };
 

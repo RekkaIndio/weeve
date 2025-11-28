@@ -1,4 +1,4 @@
-arguments=--init-script /var/folders/b3/xv1dz0w91lq4s_20sr8tlmkr0000gn/T/db3b08fc4a9ef609cb16b96b200fa13e563f396e9bb1ed0905fdab7bc3bc513b.gradle --init-script /var/folders/b3/xv1dz0w91lq4s_20sr8tlmkr0000gn/T/52cde0cfcf3e28b8b7510e992210d9614505e0911af0c190bd590d7158574963.gradle
+arguments=--init-script /var/folders/b3/xv1dz0w91lq4s_20sr8tlmkr0000gn/T/db3b08fc4a9ef609cb16b96b200fa13e563f396e9bb1ed0905fdab7bc3bc513b.gradle --init-script /var/folders/b3/xv1dz0w91lq4s_20sr8tlmkr0000gn/T/52cde0cfcf3e28b8b7510e992210d9614505e0911af0c190bd590d7158574963.gradle --init-script /var/folders/b3/xv1dz0w91lq4s_20sr8tlmkr0000gn/T/e6dabbfa0783c777f10d846e66ea80a3a3d054906da4419a9523ec2df6b787d7.gradle
 auto.sync=false
 build.scans.enabled=false
 connection.gradle.distribution=GRADLE_DISTRIBUTION(WRAPPER)

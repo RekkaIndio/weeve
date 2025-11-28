@@ -29,12 +29,20 @@ export interface Group {
 
 export type MediaType = 'video' | 'image' | 'text';
 
+export interface TextElement {
+    id: string;
+    content: string;
+    style: TextStyle;
+    position: { left: number; top: number };
+}
+
 export interface TextStyle {
     fontFamily: string;
     fontSize: number;
     textColor: string;
     backgroundColor: string;
     textAlign: 'left' | 'center' | 'right';
+    elements?: TextElement[];
 }
 
 export interface Contribution {

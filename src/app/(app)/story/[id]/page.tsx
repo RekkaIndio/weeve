@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useStore, type TextStyle, type Contribution, type User } from "@/lib/store";
+import { useStore, type TextStyle, type Contribution, type User, type TextElement } from "@/lib/store";
 import { createStoryContribution } from "@/lib/data";
 import { leaveStory, deleteStory } from "@/lib/stories";
 import { capturePhoto, captureVideo } from "@/lib/camera";
@@ -83,11 +83,10 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
     const [mediaSourcePicker, setMediaSourcePicker] = useState<{ type: 'video' | 'image' } | null>(null);
     const [stitchMode, setStitchMode] = useState<'video' | 'image' | 'text' | null>(null);
     const [isUploading, setIsUploading] = useState(false);
-    const [textContribution, setTextContribution] = useState("");
-    const [textStyleOptions, setTextStyleOptions] = useState<TextStyle>({ ...DEFAULT_TEXT_STYLE });
+    const [textElements, setTextElements] = useState<TextElement[]>([]);
+    const [activeElementId, setActiveElementId] = useState<string | null>(null);
     const [mediaDraft, setMediaDraft] = useState<{ type: 'video' | 'image'; file?: File; previewUrl?: string } | null>(null);
-    const [textPosition, setTextPosition] = useState<{ left: number; top: number }>({ left: 0, top: 0 });
-    const [optionsExpanded, setOptionsExpanded] = useState(true);
+    const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const dragStateRef = useRef<{
         offsetX: number;
         offsetY: number;
@@ -101,9 +100,9 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
     } | null>(null);
 
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
-    const draggableTextRef = useRef<HTMLDivElement>(null);
-    const optionsPanelRef = useRef<HTMLDivElement>(null);
+    const draggableRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const stageRef = useRef<HTMLDivElement>(null);
+    const isDragging = useRef<string | null>(null); // Track which element is being dragged
 
     // Edit Story States
     const [showMenu, setShowMenu] = useState(false);
@@ -168,10 +167,10 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
 
     const isPostDisabled = useMemo(() => {
         if (stitchMode === 'text') {
-            return textContribution.trim().length === 0;
+            return textElements.length === 0 || textElements.every(el => el.content.trim().length === 0);
         }
         return false;
-    }, [stitchMode, textContribution]);
+    }, [stitchMode, textElements]);
 
     const mediaPickerConfig = useMemo(() => {
         if (!mediaSourcePicker) return null;
@@ -186,11 +185,27 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         } as const;
     }, [mediaSourcePicker]);
 
+    // Helper to update a specific element
+    const updateElement = (id: string, updates: Partial<TextElement> | ((prev: TextElement) => Partial<TextElement>)) => {
+        setTextElements(prev => prev.map(el => {
+            if (el.id !== id) return el;
+            const newValues = typeof updates === 'function' ? updates(el) : updates;
+            return { ...el, ...newValues };
+        }));
+    };
+
+    // Helper to update style of active element
+    const updateTextStyle = <K extends keyof TextStyle>(key: K, value: TextStyle[K]) => {
+        if (!activeElementId) return;
+        updateElement(activeElementId, (el) => ({
+            style: { ...el.style, [key]: value }
+        }));
+    };
+
     const clampPosition = useCallback((left: number, top: number, width: number, height: number) => {
         if (!stageRef.current) return { left, top };
         const viewport = stageRef.current.getBoundingClientRect();
-        const panelHeight = optionsPanelRef.current?.getBoundingClientRect().height ?? 0;
-        const bottomPadding = Math.max(panelHeight, 80);
+        const bottomPadding = 120;
 
         const minLeft = 16;
         const maxLeft = Math.max(minLeft, viewport.width - width - 16);
@@ -203,46 +218,36 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         };
     }, []);
 
+    // Effect to center new elements
     useEffect(() => {
         if (!isComposerOpen) return;
-        requestAnimationFrame(() => {
-            if (!stageRef.current) return;
-            const viewport = stageRef.current.getBoundingClientRect();
-            const panelHeight = optionsPanelRef.current?.getBoundingClientRect().height ?? 0;
-            const previewWidth = draggableTextRef.current?.offsetWidth ?? 240;
-            const previewHeight = draggableTextRef.current?.offsetHeight ?? 120;
-            const proposedLeft = (viewport.width - previewWidth) / 2;
-            const proposedTop = (viewport.height - panelHeight - previewHeight) / 2;
-            const clamped = clampPosition(proposedLeft, proposedTop, previewWidth, previewHeight);
-            setTextPosition(clamped);
-        });
-    }, [isComposerOpen, clampPosition, optionsExpanded]);
 
-    useEffect(() => {
-        if (!isComposerOpen) return;
-        if (!draggableTextRef.current) return;
-        const previewWidth = draggableTextRef.current.offsetWidth;
-        const previewHeight = draggableTextRef.current.offsetHeight;
-        const clamped = clampPosition(textPosition.left, textPosition.top, previewWidth, previewHeight);
-        if (clamped.left !== textPosition.left || clamped.top !== textPosition.top) {
-            setTextPosition(clamped);
-        }
-    }, [textContribution, textStyleOptions, optionsExpanded, isComposerOpen, clampPosition, textPosition.left, textPosition.top, mediaDraft?.previewUrl]);
+        // Only run if we have elements that need positioning (e.g. newly added ones at 0,0)
+        // For simplicity, we can just ensure the active element is clamped if it was just added
+        // But we need to know if it was just added. 
+        // Instead, let's just rely on the initial position being set correctly when adding.
+    }, [isComposerOpen]);
 
-    const handleDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    const handleDragStart = (event: React.PointerEvent<HTMLDivElement>, id: string) => {
         event.preventDefault();
-        if (!draggableTextRef.current || !stageRef.current) return;
+        event.stopPropagation();
+        const elementRef = draggableRefs.current.get(id);
+        if (!elementRef) return;
 
-        const rect = draggableTextRef.current.getBoundingClientRect();
-        const viewport = stageRef.current.getBoundingClientRect();
-        const panelHeight = optionsPanelRef.current?.getBoundingClientRect().height ?? 0;
-        const bottomPadding = Math.max(panelHeight, 80);
+        // Set as active
+        setActiveElementId(id);
+
+        const rect = elementRef.getBoundingClientRect();
+
+        // Use window dimensions for viewport
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
 
         // Pre-calculate constraints
         const minLeft = 16;
-        const maxLeft = Math.max(minLeft, viewport.width - rect.width - 16);
+        const maxLeft = Math.max(minLeft, viewportWidth - rect.width - 16);
         const minTop = 16;
-        const maxTop = Math.max(minTop, viewport.height - rect.height - bottomPadding - 16);
+        const maxTop = Math.max(minTop, viewportHeight - rect.height - 80 - 16);
 
         dragStateRef.current = {
             offsetX: event.clientX - rect.left,
@@ -251,82 +256,105 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
             maxLeft,
             minTop,
             maxTop,
-            viewportLeft: viewport.left,
-            viewportTop: viewport.top,
+            viewportLeft: 0,
+            viewportTop: 0,
             pointerId: event.pointerId,
         };
-        draggableTextRef.current.setPointerCapture(event.pointerId);
+        isDragging.current = id;
 
-        // Ensure we're using transform during drag for performance
-        draggableTextRef.current.style.transition = 'none';
+        // Set pointer capture on the drag handle itself (event.currentTarget)
+        (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+        elementRef.style.transition = 'none';
+        console.log('Drag started for:', id);
     };
 
-    const handleDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const handleDragMove = (event: React.PointerEvent<HTMLDivElement>, id: string) => {
         event.preventDefault();
+        event.stopPropagation();
         const dragState = dragStateRef.current;
-        if (!dragState || !draggableTextRef.current) return;
+        const elementRef = draggableRefs.current.get(id);
 
-        // Use cached constraints - absolutely NO DOM reads here!
+        // Only process if this element is actively being dragged
+        if (!dragState || !elementRef || isDragging.current !== id) return;
+
+        // Use cached constraints
         const rawLeft = event.clientX - dragState.viewportLeft - dragState.offsetX;
         const rawTop = event.clientY - dragState.viewportTop - dragState.offsetY;
 
         const left = Math.min(Math.max(rawLeft, dragState.minLeft), dragState.maxLeft);
         const top = Math.min(Math.max(rawTop, dragState.minTop), dragState.maxTop);
 
-        // Direct DOM update for maximum performance (bypassing React render cycle)
-        // We use transform: translate3d for GPU acceleration
-        draggableTextRef.current.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+        // Direct DOM update
+        elementRef.style.transform = `translate3d(${left}px, ${top}px, 0)`;
     };
 
-    const handleDragEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    const handleDragEnd = (event: React.PointerEvent<HTMLDivElement>, id: string) => {
+        event.preventDefault();
+        event.stopPropagation();
         const dragState = dragStateRef.current;
-        if (dragState && draggableTextRef.current) {
+        const elementRef = draggableRefs.current.get(id);
+
+        if (dragState && elementRef) {
             try {
-                draggableTextRef.current.releasePointerCapture(dragState.pointerId);
+                (event.currentTarget as HTMLElement).releasePointerCapture(dragState.pointerId);
             } catch (err) {
                 // ignore
             }
 
-            // Calculate final position to sync with React state
             const rawLeft = event.clientX - dragState.viewportLeft - dragState.offsetX;
             const rawTop = event.clientY - dragState.viewportTop - dragState.offsetY;
 
             const left = Math.min(Math.max(rawLeft, dragState.minLeft), dragState.maxLeft);
             const top = Math.min(Math.max(rawTop, dragState.minTop), dragState.maxTop);
 
-            // Sync final position to React state
-            setTextPosition({ left, top });
-
-            // We don't reset transform here because the JSX now uses transform for positioning.
-            // React will update the transform prop with the new position on the next render.
+            // Sync to React state
+            updateElement(id, { position: { left, top } });
         }
+        isDragging.current = null;
         dragStateRef.current = null;
-    };
-
-    const updateTextStyle = <K extends keyof TextStyle>(key: K, value: TextStyle[K]) => {
-        setTextStyleOptions((prev) => ({ ...prev, [key]: value }));
+        console.log('Drag ended for:', id);
     };
 
     const resetComposer = () => {
-        setTextContribution("");
-        setTextStyleOptions({ ...DEFAULT_TEXT_STYLE });
+        setTextElements([]);
+        setActiveElementId(null);
         setMediaDraft(null);
         setStitchMode(null);
-        setOptionsExpanded(true);
-        setTextPosition({ left: 0, top: 0 });
-        if (dragStateRef.current && draggableTextRef.current) {
-            try {
-                draggableTextRef.current.releasePointerCapture(dragStateRef.current.pointerId);
-            } catch (err) {
-                // ignore
-            }
-        }
+        setActiveMenu(null);
         dragStateRef.current = null;
     };
 
-    const toggleOptionsPanel = () => {
-        setOptionsExpanded((prev) => !prev);
-    };
+    const addTextElement = useCallback(() => {
+        if (textElements.length >= 5) {
+            toast.error("Maximum 5 text boxes allowed");
+            return;
+        }
+
+        const id = Math.random().toString(36).substr(2, 9);
+
+        // Calculate position with offset for each new box
+        let left = 100;
+        let top = 100;
+        if (stageRef.current) {
+            const viewport = stageRef.current.getBoundingClientRect();
+            // Start from center and offset each new box
+            const baseLeft = (viewport.width - 200) / 2;
+            const baseTop = (viewport.height - 200) / 2;
+            // Offset by 40px for each existing element to create a cascade effect
+            left = baseLeft + (textElements.length * 40);
+            top = baseTop + (textElements.length * 40);
+        }
+
+        const newElement: TextElement = {
+            id,
+            content: "",
+            style: { ...DEFAULT_TEXT_STYLE },
+            position: { left, top }
+        };
+
+        setTextElements(prev => [...prev, newElement]);
+        setActiveElementId(id);
+    }, [textElements.length]);
 
     const handleComposerCancel = () => {
         resetComposer();
@@ -347,9 +375,10 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                 console.log(`[Story] ${type} file received:`, file.name, file.size);
                 const previewUrl = URL.createObjectURL(file);
                 setMediaDraft({ type, file, previewUrl });
-                setTextContribution("");
-                setTextStyleOptions({ ...DEFAULT_TEXT_STYLE });
+                setTextElements([]); // Clear any existing text
                 setStitchMode(type);
+                // Add initial text box for caption
+                addTextElement();
             } else {
                 console.log(`[Story] No ${type} file returned (user may have cancelled)`);
                 toast.error(`${type === 'video' ? 'Video' : 'Photo'} capture cancelled or failed. Please try again.`);
@@ -360,7 +389,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
             toast.error(`${type === 'video' ? 'Video' : 'Photo'} capture failed. Please try again.`);
             setShowStitchMenu(true);
         }
-    }, [setMediaDraft, setTextContribution, setTextStyleOptions, setShowStitchMenu]);
+    }, [setMediaDraft, setShowStitchMenu, addTextElement]);
 
     useEffect(() => {
         return () => {
@@ -453,7 +482,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
             return;
         }
 
-        const trimmed = textContribution.trim();
+        const trimmed = textElements.map(el => el.content).join(" ").trim();
 
         if (stitchMode === 'text' && trimmed.length === 0) {
             toast.error('Please add some text before posting.');
@@ -474,7 +503,12 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         })();
 
         const shouldPersistStyle = stitchMode === 'text' || trimmed.length > 0;
-        const textStylePayload = shouldPersistStyle ? { ...textStyleOptions } : undefined;
+
+        // Construct the primary text style, including all elements
+        const textStylePayload: TextStyle | undefined = shouldPersistStyle ? {
+            ...DEFAULT_TEXT_STYLE, // Base style (unused but keeps type happy)
+            elements: textElements
+        } : undefined;
 
         setIsUploading(true);
 
@@ -566,22 +600,13 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
 
 
     const handleEmojiInsert = (emoji: string) => {
-        const textarea = textAreaRef.current;
-        if (!textarea) {
-            setTextContribution((prev) => prev + emoji);
-            return;
-        }
+        if (!activeElementId) return;
 
-        const start = textarea.selectionStart ?? textContribution.length;
-        const end = textarea.selectionEnd ?? textContribution.length;
-        const nextValue = textContribution.slice(0, start) + emoji + textContribution.slice(end);
-        setTextContribution(nextValue);
-
-        requestAnimationFrame(() => {
-            const caret = start + emoji.length;
-            textarea.setSelectionRange(caret, caret);
-            textarea.focus();
+        updateElement(activeElementId, (el) => {
+            return { content: el.content + emoji };
         });
+
+        // Focus handling would be more complex with multiple inputs, skipping for now or can rely on user re-focusing
     };
 
     return (
@@ -693,6 +718,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                                 <AutoAdvance onComplete={handleNext} isPlaying={isPlaying} duration={3000} />
                             </div>
                         ) : (
+                            /* Text-only background */
                             <div
                                 className="w-full h-full flex items-center justify-center p-8"
                                 style={{
@@ -701,54 +727,101 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                                         : activeTextStyle.backgroundColor,
                                 }}
                             >
-                                <div
-                                    className="max-w-xl w-full mx-auto rounded-3xl px-6 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
-                                    style={{
-                                        fontFamily: activeTextStyle.fontFamily,
-                                        fontSize: activeTextStyle.fontSize,
-                                        color: activeTextStyle.textColor,
-                                        backgroundColor: activeTextStyle.backgroundColor === 'transparent'
-                                            ? 'rgba(0,0,0,0.35)'
-                                            : activeTextStyle.backgroundColor,
-                                        textAlign: activeTextStyle.textAlign,
-                                        whiteSpace: 'pre-line',
-                                    }}
-                                >
-                                    {activeSegment.content}
-                                </div>
                                 <AutoAdvance onComplete={handleNext} isPlaying={isPlaying} duration={3000} />
                             </div>
                         )}
 
-                        {/* Caption Overlay */}
-                        {activeSegment.mediaType !== 'text' && (
-                            <div className="absolute bottom-32 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/60 to-transparent pointer-events-none">
-                                <div className="mb-2">
-                                    <span className="font-bold text-shadow-sm font-sans">{activeSegment.userName}</span>
-                                </div>
-                                <div
-                                    className="w-full"
-                                    style={{ textAlign: hasCustomTextStyle ? activeTextStyle.textAlign : 'left' }}
-                                >
-                                    <span
-                                        className="text-lg font-medium leading-snug text-shadow-sm font-sans"
+                        {/* Multi-Text Overlay - Renders on ALL media types */}
+                        {activeSegment.textStyle?.elements && activeSegment.textStyle.elements.length > 0 ? (
+                            <>
+                                {activeSegment.textStyle.elements.map((element) => (
+                                    <div
+                                        key={element.id}
+                                        className="absolute pointer-events-none"
                                         style={{
-                                            fontFamily: hasCustomTextStyle ? activeTextStyle.fontFamily : undefined,
-                                            fontSize: hasCustomTextStyle ? activeTextStyle.fontSize : undefined,
-                                            color: hasCustomTextStyle ? activeTextStyle.textColor : undefined,
-                                            backgroundColor: hasCustomTextStyle && activeTextStyle.backgroundColor !== 'transparent'
-                                                ? activeTextStyle.backgroundColor
-                                                : undefined,
-                                            padding: hasCustomTextStyle ? '0.75rem 1.25rem' : undefined,
-                                            borderRadius: hasCustomTextStyle ? '1.5rem' : undefined,
-                                            display: 'inline-block',
-                                            whiteSpace: 'pre-line',
+                                            left: 0,
+                                            top: 0,
+                                            transform: `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
+                                            zIndex: 20,
                                         }}
                                     >
-                                        {activeSegment.content}
-                                    </span>
+                                        <div
+                                            className="min-w-[200px] max-w-[80vw] text-center"
+                                            style={{
+                                                fontFamily: element.style.fontFamily,
+                                                fontSize: element.style.fontSize,
+                                                color: element.style.textColor,
+                                                textAlign: element.style.textAlign,
+                                                backgroundColor: element.style.backgroundColor === 'transparent'
+                                                    ? 'rgba(0,0,0,0.45)'
+                                                    : element.style.backgroundColor,
+                                                padding: '1rem 1.25rem',
+                                                borderRadius: '1.5rem',
+                                                backdropFilter: 'blur(4px)',
+                                                whiteSpace: 'pre-wrap',
+                                            }}
+                                        >
+                                            {element.content}
+                                        </div>
+                                    </div>
+                                ))}
+                                {/* User attribution for multi-text */}
+                                <div className="absolute bottom-32 left-6 z-10">
+                                    <span className="font-bold text-shadow-sm font-sans text-white">{activeSegment.userName}</span>
                                 </div>
-                            </div>
+                            </>
+                        ) : (
+                            /* Legacy caption/text rendering when no multi-text elements */
+                            <>
+                                {activeSegment.mediaType === 'text' && activeSegment.content && (
+                                    <div className="absolute inset-0 flex items-center justify-center p-8 pointer-events-none">
+                                        <div
+                                            className="max-w-xl w-full mx-auto rounded-3xl px-6 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
+                                            style={{
+                                                fontFamily: activeTextStyle.fontFamily,
+                                                fontSize: activeTextStyle.fontSize,
+                                                color: activeTextStyle.textColor,
+                                                backgroundColor: activeTextStyle.backgroundColor === 'transparent'
+                                                    ? 'rgba(0,0,0,0.35)'
+                                                    : activeTextStyle.backgroundColor,
+                                                textAlign: activeTextStyle.textAlign,
+                                                whiteSpace: 'pre-line',
+                                            }}
+                                        >
+                                            {activeSegment.content}
+                                        </div>
+                                    </div>
+                                )}
+                                {activeSegment.mediaType !== 'text' && activeSegment.content && (
+                                    <div className="absolute bottom-32 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/60 to-transparent pointer-events-none">
+                                        <div className="mb-2">
+                                            <span className="font-bold text-shadow-sm font-sans">{activeSegment.userName}</span>
+                                        </div>
+                                        <div
+                                            className="w-full"
+                                            style={{ textAlign: hasCustomTextStyle ? activeTextStyle.textAlign : 'left' }}
+                                        >
+                                            <span
+                                                className="text-lg font-medium leading-snug text-shadow-sm font-sans"
+                                                style={{
+                                                    fontFamily: hasCustomTextStyle ? activeTextStyle.fontFamily : undefined,
+                                                    fontSize: hasCustomTextStyle ? activeTextStyle.fontSize : undefined,
+                                                    color: hasCustomTextStyle ? activeTextStyle.textColor : undefined,
+                                                    backgroundColor: hasCustomTextStyle && activeTextStyle.backgroundColor !== 'transparent'
+                                                        ? activeTextStyle.backgroundColor
+                                                        : undefined,
+                                                    padding: hasCustomTextStyle ? '0.75rem 1.25rem' : undefined,
+                                                    borderRadius: hasCustomTextStyle ? '1.5rem' : undefined,
+                                                    display: 'inline-block',
+                                                    whiteSpace: 'pre-line',
+                                                }}
+                                            >
+                                                {activeSegment.content}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </>
                 ) : (
@@ -765,116 +838,118 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
             </div>
 
             {/* Timeline Controls */}
-            <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-30 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
-                <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap">
-                    {timelineEntries.map(({ contribution, index, occurrence, isLatestForUser }) => {
-                        const participant = participantMap.get(contribution.userId);
-                        const displayName = participant?.name ?? contribution.userName;
-                        const avatar = participant?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`;
-                        const isActive = index === activeIndex;
-                        const isCurrentTurn = isLatestForUser && story.currentTurnUserId === contribution.userId;
+            {!isComposerOpen && (
+                <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-30 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
+                    <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap">
+                        {timelineEntries.map(({ contribution, index, occurrence, isLatestForUser }) => {
+                            const participant = participantMap.get(contribution.userId);
+                            const displayName = participant?.name ?? contribution.userName;
+                            const avatar = participant?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`;
+                            const isActive = index === activeIndex;
+                            const isCurrentTurn = isLatestForUser && story.currentTurnUserId === contribution.userId;
 
-                        return (
-                            <button
-                                key={`${contribution.id}-${index}`}
-                                type="button"
-                                onClick={() => handleContributionSelect(index)}
-                                className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none text-white"
-                            >
-                                <div
-                                    className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isActive
-                                        ? 'border-[#EC1D99] shadow-[0_0_15px_rgba(236,29,153,0.35)]'
-                                        : isCurrentTurn
-                                            ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]'
-                                            : 'border-gray-700'}`}
+                            return (
+                                <button
+                                    key={`${contribution.id}-${index}`}
+                                    type="button"
+                                    onClick={() => handleContributionSelect(index)}
+                                    className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none text-white"
                                 >
-                                    <img
-                                        src={avatar}
-                                        alt={displayName}
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                                <span className="text-[10px] text-gray-300 font-medium max-w-[64px] truncate" title={displayName}>
-                                    {displayName.split(' ').slice(0, 2).join(' ')}
-                                </span>
-                                <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {occurrence}</span>
-                                {isCurrentTurn && (
-                                    <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
-                                )}
-                            </button>
-                        );
-                    })}
+                                    <div
+                                        className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isActive
+                                            ? 'border-[#EC1D99] shadow-[0_0_15px_rgba(236,29,153,0.35)]'
+                                            : isCurrentTurn
+                                                ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]'
+                                                : 'border-gray-700'}`}
+                                    >
+                                        <img
+                                            src={avatar}
+                                            alt={displayName}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                    <span className="text-[10px] text-gray-300 font-medium max-w-[64px] truncate" title={displayName}>
+                                        {displayName.split(' ').slice(0, 2).join(' ')}
+                                    </span>
+                                    <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {occurrence}</span>
+                                    {isCurrentTurn && (
+                                        <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
+                                    )}
+                                </button>
+                            );
+                        })}
 
-                    {participantsWithoutContributions.map((participant) => {
-                        const isCurrentTurn = story.currentTurnUserId === participant.id;
-                        return (
-                            <button
-                                key={`pending-${participant.id}`}
-                                type="button"
-                                disabled
-                                className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
-                            >
-                                <div
-                                    className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]' : 'border-gray-700'}`}
+                        {participantsWithoutContributions.map((participant) => {
+                            const isCurrentTurn = story.currentTurnUserId === participant.id;
+                            return (
+                                <button
+                                    key={`pending-${participant.id}`}
+                                    type="button"
+                                    disabled
+                                    className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
                                 >
-                                    <img
-                                        src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
-                                        alt={participant.name}
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                                <span className="text-[10px] text-gray-400 font-medium max-w-[64px] truncate" title={participant.name}>
-                                    {participant.name.split(' ').slice(0, 2).join(' ')}
-                                </span>
-                                <span className="text-[9px] uppercase tracking-wide text-gray-600">No part yet</span>
-                                {isCurrentTurn && (
-                                    <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
-                                )}
-                            </button>
-                        );
-                    })}
+                                    <div
+                                        className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]' : 'border-gray-700'}`}
+                                    >
+                                        <img
+                                            src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
+                                            alt={participant.name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                    <span className="text-[10px] text-gray-400 font-medium max-w-[64px] truncate" title={participant.name}>
+                                        {participant.name.split(' ').slice(0, 2).join(' ')}
+                                    </span>
+                                    <span className="text-[9px] uppercase tracking-wide text-gray-600">No part yet</span>
+                                    {isCurrentTurn && (
+                                        <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
+                                    )}
+                                </button>
+                            );
+                        })}
 
-                    {isMyTurn && (
+                        {isMyTurn && (
+                            <button
+                                onClick={() => setShowStitchMenu(true)}
+                                className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-gray-600 flex items-center justify-center text-gray-400 hover:text-[#EC1D99] hover:border-[#EC1D99] transition-colors"
+                            >
+                                <Plus className="w-6 h-6" />
+                            </button>
+                        )}
+                    </div>
+
+                    {!hasContributions && (
+                        <div className="text-xs text-gray-500 px-2 pb-2">
+                            No stitches yet. Be the first to add one!
+                        </div>
+                    )}
+
+                    {/* Action Button */}
+                    {!isStoryComplete && remainingSlots !== null && (
+                        <div className="text-center text-[10px] text-gray-500 pb-2">
+                            {remainingSlots} stitch{remainingSlots === 1 ? '' : 'es'} remaining.
+                        </div>
+                    )}
+
+                    {isStoryComplete ? (
+                        <div className="text-center text-xs text-gray-500 py-2">
+                            Story complete — stitch limit reached.
+                        </div>
+                    ) : isMyTurn ? (
                         <button
                             onClick={() => setShowStitchMenu(true)}
-                            className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-gray-600 flex items-center justify-center text-gray-400 hover:text-[#EC1D99] hover:border-[#EC1D99] transition-colors"
+                            className="w-full bg-[#EC1D99] text-white font-bold py-3 rounded-full flex items-center justify-center gap-2 hover:bg-[#D41C84] transition-colors"
                         >
-                            <Plus className="w-6 h-6" />
+                            <Plus className="w-5 h-5" />
+                            Stitch Your Part
                         </button>
+                    ) : (
+                        <div className="text-center text-xs text-gray-500 py-2">
+                            Waiting for {story.participants.find(p => p.id === story.currentTurnUserId)?.name ?? 'the next creator'} to stitch...
+                        </div>
                     )}
                 </div>
-
-                {!hasContributions && (
-                    <div className="text-xs text-gray-500 px-2 pb-2">
-                        No stitches yet. Be the first to add one!
-                    </div>
-                )}
-
-                {/* Action Button */}
-                {!isStoryComplete && remainingSlots !== null && (
-                    <div className="text-center text-[10px] text-gray-500 pb-2">
-                        {remainingSlots} stitch{remainingSlots === 1 ? '' : 'es'} remaining.
-                    </div>
-                )}
-
-                {isStoryComplete ? (
-                    <div className="text-center text-xs text-gray-500 py-2">
-                        Story complete — stitch limit reached.
-                    </div>
-                ) : isMyTurn ? (
-                    <button
-                        onClick={() => setShowStitchMenu(true)}
-                        className="w-full bg-[#EC1D99] text-white font-bold py-3 rounded-full flex items-center justify-center gap-2 hover:bg-[#D41C84] transition-colors"
-                    >
-                        <Plus className="w-5 h-5" />
-                        Stitch Your Part
-                    </button>
-                ) : (
-                    <div className="text-center text-xs text-gray-500 py-2">
-                        Waiting for {story.participants.find(p => p.id === story.currentTurnUserId)?.name ?? 'the next creator'} to stitch...
-                    </div>
-                )}
-            </div>
+            )}
 
             {/* Stitch Menu Modal */}
             {showStitchMenu && (
@@ -910,7 +985,10 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                         </button>
 
                         <button
-                            onClick={() => handleStitchOption('text')}
+                            onClick={() => {
+                                handleStitchOption('text');
+                                addTextElement();
+                            }}
                             className="flex flex-col items-center gap-2 group"
                         >
                             <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
@@ -960,7 +1038,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
             {/* Composer Overlay */}
             {isComposerOpen && (
                 <>
-                    <div className="absolute inset-0 z-40 pointer-events-none">
+                    <div className="absolute inset-0 z-40 pointer-events-none overflow-hidden">
                         {(stitchMode === 'video' || stitchMode === 'image') && mediaDraft?.previewUrl && (
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-8 pt-12 pb-32">
                                 {stitchMode === 'video' ? (
@@ -979,202 +1057,261 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                             </div>
                         )}
 
-                        <div
-                            ref={draggableTextRef}
-                            className="pointer-events-auto select-none cursor-grab active:cursor-grabbing"
-                            style={{
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                transform: `translate3d(${textPosition.left}px, ${textPosition.top}px, 0)`,
-                                fontFamily: textStyleOptions.fontFamily,
-                                fontSize: textStyleOptions.fontSize,
-                                color: textStyleOptions.textColor,
-                                textAlign: textStyleOptions.textAlign,
-                                touchAction: 'none', // Prevent browser scrolling/zooming while dragging
-                            }}
-                            onPointerDown={handleDragStart}
-                            onPointerMove={handleDragMove}
-                            onPointerUp={handleDragEnd}
-                            onPointerCancel={handleDragEnd}
-                        >
-                            <div className="relative">
-                                <div
-                                    className="rounded-[28px] px-5 py-4 shadow-[0_18px_45px_rgba(0,0,0,0.45)] border border-white/10 backdrop-blur-sm"
-                                    style={{
-                                        backgroundColor: textStyleOptions.backgroundColor === 'transparent'
-                                            ? 'rgba(0,0,0,0.45)'
-                                            : textStyleOptions.backgroundColor,
-                                        whiteSpace: 'pre-line',
-                                    }}
-                                >
-                                    {textContribution.trim().length > 0 ? textContribution : "Add your text..."}
-                                </div>
-                                <span className="absolute -top-3 right-3 text-[10px] uppercase tracking-widest text-gray-400 bg-black/60 px-2 py-0.5 rounded-full border border-white/10">
-                                    Drag
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="absolute bottom-0 left-0 right-0 z-50">
-                        <div
-                            ref={optionsPanelRef}
-                            className="bg-black/95 border-t border-white/10 rounded-t-3xl shadow-[0_-12px_40px_rgba(0,0,0,0.65)]"
-                        >
-                            <div className="flex items-center justify-between px-6 pt-4 pb-3">
-                                <button
-                                    onClick={handleComposerCancel}
-                                    className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <span className="text-xs font-semibold tracking-[0.3em] uppercase text-gray-500">
-                                    {composerTitle}
-                                </span>
-                                <div className="flex items-center gap-3">
-                                    <button
-                                        onClick={toggleOptionsPanel}
-                                        className="rounded-full border border-white/10 p-2 text-gray-400 hover:text-white hover:border-white/30 transition-colors"
-                                        aria-label={optionsExpanded ? 'Hide text options' : 'Show text options'}
+                        {textElements.map((element) => (
+                            <div
+                                key={element.id}
+                                ref={(el) => {
+                                    if (el) draggableRefs.current.set(element.id, el);
+                                    else draggableRefs.current.delete(element.id);
+                                }}
+                                className="pointer-events-auto select-none"
+                                style={{
+                                    position: 'absolute',
+                                    left: 0,
+                                    top: 0,
+                                    transform: `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
+                                    touchAction: 'none',
+                                    zIndex: activeElementId === element.id ? 20 : 10,
+                                }}
+                                onClick={() => setActiveElementId(element.id)}
+                            >
+                                <div className="relative group">
+                                    {/* Drag Handle - NOW INTERACTIVE */}
+                                    <div
+                                        className={`absolute -top-10 left-1/2 -translate-x-1/2 p-2 cursor-grab active:cursor-grabbing transition-opacity ${activeElementId === element.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                                        onPointerDown={(e) => handleDragStart(e, element.id)}
+                                        onPointerMove={(e) => handleDragMove(e, element.id)}
+                                        onPointerUp={(e) => handleDragEnd(e, element.id)}
+                                        onPointerCancel={(e) => handleDragEnd(e, element.id)}
                                     >
-                                        {optionsExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-                                    </button>
-                                    <button
-                                        onClick={() => handleComposerSubmit()}
-                                        disabled={isPostDisabled || isUploading}
-                                        className={`text-sm font-semibold transition-colors ${isPostDisabled || isUploading ? 'text-gray-500 opacity-40 cursor-not-allowed' : 'text-[#EC1D99]'}`}
-                                    >
-                                        Post
-                                    </button>
-                                </div>
-                            </div>
+                                        <div className="w-12 h-1.5 bg-white/30 rounded-full backdrop-blur-sm" />
+                                    </div>
 
-                            <div className="px-6 pb-5 space-y-4">
-                                <textarea
-                                    ref={textAreaRef}
-                                    value={textContribution}
-                                    onChange={(e) => setTextContribution(e.target.value)}
-                                    placeholder={stitchMode === 'text' ? "Share your next story move..." : 'Add a caption or overlay text'}
-                                    className="w-full h-32 bg-gray-900 border border-gray-800 rounded-3xl p-4 text-white resize-none focus:outline-none focus:ring-2 focus:ring-[#EC1D99]"
-                                    style={{
-                                        fontFamily: textStyleOptions.fontFamily,
-                                        fontSize: textStyleOptions.fontSize,
-                                        color: textStyleOptions.textColor,
-                                        textAlign: textStyleOptions.textAlign,
-                                    }}
-                                    autoFocus
-                                />
-
-                                <div className={`space-y-5 transition-all duration-300 ${optionsExpanded ? 'max-h-[520px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none overflow-hidden'}`}>
-                                    {stitchMode === 'text' && (
-                                        <>
-                                            <div>
-                                                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Font</p>
-                                                <div className="flex gap-2 overflow-x-auto pb-1">
-                                                    {FONT_OPTIONS.map((font) => (
-                                                        <button
-                                                            key={font.value}
-                                                            type="button"
-                                                            onClick={() => updateTextStyle('fontFamily', font.value)}
-                                                            className={`px-3 py-2 rounded-lg border transition-all ${textStyleOptions.fontFamily === font.value ? 'border-[#EC1D99] text-[#EC1D99]' : 'border-gray-800 text-gray-300 hover:border-gray-600'}`}
-                                                            style={{ fontFamily: font.value }}
-                                                        >
-                                                            {font.label}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Size</p>
-                                                <div className="flex gap-2 flex-wrap">
-                                                    {FONT_SIZE_OPTIONS.map((size) => (
-                                                        <button
-                                                            key={size}
-                                                            type="button"
-                                                            onClick={() => updateTextStyle('fontSize', size)}
-                                                            className={`px-3 py-2 rounded-lg border transition-all ${textStyleOptions.fontSize === size ? 'border-[#EC1D99] text-[#EC1D99]' : 'border-gray-800 text-gray-300 hover:border-gray-600'}`}
-                                                        >
-                                                            {size}px
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Alignment</p>
-                                                <div className="flex gap-2">
-                                                    {ALIGN_OPTIONS.map(({ value, icon: Icon }) => (
-                                                        <button
-                                                            key={value}
-                                                            type="button"
-                                                            onClick={() => updateTextStyle('textAlign', value)}
-                                                            className={`p-2 rounded-lg border transition-all ${textStyleOptions.textAlign === value ? 'border-[#EC1D99] text-[#EC1D99]' : 'border-gray-800 text-gray-300 hover:border-gray-600'}`}
-                                                            aria-label={`Align ${value}`}
-                                                        >
-                                                            <Icon className="w-5 h-5" />
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Text Colour</p>
-                                                <div className="flex gap-2 flex-wrap">
-                                                    {TEXT_COLOR_OPTIONS.map((color) => (
-                                                        <button
-                                                            key={color}
-                                                            type="button"
-                                                            onClick={() => updateTextStyle('textColor', color)}
-                                                            className={`w-9 h-9 rounded-full border-2 transition-transform ${textStyleOptions.textColor === color ? 'border-white scale-110' : 'border-transparent'}`}
-                                                            style={{ backgroundColor: color }}
-                                                            aria-label={`Set text colour ${color}`}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Background</p>
-                                                <div className="flex gap-2 flex-wrap">
-                                                    {BACKGROUND_OPTIONS.map((color) => (
-                                                        <button
-                                                            key={color}
-                                                            type="button"
-                                                            onClick={() => updateTextStyle('backgroundColor', color)}
-                                                            className={`w-12 h-9 rounded-lg border transition-all ${textStyleOptions.backgroundColor === color ? 'border-[#EC1D99]' : 'border-gray-800 hover:border-gray-600'}`}
-                                                            style={{
-                                                                background: color === 'transparent'
-                                                                    ? 'linear-gradient(135deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)'
-                                                                    : color,
-                                                            }}
-                                                            aria-label={color === 'transparent' ? 'No background' : `Background ${color}`}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </>
+                                    {/* Delete Button (only if more than 1) */}
+                                    {textElements.length > 1 && activeElementId === element.id && (
+                                        <button
+                                            className="absolute -top-10 -right-8 p-1.5 bg-red-500/80 rounded-full text-white hover:bg-red-600 transition-colors"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setTextElements(prev => prev.filter(el => el.id !== element.id));
+                                                if (activeElementId === element.id) {
+                                                    setActiveElementId(null);
+                                                }
+                                            }}
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
                                     )}
 
-                                    <div>
-                                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Emojis</p>
-                                        <div className="flex gap-2 flex-wrap">
-                                            {EMOJI_OPTIONS.map((emoji) => (
+                                    <textarea
+                                        value={element.content}
+                                        onChange={(e) => {
+                                            updateElement(element.id, { content: e.target.value });
+                                            // Auto-resize
+                                            e.target.style.height = 'auto';
+                                            e.target.style.height = e.target.scrollHeight + 'px';
+                                        }}
+                                        onPointerDown={(e) => {
+                                            // Stop propagation when clicking on textarea to allow typing
+                                            e.stopPropagation();
+                                        }}
+                                        placeholder={stitchMode === 'text' ? "Type something..." : 'Add a caption...'}
+                                        className="min-w-[200px] max-w-[80vw] overflow-hidden bg-transparent resize-none focus:outline-none text-center placeholder:text-white/50"
+                                        style={{
+                                            fontFamily: element.style.fontFamily,
+                                            fontSize: element.style.fontSize,
+                                            color: element.style.textColor,
+                                            textAlign: element.style.textAlign,
+                                            backgroundColor: element.style.backgroundColor === 'transparent'
+                                                ? 'rgba(0,0,0,0.45)'
+                                                : element.style.backgroundColor,
+                                            padding: '1rem 1.25rem',
+                                            borderRadius: '1.5rem',
+                                            border: activeElementId === element.id ? '1px solid rgba(236,29,153,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                                            backdropFilter: 'blur(4px)',
+                                            boxShadow: activeElementId === element.id ? '0 0 15px rgba(236,29,153,0.2)' : 'none',
+                                        }}
+                                        autoFocus={activeElementId === element.id}
+                                        rows={1}
+                                        onFocus={() => setActiveElementId(element.id)}
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Side Menu & Controls */}
+                    <div className="absolute inset-0 z-50 pointer-events-none">
+                        {/* Top Controls */}
+                        <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-auto">
+                            <button
+                                onClick={handleComposerCancel}
+                                className="px-4 py-2 rounded-full bg-black/40 backdrop-blur-md text-white font-medium hover:bg-black/60 transition-colors"
+                            >
+                                Cancel
+                            </button>
+
+                            {/* Add Text Button */}
+                            {textElements.length < 5 && (
+                                <button
+                                    onClick={addTextElement}
+                                    className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md text-white font-medium hover:bg-white/20 transition-colors flex items-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Add Text
+                                </button>
+                            )}
+
+                            <button
+                                onClick={() => handleComposerSubmit()}
+                                disabled={isPostDisabled || isUploading}
+                                className={`px-6 py-2 rounded-full font-bold transition-colors ${isPostDisabled || isUploading ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-[#EC1D99] text-white hover:bg-[#D41C84]'}`}
+                            >
+                                {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Post'}
+                            </button>
+                        </div>
+
+                        {/* Right Side Menu */}
+                        {stitchMode === 'text' && (
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-4 pointer-events-auto">
+                                {/* Font Family */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setActiveMenu(activeMenu === 'font' ? null : 'font')}
+                                        className={`w-10 h-10 rounded-full backdrop-blur-md border flex items-center justify-center transition-colors ${activeMenu === 'font' ? 'bg-[#EC1D99] border-[#EC1D99] text-white' : 'bg-black/40 border-white/10 text-white hover:bg-[#EC1D99]'}`}
+                                    >
+                                        <Type className="w-5 h-5" />
+                                    </button>
+                                    {activeMenu === 'font' && (
+                                        <div className="absolute right-full top-0 mr-4 bg-black/90 border border-white/10 rounded-xl p-2 flex flex-col gap-2 w-32 animate-in slide-in-from-right-2 duration-200">
+                                            {FONT_OPTIONS.map((font) => (
                                                 <button
-                                                    key={emoji}
-                                                    type="button"
-                                                    onClick={() => handleEmojiInsert(emoji)}
-                                                    className="px-3 py-2 rounded-lg border border-gray-800 bg-gray-900 hover:border-[#EC1D99] hover:text-[#EC1D99] transition-all"
+                                                    key={font.value}
+                                                    onClick={() => {
+                                                        updateTextStyle('fontFamily', font.value);
+                                                        setActiveMenu(null);
+                                                    }}
+                                                    className={`text-sm py-1 px-2 rounded text-left truncate ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.fontFamily === font.value ? 'text-[#EC1D99]' : 'text-white hover:bg-white/10'}`}
+                                                    style={{ fontFamily: font.value }}
                                                 >
-                                                    {emoji}
+                                                    {font.label}
                                                 </button>
                                             ))}
                                         </div>
-                                    </div>
+                                    )}
+                                </div>
+
+                                {/* Font Size */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setActiveMenu(activeMenu === 'size' ? null : 'size')}
+                                        className={`w-10 h-10 rounded-full backdrop-blur-md border flex items-center justify-center transition-colors ${activeMenu === 'size' ? 'bg-[#EC1D99] border-[#EC1D99] text-white' : 'bg-black/40 border-white/10 text-white hover:bg-[#EC1D99]'}`}
+                                    >
+                                        <span className="text-xs font-bold">Aa</span>
+                                    </button>
+                                    {activeMenu === 'size' && (
+                                        <div className="absolute right-full top-1/2 -translate-y-1/2 mr-4 bg-black/90 border border-white/10 rounded-xl p-2 flex gap-2 animate-in slide-in-from-right-2 duration-200">
+                                            {FONT_SIZE_OPTIONS.map((size) => (
+                                                <button
+                                                    key={size}
+                                                    onClick={() => {
+                                                        updateTextStyle('fontSize', size);
+                                                        setActiveMenu(null);
+                                                    }}
+                                                    className={`w-8 h-8 rounded flex items-center justify-center text-xs ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.fontSize === size ? 'bg-[#EC1D99] text-white' : 'text-gray-300 hover:bg-white/10'}`}
+                                                >
+                                                    {size}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Alignment */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setActiveMenu(activeMenu === 'align' ? null : 'align')}
+                                        className={`w-10 h-10 rounded-full backdrop-blur-md border flex items-center justify-center transition-colors ${activeMenu === 'align' ? 'bg-[#EC1D99] border-[#EC1D99] text-white' : 'bg-black/40 border-white/10 text-white hover:bg-[#EC1D99]'}`}
+                                    >
+                                        {(!activeElementId || textElements.find(el => el.id === activeElementId)?.style.textAlign === 'left') && <AlignLeft className="w-5 h-5" />}
+                                        {activeElementId && textElements.find(el => el.id === activeElementId)?.style.textAlign === 'center' && <AlignCenter className="w-5 h-5" />}
+                                        {activeElementId && textElements.find(el => el.id === activeElementId)?.style.textAlign === 'right' && <AlignRight className="w-5 h-5" />}
+                                    </button>
+                                    {activeMenu === 'align' && (
+                                        <div className="absolute right-full top-1/2 -translate-y-1/2 mr-4 bg-black/90 border border-white/10 rounded-xl p-2 flex gap-2 animate-in slide-in-from-right-2 duration-200">
+                                            {ALIGN_OPTIONS.map(({ value, icon: Icon }) => (
+                                                <button
+                                                    key={value}
+                                                    onClick={() => {
+                                                        updateTextStyle('textAlign', value);
+                                                        setActiveMenu(null);
+                                                    }}
+                                                    className={`p-2 rounded ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.textAlign === value ? 'bg-[#EC1D99] text-white' : 'text-gray-300 hover:bg-white/10'}`}
+                                                >
+                                                    <Icon className="w-4 h-4" />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Text Color */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setActiveMenu(activeMenu === 'color' ? null : 'color')}
+                                        className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-colors ${activeMenu === 'color' ? 'border-white scale-110' : 'border-white/20'}`}
+                                        style={{ backgroundColor: activeElementId ? textElements.find(el => el.id === activeElementId)?.style.textColor : '#FFFFFF' }}
+                                    />
+                                    {activeMenu === 'color' && (
+                                        <div className="absolute right-full top-1/2 -translate-y-1/2 mr-4 bg-black/90 border border-white/10 rounded-xl p-2 grid grid-cols-4 gap-2 w-48 animate-in slide-in-from-right-2 duration-200">
+                                            {TEXT_COLOR_OPTIONS.map((color) => (
+                                                <button
+                                                    key={color}
+                                                    onClick={() => {
+                                                        updateTextStyle('textColor', color);
+                                                        setActiveMenu(null);
+                                                    }}
+                                                    className={`w-8 h-8 rounded-full border-2 ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.textColor === color ? 'border-white' : 'border-transparent'}`}
+                                                    style={{ backgroundColor: color }}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Background Color */}
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setActiveMenu(activeMenu === 'bg' ? null : 'bg')}
+                                        className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center transition-colors ${activeMenu === 'bg' ? 'border-white scale-110' : 'border-white/20'}`}
+                                        style={{
+                                            background: (activeElementId ? textElements.find(el => el.id === activeElementId)?.style.backgroundColor : 'transparent') === 'transparent'
+                                                ? 'linear-gradient(135deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)'
+                                                : (activeElementId ? textElements.find(el => el.id === activeElementId)?.style.backgroundColor : 'transparent')
+                                        }}
+                                    />
+                                    {activeMenu === 'bg' && (
+                                        <div className="absolute right-full top-1/2 -translate-y-1/2 mr-4 bg-black/90 border border-white/10 rounded-xl p-2 grid grid-cols-3 gap-2 w-40 animate-in slide-in-from-right-2 duration-200">
+                                            {BACKGROUND_OPTIONS.map((color) => (
+                                                <button
+                                                    key={color}
+                                                    onClick={() => {
+                                                        updateTextStyle('backgroundColor', color);
+                                                        setActiveMenu(null);
+                                                    }}
+                                                    className={`w-10 h-8 rounded border ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.backgroundColor === color ? 'border-white' : 'border-transparent'}`}
+                                                    style={{
+                                                        background: color === 'transparent'
+                                                            ? 'linear-gradient(135deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)'
+                                                            : color
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </>
             )}

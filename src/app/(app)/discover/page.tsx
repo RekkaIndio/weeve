@@ -89,7 +89,7 @@ function DiscoverContent() {
     return (
         <div className="min-h-screen bg-black text-white p-4 pb-24">
             {/* Search Header */}
-            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md py-2 mb-6">
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md py-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] mb-6">
                 <div className="flex items-center gap-3">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
@@ -98,7 +98,7 @@ function DiscoverContent() {
                             placeholder="Search stories, people, tags..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-gray-900 border border-gray-800 rounded-full py-3 pl-10 pr-4 text-sm focus:outline-none focus:border-[#EC1D99] transition-colors"
+                            className="w-full bg-gray-900 border border-gray-800 rounded-full py-3 pl-10 pr-4 text-base focus:outline-none focus:border-[#EC1D99] transition-colors"
                         />
                     </div>
                     {currentUser && (
