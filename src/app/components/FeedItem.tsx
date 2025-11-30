@@ -976,6 +976,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                         {!showFriendPicker ? (
                             <div className="space-y-3">
                                 <button
+                                    type="button"
                                     onClick={() => currentUser && handleForkStory(currentUser.id)}
                                     className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
                                 >
@@ -989,6 +990,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                                 </button>
 
                                 <button
+                                    type="button"
                                     onClick={() => setShowFriendPicker(true)}
                                     className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
                                 >

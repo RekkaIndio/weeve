@@ -281,13 +281,18 @@ export const notifyStoryComment = async (
 /**
  * Notify user of group invite
  */
-export const notifyGroupInvite = async (groupId: string, groupName: string, userId: string) => {
+export const notifyGroupInvite = async (
+    groupId: string,
+    groupName: string,
+    userId: string,
+    inviterName: string
+) => {
     await createNotification({
         user_id: userId,
         type: 'group_invite',
         title: 'Group Invitation',
-        message: `You've been invited to join "${groupName}"`,
-        data: { group_id: groupId },
+        message: `${inviterName} invited you to join "${groupName}"`,
+        data: { group_id: groupId, inviter_name: inviterName },
         action_url: `/groups/${groupId}`,
         read: false,
     });

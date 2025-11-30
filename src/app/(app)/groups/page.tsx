@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, X, Lock, Globe } from "lucide-react";
+import { Users, Plus, X, Lock, Globe, Share2 } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/lib/database.types';
 import { useAuth } from '@/app/components/AuthProvider';
@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import NotificationBell from "@/app/components/NotificationBell";
 import { useStore } from '@/lib/store';
 import { fetchGroups as fetchGroupsData } from '@/lib/data';
+import GroupShareModal from '@/app/components/GroupShareModal';
 
 type GroupRow = Database['public']['Tables']['groups']['Row'];
 
@@ -22,6 +23,7 @@ export default function GroupsPage() {
     const [newGroupDesc, setNewGroupDesc] = useState('');
     const [isPrivate, setIsPrivate] = useState(false);
     const [creating, setCreating] = useState(false);
+    const [shareGroup, setShareGroup] = useState<{ id: string; name: string; description: string; isPrivate: boolean } | null>(null);
 
     useEffect(() => {
         loadGroups();
@@ -189,17 +191,34 @@ export default function GroupsPage() {
                                     )}
                                 </div>
                             </div>
-                            {!group.isMember && (
+                            <div className="flex items-center gap-2">
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        handleJoinGroup(group.id, group.isPrivate, group.name);
+                                        setShareGroup({
+                                            id: group.id,
+                                            name: group.name,
+                                            description: group.description,
+                                            isPrivate: group.isPrivate
+                                        });
                                     }}
-                                    className="text-xs font-medium text-[#EC1D99] border border-[#EC1D99] px-3 py-1 rounded-full hover:bg-[#EC1D99] hover:text-white transition-colors"
+                                    className="p-2 text-gray-400 hover:text-[#EC1D99] hover:bg-gray-800 rounded-full transition-colors"
+                                    aria-label="Share group"
                                 >
-                                    Join
+                                    <Share2 className="w-4 h-4" />
                                 </button>
-                            )}
+                                {!group.isMember && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleJoinGroup(group.id, group.isPrivate, group.name);
+                                        }}
+                                        className="text-xs font-medium text-[#EC1D99] border border-[#EC1D99] px-3 py-1 rounded-full hover:bg-[#EC1D99] hover:text-white transition-colors"
+                                    >
+                                        Join
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     ))}
 
@@ -267,6 +286,14 @@ export default function GroupsPage() {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* Share Group Modal */}
+            {shareGroup && (
+                <GroupShareModal
+                    group={shareGroup}
+                    onClose={() => setShareGroup(null)}
+                />
             )}
         </div>
     );

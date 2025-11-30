@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { setLatestSession } from '@/lib/auth-session';
 import { useStore } from '@/lib/store';
-import { getUserProfile, profileExists } from '@/lib/auth';
+import { getUserProfile, profileExists, NATIVE_GOOGLE_REDIRECT_URI } from '@/lib/auth';
+import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { toast } from 'sonner';
 
 interface AuthContextType {
@@ -19,7 +21,7 @@ const AuthContext = createContext<AuthContextType>({
     loading: true,
 });
 
-const PUBLIC_ROUTES = ['/', '/login', '/signup', '/setup', '/brands', '/communities', '/influencers'];
+const PUBLIC_ROUTES = ['/', '/login', '/signup', '/setup', '/brands', '/communities', '/influencers', '/auth/callback'];
 
 const isPublicRoute = (path: string) => PUBLIC_ROUTES.includes(path);
 
@@ -106,6 +108,46 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }, [router, setCurrentUser]);
 
     useEffect(() => {
+        let nativeListenerCleanup: (() => void) | undefined;
+
+        if (Capacitor.isNativePlatform()) {
+            const nativeListener = App.addListener('appUrlOpen', async ({ url }) => {
+                if (!url || !url.startsWith(NATIVE_GOOGLE_REDIRECT_URI)) {
+                    return;
+                }
+
+                try {
+                    const parsed = new URL(url);
+                    const errorDescription = parsed.searchParams.get('error_description') ?? parsed.searchParams.get('error');
+                    if (errorDescription) {
+                        console.error('[AuthProvider] OAuth error from callback:', errorDescription);
+                        toast.error('Google sign-in failed. Please try again.');
+                        return;
+                    }
+
+                    const code = parsed.searchParams.get('code');
+                    if (!code) {
+                        console.warn('[AuthProvider] OAuth callback received without code parameter');
+                        return;
+                    }
+
+                    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+                    if (exchangeError) {
+                        console.error('[AuthProvider] Failed to exchange OAuth code for session:', exchangeError);
+                        toast.error('Unable to complete Google sign-in.');
+                    }
+                } catch (error) {
+                    console.error('[AuthProvider] Failed to handle OAuth callback URL:', error);
+                }
+            });
+
+            nativeListener.then((handle) => {
+                nativeListenerCleanup = () => handle.remove();
+            }).catch((error) => {
+                console.error('[AuthProvider] Failed to attach native URL listener:', error);
+            });
+        }
+
         let isMounted = true;
 
         const initializeSession = async () => {
@@ -187,6 +229,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         return () => {
             isMounted = false;
             subscription.unsubscribe();
+            if (nativeListenerCleanup) {
+                nativeListenerCleanup();
+            }
         };
     }, [handleUserLogin, router, setCurrentUser]);
 

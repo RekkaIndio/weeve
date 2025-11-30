@@ -1,5 +1,16 @@
 package com.weeve.app;
 
-import com.getcapacitor.BridgeActivity;
+import android.os.Bundle;
 
-public class MainActivity extends BridgeActivity {}
+import com.getcapacitor.BridgeActivity;
+import com.capacitorjs.plugins.browser.BrowserPlugin;
+import com.codetrixstudio.capacitor.GoogleAuth.GoogleAuth;
+
+public class MainActivity extends BridgeActivity {
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		registerPlugin(BrowserPlugin.class);
+		registerPlugin(GoogleAuth.class);
+	}
+}

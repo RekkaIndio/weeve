@@ -10,7 +10,7 @@
 
 DO $$
 DECLARE
-  my_user_id TEXT := 'YOUR_USER_ID_HERE';  -- Replace this with your actual user_id
+  my_user_id TEXT := 'b7bf214e-3d21-46e7-b3d4-1f63b577c300';  -- Replace this with your actual user_id
 BEGIN
   -- Add all mock users as friends to your account
   INSERT INTO friendships (user_id, friend_id)

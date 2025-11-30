@@ -3,10 +3,11 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
-import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera } from 'lucide-react';
+import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { capturePhoto } from '@/lib/camera';
+import GroupShareModal from '@/app/components/GroupShareModal';
 
 export default function GroupDetailsPage() {
     const params = useParams();
@@ -21,6 +22,7 @@ export default function GroupDetailsPage() {
     const [isMember, setIsMember] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
     const [activeTab, setActiveTab] = useState<'stories' | 'members'>('stories');
+    const [showShareModal, setShowShareModal] = useState(false);
 
     useEffect(() => {
         if (id) fetchGroupDetails();
@@ -187,14 +189,24 @@ export default function GroupDetailsPage() {
                 <button onClick={() => router.back()} className="p-2 hover:bg-gray-900 rounded-full">
                     <ArrowLeft className="w-6 h-6" />
                 </button>
-                {isAdmin && (
-                    <button
-                        onClick={() => router.push(`/groups/${id}/settings`)}
-                        className="p-2 hover:bg-gray-900 rounded-full text-gray-400 hover:text-white"
-                    >
-                        <Settings className="w-6 h-6" />
-                    </button>
-                )}
+                <div className="flex items-center gap-2">
+                    {isMember && (
+                        <button
+                            onClick={() => setShowShareModal(true)}
+                            className="p-2 hover:bg-gray-900 rounded-full text-gray-400 hover:text-white"
+                        >
+                            <Share2 className="w-6 h-6" />
+                        </button>
+                    )}
+                    {isAdmin && (
+                        <button
+                            onClick={() => router.push(`/groups/${id}/settings`)}
+                            className="p-2 hover:bg-gray-900 rounded-full text-gray-400 hover:text-white"
+                        >
+                            <Settings className="w-6 h-6" />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Group Info */}
@@ -338,6 +350,19 @@ export default function GroupDetailsPage() {
                     </div>
                 )}
             </div>
+
+            {/* Share Modal */}
+            {showShareModal && group && (
+                <GroupShareModal
+                    group={{
+                        id: group.id,
+                        name: group.name,
+                        description: group.description,
+                        isPrivate: group.is_private
+                    }}
+                    onClose={() => setShowShareModal(false)}
+                />
+            )}
         </div>
     );
 }

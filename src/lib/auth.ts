@@ -1,11 +1,14 @@
 import { supabase } from "./supabase";
 import type { Session, User } from "@supabase/supabase-js";
+import { Capacitor } from "@capacitor/core";
 import { addFriend } from "./friends";
 import type { Database } from "./database.types";
 
 type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
+
+export const NATIVE_GOOGLE_REDIRECT_URI = 'com.jay.weeve.app://auth/callback';
 
 export interface AuthUser {
     id: string;
@@ -61,6 +64,88 @@ export async function signIn(email: string, password: string): Promise<{ user: U
     } catch (error) {
         console.error('[Auth] Signin error:', error);
         return { user: null, session: null, error: error as Error };
+    }
+}
+
+/**
+ * Initiate Google OAuth login
+ */
+/**
+ * Initiate Google OAuth login
+ */
+export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise<{ error: Error | null }> {
+    try {
+        const isNative = Capacitor.isNativePlatform();
+
+        if (isNative) {
+            console.log('[Auth] Starting native Google Sign-In...');
+            const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+
+            try {
+                console.log('[Auth] Initializing GoogleAuth plugin...');
+                await GoogleAuth.initialize();
+            } catch (initError) {
+                console.log('[Auth] Initialize error (may be safe to ignore):', initError);
+            }
+
+            console.log('[Auth] Calling GoogleAuth.signIn()...');
+            let googleUser;
+            try {
+                googleUser = await GoogleAuth.signIn();
+            } catch (signInError) {
+                console.error('[Auth] GoogleAuth.signIn() failed:', signInError);
+                throw new Error(`Google Sign-In failed: ${signInError}`);
+            }
+
+            console.log('[Auth] Google user received:', {
+                email: googleUser.email,
+                name: googleUser.name,
+                hasIdToken: !!googleUser.authentication?.idToken,
+                hasAccessToken: !!googleUser.authentication?.accessToken,
+            });
+
+            if (googleUser.authentication?.idToken) {
+                console.log('[Auth] ID token received, calling Supabase signInWithIdToken...');
+                const { data, error } = await supabase.auth.signInWithIdToken({
+                    provider: 'google',
+                    token: googleUser.authentication.idToken,
+                });
+
+                if (error) {
+                    console.error('[Auth] Supabase signInWithIdToken error:', error);
+                    throw error;
+                }
+
+                console.log('[Auth] Successfully signed in with Supabase:', data);
+                return { error: null };
+            } else {
+                throw new Error('No ID token returned from Google Sign-In');
+            }
+        }
+
+        // Web Flow
+        const buildRedirect = () => {
+            if (!redirectPath) return undefined;
+            if (redirectPath.startsWith('http')) return redirectPath;
+            if (typeof window === 'undefined') return undefined;
+            return `${window.location.origin}${redirectPath}`;
+        };
+
+        const redirectTo = buildRedirect();
+
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo,
+            },
+        });
+
+        if (error) throw error;
+
+        return { error: null };
+    } catch (error) {
+        console.error('[Auth] Google signin error:', error);
+        return { error: error as Error };
     }
 }
 

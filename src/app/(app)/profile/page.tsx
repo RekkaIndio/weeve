@@ -905,9 +905,15 @@ export default function ProfilePage() {
                         </div>
                     )}
                     {!isEditing && (
-                        <div className="absolute bottom-0 right-0 bg-[#EC1D99] p-1.5 rounded-full border-2 border-black">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleNativeShare();
+                            }}
+                            className="absolute bottom-0 right-0 bg-[#EC1D99] p-1.5 rounded-full border-2 border-black hover:bg-[#EC1D99]/90 transition-colors"
+                        >
                             <Share2 className="w-4 h-4 text-white" />
-                        </div>
+                        </button>
                     )}
                 </div>
 
@@ -974,19 +980,16 @@ export default function ProfilePage() {
                             </div>
                         </div>
 
-                        <div className="flex gap-2 w-full max-w-xs">
+                        <div className="w-full max-w-xs">
                             <button
                                 onClick={() => {
                                     setEditName(currentUser.name);
                                     setEditAvatar(currentUser.avatar || '');
                                     setIsEditing(true);
                                 }}
-                                className="flex-1 bg-white text-black font-bold py-2 rounded-lg text-sm text-center hover:bg-gray-200 transition-colors"
+                                className="w-full bg-white text-black font-bold py-2 rounded-lg text-sm text-center hover:bg-gray-200 transition-colors"
                             >
                                 Edit Profile
-                            </button>
-                            <button className="flex-1 bg-gray-800 text-white font-bold py-2 rounded-lg text-sm hover:bg-gray-700 transition-colors">
-                                Share Profile
                             </button>
                         </div>
                     </>

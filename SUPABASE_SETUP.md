@@ -42,6 +42,28 @@ npx supabase gen types typescript --project-id fvyhyexdndynoonkzwbd > src/lib/da
 
 Note: This requires the Supabase CLI. If you don't have it installed, you can skip this step and manually create types as needed.
 
+## Step 5: Enable Google Sign-In
+
+1. In the Supabase dashboard, go to **Authentication → Providers** and open the **Google** provider.
+2. Toggle the provider to **Enabled** and ensure the Client ID and Secret you created in Google Cloud are saved.
+3. Add the following redirect URLs (include the production domain you will deploy to):
+   - `http://localhost:3000/auth/callback`
+   - `https://your-production-domain.com/auth/callback`
+4. Click **Save**. Supabase will now accept OAuth redirects for the web app. If you plan to support the Capacitor builds, also add any custom schemes or native callback URLs you configure there.
+
+### Google Cloud Console configuration
+
+Supabase still performs the initial OAuth handshake through its own callback. Add these URIs to the **Authorized redirect URIs** list for the OAuth client ID in [console.cloud.google.com](https://console.cloud.google.com):
+
+- `https://fvyhyexdndynoonkzwbd.supabase.co/auth/v1/callback`
+- `http://localhost:3000/auth/callback`
+- Any additional environments you pass via `redirectTo` (for example your LAN IP such as `http://192.168.0.185:3000/auth/callback` or your production domain).
+- The native deep link used by the Capacitor apps: `com.jay.weeve.app://auth/callback`
+
+Register the same URIs under **Additional Redirect URLs** in Supabase (Authentication → URL Configuration) so Supabase accepts the callback as well.
+
+If you plan to customise the native scheme, update the Capacitor configuration and the `NATIVE_GOOGLE_REDIRECT_URI` constant in `src/lib/auth.ts` to match, then re-run `npx cap sync`. Otherwise keep the default `com.jay.weeve.app://auth/callback` listed above.
+
 ## Next Steps
 
 After completing these steps, the application will be ready to use Supabase for data persistence. The next phase involves updating the store and components to use Supabase queries instead of mock data.
