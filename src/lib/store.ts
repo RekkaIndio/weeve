@@ -904,7 +904,8 @@ export const useStore = create<AppState>()(
                             likedBy,
                             comments,
                             created_at: s.created_at,
-                            updated_at: s.updated_at
+                            updated_at: s.updated_at,
+                            hashtags: s.hashtags
                         };
                     });
 

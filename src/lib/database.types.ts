@@ -24,6 +24,9 @@ export interface Database {
                     is_influencer: boolean
                     interaction_cost: number | null
                     invite_code: string | null
+                    onboarding_step: number | null
+                    completed_onboarding: boolean
+                    preferences: Json
                     created_at: string
                     updated_at: string
                 }
@@ -38,6 +41,9 @@ export interface Database {
                     is_influencer?: boolean
                     interaction_cost?: number | null
                     invite_code?: string | null
+                    onboarding_step?: number | null
+                    completed_onboarding?: boolean
+                    preferences?: Json
                     created_at?: string
                     updated_at?: string
                 }
@@ -52,6 +58,9 @@ export interface Database {
                     is_influencer?: boolean
                     interaction_cost?: number | null
                     invite_code?: string | null
+                    onboarding_step?: number | null
+                    completed_onboarding?: boolean
+                    preferences?: Json
                     created_at?: string
                     updated_at?: string
                 }

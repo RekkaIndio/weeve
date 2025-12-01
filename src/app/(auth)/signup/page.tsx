@@ -7,7 +7,6 @@ import { signUp, signInWithGoogle } from "@/lib/auth";
 export default function SignUpPage() {
     const router = useRouter();
 
-    const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
@@ -15,13 +14,30 @@ export default function SignUpPage() {
     const [socialLoading, setSocialLoading] = useState<"google" | null>(null);
 
     const handleEmailSignUp = async () => {
-        if (!email || !password || !name) {
+        if (!email || !password) {
             setError("Please fill in all fields");
             return;
         }
 
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters");
+        // Validate password: 8+ chars, number, lowercase, uppercase, special character
+        if (password.length < 8) {
+            setError("Password must be at least 8 characters");
+            return;
+        }
+        if (!/[a-z]/.test(password)) {
+            setError("Password must contain at least one lowercase letter");
+            return;
+        }
+        if (!/[A-Z]/.test(password)) {
+            setError("Password must contain at least one uppercase letter");
+            return;
+        }
+        if (!/[0-9]/.test(password)) {
+            setError("Password must contain at least one number");
+            return;
+        }
+        if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+            setError("Password must contain at least one special character");
             return;
         }
 
@@ -29,7 +45,7 @@ export default function SignUpPage() {
         setError("");
 
         try {
-            const { user, error: authError } = await signUp(email, password, name);
+            const { user, error: authError } = await signUp(email, password);
 
             if (authError) throw authError;
             if (!user) throw new Error('Signup failed');
@@ -168,15 +184,6 @@ export default function SignUpPage() {
                     </div>
 
                     <input
-                        type="text"
-                        className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
-                        placeholder="Your name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
-                        disabled={loading}
-                    />
-                    <input
                         type="email"
                         className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
                         placeholder="Email"
@@ -188,7 +195,7 @@ export default function SignUpPage() {
                     <input
                         type="password"
                         className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
-                        placeholder="Password (min 6 characters)"
+                        placeholder="Password (8+ chars, number, uppercase, special char)"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}

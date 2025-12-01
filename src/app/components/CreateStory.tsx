@@ -368,7 +368,7 @@ const CreateStory = ({
   };
 
   const normalizeTag = (tag: string) => {
-    return tag.trim().replace(/^#+/, "").toLowerCase();
+    return tag.trim().replace(/^#+/, "").replace(/\s+/g, "").toLowerCase();
   };
 
   const handleAddHashtag = (rawTag?: string) => {
@@ -966,7 +966,7 @@ const CreateStory = ({
                 value={hashtagInput}
                 onChange={(e) => setHashtagInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === ",") {
+                  if (e.key === "Enter" || e.key === "," || e.key === " ") {
                     e.preventDefault();
                     handleAddHashtag();
                   }

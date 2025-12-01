@@ -71,6 +71,10 @@ export default function FeedItem({ story }: FeedItemProps) {
     const [showFriendPicker, setShowFriendPicker] = useState(false);
     const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [showTutorialTooltip, setShowTutorialTooltip] = useState(false);
+
+    // Detect if this is the onboarding story
+    const isOnboardingStory = story.id === '00000000-0000-0000-0000-000000000001';
 
     const captureFrameFromVideo = useCallback((video: HTMLVideoElement) => {
         if (typeof document === "undefined") {
@@ -308,6 +312,25 @@ export default function FeedItem({ story }: FeedItemProps) {
         video.setAttribute('webkit-playsinline', 'true');
         video.preload = 'auto';
     }, [mediaType, mediaUrl]);
+
+    // Show tutorial tooltip for onboarding story (only first time)
+    useEffect(() => {
+        if (isOnboardingStory) {
+            const hasSeenTooltip = localStorage.getItem('weeve_tutorial_tooltip_seen');
+            if (!hasSeenTooltip) {
+                // Show tooltip after 1 second
+                const timer = setTimeout(() => {
+                    setShowTutorialTooltip(true);
+                }, 1000);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [isOnboardingStory]);
+
+    const handleTooltipDismiss = () => {
+        setShowTutorialTooltip(false);
+        localStorage.setItem('weeve_tutorial_tooltip_seen', 'true');
+    };
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -632,19 +655,53 @@ export default function FeedItem({ story }: FeedItemProps) {
                 </div>
 
                 {story.visibility === 'public' && (
-                    <div className="flex flex-col items-center gap-1">
+                    <div className="flex flex-col items-center gap-1 relative">
                         <button
                             type="button"
                             onClick={() => {
                                 console.log("Weeve button clicked, toggling isForking", !isForking);
                                 setIsForking(!isForking);
+                                if (showTutorialTooltip) {
+                                    handleTooltipDismiss();
+                                }
                             }}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center border border-white/20 transition-all ${isForking ? "bg-[#EC1D99] text-white scale-110" : "bg-gray-800/50 backdrop-blur-sm text-[#EC1D99]"}`}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center border border-white/20 transition-all ${showTutorialTooltip
+                                ? "bg-[#EC1D99] text-white scale-110 animate-pulse ring-4 ring-[#EC1D99]/50"
+                                : isForking
+                                    ? "bg-[#EC1D99] text-white scale-110"
+                                    : "bg-gray-800/50 backdrop-blur-sm text-[#EC1D99]"
+                                }`}
                             aria-label="Fork story"
                         >
                             <span className="font-black text-lg">W</span>
                         </button>
-                        <span className="text-xs font-bold">Weeve</span>
+                        <span className={`text-xs font-bold ${showTutorialTooltip ? 'text-[#EC1D99]' : ''}`}>Weeve</span>
+
+                        {/* Tutorial Tooltip */}
+                        {showTutorialTooltip && (
+                            <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 w-64 animate-in fade-in slide-in-from-right-5 duration-300">
+                                <div className="bg-[#EC1D99] text-white p-4 rounded-2xl shadow-2xl relative">
+                                    <button
+                                        type="button"
+                                        onClick={handleTooltipDismiss}
+                                        className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                                    >
+                                        <span className="text-xs">✕</span>
+                                    </button>
+                                    <div className="mb-2">
+                                        <span className="text-2xl">👆</span>
+                                    </div>
+                                    <h4 className="font-bold text-lg mb-1">Click Here!</h4>
+                                    <p className="text-sm text-white/90 leading-snug">
+                                        Tap the <strong>Weeve button</strong> to add your parts to the story.
+                                    </p>
+                                    {/* Arrow pointing to button */}
+                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full">
+                                        <div className="w-0 h-0 border-t-8 border-t-transparent border-b-8 border-b-transparent border-l-8 border-l-[#EC1D99]"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -654,15 +711,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                 <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md">
                     {story.title}
                 </h2>
-                {story.hashtags && story.hashtags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-2">
-                        {story.hashtags.map((tag, index) => (
-                            <span key={index} className="text-xs font-medium text-[#EC1D99] drop-shadow-md">
-                                #{tag}
-                            </span>
-                        ))}
-                    </div>
-                )}
+
                 <p className="text-sm text-gray-200 mb-6 line-clamp-2 max-w-[85%]">
                     {story.description}
                 </p>
@@ -691,6 +740,16 @@ export default function FeedItem({ story }: FeedItemProps) {
                         {story.participants.length} Weevers
                     </Link>
                 </div>
+
+                {story.hashtags && story.hashtags.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                        {story.hashtags.map((tag, index) => (
+                            <span key={index} className="text-xs font-medium text-[#EC1D99] drop-shadow-md">
+                                #{tag}
+                            </span>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {isCommentsOpen && (
@@ -920,8 +979,35 @@ export default function FeedItem({ story }: FeedItemProps) {
                                                                 />
                                                             )
                                                         ) : (
-                                                            <div className="w-full h-full flex items-center justify-center bg-gray-800/50">
-                                                                <UserPlus className="w-12 h-12 text-gray-500" />
+                                                            // Empty slot - show prompts for onboarding story
+                                                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-4">
+                                                                {isOnboardingStory ? (
+                                                                    <>
+                                                                        {index === 0 && (
+                                                                            <>
+                                                                                <div className="text-5xl mb-4 animate-pulse">😐</div>
+                                                                                <p className="text-white font-bold text-center text-base leading-snug">
+                                                                                    Show us your<br />most serious face
+                                                                                </p>
+                                                                                <p className="text-gray-400 text-xs mt-2">Part 1</p>
+                                                                            </>
+                                                                        )}
+                                                                        {index === 2 && (
+                                                                            <>
+                                                                                <div className="text-5xl mb-4 animate-pulse">😊</div>
+                                                                                <p className="text-white font-bold text-center text-base leading-snug">
+                                                                                    Show us<br />a smile!
+                                                                                </p>
+                                                                                <p className="text-gray-400 text-xs mt-2">Part 3</p>
+                                                                            </>
+                                                                        )}
+                                                                        {index === 1 && (
+                                                                            <UserPlus className="w-12 h-12 text-gray-500" />
+                                                                        )}
+                                                                    </>
+                                                                ) : (
+                                                                    <UserPlus className="w-12 h-12 text-gray-500" />
+                                                                )}
                                                             </div>
                                                         )}
 

@@ -24,17 +24,17 @@ export interface AuthUser {
 /**
  * Sign up a new user with email and password
  */
-export async function signUp(email: string, password: string, name: string): Promise<{ user: User | null; error: Error | null }> {
+export async function signUp(email: string, password: string, name?: string): Promise<{ user: User | null; error: Error | null }> {
     try {
         // Create auth user
         const { data: authData, error: authError } = await supabase.auth.signUp({
             email,
             password,
-            options: {
+            options: name ? {
                 data: {
-                    name, // Store name in auth metadata
+                    name, // Store name in auth metadata if provided
                 },
-            },
+            } : undefined,
         });
 
         if (authError) throw authError;

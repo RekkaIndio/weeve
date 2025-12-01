@@ -6,6 +6,8 @@ import Link from "next/link";
 import { Search, TrendingUp, Sparkles, Clock, Users, Plus, X } from "lucide-react";
 import NotificationBell from "@/app/components/NotificationBell";
 
+import MediaWithFallback from "@/app/components/MediaWithFallback";
+
 function DiscoverContent() {
     const { stories, groups, addGroup, currentUser } = useStore();
     const searchParams = useSearchParams();
@@ -145,7 +147,11 @@ function DiscoverContent() {
                         {filteredGroups.length > 0 ? (
                             filteredGroups.map(group => (
                                 <div key={group.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition-colors cursor-pointer">
-                                    <img src={group.avatar} alt={group.name} className="w-12 h-12 rounded-full bg-gray-800" />
+                                    <MediaWithFallback
+                                        src={group.avatar}
+                                        alt={group.name}
+                                        className="w-12 h-12 rounded-full bg-gray-800"
+                                    />
                                     <div className="flex-1">
                                         <h3 className="font-bold text-base">{group.name}</h3>
                                         <p className="text-xs text-gray-400 line-clamp-1">{group.description}</p>
@@ -178,8 +184,8 @@ function DiscoverContent() {
                                     href={`/story/${story.id}`}
                                     className={`relative rounded-xl overflow-hidden group ${idx % 3 === 0 ? 'row-span-2 aspect-[9/16]' : 'aspect-square'}`}
                                 >
-                                    <img
-                                        src={story.coverImage || story.contributions[0]?.mediaUrl || "https://via.placeholder.com/400"}
+                                    <MediaWithFallback
+                                        src={story.coverImage || story.contributions[0]?.mediaUrl}
                                         alt={story.title}
                                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                     />
@@ -188,7 +194,11 @@ function DiscoverContent() {
                                         <div className="flex items-center gap-1 text-xs text-gray-300">
                                             <div className="flex -space-x-1">
                                                 {story.participants.slice(0, 2).map(p => (
-                                                    <img key={p.id} src={p.avatar} className="w-4 h-4 rounded-full border border-black" />
+                                                    <MediaWithFallback
+                                                        key={p.id}
+                                                        src={p.avatar}
+                                                        className="w-4 h-4 rounded-full border border-black"
+                                                    />
                                                 ))}
                                             </div>
                                             <span>{story.participants.length} weevers</span>
