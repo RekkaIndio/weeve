@@ -62,7 +62,52 @@ Supabase still performs the initial OAuth handshake through its own callback. Ad
 
 Register the same URIs under **Additional Redirect URLs** in Supabase (Authentication → URL Configuration) so Supabase accepts the callback as well.
 
-If you plan to customise the native scheme, update the Capacitor configuration and the `NATIVE_GOOGLE_REDIRECT_URI` constant in `src/lib/auth.ts` to match, then re-run `npx cap sync`. Otherwise keep the default `com.jay.weeve.app://auth/callback` listed above.
+If you plan to customise the native scheme, update the Capacitor configuration and the `NATIVE_GOOGLE_REDIRECT_URI` constant in `src/lib/auth.ts` to match, then re-run `npx cap sync`. Otherwise keep the default `com.weeve.app://auth/callback` listed above.
+
+## Troubleshooting Google Sign-In
+
+### Common Issues
+
+**1. "redirect_uri_mismatch" error**
+- Ensure all redirect URIs are added to Google Cloud Console OAuth client
+- Verify Supabase callback URL is included: `https://fvyhyexdndynoonkzwbd.supabase.co/auth/v1/callback`
+- Check that the redirect URL in your app matches what's configured in Google Cloud Console
+
+**2. Native app fails to open Google Sign-In**
+- Check that bundle ID matches between `capacitor.config.ts` and iOS/Android project
+- Verify `iosClientId` is configured in `capacitor.config.ts` (required for iOS)
+- Run `npx cap sync` after any configuration changes
+- Ensure the native deep link is registered in Google Cloud Console: `com.weeve.app://auth/callback`
+
+**3. "Invalid client" error**
+- Verify Client ID and Client Secret in Supabase dashboard match Google Cloud Console
+- Ensure correct client IDs for each platform (web, iOS, Android)
+- Check that the OAuth client type matches the platform (Web for web, iOS for iOS, Android for Android)
+
+**4. Authentication succeeds but user is not logged in**
+- Check browser console for errors in the callback flow
+- Verify Supabase session is being set correctly
+- Ensure Row Level Security policies allow profile creation/reading
+
+### Bundle ID Consistency
+
+The following must all use the SAME bundle identifier:
+- `capacitor.config.ts` → `appId` (currently: `com.weeve.app`)
+- `src/lib/auth.ts` → `NATIVE_GOOGLE_REDIRECT_URI` (should match appId)
+- iOS Xcode project → Bundle Identifier
+- Android `AndroidManifest.xml` → package name
+- Google Cloud Console → iOS/Android app registration
+
+### Required Configuration Checklist
+
+Before Google Sign-In will work, ensure:
+- [ ] Google OAuth Client ID created for Web application
+- [ ] Google OAuth Client ID created for iOS (if supporting iOS)
+- [ ] Google OAuth Client ID created for Android (if supporting Android)
+- [ ] All three Client IDs configured in `capacitor.config.ts`
+- [ ] All redirect URIs added to Google Cloud Console
+- [ ] Supabase Google provider enabled with correct credentials
+- [ ] Bundle IDs match across all configuration files
 
 ## Next Steps
 

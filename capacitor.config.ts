@@ -13,7 +13,10 @@ const config: CapacitorConfig = {
     GoogleAuth: {
       scopes: ['profile', 'email'],
       serverClientId: '127490580268-lg2ohjpnff7abflq1642pjd6dd6hgfkc.apps.googleusercontent.com',
-          androidClientId: '127490580268-vho395dvfsrhch5ustj8b6rmsj4lbesu.apps.googleusercontent.com',
+      androidClientId: '127490580268-vho395dvfsrhch5ustj8b6rmsj4lbesu.apps.googleusercontent.com',
+      // TODO: Add your iOS Client ID from Google Cloud Console
+      // This is required for Google Sign-In to work on iOS devices
+      // iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
       forceCodeForRefreshToken: true,
     },
   },

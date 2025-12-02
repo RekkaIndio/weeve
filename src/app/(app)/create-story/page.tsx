@@ -104,6 +104,7 @@ function CreateStoryContent() {
           allow_reuse: data.allowReuse,
           hashtags: data.hashtags,
           turn_timer_hours: data.turnTimerHours || null,
+          monetization_cost: data.monetizationCost || null,
         })
         .select()
         .single();
@@ -176,7 +177,9 @@ function CreateStoryContent() {
         likes: 0,
         likedBy: [],
         comments: [],
+
         mode: 'invite',
+        monetizationCost: data.monetizationCost,
       };
 
       addStory(newStory);

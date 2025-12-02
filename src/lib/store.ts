@@ -87,6 +87,7 @@ export interface Story {
     allowComments?: boolean;
     allowReuse?: boolean;
     turnTimerHours?: number;
+    monetizationCost?: number;
     created_at?: string;
     updated_at?: string;
 }
@@ -122,7 +123,7 @@ interface AppState {
     addStoryComment: (storyId: string, content: string) => Promise<void>;
     logoutUser: () => void;
     fetchFriends: () => Promise<void>;
-    forkStory: (originalStoryId: string, slotIndex: number, newParticipantId: string) => Promise<string | null>;
+    forkStory: (originalStoryId: string, slotIndex: number, newParticipantId: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     fetchStories: () => Promise<void>;
     setProfileUpdateInProgress: (value: boolean) => void;
 }
@@ -432,6 +433,32 @@ const MOCK_STORIES: Story[] = [
             },
         ],
     },
+    {
+        id: 's7',
+        title: 'Exclusive Masterclass',
+        description: 'Premium content for aspiring creators. 🌟',
+        creatorId: 'influencer1',
+        visibility: 'public',
+        mode: 'invite',
+        status: 'active',
+        coverImage: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1000&auto=format&fit=crop',
+        participants: [MOCK_FRIENDS[3]],
+        likes: 120,
+        likedBy: ['me', '1', '2'],
+        comments: [],
+        contributions: [
+            {
+                id: 'c7_1',
+                userId: 'influencer1',
+                userName: 'Sarah Star',
+                content: 'Welcome to my masterclass!',
+                mediaType: 'video',
+                mediaUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+                timestamp: 1700001300000,
+            },
+        ],
+        monetizationCost: 50,
+    },
 ];
 
 export const useStore = create<AppState>()(
@@ -679,7 +706,7 @@ export const useStore = create<AppState>()(
 
             forkStory: async (originalStoryId: string, slotIndex: number, newParticipantId: string) => {
                 const { currentUser } = get();
-                if (!currentUser) return null;
+                if (!currentUser) return { success: false, error: "User not logged in" };
 
                 try {
                     // 1. Fetch original story details
@@ -695,7 +722,7 @@ export const useStore = create<AppState>()(
 
                     if (fetchError || !originalStory) {
                         console.error('Error fetching original story:', fetchError);
-                        return null;
+                        return { success: false, error: `Failed to fetch original story: ${fetchError?.message || 'Unknown error'}` };
                     }
 
                     // 2. Create new story (copy metadata)
@@ -704,7 +731,7 @@ export const useStore = create<AppState>()(
                         .insert({
                             title: originalStory.title,
                             description: originalStory.description,
-                            creator_id: currentUser.id, // The forker becomes the creator of the new branch? Or keep original? Let's say forker.
+                            creator_id: currentUser.id, // The forker becomes the creator of the new branch
                             mode: originalStory.mode, // Copy mode from original story
                             visibility: 'public', // Default to public for now
                             status: 'active',
@@ -719,14 +746,20 @@ export const useStore = create<AppState>()(
 
                     if (createError || !newStoryData) {
                         console.error('Error creating new story:', createError);
-                        return null;
+                        return { success: false, error: `Failed to create new story: ${createError?.message || 'Unknown error'}` };
                     }
 
                     const newStoryId = newStoryData.id;
 
                     // 3. Copy participants and update the target slot
+                    // First, filter out the new participant if they already exist in any position
+                    // to avoid duplicate user constraint violations
+                    const filteredParticipants = originalStory.story_participants.filter((p: any) =>
+                        p.user_id !== newParticipantId
+                    );
+
                     let slotFilled = false;
-                    const participants = originalStory.story_participants.map((p: any) => {
+                    const participants = filteredParticipants.map((p: any) => {
                         // Check if this is the slot we are replacing
                         if (p.position === slotIndex) {
                             slotFilled = true;
@@ -762,7 +795,7 @@ export const useStore = create<AppState>()(
                     if (participantsError) {
                         console.error('Error adding participants:', participantsError);
                         // Should probably delete the story if this fails
-                        return null;
+                        return { success: false, error: `Failed to add participants: ${participantsError.message}` };
                     }
 
                     // 4. Copy contributions (excluding the one at the replaced slot)
@@ -794,6 +827,7 @@ export const useStore = create<AppState>()(
 
                         if (contributionsError) {
                             console.error('Error copying contributions:', contributionsError);
+                            // Not critical enough to fail the whole fork, but worth noting
                         }
                     }
 
@@ -809,11 +843,11 @@ export const useStore = create<AppState>()(
                     // Let's trigger a fetch in the background
                     get().fetchStories();
 
-                    return newStoryId;
+                    return { success: true, storyId: newStoryId };
 
-                } catch (err) {
+                } catch (err: any) {
                     console.error('Unexpected error in forkStory:', err);
-                    return null;
+                    return { success: false, error: `Unexpected error: ${err?.message || err}` };
                 }
             },
 
@@ -905,7 +939,11 @@ export const useStore = create<AppState>()(
                             comments,
                             created_at: s.created_at,
                             updated_at: s.updated_at,
-                            hashtags: s.hashtags
+                            hashtags: s.hashtags,
+                            monetizationCost: s.monetization_cost,
+                            allowComments: s.allow_comments,
+                            allowReuse: s.allow_reuse,
+                            turnTimerHours: s.turn_timer_hours
                         };
                     });
 

@@ -4,4 +4,5 @@
     <string name="title_activity_main">Weeve</string>
     <string name="package_name">com.weeve.app</string>
     <string name="custom_url_scheme">com.weeve.app</string>
+    <string name="server_client_id">127490580268-lg2ohjpnff7abflq1642pjd6dd6hgfkc.apps.googleusercontent.com</string>
 </resources>

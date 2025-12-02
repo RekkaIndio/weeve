@@ -23,7 +23,9 @@ export function middleware(request: NextRequest) {
     )
 
     if (isMobile && isMarketingPage) {
-        return NextResponse.redirect(new URL('/login', request.url))
+        const url = new URL('/login', request.url)
+        url.search = request.nextUrl.search
+        return NextResponse.redirect(url)
     }
 
     return NextResponse.next()

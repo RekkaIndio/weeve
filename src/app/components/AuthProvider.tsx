@@ -34,6 +34,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const router = useRouter();
 
     const handleUserLogin = useCallback(async (supabaseUser: SupabaseUser) => {
+        // Force UI update to "wake up" the app
+        setLoading(true);
+
         try {
             // Check if we already have this user loaded with full profile data
             const state = useStore.getState();
@@ -54,49 +57,59 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
             setLoading(false);
 
+            setLoading(false);
+
             // Always try to fetch latest profile data to ensure sync
-            const hasProfile = await profileExists(supabaseUser.id);
-            console.log('[AuthProvider] Profile exists:', hasProfile);
+            // Race profile check against a timeout to prevent hanging
+            let hasProfile = false;
+            try {
+                const profileCheckPromise = profileExists(supabaseUser.id);
+                const timeoutPromise = new Promise<boolean>((resolve) => {
+                    setTimeout(() => {
+                        console.warn('[AuthProvider] Profile check timed out, defaulting to true to unblock UI');
+                        resolve(true); // Default to true (feed) on timeout to unblock user
+                    }, 2000);
+                });
+
+                hasProfile = await Promise.race([profileCheckPromise, timeoutPromise]);
+            } catch (err) {
+                console.error('[AuthProvider] Profile check failed:', err);
+                hasProfile = true; // Default to true on error
+            }
 
             if (hasProfile) {
                 // Get profile data from Supabase and update
-                const profile = await getUserProfile(supabaseUser.id);
-                console.log('[AuthProvider] Profile data:', profile);
-
-                if (profile) {
-                    // Update with database data
-                    const appUser = {
-                        id: supabaseUser.id,
-                        name: profile.name,
-                        avatar: profile.avatar,
-                        tagline: profile.tagline,
-                        tokens: profile.tokens,
-                        inviteCode: profile.inviteCode,
-                    };
-                    const storeState = useStore.getState();
-                    if (storeState.profileUpdateInProgress) {
-                        console.log('[AuthProvider] Profile update in progress, skipping store overwrite');
-                    } else {
-                        setCurrentUser(appUser);
-                        console.log('[AuthProvider] Updated user with database data:', appUser);
+                // We don't await this one strictly to avoid blocking redirect
+                getUserProfile(supabaseUser.id).then(profile => {
+                    if (profile) {
+                        // Update with database data
+                        const appUser = {
+                            id: supabaseUser.id,
+                            name: profile.name,
+                            avatar: profile.avatar,
+                            tagline: profile.tagline,
+                            tokens: profile.tokens,
+                            inviteCode: profile.inviteCode,
+                        };
+                        const storeState = useStore.getState();
+                        if (!storeState.profileUpdateInProgress) {
+                            setCurrentUser(appUser);
+                        }
                     }
-                } else {
-                    console.error('[AuthProvider] Failed to load profile data despite profileExists=true');
-                    // Don't show error toast here to avoid spamming user if it's a background refresh
-                }
+                });
 
                 // Redirect to homepage if on auth pages
                 const currentPath = window.location.pathname;
+
                 if (isPublicRoute(currentPath)) {
-                    console.log('[AuthProvider] Redirecting to feed from:', currentPath);
-                    router.push('/feed');
+                    window.location.replace('/feed');
                 }
             } else {
                 // New user - redirect to setup if not already there
                 const currentPath = window.location.pathname;
+
                 if (currentPath !== '/setup') {
-                    console.log('[AuthProvider] Redirecting new user to setup from:', currentPath);
-                    router.push('/setup');
+                    window.location.replace('/setup');
                 }
             }
         } catch (error) {
@@ -121,23 +134,59 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     const errorDescription = parsed.searchParams.get('error_description') ?? parsed.searchParams.get('error');
                     if (errorDescription) {
                         console.error('[AuthProvider] OAuth error from callback:', errorDescription);
-                        toast.error('Google sign-in failed. Please try again.');
+                        toast.error(`Google sign-in failed: ${errorDescription}`);
                         return;
                     }
 
+                    // Handle Authorization Code Flow (PKCE)
                     const code = parsed.searchParams.get('code');
-                    if (!code) {
-                        console.warn('[AuthProvider] OAuth callback received without code parameter');
+                    if (code) {
+                        const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+                        if (exchangeError) {
+                            console.error('[AuthProvider] Failed to exchange OAuth code for session:', exchangeError);
+                            toast.error(`Login failed: ${exchangeError.message}`);
+                        } else {
+                            // Explicitly handle login to ensure redirect happens
+                            if (data.user) {
+                                await handleUserLogin(data.user);
+                            }
+                        }
                         return;
                     }
 
-                    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-                    if (exchangeError) {
-                        console.error('[AuthProvider] Failed to exchange OAuth code for session:', exchangeError);
-                        toast.error('Unable to complete Google sign-in.');
+                    // Handle Implicit Flow (Tokens in Hash)
+                    // The URL might look like: com.weeve.app://auth/callback#access_token=...&refresh_token=...
+                    if (url.includes('#')) {
+                        const fragment = url.split('#')[1];
+                        const params = new URLSearchParams(fragment);
+                        const accessToken = params.get('access_token');
+                        const refreshToken = params.get('refresh_token');
+
+                        if (accessToken && refreshToken) {
+                            const { data, error: sessionError } = await supabase.auth.setSession({
+                                access_token: accessToken,
+                                refresh_token: refreshToken,
+                            });
+
+                            if (sessionError) {
+                                console.error('[AuthProvider] Failed to set session from tokens:', sessionError);
+                                toast.error(`Login failed: ${sessionError.message}`);
+                            } else {
+                                // Explicitly handle login to ensure redirect happens
+                                if (data.user) {
+                                    await handleUserLogin(data.user);
+                                }
+                            }
+                            return;
+                        }
                     }
+
+                    console.warn('[AuthProvider] No code or tokens found in callback URL');
+                    toast.error('Login failed: Invalid callback URL');
+
                 } catch (error) {
                     console.error('[AuthProvider] Failed to handle OAuth callback URL:', error);
+                    toast.error('Login error: Failed to process URL');
                 }
             });
 

@@ -73,9 +73,16 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
         };
     }, [searchQuery, currentUser]);
 
-    const storyUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/story/${story.id}`
-        : `https://weeve.app/story/${story.id}`;
+    const storyUrl = useMemo(() => {
+        const baseUrl = typeof window !== 'undefined'
+            ? `${window.location.origin}/story/${story.id}`
+            : `https://www.tryweeve.com/story/${story.id}`;
+
+        if (currentUser?.inviteCode) {
+            return `${baseUrl}?ref=${currentUser.inviteCode}`;
+        }
+        return baseUrl;
+    }, [story.id, currentUser?.inviteCode]);
 
     const shareText = `Check out "${story.title}" on Weeve! ${storyUrl}`;
 
@@ -295,30 +302,30 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                 {recipientList.map(recipient => {
                                     const isSelected = selectedRecipients.has(recipient.id);
                                     return (
-                                    <button
+                                        <button
                                             key={recipient.id}
                                             onClick={() => toggleRecipientSelection(recipient)}
                                             className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isSelected
                                                 ? 'bg-[#EC1D99]/20 border-2 border-[#EC1D99]'
                                                 : 'bg-gray-800/50 border-2 border-transparent hover:bg-gray-800'
-                                            }`}
-                                    >
-                                        <img
-                                            src={recipient.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${recipient.name}`}
-                                            alt={recipient.name}
-                                            className="w-10 h-10 rounded-full border border-gray-700"
-                                        />
-                                        <span className="text-white font-medium flex-1 text-left">{recipient.name}</span>
-                                        {recipient.isFriend === false && (
-                                            <span className="text-xs text-gray-400">Not friends</span>
-                                        )}
-                                        {isSelected && (
-                                            <div className="w-6 h-6 rounded-full bg-[#EC1D99] flex items-center justify-center">
-                                                <Check className="w-4 h-4 text-white" />
-                                            </div>
-                                        )}
-                                    </button>
-                                );
+                                                }`}
+                                        >
+                                            <img
+                                                src={recipient.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${recipient.name}`}
+                                                alt={recipient.name}
+                                                className="w-10 h-10 rounded-full border border-gray-700"
+                                            />
+                                            <span className="text-white font-medium flex-1 text-left">{recipient.name}</span>
+                                            {recipient.isFriend === false && (
+                                                <span className="text-xs text-gray-400">Not friends</span>
+                                            )}
+                                            {isSelected && (
+                                                <div className="w-6 h-6 rounded-full bg-[#EC1D99] flex items-center justify-center">
+                                                    <Check className="w-4 h-4 text-white" />
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
                                 })}
                                 {searching && (
                                     <div className="py-4 text-center text-gray-400 text-sm">Searching...</div>

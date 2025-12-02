@@ -29,6 +29,7 @@ export interface CreateStoryFormState {
   allowComments: boolean;
   allowReuse: boolean;
   turnTimerHours?: number;
+  monetizationCost?: number;
 }
 
 interface CreateStoryProps {
@@ -71,6 +72,7 @@ const CreateStory = ({
     allowComments: true,
     allowReuse: true,
     turnTimerHours: undefined,
+    monetizationCost: undefined,
   });
 
   const [hashtagInput, setHashtagInput] = useState("");
@@ -595,6 +597,48 @@ const CreateStory = ({
               </div>
             </div>
           </fieldset>
+        )}
+
+        {/* Monetization Option - Only for Public Stories */}
+        {!groupId && formState.visibility === "public" && (
+          <div className="mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center justify-between mb-2">
+              <label
+                htmlFor="monetization-cost"
+                className="block text-sm font-medium text-gray-300 font-sans"
+              >
+                Monetization Cost (Tokens)
+              </label>
+              <div className="text-xs text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded-full border border-yellow-500/20">
+                Optional
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-3 font-sans">
+              Set a token cost for others to contribute to this story. You will earn these tokens.
+            </p>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg">🪙</span>
+              <input
+                id="monetization-cost"
+                type="number"
+                min="0"
+                placeholder="0"
+                value={formState.monetizationCost ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "") {
+                    setFormState((prev) => ({ ...prev, monetizationCost: undefined }));
+                    return;
+                  }
+                  const num = parseInt(val);
+                  if (!isNaN(num) && num >= 0) {
+                    setFormState((prev) => ({ ...prev, monetizationCost: num }));
+                  }
+                }}
+                className="w-full pl-10 pr-4 py-3 bg-gray-900 border border-gray-800 rounded-lg focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99] transition-colors text-white text-lg font-semibold placeholder-gray-600 font-sans appearance-none"
+              />
+            </div>
+          </div>
         )}
 
         {/* Number of Contributors */}

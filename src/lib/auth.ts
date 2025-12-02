@@ -8,7 +8,9 @@ type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
 
-export const NATIVE_GOOGLE_REDIRECT_URI = 'com.jay.weeve.app://auth/callback';
+import { toast } from 'sonner';
+
+export const NATIVE_GOOGLE_REDIRECT_URI = 'com.weeve.app://auth/callback';
 
 export interface AuthUser {
     id: string;
@@ -75,68 +77,39 @@ export async function signIn(email: string, password: string): Promise<{ user: U
  */
 export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise<{ error: Error | null }> {
     try {
-        const isNative = Capacitor.isNativePlatform();
+        // Robust platform check
+        const isCapacitor = Capacitor.isNativePlatform();
+        const platform = Capacitor.getPlatform();
 
-        if (isNative) {
-            console.log('[Auth] Starting native Google Sign-In...');
-            const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth');
+        console.log('[Auth] Platform detection:', { isCapacitor, platform, userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'server' });
 
-            try {
-                console.log('[Auth] Initializing GoogleAuth plugin...');
-                await GoogleAuth.initialize();
-            } catch (initError) {
-                console.log('[Auth] Initialize error (may be safe to ignore):', initError);
-            }
+        // Determine redirect URL based on platform
+        let redirectTo: string | undefined;
 
-            console.log('[Auth] Calling GoogleAuth.signIn()...');
-            let googleUser;
-            try {
-                googleUser = await GoogleAuth.signIn();
-            } catch (signInError) {
-                console.error('[Auth] GoogleAuth.signIn() failed:', signInError);
-                throw new Error(`Google Sign-In failed: ${signInError}`);
-            }
-
-            console.log('[Auth] Google user received:', {
-                email: googleUser.email,
-                name: googleUser.name,
-                hasIdToken: !!googleUser.authentication?.idToken,
-                hasAccessToken: !!googleUser.authentication?.accessToken,
-            });
-
-            if (googleUser.authentication?.idToken) {
-                console.log('[Auth] ID token received, calling Supabase signInWithIdToken...');
-                const { data, error } = await supabase.auth.signInWithIdToken({
-                    provider: 'google',
-                    token: googleUser.authentication.idToken,
-                });
-
-                if (error) {
-                    console.error('[Auth] Supabase signInWithIdToken error:', error);
-                    throw error;
-                }
-
-                console.log('[Auth] Successfully signed in with Supabase:', data);
-                return { error: null };
-            } else {
-                throw new Error('No ID token returned from Google Sign-In');
-            }
+        if (isCapacitor || platform === 'ios' || platform === 'android') {
+            console.log('[Auth] Detected native platform, using deep link redirect');
+            redirectTo = NATIVE_GOOGLE_REDIRECT_URI;
+        } else {
+            // Web Flow
+            const buildRedirect = () => {
+                if (!redirectPath) return undefined;
+                if (redirectPath.startsWith('http')) return redirectPath;
+                if (typeof window === 'undefined') return undefined;
+                return `${window.location.origin}${redirectPath}`;
+            };
+            redirectTo = buildRedirect();
+            console.log('[Auth] Detected web platform, using standard redirect');
         }
 
-        // Web Flow
-        const buildRedirect = () => {
-            if (!redirectPath) return undefined;
-            if (redirectPath.startsWith('http')) return redirectPath;
-            if (typeof window === 'undefined') return undefined;
-            return `${window.location.origin}${redirectPath}`;
-        };
+        // ... inside function
 
-        const redirectTo = buildRedirect();
+        console.log('[Auth] Initiating OAuth with redirect:', redirectTo);
 
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: {
                 redirectTo,
+                skipBrowserRedirect: false, // Ensure browser redirect happens
             },
         });
 

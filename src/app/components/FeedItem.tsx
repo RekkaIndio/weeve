@@ -72,6 +72,9 @@ export default function FeedItem({ story }: FeedItemProps) {
     const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
     const [showTutorialTooltip, setShowTutorialTooltip] = useState(false);
+    const [showMonetizationModal, setShowMonetizationModal] = useState<'confirm' | 'insufficient' | null>(null);
+
+    const deductTokens = useStore((state) => state.deductTokens);
 
     // Detect if this is the onboarding story
     const isOnboardingStory = story.id === '00000000-0000-0000-0000-000000000001';
@@ -519,20 +522,20 @@ export default function FeedItem({ story }: FeedItemProps) {
         }
 
         try {
-            const newStoryId = await forkStory(story.id, selectedSlot, participantId);
-            console.log("forkStory result:", newStoryId);
+            const result = await forkStory(story.id, selectedSlot, participantId);
+            console.log("forkStory result:", result);
 
             setIsForking(false);
             setSelectedSlot(null);
             setShowParticipantPicker(false);
             setShowFriendPicker(false);
 
-            if (newStoryId) {
+            if (result.success && result.storyId) {
                 // Ideally navigate to the new story or show a success message
                 // For now, let's just alert (or use a toast if available, but I'll stick to simple interaction)
                 alert("Story forked successfully! Check your profile or the feed.");
             } else {
-                alert("Failed to fork story. Please try again.");
+                alert(`Failed to fork story: ${result.error || "Unknown error"}`);
             }
         } catch (error) {
             console.error("Error in handleForkStory:", error);
@@ -659,10 +662,21 @@ export default function FeedItem({ story }: FeedItemProps) {
                         <button
                             type="button"
                             onClick={() => {
-                                console.log("Weeve button clicked, toggling isForking", !isForking);
-                                setIsForking(!isForking);
-                                if (showTutorialTooltip) {
-                                    handleTooltipDismiss();
+                                if (story.monetizationCost && story.monetizationCost > 0) {
+                                    // Check balance
+                                    if ((currentUser?.tokens || 0) < story.monetizationCost) {
+                                        // Show insufficient balance modal
+                                        setShowMonetizationModal('insufficient');
+                                    } else {
+                                        // Show confirmation modal
+                                        setShowMonetizationModal('confirm');
+                                    }
+                                } else {
+                                    console.log("Weeve button clicked, toggling isForking", !isForking);
+                                    setIsForking(!isForking);
+                                    if (showTutorialTooltip) {
+                                        handleTooltipDismiss();
+                                    }
                                 }
                             }}
                             className={`w-10 h-10 rounded-full flex items-center justify-center border border-white/20 transition-all ${showTutorialTooltip
@@ -706,7 +720,78 @@ export default function FeedItem({ story }: FeedItemProps) {
                 )}
             </div>
 
-            {/* Bottom Content */}
+            {/* Monetization Modal */}
+            {showMonetizationModal && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-in fade-in duration-200">
+                    <div className="bg-[#1a1a2e] border border-white/10 rounded-3xl p-6 w-full max-w-sm text-center shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
+                        {showMonetizationModal === 'confirm' ? (
+                            <>
+                                <div className="w-16 h-16 rounded-full bg-[#EC1D99]/20 flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-3xl">💎</span>
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">Premium Story</h3>
+                                <p className="text-gray-300 mb-6">
+                                    This story requires <span className="text-[#EC1D99] font-bold">{story.monetizationCost} tokens</span> to join.
+                                </p>
+                                <div className="bg-black/30 rounded-xl p-4 mb-6 flex items-center justify-between">
+                                    <span className="text-sm text-gray-400">Your Balance</span>
+                                    <span className="text-lg font-bold text-white">{currentUser?.tokens || 0} 💎</span>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowMonetizationModal(null)}
+                                        className="flex-1 py-3 px-4 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (story.monetizationCost && deductTokens(story.monetizationCost)) {
+                                                setShowMonetizationModal(null);
+                                                setIsForking(true);
+                                                if (showTutorialTooltip) {
+                                                    handleTooltipDismiss();
+                                                }
+                                            }
+                                        }}
+                                        className="flex-1 py-3 px-4 rounded-xl bg-[#EC1D99] text-white font-semibold hover:bg-[#d61a88] transition-colors"
+                                    >
+                                        Confirm
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-3xl">🚫</span>
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">Insufficient Tokens</h3>
+                                <p className="text-gray-300 mb-6">
+                                    You need <span className="text-[#EC1D99] font-bold">{story.monetizationCost} tokens</span> to join this story.
+                                </p>
+                                <div className="bg-black/30 rounded-xl p-4 mb-6 flex items-center justify-between">
+                                    <span className="text-sm text-gray-400">Your Balance</span>
+                                    <span className="text-lg font-bold text-white">{currentUser?.tokens || 0} 💎</span>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowMonetizationModal(null)}
+                                        className="flex-1 py-3 px-4 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <Link
+                                        href="/wallet"
+                                        className="flex-1 py-3 px-4 rounded-xl bg-[#EC1D99] text-white font-semibold hover:bg-[#d61a88] transition-colors flex items-center justify-center"
+                                    >
+                                        Get Tokens
+                                    </Link>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
             <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 text-white z-10">
                 <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md">
                     {story.title}
@@ -752,377 +837,385 @@ export default function FeedItem({ story }: FeedItemProps) {
                 )}
             </div>
 
-            {isCommentsOpen && (
-                <div className="absolute inset-0 z-20 flex flex-col justify-end">
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsCommentsOpen(false)} />
-                    <div className="relative bg-black/90 text-white rounded-t-3xl p-6 pb-8 max-h-[75%] flex flex-col gap-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold">Comments</h3>
-                            <button
-                                type="button"
-                                onClick={() => setIsCommentsOpen(false)}
-                                aria-label="Close comments"
-                                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-                            {sortedComments.length === 0 ? (
-                                <p className="text-sm text-gray-400">Be the first to start the conversation.</p>
-                            ) : (
-                                sortedComments.map((comment) => {
-                                    const avatar = getAvatarForUser(comment.userId, comment.userName);
-                                    return (
-                                        <div key={comment.id} className="flex items-start gap-3">
-                                            <img src={avatar} alt={comment.userName} className="w-9 h-9 rounded-full border border-white/10 object-cover" />
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm font-semibold text-white">{comment.userName}</span>
-                                                    <span className="text-xs text-gray-400">{formatRelativeTime(comment.timestamp)}</span>
+            {
+                isCommentsOpen && (
+                    <div className="absolute inset-0 z-20 flex flex-col justify-end">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsCommentsOpen(false)} />
+                        <div className="relative bg-black/90 text-white rounded-t-3xl p-6 pb-8 max-h-[75%] flex flex-col gap-4">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-semibold">Comments</h3>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCommentsOpen(false)}
+                                    aria-label="Close comments"
+                                    className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                                {sortedComments.length === 0 ? (
+                                    <p className="text-sm text-gray-400">Be the first to start the conversation.</p>
+                                ) : (
+                                    sortedComments.map((comment) => {
+                                        const avatar = getAvatarForUser(comment.userId, comment.userName);
+                                        return (
+                                            <div key={comment.id} className="flex items-start gap-3">
+                                                <img src={avatar} alt={comment.userName} className="w-9 h-9 rounded-full border border-white/10 object-cover" />
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm font-semibold text-white">{comment.userName}</span>
+                                                        <span className="text-xs text-gray-400">{formatRelativeTime(comment.timestamp)}</span>
+                                                    </div>
+                                                    <p className="text-sm text-gray-200 mt-1">{comment.content}</p>
                                                 </div>
-                                                <p className="text-sm text-gray-200 mt-1">{comment.content}</p>
                                             </div>
-                                        </div>
-                                    );
-                                })
+                                        );
+                                    })
+                                )}
+                            </div>
+                            {story.allowComments !== false ? (
+                                <form onSubmit={handleCommentSubmit} className="flex items-center gap-3">
+                                    <input
+                                        type="text"
+                                        value={commentText}
+                                        onChange={(event) => setCommentText(event.target.value)}
+                                        placeholder="Add a comment..."
+                                        className="flex-1 rounded-full bg-white/10 border border-white/20 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!commentText.trim()}
+                                        className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${commentText.trim() ? "bg-[#EC1D99] text-white" : "bg-gray-700 text-gray-400"}`}
+                                    >
+                                        Send
+                                    </button>
+                                </form>
+                            ) : (
+                                <div className="text-center py-3 px-4 bg-gray-800/50 rounded-lg">
+                                    <p className="text-sm text-gray-400">Comments are disabled for this story</p>
+                                </div>
                             )}
                         </div>
-                        {story.allowComments !== false ? (
-                            <form onSubmit={handleCommentSubmit} className="flex items-center gap-3">
-                                <input
-                                    type="text"
-                                    value={commentText}
-                                    onChange={(event) => setCommentText(event.target.value)}
-                                    placeholder="Add a comment..."
-                                    className="flex-1 rounded-full bg-white/10 border border-white/20 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]"
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!commentText.trim()}
-                                    className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${commentText.trim() ? "bg-[#EC1D99] text-white" : "bg-gray-700 text-gray-400"}`}
-                                >
-                                    Send
-                                </button>
-                            </form>
-                        ) : (
-                            <div className="text-center py-3 px-4 bg-gray-800/50 rounded-lg">
-                                <p className="text-sm text-gray-400">Comments are disabled for this story</p>
-                            </div>
-                        )}
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Forking Overlay */}
-            {isForking && (
-                <div className="absolute inset-0 z-30 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-in fade-in duration-200">
-                    <div className="absolute top-6 right-6">
-                        <button onClick={() => setIsForking(false)} className="p-2 bg-white/10 rounded-full">
-                            <X className="w-6 h-6 text-white" />
-                        </button>
-                    </div>
+            {
+                isForking && (
+                    <div className="absolute inset-0 z-30 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-in fade-in duration-200">
+                        <div className="absolute top-6 right-6">
+                            <button onClick={() => setIsForking(false)} className="p-2 bg-white/10 rounded-full">
+                                <X className="w-6 h-6 text-white" />
+                            </button>
+                        </div>
 
-                    <h3 className="text-2xl font-bold text-white mb-2">Weeve In</h3>
-                    <p className="text-gray-300 text-center mb-6 max-w-xs">Swipe to select a spot to insert yourself or a friend into this story.</p>
+                        <h3 className="text-2xl font-bold text-white mb-2">Weeve In</h3>
+                        <p className="text-gray-300 text-center mb-6 max-w-xs">Swipe to select a spot to insert yourself or a friend into this story.</p>
 
-                    {(() => {
-                        const maxSlots = story.maxWeeves || 3;
-                        const currentIndex = currentSlotIndex;
+                        {(() => {
+                            const maxSlots = story.maxWeeves || 3;
+                            const currentIndex = currentSlotIndex;
 
-                        // Touch handling functions
-                        const handleTouchStart = (e: React.TouchEvent) => {
-                            touchStartX.current = e.touches[0].clientX;
-                            touchEndX.current = e.touches[0].clientX; // Initialize to avoid stale values
-                        };
+                            // Touch handling functions
+                            const handleTouchStart = (e: React.TouchEvent) => {
+                                touchStartX.current = e.touches[0].clientX;
+                                touchEndX.current = e.touches[0].clientX; // Initialize to avoid stale values
+                            };
 
-                        const handleTouchMove = (e: React.TouchEvent) => {
-                            touchEndX.current = e.touches[0].clientX;
-                        };
+                            const handleTouchMove = (e: React.TouchEvent) => {
+                                touchEndX.current = e.touches[0].clientX;
+                            };
 
-                        const handleTouchEnd = () => {
-                            const diff = touchStartX.current - touchEndX.current;
-                            const threshold = 50; // minimum swipe distance
+                            const handleTouchEnd = () => {
+                                const diff = touchStartX.current - touchEndX.current;
+                                const threshold = 50; // minimum swipe distance
 
-                            if (Math.abs(diff) > threshold) {
-                                if (diff > 0) {
-                                    // Swiped left - go to next
-                                    setCurrentSlotIndex((prev) => (prev < maxSlots - 1 ? prev + 1 : 0));
-                                } else {
-                                    // Swiped right - go to previous
-                                    setCurrentSlotIndex((prev) => (prev > 0 ? prev - 1 : maxSlots - 1));
+                                if (Math.abs(diff) > threshold) {
+                                    if (diff > 0) {
+                                        // Swiped left - go to next
+                                        setCurrentSlotIndex((prev) => (prev < maxSlots - 1 ? prev + 1 : 0));
+                                    } else {
+                                        // Swiped right - go to previous
+                                        setCurrentSlotIndex((prev) => (prev > 0 ? prev - 1 : maxSlots - 1));
+                                    }
                                 }
-                            }
-                        };
+                            };
 
-                        return (
-                            <div className="w-full max-w-md mx-auto">
-                                {/* Stacked Carousel Container */}
-                                <div
-                                    className="relative h-80 mb-6 flex items-center justify-center"
-                                    onTouchStart={handleTouchStart}
-                                    onTouchMove={handleTouchMove}
-                                    onTouchEnd={handleTouchEnd}
-                                >
-                                    {Array.from({ length: maxSlots }).map((_, index) => {
-                                        // Find participant for this slot by matching position
-                                        const p = normalizedParticipants.find(p => p.position === index);
-                                        const contribution = slotContentMap.get(index);
+                            return (
+                                <div className="w-full max-w-md mx-auto">
+                                    {/* Stacked Carousel Container */}
+                                    <div
+                                        className="relative h-80 mb-6 flex items-center justify-center"
+                                        onTouchStart={handleTouchStart}
+                                        onTouchMove={handleTouchMove}
+                                        onTouchEnd={handleTouchEnd}
+                                    >
+                                        {Array.from({ length: maxSlots }).map((_, index) => {
+                                            // Find participant for this slot by matching position
+                                            const p = normalizedParticipants.find(p => p.position === index);
+                                            const contribution = slotContentMap.get(index);
 
-                                        // Find the user who made the contribution to show their avatar
-                                        const contributor = contribution
-                                            ? normalizedParticipants.find(np => np.id === contribution.userId)
-                                            : p;
+                                            // Find the user who made the contribution to show their avatar
+                                            const contributor = contribution
+                                                ? normalizedParticipants.find(np => np.id === contribution.userId)
+                                                : p;
 
-                                        // Calculate position and scale relative to current index
-                                        const offset = index - currentIndex;
-                                        const isActive = offset === 0;
-                                        const isPrev = offset === -1 || (currentIndex === 0 && index === maxSlots - 1);
-                                        const isNext = offset === 1 || (currentIndex === maxSlots - 1 && index === 0);
+                                            // Calculate position and scale relative to current index
+                                            const offset = index - currentIndex;
+                                            const isActive = offset === 0;
+                                            const isPrev = offset === -1 || (currentIndex === 0 && index === maxSlots - 1);
+                                            const isNext = offset === 1 || (currentIndex === maxSlots - 1 && index === 0);
 
-                                        // Determine position and styling
-                                        let transform = '';
-                                        let zIndex = 0;
-                                        let opacity = 0;
-                                        let scale = 0.7;
+                                            // Determine position and styling
+                                            let transform = '';
+                                            let zIndex = 0;
+                                            let opacity = 0;
+                                            let scale = 0.7;
 
-                                        if (isActive) {
-                                            transform = 'translateX(0)';
-                                            zIndex = 30;
-                                            opacity = 1;
-                                            scale = 1;
-                                        } else if (isPrev) {
-                                            transform = 'translateX(-60%)';
-                                            zIndex = 20;
-                                            opacity = 0.5;
-                                            scale = 0.75;
-                                        } else if (isNext) {
-                                            transform = 'translateX(60%)';
-                                            zIndex = 20;
-                                            opacity = 0.5;
-                                            scale = 0.75;
-                                        } else {
-                                            opacity = 0;
-                                            zIndex = 10;
-                                        }
+                                            if (isActive) {
+                                                transform = 'translateX(0)';
+                                                zIndex = 30;
+                                                opacity = 1;
+                                                scale = 1;
+                                            } else if (isPrev) {
+                                                transform = 'translateX(-60%)';
+                                                zIndex = 20;
+                                                opacity = 0.5;
+                                                scale = 0.75;
+                                            } else if (isNext) {
+                                                transform = 'translateX(60%)';
+                                                zIndex = 20;
+                                                opacity = 0.5;
+                                                scale = 0.75;
+                                            } else {
+                                                opacity = 0;
+                                                zIndex = 10;
+                                            }
 
-                                        return (
-                                            <div
-                                                key={`slot-${index}`}
-                                                className="absolute transition-all duration-300 ease-out"
-                                                style={{
-                                                    transform: `${transform} scale(${scale})`,
-                                                    zIndex,
-                                                    opacity,
-                                                }}
-                                            >
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        console.log("Slot clicked:", index, "isActive:", isActive);
-                                                        if (isActive) {
-                                                            setSelectedSlot(index);
-                                                            setShowParticipantPicker(true);
-                                                        } else {
-                                                            setCurrentSlotIndex(index);
-                                                        }
+                                            return (
+                                                <div
+                                                    key={`slot-${index}`}
+                                                    className="absolute transition-all duration-300 ease-out"
+                                                    style={{
+                                                        transform: `${transform} scale(${scale})`,
+                                                        zIndex,
+                                                        opacity,
                                                     }}
-                                                    className={`relative group ${isActive ? 'cursor-pointer' : 'cursor-pointer'}`}
                                                 >
-                                                    <div className="w-64 h-64 rounded-3xl border-2 border-dashed border-white/30 overflow-hidden transition-all hover:border-[#EC1D99] bg-gray-800 relative">
-                                                        {contribution || p ? (
-                                                            contribution ? (
-                                                                <>
-                                                                    {contribution.mediaType === 'video' ? (
-                                                                        <video
-                                                                            src={contribution.mediaUrl}
-                                                                            className="weeve-inline-video w-full h-full object-cover"
-                                                                            autoPlay
-                                                                            muted
-                                                                            playsInline
-                                                                            loop
-                                                                            preload="auto"
-                                                                            controls={false}
-                                                                            controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
-                                                                            disablePictureInPicture
-                                                                            onLoadedData={(event) => {
-                                                                                const element = event.currentTarget;
-                                                                                element.play().catch(() => null);
-                                                                            }}
-                                                                        />
-                                                                    ) : contribution.mediaType === 'image' ? (
-                                                                        <img
-                                                                            src={contribution.mediaUrl || contributor?.avatar}
-                                                                            alt="Slot content"
-                                                                            className="w-full h-full object-cover"
-                                                                        />
-                                                                    ) : (
-                                                                        <div className="w-full h-full flex items-center justify-center p-4 bg-gray-900">
-                                                                            <p className="text-sm text-white text-center line-clamp-6 leading-tight font-medium">
-                                                                                {contribution.content}
-                                                                            </p>
-                                                                        </div>
-                                                                    )}
-                                                                    {/* Avatar Badge */}
-                                                                    {contributor && (
-                                                                        <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full border-2 border-black overflow-hidden">
-                                                                            <img src={contributor.avatar} alt={contributor.name} className="w-full h-full object-cover" />
-                                                                        </div>
-                                                                    )}
-                                                                </>
-                                                            ) : (
-                                                                <img
-                                                                    src={p?.avatar}
-                                                                    alt={p?.name}
-                                                                    className="w-full h-full object-cover opacity-50"
-                                                                />
-                                                            )
-                                                        ) : (
-                                                            // Empty slot - show prompts for onboarding story
-                                                            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-4">
-                                                                {isOnboardingStory ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            console.log("Slot clicked:", index, "isActive:", isActive);
+                                                            if (isActive) {
+                                                                setSelectedSlot(index);
+                                                                setShowParticipantPicker(true);
+                                                            } else {
+                                                                setCurrentSlotIndex(index);
+                                                            }
+                                                        }}
+                                                        className={`relative group ${isActive ? 'cursor-pointer' : 'cursor-pointer'}`}
+                                                    >
+                                                        <div className="w-64 h-64 rounded-3xl border-2 border-dashed border-white/30 overflow-hidden transition-all hover:border-[#EC1D99] bg-gray-800 relative">
+                                                            {contribution || p ? (
+                                                                contribution ? (
                                                                     <>
-                                                                        {index === 0 && (
-                                                                            <>
-                                                                                <div className="text-5xl mb-4 animate-pulse">😐</div>
-                                                                                <p className="text-white font-bold text-center text-base leading-snug">
-                                                                                    Show us your<br />most serious face
+                                                                        {contribution.mediaType === 'video' ? (
+                                                                            <video
+                                                                                src={contribution.mediaUrl}
+                                                                                className="weeve-inline-video w-full h-full object-cover"
+                                                                                autoPlay
+                                                                                muted
+                                                                                playsInline
+                                                                                loop
+                                                                                preload="auto"
+                                                                                controls={false}
+                                                                                controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
+                                                                                disablePictureInPicture
+                                                                                onLoadedData={(event) => {
+                                                                                    const element = event.currentTarget;
+                                                                                    element.play().catch(() => null);
+                                                                                }}
+                                                                            />
+                                                                        ) : contribution.mediaType === 'image' ? (
+                                                                            <img
+                                                                                src={contribution.mediaUrl || contributor?.avatar}
+                                                                                alt="Slot content"
+                                                                                className="w-full h-full object-cover"
+                                                                            />
+                                                                        ) : (
+                                                                            <div className="w-full h-full flex items-center justify-center p-4 bg-gray-900">
+                                                                                <p className="text-sm text-white text-center line-clamp-6 leading-tight font-medium">
+                                                                                    {contribution.content}
                                                                                 </p>
-                                                                                <p className="text-gray-400 text-xs mt-2">Part 1</p>
-                                                                            </>
+                                                                            </div>
                                                                         )}
-                                                                        {index === 2 && (
-                                                                            <>
-                                                                                <div className="text-5xl mb-4 animate-pulse">😊</div>
-                                                                                <p className="text-white font-bold text-center text-base leading-snug">
-                                                                                    Show us<br />a smile!
-                                                                                </p>
-                                                                                <p className="text-gray-400 text-xs mt-2">Part 3</p>
-                                                                            </>
-                                                                        )}
-                                                                        {index === 1 && (
-                                                                            <UserPlus className="w-12 h-12 text-gray-500" />
+                                                                        {/* Avatar Badge */}
+                                                                        {contributor && (
+                                                                            <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full border-2 border-black overflow-hidden">
+                                                                                <img src={contributor.avatar} alt={contributor.name} className="w-full h-full object-cover" />
+                                                                            </div>
                                                                         )}
                                                                     </>
                                                                 ) : (
-                                                                    <UserPlus className="w-12 h-12 text-gray-500" />
-                                                                )}
-                                                            </div>
-                                                        )}
-
-                                                        {/* Overlay Icon for active slot */}
-                                                        {isActive && (
-                                                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
-                                                                <div className="bg-[#EC1D99] rounded-full p-3 shadow-lg">
-                                                                    <UserPlus className="w-6 h-6 text-white" />
+                                                                    <img
+                                                                        src={p?.avatar}
+                                                                        alt={p?.name}
+                                                                        className="w-full h-full object-cover opacity-50"
+                                                                    />
+                                                                )
+                                                            ) : (
+                                                                // Empty slot - show prompts for onboarding story
+                                                                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-4">
+                                                                    {isOnboardingStory ? (
+                                                                        <>
+                                                                            {index === 0 && (
+                                                                                <>
+                                                                                    <div className="text-5xl mb-4 animate-pulse">😐</div>
+                                                                                    <p className="text-white font-bold text-center text-base leading-snug">
+                                                                                        Show us your<br />most serious face
+                                                                                    </p>
+                                                                                    <p className="text-gray-400 text-xs mt-2">Part 1</p>
+                                                                                </>
+                                                                            )}
+                                                                            {index === 2 && (
+                                                                                <>
+                                                                                    <div className="text-5xl mb-4 animate-pulse">😊</div>
+                                                                                    <p className="text-white font-bold text-center text-base leading-snug">
+                                                                                        Show us<br />a smile!
+                                                                                    </p>
+                                                                                    <p className="text-gray-400 text-xs mt-2">Part 3</p>
+                                                                                </>
+                                                                            )}
+                                                                            {index === 1 && (
+                                                                                <UserPlus className="w-12 h-12 text-gray-500" />
+                                                                            )}
+                                                                        </>
+                                                                    ) : (
+                                                                        <UserPlus className="w-12 h-12 text-gray-500" />
+                                                                    )}
                                                                 </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {isActive && (
-                                                        <span className="text-sm text-gray-300 font-medium mt-3 block">Slot {index + 1} of {maxSlots}</span>
-                                                    )}
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                                            )}
 
-                                {/* Carousel Indicators */}
-                                <div className="flex justify-center gap-2">
-                                    {Array.from({ length: maxSlots }).map((_, index) => (
-                                        <button
-                                            key={`indicator-${index}`}
-                                            onClick={() => setCurrentSlotIndex(index)}
-                                            className={`w-2 h-2 rounded-full transition-all ${index === currentIndex
-                                                ? 'bg-[#EC1D99] w-6'
-                                                : 'bg-white/30 hover:bg-white/50'
-                                                }`}
-                                        />
-                                    ))}
+                                                            {/* Overlay Icon for active slot */}
+                                                            {isActive && (
+                                                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                                                                    <div className="bg-[#EC1D99] rounded-full p-3 shadow-lg">
+                                                                        <UserPlus className="w-6 h-6 text-white" />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        {isActive && (
+                                                            <span className="text-sm text-gray-300 font-medium mt-3 block">Slot {index + 1} of {maxSlots}</span>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Carousel Indicators */}
+                                    <div className="flex justify-center gap-2">
+                                        {Array.from({ length: maxSlots }).map((_, index) => (
+                                            <button
+                                                key={`indicator-${index}`}
+                                                onClick={() => setCurrentSlotIndex(index)}
+                                                className={`w-2 h-2 rounded-full transition-all ${index === currentIndex
+                                                    ? 'bg-[#EC1D99] w-6'
+                                                    : 'bg-white/30 hover:bg-white/50'
+                                                    }`}
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })()}
-                </div>
-            )}
+                            );
+                        })()}
+                    </div>
+                )
+            }
 
             {/* Participant Picker Modal */}
-            {showParticipantPicker && (
-                <div className="absolute inset-0 z-40 bg-black/90 flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
-                    <div className="w-full max-w-sm bg-[#1a1a2e] rounded-3xl p-6 border border-white/10">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-xl font-bold text-white">Who's jumping in?</h3>
-                            <button onClick={() => setShowParticipantPicker(false)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                                <X className="w-5 h-5 text-gray-400" />
-                            </button>
-                        </div>
-
-                        {!showFriendPicker ? (
-                            <div className="space-y-3">
-                                <button
-                                    type="button"
-                                    onClick={() => currentUser && handleForkStory(currentUser.id)}
-                                    className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
-                                >
-                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#EC1D99] to-purple-600 p-[2px]">
-                                        <img src={currentUser?.avatar} alt="Me" className="w-full h-full rounded-full object-cover border-2 border-black" />
-                                    </div>
-                                    <div className="text-left">
-                                        <p className="font-bold text-white group-hover:text-[#EC1D99] transition-colors">Me</p>
-                                        <p className="text-xs text-gray-400">Add myself to this slot</p>
-                                    </div>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setShowFriendPicker(true)}
-                                    className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
-                                >
-                                    <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center">
-                                        <Users className="w-6 h-6 text-gray-300" />
-                                    </div>
-                                    <div className="text-left">
-                                        <p className="font-bold text-white group-hover:text-[#EC1D99] transition-colors">A Friend</p>
-                                        <p className="text-xs text-gray-400">Invite a friend to this slot</p>
-                                    </div>
+            {
+                showParticipantPicker && (
+                    <div className="absolute inset-0 z-40 bg-black/90 flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
+                        <div className="w-full max-w-sm bg-[#1a1a2e] rounded-3xl p-6 border border-white/10">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-xl font-bold text-white">Who's jumping in?</h3>
+                                <button onClick={() => setShowParticipantPicker(false)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                                    <X className="w-5 h-5 text-gray-400" />
                                 </button>
                             </div>
-                        ) : (
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <button onClick={() => setShowFriendPicker(false)} className="text-sm text-gray-400 hover:text-white">
-                                        &larr; Back
+
+                            {!showFriendPicker ? (
+                                <div className="space-y-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => currentUser && handleForkStory(currentUser.id)}
+                                        className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
+                                    >
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#EC1D99] to-purple-600 p-[2px]">
+                                            <img src={currentUser?.avatar} alt="Me" className="w-full h-full rounded-full object-cover border-2 border-black" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="font-bold text-white group-hover:text-[#EC1D99] transition-colors">Me</p>
+                                            <p className="text-xs text-gray-400">Add myself to this slot</p>
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFriendPicker(true)}
+                                        className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
+                                    >
+                                        <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center">
+                                            <Users className="w-6 h-6 text-gray-300" />
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="font-bold text-white group-hover:text-[#EC1D99] transition-colors">A Friend</p>
+                                            <p className="text-xs text-gray-400">Invite a friend to this slot</p>
+                                        </div>
                                     </button>
                                 </div>
-                                <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                                    {friends.map((friend) => (
-                                        <button
-                                            key={friend.id}
-                                            onClick={() => handleForkStory(friend.id)}
-                                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors"
-                                        >
-                                            <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
-                                            <span className="font-medium text-white">{friend.name}</span>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <button onClick={() => setShowFriendPicker(false)} className="text-sm text-gray-400 hover:text-white">
+                                            &larr; Back
                                         </button>
-                                    ))}
-                                    {friends.length === 0 && (
-                                        <p className="text-center text-gray-500 py-4">No friends found.</p>
-                                    )}
+                                    </div>
+                                    <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                                        {friends.map((friend) => (
+                                            <button
+                                                key={friend.id}
+                                                onClick={() => handleForkStory(friend.id)}
+                                                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors"
+                                            >
+                                                <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
+                                                <span className="font-medium text-white">{friend.name}</span>
+                                            </button>
+                                        ))}
+                                        {friends.length === 0 && (
+                                            <p className="text-center text-gray-500 py-4">No friends found.</p>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-            {isShareModalOpen && (
-                <ShareModal
-                    story={story}
-                    onClose={() => setIsShareModalOpen(false)}
-                />
-            )}
-        </div>
+            {
+                isShareModalOpen && (
+                    <ShareModal
+                        story={story}
+                        onClose={() => setIsShareModalOpen(false)}
+                    />
+                )
+            }
+        </div >
     );
 }

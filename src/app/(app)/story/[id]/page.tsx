@@ -510,6 +510,50 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
             elements: textElements
         } : undefined;
 
+        // Check if monetization is required
+        if (story.monetizationCost && story.monetizationCost > 0 && story.creatorId !== currentUser.id) {
+            if (currentUser.tokens < story.monetizationCost) {
+                toast.error(`Not enough tokens! You need ${story.monetizationCost} tokens to contribute.`);
+                return;
+            }
+
+            // Deduct tokens from current user
+            const { deductTokens, addTokens } = useStore.getState();
+            const success = deductTokens(story.monetizationCost);
+
+            if (!success) {
+                toast.error('Failed to deduct tokens. Please try again.');
+                return;
+            }
+
+            // Update balances in database
+            try {
+                const response = await fetch('/api/transfer-tokens', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fromUserId: currentUser.id,
+                        toUserId: story.creatorId,
+                        amount: story.monetizationCost,
+                    }),
+                });
+
+                if (!response.ok) {
+                    // Refund tokens if transfer fails
+                    addTokens(story.monetizationCost);
+                    toast.error('Payment failed. Please try again.');
+                    return;
+                }
+
+                toast.success(`Paid ${story.monetizationCost} tokens to contribute!`);
+            } catch (error) {
+                // Refund tokens if API call fails
+                addTokens(story.monetizationCost);
+                toast.error('Payment failed. Please try again.');
+                return;
+            }
+        }
+
         setIsUploading(true);
 
         try {
