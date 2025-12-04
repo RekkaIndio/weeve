@@ -180,6 +180,9 @@ function CreateStoryContent() {
 
         mode: 'invite',
         monetizationCost: data.monetizationCost,
+        turnTimerHours: storyData.turn_timer_hours ?? (data.turnTimerHours ?? undefined),
+        created_at: storyData.created_at,
+        updated_at: storyData.updated_at,
       };
 
       addStory(newStory);

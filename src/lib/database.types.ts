@@ -135,7 +135,7 @@ export interface Database {
                     user_id: string
                     user_name: string
                     content: string
-                    media_type: 'video' | 'image' | 'text'
+                    media_type: 'video' | 'image' | 'text' | 'drawing'
                     media_url: string | null
                     timestamp: number
                     text_style: Json | null
@@ -147,7 +147,7 @@ export interface Database {
                     user_id: string
                     user_name: string
                     content: string
-                    media_type: 'video' | 'image' | 'text'
+                    media_type: 'video' | 'image' | 'text' | 'drawing'
                     media_url?: string | null
                     timestamp: number
                     text_style?: Json | null
@@ -159,7 +159,7 @@ export interface Database {
                     user_id?: string
                     user_name?: string
                     content?: string
-                    media_type?: 'video' | 'image' | 'text'
+                    media_type?: 'video' | 'image' | 'text' | 'drawing'
                     media_url?: string | null
                     timestamp?: number
                     text_style?: Json | null
@@ -479,6 +479,40 @@ export interface Database {
                 Relationships: [
                     {
                         foreignKeyName: "notifications_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
+            story_saves: {
+                Row: {
+                    id: string
+                    user_id: string
+                    story_id: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    story_id: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    story_id?: string
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "story_saves_story_id_fkey"
+                        columns: ["story_id"]
+                        referencedRelation: "stories"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "story_saves_user_id_fkey"
                         columns: ["user_id"]
                         referencedRelation: "profiles"
                         referencedColumns: ["user_id"]

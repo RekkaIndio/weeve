@@ -3,12 +3,11 @@ import type { Session, User } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
 import { addFriend } from "./friends";
 import type { Database } from "./database.types";
+import { buildPublicUrl } from "./url";
 
 type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
-
-import { toast } from 'sonner';
 
 export const NATIVE_GOOGLE_REDIRECT_URI = 'com.weeve.app://auth/callback';
 
@@ -94,8 +93,7 @@ export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise
             const buildRedirect = () => {
                 if (!redirectPath) return undefined;
                 if (redirectPath.startsWith('http')) return redirectPath;
-                if (typeof window === 'undefined') return undefined;
-                return `${window.location.origin}${redirectPath}`;
+                return buildPublicUrl(redirectPath);
             };
             redirectTo = buildRedirect();
             console.log('[Auth] Detected web platform, using standard redirect');

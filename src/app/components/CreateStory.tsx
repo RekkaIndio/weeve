@@ -599,8 +599,8 @@ const CreateStory = ({
           </fieldset>
         )}
 
-        {/* Monetization Option - Only for Public Stories */}
-        {!groupId && formState.visibility === "public" && (
+        {/* Monetization Option - Only for Public Stories - HIDDEN FOR NOW */}
+        {/* {!groupId && formState.visibility === "public" && (
           <div className="mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex items-center justify-between mb-2">
               <label
@@ -639,7 +639,7 @@ const CreateStory = ({
               />
             </div>
           </div>
-        )}
+        )} */}
 
         {/* Number of Contributors */}
         <div className="mb-6">
@@ -743,8 +743,8 @@ const CreateStory = ({
               );
             })}
 
-            {/* Power Mode Circle */}
-            {formState.inviteCount === 10 && (
+            {/* Power Mode Circle - HIDDEN FOR NOW */}
+            {/* {formState.inviteCount === 10 && (
               <div className="flex items-center">
                 <button
                   type="button"
@@ -757,7 +757,7 @@ const CreateStory = ({
                   <span className="font-bold text-sm">20+</span>
                 </button>
               </div>
-            )}
+            )} */}
           </div>
         </div>
 
@@ -771,12 +771,13 @@ const CreateStory = ({
             >
               Add Friends
             </label>
-            {currentUser && (
+            {/* Token Display - HIDDEN FOR NOW */}
+            {/* {currentUser && (
               <div className="text-sm text-yellow-400 flex items-center gap-1 font-medium bg-yellow-500/10 px-2 py-1 rounded-full border border-yellow-500/20">
                 <span>🪙</span>
                 <span>{currentUser.tokens}</span>
               </div>
-            )}
+            )} */}
           </div>
 
           {/* Friend Search Input */}

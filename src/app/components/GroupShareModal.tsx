@@ -7,6 +7,7 @@ import { searchUsers } from '@/lib/friends';
 import { notifyGroupInvite } from '@/lib/notifications';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { buildPublicUrl } from '@/lib/url';
 
 interface GroupShareModalProps {
     group: {
@@ -80,14 +81,13 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
     }, [searchQuery, currentUser]);
 
     const groupUrl = useMemo(() => {
-        const baseUrl = typeof window !== 'undefined'
-            ? `${window.location.origin}/groups/${group.id}`
-            : `https://www.tryweeve.com/groups/${group.id}`;
+        const url = new URL(buildPublicUrl(`/groups/${group.id}`));
 
         if (currentUser?.inviteCode) {
-            return `${baseUrl}?ref=${currentUser.inviteCode}`;
+            url.searchParams.set('ref', currentUser.inviteCode);
         }
-        return baseUrl;
+
+        return url.toString();
     }, [group.id, currentUser?.inviteCode]);
 
     const shareText = `Check out the "${group.name}" group on Weeve! ${groupUrl}`;

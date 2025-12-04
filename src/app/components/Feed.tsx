@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { Heart, MessageSquare, Share2 } from 'lucide-react'
+import { buildPublicUrl } from '@/lib/url'
 
 type Post = {
   id: string
@@ -84,7 +85,7 @@ export default function Feed() {
   }
 
   const handleShare = async (postId: string) => {
-    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/posts/${postId}`
+    const url = buildPublicUrl(`/posts/${postId}`)
     try {
       const nav = navigator as unknown as { share?: (data: { title?: string; url?: string }) => Promise<void> }
       if (typeof nav.share === 'function') {

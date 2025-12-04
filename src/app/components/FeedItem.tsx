@@ -1,8 +1,9 @@
 "use client";
 
 import { Story, useStore, Contribution } from "@/lib/store";
-import { MessageCircle, Heart, Share2, X, UserPlus, Users } from "lucide-react";
+import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, FormEvent, useCallback } from "react";
 import ShareModal from "./ShareModal";
 
@@ -52,6 +53,7 @@ const formatRelativeTime = (timestamp: number) => {
 };
 
 export default function FeedItem({ story }: FeedItemProps) {
+    const router = useRouter();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isVisible, setIsVisible] = useState(false);
     const [isCommentsOpen, setIsCommentsOpen] = useState(false);
@@ -161,6 +163,8 @@ export default function FeedItem({ story }: FeedItemProps) {
     const currentUser = useStore((state) => state.currentUser);
     const friends = useStore((state) => state.friends);
     const fetchFriends = useStore((state) => state.fetchFriends);
+    const savedStoryIds = useStore((state) => state.savedStoryIds);
+    const toggleStorySave = useStore((state) => state.toggleStorySave);
 
     useEffect(() => {
         if (showFriendPicker && friends.length === 0) {
@@ -199,6 +203,41 @@ export default function FeedItem({ story }: FeedItemProps) {
     const safeIndex = hasContributions ? currentIndex % contributionsCount : 0;
     const currentContribution = hasContributions ? contributions[safeIndex] : undefined;
     const mediaUrl = currentContribution?.mediaUrl || story.coverImage;
+
+    // DEBUG: Log contribution details to help diagnose video display issue
+    useEffect(() => {
+        if (hasContributions) {
+            console.log('[FeedItem Debug]', {
+                storyId: story.id,
+                storyTitle: story.title,
+                contributionsCount,
+                currentIndex,
+                safeIndex,
+                currentContribution: currentContribution ? {
+                    id: currentContribution.id,
+                    mediaType: currentContribution.mediaType,
+                    hasMediaUrl: !!currentContribution.mediaUrl,
+                    mediaUrlPreview: currentContribution.mediaUrl?.substring(0, 60) + '...',
+                    content: currentContribution.content?.substring(0, 30)
+                } : null,
+                allContributions: contributions.map(c => ({
+                    id: c.id,
+                    mediaType: c.mediaType,
+                    hasMediaUrl: !!c.mediaUrl,
+                    userId: c.userId
+                })),
+                computedMediaType: (() => {
+                    if (!hasContributions) {
+                        return story.coverImage ? 'image' : 'text';
+                    }
+                    if (currentContribution?.mediaType === 'video' && currentContribution.mediaUrl) return 'video';
+                    if (currentContribution?.mediaType === 'drawing' && currentContribution.mediaUrl) return 'drawing';
+                    if (currentContribution?.mediaType === 'image' && currentContribution.mediaUrl) return 'image';
+                    return 'text';
+                })()
+            });
+        }
+    }, [story.id, contributionsCount, currentIndex, currentContribution, hasContributions, story.coverImage, story.title, contributions]);
 
     // Pre-calculate slot content mapping to handle multi-slot users correctly
     const slotContentMap = useMemo(() => {
@@ -248,11 +287,12 @@ export default function FeedItem({ story }: FeedItemProps) {
         return map;
     }, [normalizedParticipants, story.contributions, story.maxWeeves]);
 
-    const mediaType: 'video' | 'image' | 'text' = (() => {
+    const mediaType: 'video' | 'image' | 'text' | 'drawing' = (() => {
         if (!hasContributions) {
             return story.coverImage ? 'image' : 'text';
         }
         if (currentContribution?.mediaType === 'video' && currentContribution.mediaUrl) return 'video';
+        if (currentContribution?.mediaType === 'drawing' && currentContribution.mediaUrl) return 'drawing';
         if (currentContribution?.mediaType === 'image' && currentContribution.mediaUrl) return 'image';
         return 'text';
     })();
@@ -531,11 +571,20 @@ export default function FeedItem({ story }: FeedItemProps) {
             setShowFriendPicker(false);
 
             if (result.success && result.storyId) {
-                // Ideally navigate to the new story or show a success message
-                // For now, let's just alert (or use a toast if available, but I'll stick to simple interaction)
-                alert("Story forked successfully! Check your profile or the feed.");
+                // Check if user selected themselves vs inviting a friend
+                if (participantId === currentUser?.id) {
+                    // Navigate directly to story page for immediate contribution
+                    router.push(`/story/${story.id}`);
+                } else {
+                    // Show success message for friend invitations
+                    setTimeout(() => {
+                        alert("Friend invited successfully! They can now contribute to this story.");
+                    }, 100);
+                }
             } else {
-                alert(`Failed to fork story: ${result.error || "Unknown error"}`);
+                setTimeout(() => {
+                    alert(`Failed to fork story: ${result.error || "Unknown error"}`);
+                }, 100);
             }
         } catch (error) {
             console.error("Error in handleForkStory:", error);
@@ -601,6 +650,15 @@ export default function FeedItem({ story }: FeedItemProps) {
                         }}
                     />
                 </>
+            ) : mediaType === 'drawing' && mediaUrl ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                    <img
+                        key={mediaUrl}
+                        src={mediaUrl}
+                        alt={story.title}
+                        className="w-full h-auto max-h-full object-contain"
+                    />
+                </div>
             ) : mediaType === 'image' && mediaUrl ? (
                 <img
                     key={mediaUrl}
@@ -656,28 +714,43 @@ export default function FeedItem({ story }: FeedItemProps) {
                     </button>
                     <span className="text-xs font-bold">Share</span>
                 </div>
+                <div className="flex flex-col items-center gap-1">
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            toggleStorySave(story.id);
+                        }}
+                        className={`w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-white/20 transition-colors ${savedStoryIds.includes(story.id) ? "text-[#EC1D99]" : "text-white"}`}
+                        aria-label="Save story"
+                    >
+                        <Bookmark className="w-6 h-6" fill={savedStoryIds.includes(story.id) ? "currentColor" : "none"} />
+                    </button>
+                    <span className="text-xs font-bold">Save</span>
+                </div>
 
                 {story.visibility === 'public' && (
-                    <div className="flex flex-col items-center gap-1 relative">
+                    <div className="flex flex-col items-center gap-0.5 relative">
                         <button
                             type="button"
                             onClick={() => {
-                                if (story.monetizationCost && story.monetizationCost > 0) {
-                                    // Check balance
-                                    if ((currentUser?.tokens || 0) < story.monetizationCost) {
-                                        // Show insufficient balance modal
-                                        setShowMonetizationModal('insufficient');
-                                    } else {
-                                        // Show confirmation modal
-                                        setShowMonetizationModal('confirm');
-                                    }
-                                } else {
-                                    console.log("Weeve button clicked, toggling isForking", !isForking);
-                                    setIsForking(!isForking);
-                                    if (showTutorialTooltip) {
-                                        handleTooltipDismiss();
-                                    }
+                                // MONETIZATION HIDDEN FOR NOW
+                                // if (story.monetizationCost && story.monetizationCost > 0) {
+                                //     // Check balance
+                                //     if ((currentUser?.tokens || 0) < story.monetizationCost) {
+                                //         // Show insufficient balance modal
+                                //         setShowMonetizationModal('insufficient');
+                                //     } else {
+                                //         // Show confirmation modal
+                                //         setShowMonetizationModal('confirm');
+                                //     }
+                                // } else {
+                                console.log("Weeve button clicked, toggling isForking", !isForking);
+                                setIsForking(!isForking);
+                                if (showTutorialTooltip) {
+                                    handleTooltipDismiss();
                                 }
+                                // }
                             }}
                             className={`w-10 h-10 rounded-full flex items-center justify-center border border-white/20 transition-all ${showTutorialTooltip
                                 ? "bg-[#EC1D99] text-white scale-110 animate-pulse ring-4 ring-[#EC1D99]/50"
@@ -720,8 +793,8 @@ export default function FeedItem({ story }: FeedItemProps) {
                 )}
             </div>
 
-            {/* Monetization Modal */}
-            {showMonetizationModal && (
+            {/* Monetization Modal - HIDDEN FOR NOW */}
+            {/* {showMonetizationModal && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-in fade-in duration-200">
                     <div className="bg-[#1a1a2e] border border-white/10 rounded-3xl p-6 w-full max-w-sm text-center shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
                         {showMonetizationModal === 'confirm' ? (
@@ -791,8 +864,8 @@ export default function FeedItem({ story }: FeedItemProps) {
                         )}
                     </div>
                 </div>
-            )}
-            <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 text-white z-10">
+            )} */}
+            <div className="absolute bottom-0 left-0 right-0 p-6 pb-4 text-white z-10">
                 <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md">
                     {story.title}
                 </h2>
@@ -903,7 +976,7 @@ export default function FeedItem({ story }: FeedItemProps) {
 
             {/* Forking Overlay */}
             {
-                isForking && (
+                isForking && !showParticipantPicker && (
                     <div className="absolute inset-0 z-30 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 animate-in fade-in duration-200">
                         <div className="absolute top-6 right-6">
                             <button onClick={() => setIsForking(false)} className="p-2 bg-white/10 rounded-full">

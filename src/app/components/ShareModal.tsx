@@ -5,6 +5,7 @@ import { X, Share2, MessageCircle, Send, Check, Copy, Search as SearchIcon } fro
 import { Story, useStore } from '@/lib/store';
 import { searchUsers } from '@/lib/friends';
 import { notifyStoryShared } from '@/lib/notifications';
+import { buildPublicUrl } from '@/lib/url';
 import { toast } from 'sonner';
 
 interface ShareModalProps {
@@ -74,14 +75,13 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     }, [searchQuery, currentUser]);
 
     const storyUrl = useMemo(() => {
-        const baseUrl = typeof window !== 'undefined'
-            ? `${window.location.origin}/story/${story.id}`
-            : `https://www.tryweeve.com/story/${story.id}`;
+        const url = new URL(buildPublicUrl(`/story/${story.id}`));
 
         if (currentUser?.inviteCode) {
-            return `${baseUrl}?ref=${currentUser.inviteCode}`;
+            url.searchParams.set('ref', currentUser.inviteCode);
         }
-        return baseUrl;
+
+        return url.toString();
     }, [story.id, currentUser?.inviteCode]);
 
     const shareText = `Check out "${story.title}" on Weeve! ${storyUrl}`;

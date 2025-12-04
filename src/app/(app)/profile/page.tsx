@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useStore } from "@/lib/store";
 import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Camera, Clock, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { updateUserProfile } from "@/lib/auth";
 import { capturePhoto } from "@/lib/camera";
 import { getLatestSession, setLatestSession } from "@/lib/auth-session";
+import { buildPublicUrl } from "@/lib/url";
 import type { Session } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 
@@ -348,8 +349,69 @@ async function compressAvatarImage(file: File): Promise<CompressedAvatarResult> 
     });
 }
 
+const SECOND_IN_MS = 1000;
+const MINUTE_IN_MS = 60 * SECOND_IN_MS;
+const HOUR_IN_MS = 60 * MINUTE_IN_MS;
+const DAY_IN_MS = 24 * HOUR_IN_MS;
+
+const parseTimestamp = (value: number | string | null | undefined): number | undefined => {
+    if (value === null || value === undefined) {
+        return undefined;
+    }
+
+    if (typeof value === 'number') {
+        if (value > 0 && value < 1e12) {
+            return value * 1000;
+        }
+        return value;
+    }
+
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? undefined : parsed;
+};
+
+const formatTimeAgo = (past: number, now: number): string => {
+    const diff = now - past;
+
+    if (diff <= 0 || diff <= 45 * SECOND_IN_MS) {
+        return 'just now';
+    }
+
+    if (diff < HOUR_IN_MS) {
+        const minutes = Math.max(1, Math.round(diff / MINUTE_IN_MS));
+        return `${minutes}m ago`;
+    }
+
+    if (diff < DAY_IN_MS) {
+        const hours = Math.max(1, Math.round(diff / HOUR_IN_MS));
+        return `${hours}h ago`;
+    }
+
+    const days = Math.max(1, Math.round(diff / DAY_IN_MS));
+    return `${days}d ago`;
+};
+
+const formatDurationShort = (ms: number): string => {
+    const safeMs = Math.max(0, ms);
+    const totalSeconds = Math.round(safeMs / SECOND_IN_MS);
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+        return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+    }
+
+    if (minutes > 0) {
+        return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+    }
+
+    return `${Math.max(0, seconds)}s`;
+};
+
 export default function ProfilePage() {
-    const { currentUser, stories, setCurrentUser, friends, fetchFriends, setProfileUpdateInProgress } = useStore();
+    const { currentUser, stories, setCurrentUser, friends, fetchFriends, setProfileUpdateInProgress, savedStoryIds, fetchSavedStories } = useStore();
     const [activeTab, setActiveTab] = useState<'weeves' | 'saved' | 'waiting'>('weeves');
 
     useEffect(() => {
@@ -367,6 +429,22 @@ export default function ProfilePage() {
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
     const [copied, setCopied] = useState(false);
+
+    const [nowMs, setNowMs] = useState(() => Date.now());
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        const interval = window.setInterval(() => {
+            setNowMs(Date.now());
+        }, 15000);
+
+        return () => {
+            window.clearInterval(interval);
+        };
+    }, []);
 
     // Main tab: Show stories where user is a participant BUT exclude stories where it's their turn (those go in timer tab)
     const myStories = currentUser ? stories.filter(s => {
@@ -395,8 +473,15 @@ export default function ProfilePage() {
 
         return false;
     }) : [];
-    // Mock saved stories - in production this would come from the store/database
-    const savedStories = stories.filter(s => s.id === 's1' || s.id === 's2');
+
+    // Real saved stories
+    const savedStories = useMemo(() => {
+        return stories.filter(s => savedStoryIds.includes(s.id));
+    }, [stories, savedStoryIds]);
+
+    useEffect(() => {
+        fetchSavedStories();
+    }, [fetchSavedStories]);
 
     const handleSave = async () => {
         console.log('[Profile] handleSave called');
@@ -820,15 +905,60 @@ export default function ProfilePage() {
     };
 
     const inviteCode = currentUser?.inviteCode || currentUser?.id || '';
-    const inviteLink = typeof window !== 'undefined' ? `${window.location.origin}?ref=${inviteCode}` : '';
+    const inviteLink = useMemo(() => {
+        const url = new URL(buildPublicUrl('/'));
+        if (inviteCode) {
+            url.searchParams.set('ref', inviteCode);
+        }
+        return url.toString();
+    }, [inviteCode]);
+
+    const copyTextToClipboard = async (text: string) => {
+        if (!text) throw new Error('No text to copy');
+
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            return;
+        }
+
+        if (typeof document !== 'undefined') {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'absolute';
+            textarea.style.left = '-9999px';
+
+            document.body.appendChild(textarea);
+
+            const selection = document.getSelection();
+            const savedRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+
+            textarea.select();
+            const succeeded = document.execCommand('copy');
+
+            document.body.removeChild(textarea);
+            if (savedRange && selection) {
+                selection.removeAllRanges();
+                selection.addRange(savedRange);
+            }
+
+            if (succeeded) {
+                return;
+            }
+        }
+
+        throw new Error('Clipboard copy not supported');
+    };
 
     const handleCopyLink = async () => {
         try {
-            await navigator.clipboard.writeText(inviteLink);
+            await copyTextToClipboard(inviteLink);
             setCopied(true);
+            toast.success('Link copied to clipboard!');
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             console.error('Failed to copy:', err);
+            toast.error('Unable to copy link');
         }
     };
 
@@ -841,9 +971,18 @@ export default function ProfilePage() {
         if (navigator.share) {
             try {
                 await navigator.share(shareData);
+                return;
             } catch (err) {
                 console.log('Error sharing:', err);
             }
+        }
+
+        try {
+            await copyTextToClipboard(inviteLink);
+            toast.success('Link copied to clipboard!');
+        } catch (err) {
+            console.error('Share fallback failed:', err);
+            toast.error('Sharing is not supported on this device.');
         }
     };
 
@@ -862,10 +1001,11 @@ export default function ProfilePage() {
             <div className="p-4 flex justify-between items-center">
                 <h1 className="font-bold text-lg">{currentUser.name}</h1>
                 <div className="flex items-center gap-4">
-                    <Link href="/wallet" className="flex items-center gap-1 bg-gray-800 px-3 py-1.5 rounded-full">
+                    {/* Wallet Link - HIDDEN FOR NOW */}
+                    {/* <Link href="/wallet" className="flex items-center gap-1 bg-gray-800 px-3 py-1.5 rounded-full">
                         <Wallet className="w-4 h-4 text-[#EC1D99]" />
                         <span className="text-sm font-bold">{currentUser.tokens}</span>
-                    </Link>
+                    </Link> */}
                     <button onClick={() => setShowInviteModal(true)} className="text-white hover:text-gray-300 transition-colors">
                         <UserPlus className="w-6 h-6" />
                     </button>
@@ -1090,6 +1230,14 @@ export default function ProfilePage() {
                                             controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                                             disablePictureInPicture
                                         />
+                                    ) : firstMediaType === 'drawing' && firstMediaUrl ? (
+                                        <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                                            <img
+                                                src={firstMediaUrl}
+                                                className="w-full h-auto max-h-full object-contain"
+                                                alt="Drawing contribution"
+                                            />
+                                        </div>
                                     ) : firstMediaType === 'image' && firstMediaUrl ? (
                                         <img
                                             src={firstMediaUrl}
@@ -1210,6 +1358,14 @@ export default function ProfilePage() {
                                                 controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                                                 disablePictureInPicture
                                             />
+                                        ) : firstMediaType === 'drawing' && firstMediaUrl ? (
+                                            <div className="w-full h-full flex items-center justify-center bg-gray-900">
+                                                <img
+                                                    src={firstMediaUrl}
+                                                    className="w-full h-auto max-h-full object-contain transition-transform duration-500 group-hover:scale-105"
+                                                    alt="Drawing contribution"
+                                                />
+                                            </div>
                                         ) : firstMediaType === 'image' && firstMediaUrl ? (
                                             <img
                                                 src={firstMediaUrl}
@@ -1263,6 +1419,25 @@ export default function ProfilePage() {
                                 const mediaUrl = lastContribution?.mediaUrl;
                                 const content = lastContribution?.content;
 
+                                const isMyTurn = story.status === 'active' && story.currentTurnUserId === currentUser.id;
+                                const timerHours = typeof story.turnTimerHours === 'number' && story.turnTimerHours > 0 ? story.turnTimerHours : null;
+                                const lastContributionTimestamp = parseTimestamp(lastContribution?.timestamp);
+                                const fallbackUpdatedAt = parseTimestamp(story.updated_at);
+                                const fallbackCreatedAt = parseTimestamp(story.created_at);
+                                const resolvedTurnStart = lastContributionTimestamp ?? fallbackUpdatedAt ?? fallbackCreatedAt ?? nowMs;
+
+                                const expiryTimestamp = timerHours !== null
+                                    ? resolvedTurnStart + timerHours * 60 * 60 * 1000
+                                    : undefined;
+
+                                const remainingMs = typeof expiryTimestamp === 'number' ? expiryTimestamp - nowMs : undefined;
+                                const isExpired = typeof remainingMs === 'number' && remainingMs <= 0;
+                                const addedLabel = formatTimeAgo(resolvedTurnStart, nowMs);
+                                const timeLeftLabel = typeof remainingMs === 'number'
+                                    ? (isExpired ? 'Expired' : `${formatDurationShort(remainingMs)} left`)
+                                    : null;
+                                const showTimerMeta = Boolean(timerHours !== null && addedLabel && timeLeftLabel);
+
                                 return (
                                     <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden border-2 border-[#EC1D99]/50">
                                         <div className="absolute top-2 right-2 z-20">
@@ -1284,7 +1459,16 @@ export default function ProfilePage() {
                                                 preload="auto"
                                                 controls={false}
                                                 disablePictureInPicture
+                                                poster={story.coverImage || "https://placehold.co/600x800/1a1a1a/EC1D99?text=Video"}
                                             />
+                                        ) : mediaType === 'drawing' && mediaUrl ? (
+                                            <div className="w-full h-full flex items-center justify-center bg-gray-900/80">
+                                                <img
+                                                    src={mediaUrl}
+                                                    className="w-full h-auto max-h-full object-contain opacity-80"
+                                                    alt="Drawing contribution"
+                                                />
+                                            </div>
                                         ) : mediaType === 'image' && mediaUrl ? (
                                             <img
                                                 src={mediaUrl}
@@ -1309,6 +1493,15 @@ export default function ProfilePage() {
                                                     (e.target as HTMLImageElement).src = "https://placehold.co/600x800/1a1a1a/EC1D99?text=Weeve";
                                                 }}
                                             />
+                                        )}
+
+                                        {showTimerMeta && (
+                                            <div className="absolute inset-x-0 bottom-0 bg-black/80 px-2 py-1.5">
+                                                <div className="flex items-center justify-between gap-2 text-[10px] font-medium">
+                                                    <span className="text-white/80">Added {addedLabel}</span>
+                                                    <span className={isExpired ? 'text-red-400' : 'text-[#EC1D99]'}>{timeLeftLabel}</span>
+                                                </div>
+                                            </div>
                                         )}
                                     </Link>
                                 )

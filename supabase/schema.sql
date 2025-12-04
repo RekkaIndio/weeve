@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS contributions (
   user_id TEXT NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
   user_name TEXT NOT NULL,
   content TEXT NOT NULL,
-  media_type TEXT NOT NULL CHECK (media_type IN ('video', 'image', 'text')),
+  media_type TEXT NOT NULL CHECK (media_type IN ('video', 'image', 'text', 'drawing')),
   media_url TEXT,
   timestamp BIGINT NOT NULL,
   text_style JSONB,

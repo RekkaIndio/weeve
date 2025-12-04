@@ -27,7 +27,7 @@ export interface Group {
     isMember?: boolean;
 }
 
-export type MediaType = 'video' | 'image' | 'text';
+export type MediaType = 'video' | 'image' | 'text' | 'drawing';
 
 export interface TextElement {
     id: string;
@@ -126,6 +126,11 @@ interface AppState {
     forkStory: (originalStoryId: string, slotIndex: number, newParticipantId: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     fetchStories: () => Promise<void>;
     setProfileUpdateInProgress: (value: boolean) => void;
+
+    // Saved Stories
+    savedStoryIds: string[];
+    toggleStorySave: (storyId: string) => Promise<void>;
+    fetchSavedStories: () => Promise<void>;
 }
 
 const MOCK_USER: User = {
@@ -470,6 +475,61 @@ export const useStore = create<AppState>()(
             friends: [],
             groups: [],
             profileUpdateInProgress: false,
+            savedStoryIds: [],
+
+            fetchSavedStories: async () => {
+                const { currentUser } = get();
+                if (!currentUser) return;
+
+                const { data, error } = await supabase
+                    .from('story_saves')
+                    .select('story_id')
+                    .eq('user_id', currentUser.id);
+
+                if (error) {
+                    console.error('Failed to fetch saved stories:', error);
+                    return;
+                }
+
+                set({ savedStoryIds: data.map(item => item.story_id) });
+            },
+
+            toggleStorySave: async (storyId) => {
+                const { currentUser, savedStoryIds } = get();
+                if (!currentUser) return;
+
+                const isSaved = savedStoryIds.includes(storyId);
+                const newSavedStoryIds = isSaved
+                    ? savedStoryIds.filter(id => id !== storyId)
+                    : [...savedStoryIds, storyId];
+
+                // Optimistic update
+                set({ savedStoryIds: newSavedStoryIds });
+
+                if (isSaved) {
+                    const { error } = await supabase
+                        .from('story_saves')
+                        .delete()
+                        .match({ story_id: storyId, user_id: currentUser.id });
+
+                    if (error) {
+                        console.error('Failed to unsave story:', error);
+                        // Revert on error
+                        set({ savedStoryIds: savedStoryIds });
+                    }
+                } else {
+                    const { error } = await supabase
+                        .from('story_saves')
+                        .insert({ story_id: storyId, user_id: currentUser.id });
+
+                    if (error) {
+                        console.error('Failed to save story:', error);
+                        // Revert on error
+                        set({ savedStoryIds: savedStoryIds });
+                    }
+                }
+            },
+
 
             addStory: (story) =>
                 set((state) => ({ stories: [story, ...state.stories] })),

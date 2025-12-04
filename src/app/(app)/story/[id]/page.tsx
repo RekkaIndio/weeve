@@ -7,8 +7,9 @@ import { createStoryContribution } from "@/lib/data";
 import { leaveStory, deleteStory } from "@/lib/stories";
 import { capturePhoto, captureVideo } from "@/lib/camera";
 import { Capacitor } from "@capacitor/core";
-import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, X, Loader2, Edit2, LogOut, Trash, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp, FileVideo, Image as ImageIcon } from "lucide-react";
+import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, Pencil, X, Loader2, Edit2, LogOut, Trash, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp, FileVideo, Image as ImageIcon } from "lucide-react";
 import EditStoryModal from "@/app/components/EditStoryModal";
+import { DrawingCanvas, type DrawingCanvasRef } from "@/app/components/DrawingCanvas";
 import { toast } from "sonner";
 
 const FONT_OPTIONS = [
@@ -71,17 +72,21 @@ const DEFAULT_TEXT_STYLE: TextStyle = {
 
 export default function StoryPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
+    return <StoryPageContent storyId={id} />;
+}
+
+function StoryPageContent({ storyId }: { storyId: string }) {
     const router = useRouter();
     const { stories, currentUser, addContribution } = useStore();
 
-    const story = stories.find((s) => s.id === id);
+    const story = stories.find((s) => s.id === storyId);
     const [activeIndex, setActiveIndex] = useState(0);
     const [isPlaying, setIsPlaying] = useState(true);
 
     // Stitch Flow States
     const [showStitchMenu, setShowStitchMenu] = useState(false);
     const [mediaSourcePicker, setMediaSourcePicker] = useState<{ type: 'video' | 'image' } | null>(null);
-    const [stitchMode, setStitchMode] = useState<'video' | 'image' | 'text' | null>(null);
+    const [stitchMode, setStitchMode] = useState<'video' | 'image' | 'text' | 'drawing' | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [textElements, setTextElements] = useState<TextElement[]>([]);
     const [activeElementId, setActiveElementId] = useState<string | null>(null);
@@ -109,6 +114,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
     const [showEditModal, setShowEditModal] = useState(false);
     const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const drawingCanvasRef = useRef<DrawingCanvasRef>(null);
 
     const contributions = story?.contributions ?? EMPTY_CONTRIBUTIONS;
     const maxWeeves = typeof story?.maxWeeves === 'number' ? story.maxWeeves : null;
@@ -162,6 +168,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         if (stitchMode === 'video') return 'Add Video Caption';
         if (stitchMode === 'image') return 'Add Photo Caption';
         if (stitchMode === 'text') return 'Write Caption';
+        if (stitchMode === 'drawing') return 'Create Drawing';
         return 'Compose';
     }, [stitchMode]);
 
@@ -423,7 +430,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
         }
     };
 
-    const handleStitchOption = async (mode: 'video' | 'image' | 'text') => {
+    const handleStitchOption = async (mode: 'video' | 'image' | 'text' | 'drawing') => {
         if (isStoryComplete) {
             toast.error('This story has reached its stitch limit.');
             return;
@@ -436,6 +443,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
             setStitchMode('text');
             return;
         }
+
 
         if (mode === 'video') {
             console.log('[Story] Video option selected');
@@ -454,6 +462,12 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
             } else {
                 await handleMediaSourceSelection('image', 'gallery');
             }
+            return;
+        }
+
+        if (mode === 'drawing') {
+            console.log('[Story] Drawing option selected');
+            setStitchMode('drawing');
             return;
         }
     };
@@ -489,6 +503,29 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
             return;
         }
 
+        // Handle drawing export
+        let drawingFile: File | undefined;
+        if (stitchMode === 'drawing') {
+            if (!drawingCanvasRef.current) {
+                toast.error('Drawing canvas not initialized.');
+                return;
+            }
+
+            if (drawingCanvasRef.current.isEmpty()) {
+                toast.error('Please draw something before posting.');
+                return;
+            }
+
+            try {
+                const blob = await drawingCanvasRef.current.exportToBlob();
+                drawingFile = new File([blob], `drawing-${Date.now()}.png`, { type: 'image/png' });
+            } catch (error) {
+                console.error('Failed to export drawing:', error);
+                toast.error('Failed to export drawing. Please try again.');
+                return;
+            }
+        }
+
         const requiresFile = stitchMode === 'video' || stitchMode === 'image';
         if (requiresFile && !mediaDraft?.file) {
             toast.error(`Please select a ${stitchMode === 'video' ? 'video' : 'photo'} to upload.`);
@@ -499,6 +536,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
             if (trimmed.length > 0) return trimmed;
             if (stitchMode === 'video') return 'Check out this view! 🎥';
             if (stitchMode === 'image') return 'Captured this moment 📸';
+            if (stitchMode === 'drawing') return 'Created this drawing! 🎨';
             return 'Just added a new part! ✨';
         })();
 
@@ -566,7 +604,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                 userName: currentUser.name,
                 mediaType: stitchMode,
                 content: caption,
-                file: mediaDraft?.file,
+                file: stitchMode === 'drawing' ? drawingFile : mediaDraft?.file,
                 textStyle: textStylePayload,
                 timestamp: Date.now(),
                 nextTurnUserId: nextTurnUpdate,
@@ -752,12 +790,18 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                                 onComplete={handleNext}
                                 isPlaying={isPlaying}
                             />
-                        ) : activeSegment.mediaType === 'image' ? (
-                            <div className="relative w-full h-full">
+                        ) : (activeSegment.mediaType === 'image' || activeSegment.mediaType === 'drawing') ? (
+                            <div
+                                className={`relative w-full h-full ${activeSegment.mediaType === 'drawing'
+                                    ? 'flex items-center justify-center bg-gray-900'
+                                    : ''}`}
+                            >
                                 <img
                                     src={activeSegment.mediaUrl || "https://via.placeholder.com/400x800"}
-                                    className="w-full h-full object-cover"
-                                    alt="Story segment"
+                                    className={activeSegment.mediaType === 'drawing'
+                                        ? 'w-full h-auto max-h-full object-contain'
+                                        : 'w-full h-full object-cover'}
+                                    alt={activeSegment.mediaType === 'drawing' ? 'Drawing' : 'Story segment'}
                                 />
                                 <AutoAdvance onComplete={handleNext} isPlaying={isPlaying} duration={3000} />
                             </div>
@@ -1040,6 +1084,16 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                             </div>
                             <span className="text-sm font-medium">Text</span>
                         </button>
+
+                        <button
+                            onClick={() => handleStitchOption('drawing')}
+                            className="flex flex-col items-center gap-2 group"
+                        >
+                            <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                                <Pencil className="w-8 h-8" />
+                            </div>
+                            <span className="text-sm font-medium">Draw</span>
+                        </button>
                     </div>
                 </div>
             )}
@@ -1098,6 +1152,13 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
                                         className="max-h-[70vh] w-auto rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] object-contain"
                                     />
                                 )}
+                            </div>
+                        )}
+
+                        {/* Drawing Canvas */}
+                        {stitchMode === 'drawing' && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-auto px-4 pt-20 pb-32">
+                                <DrawingCanvas ref={drawingCanvasRef} className="w-full max-w-md" />
                             </div>
                         )}
 

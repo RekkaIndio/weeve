@@ -139,11 +139,11 @@ export default function LoginPage() {
                     )}
 
                     {/* Social Logins */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="w-full">
                         <button
                             onClick={handleGoogleLogin}
                             disabled={loading || socialLoading === "google"}
-                            className="flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 py-3 text-white transition-all hover:bg-white/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="flex w-full items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 py-3 text-white transition-all hover:bg-white/20 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -152,15 +152,6 @@ export default function LoginPage() {
                                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                             </svg>
                             {socialLoading === "google" ? "Redirecting..." : "Google"}
-                        </button>
-                        <button
-                            disabled={true}
-                            className="flex items-center justify-center gap-2 rounded-lg bg-white/10 backdrop-blur-md border border-white/20 py-3 text-white opacity-50 cursor-not-allowed"
-                        >
-                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.74 1.18 0 2.45-1.03 3.93-.74 1.33.18 2.24.74 2.85 1.69-2.5 1.52-2.12 4.4.26 5.53-.69 1.79-1.68 3.58-3.08 5.06M12.03 5.31c-.15-1.53.86-2.98 2.24-3.55.29 1.71-1.07 3.21-2.24 3.55z" />
-                            </svg>
-                            Apple
                         </button>
                     </div>
 
