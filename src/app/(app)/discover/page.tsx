@@ -12,26 +12,18 @@ function DiscoverContent() {
     const { stories, groups, addGroup, currentUser } = useStore();
     const searchParams = useSearchParams();
     const tabParam = searchParams?.get('tab');
-    const [activeCategory, setActiveCategory] = useState(tabParam || 'trending');
     const [showCreateGroup, setShowCreateGroup] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
     const [newGroupDesc, setNewGroupDesc] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [viewMode, setViewMode] = useState<'all' | 'groups'>(tabParam === 'groups' ? 'groups' : 'all');
 
-    // Update active category when URL param changes
+    // Update view mode when URL param changes
     useEffect(() => {
-        if (tabParam) {
-            setActiveCategory(tabParam);
+        if (tabParam === 'groups') {
+            setViewMode('groups');
         }
     }, [tabParam]);
-
-    // Mock categories for visual variety
-    const categories = [
-        { id: 'trending', label: 'Trending', icon: TrendingUp, color: 'text-pink-500' },
-        { id: 'new', label: 'New', icon: Clock, color: 'text-blue-500' },
-        { id: 'foryou', label: 'For You', icon: Sparkles, color: 'text-yellow-500' },
-        { id: 'groups', label: 'Groups', icon: Users, color: 'text-green-500' },
-    ];
 
     // Filter stories based on search query
     const filteredStories = stories.filter(story => {
@@ -112,25 +104,34 @@ function DiscoverContent() {
                 </div>
             </div>
 
-            {/* Categories */}
-            <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-hide scroll-smooth whitespace-nowrap snap-x snap-mandatory">
-                {categories.map(cat => (
-                    <button
-                        key={cat.id}
-                        onClick={() => setActiveCategory(cat.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-full shrink-0 transition-colors border ${activeCategory === cat.id
+            {/* View Toggle */}
+            <div className="flex gap-2 pb-6">
+                <button
+                    onClick={() => setViewMode('all')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-colors border ${
+                        viewMode === 'all'
                             ? 'bg-gray-800 border-[#EC1D99]'
                             : 'bg-gray-900 border-gray-800 hover:bg-gray-800'
-                            }`}
-                    >
-                        <cat.icon className={`w-4 h-4 ${cat.color}`} />
-                        <span className="text-sm font-medium">{cat.label}</span>
-                    </button>
-                ))}
+                    }`}
+                >
+                    <Sparkles className="w-4 h-4 text-pink-500" />
+                    <span className="text-sm font-medium">Stories</span>
+                </button>
+                <button
+                    onClick={() => setViewMode('groups')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-colors border ${
+                        viewMode === 'groups'
+                            ? 'bg-gray-800 border-[#EC1D99]'
+                            : 'bg-gray-900 border-gray-800 hover:bg-gray-800'
+                    }`}
+                >
+                    <Users className="w-4 h-4 text-green-500" />
+                    <span className="text-sm font-medium">Groups</span>
+                </button>
             </div>
 
             {/* Content Area */}
-            {activeCategory === 'groups' ? (
+            {viewMode === 'groups' ? (
                 <div className="space-y-4">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-xl font-bold">Popular Groups</h2>
@@ -167,8 +168,18 @@ function DiscoverContent() {
                                 </div>
                             ))
                         ) : (
-                            <div className="text-center py-12">
-                                <p className="text-gray-500">No groups found matching "{searchQuery}"</p>
+                            <div className="text-center py-12 space-y-3">
+                                <Users className="w-12 h-12 text-gray-700 mx-auto" />
+                                <p className="text-gray-400">No groups found matching "{searchQuery}"</p>
+                                <button
+                                    onClick={() => {
+                                        setSearchQuery('');
+                                        setShowCreateGroup(true);
+                                    }}
+                                    className="text-[#EC1D99] text-sm font-medium hover:underline"
+                                >
+                                    Create the first one →
+                                </button>
                             </div>
                         )}
                     </div>
@@ -206,17 +217,17 @@ function DiscoverContent() {
                                     </div>
                                 </Link>
                             ))}
-
-                            {/* Mock Placeholders to fill grid - only show when not searching */}
-                            {!searchQuery.trim() && [1, 2, 3, 4].map((i) => (
-                                <div key={i} className="bg-gray-900 rounded-xl aspect-square flex items-center justify-center text-gray-700">
-                                    <span className="text-xs">Loading...</span>
-                                </div>
-                            ))}
                         </>
                     ) : (
-                        <div className="col-span-2 text-center py-12">
-                            <p className="text-gray-500">No stories found matching "{searchQuery}"</p>
+                        <div className="col-span-2 text-center py-12 space-y-3">
+                            <Search className="w-12 h-12 text-gray-700 mx-auto" />
+                            <p className="text-gray-400">No stories found matching "{searchQuery}"</p>
+                            <Link
+                                href="/create-story"
+                                className="inline-block text-[#EC1D99] text-sm font-medium hover:underline"
+                            >
+                                Create a story about "{searchQuery}" →
+                            </Link>
                         </div>
                     )}
                 </div>

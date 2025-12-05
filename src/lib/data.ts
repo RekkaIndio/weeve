@@ -609,6 +609,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
             .getPublicUrl(objectPath);
 
         publicUrl = urlData.publicUrl;
+        console.log('[Upload] Generated public URL:', publicUrl);
     } else if (options.file) {
         console.warn('[Upload] File provided but lacks size metadata, skipping upload and keeping media_url undefined');
     }

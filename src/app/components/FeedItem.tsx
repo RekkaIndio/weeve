@@ -66,6 +66,7 @@ export default function FeedItem({ story }: FeedItemProps) {
     const [videoReadyVersion, setVideoReadyVersion] = useState(0);
     const [isVideoReady, setIsVideoReady] = useState(false);
     const [isVideoVisible, setIsVideoVisible] = useState(false);
+    const [hasInteracted, setHasInteracted] = useState(false);
 
     const [isForking, setIsForking] = useState(false);
     const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
@@ -198,47 +199,6 @@ export default function FeedItem({ story }: FeedItemProps) {
         return typeof story.likes === "number" ? story.likes : likedBy.length;
     }, [story.likes, likedBy]);
 
-    const contributionsCount = contributions.length;
-    const hasContributions = contributionsCount > 0;
-    const safeIndex = hasContributions ? currentIndex % contributionsCount : 0;
-    const currentContribution = hasContributions ? contributions[safeIndex] : undefined;
-    const mediaUrl = currentContribution?.mediaUrl || story.coverImage;
-
-    // DEBUG: Log contribution details to help diagnose video display issue
-    useEffect(() => {
-        if (hasContributions) {
-            console.log('[FeedItem Debug]', {
-                storyId: story.id,
-                storyTitle: story.title,
-                contributionsCount,
-                currentIndex,
-                safeIndex,
-                currentContribution: currentContribution ? {
-                    id: currentContribution.id,
-                    mediaType: currentContribution.mediaType,
-                    hasMediaUrl: !!currentContribution.mediaUrl,
-                    mediaUrlPreview: currentContribution.mediaUrl?.substring(0, 60) + '...',
-                    content: currentContribution.content?.substring(0, 30)
-                } : null,
-                allContributions: contributions.map(c => ({
-                    id: c.id,
-                    mediaType: c.mediaType,
-                    hasMediaUrl: !!c.mediaUrl,
-                    userId: c.userId
-                })),
-                computedMediaType: (() => {
-                    if (!hasContributions) {
-                        return story.coverImage ? 'image' : 'text';
-                    }
-                    if (currentContribution?.mediaType === 'video' && currentContribution.mediaUrl) return 'video';
-                    if (currentContribution?.mediaType === 'drawing' && currentContribution.mediaUrl) return 'drawing';
-                    if (currentContribution?.mediaType === 'image' && currentContribution.mediaUrl) return 'image';
-                    return 'text';
-                })()
-            });
-        }
-    }, [story.id, contributionsCount, currentIndex, currentContribution, hasContributions, story.coverImage, story.title, contributions]);
-
     // Pre-calculate slot content mapping to handle multi-slot users correctly
     const slotContentMap = useMemo(() => {
         const map = new Map<number, Contribution>();
@@ -287,15 +247,78 @@ export default function FeedItem({ story }: FeedItemProps) {
         return map;
     }, [normalizedParticipants, story.contributions, story.maxWeeves]);
 
+    // Build ordered contributions array from slot map for display
+    const orderedContributions = useMemo(() => {
+        const maxSlots = story.maxWeeves || 3;
+        const ordered: Contribution[] = [];
+        for (let i = 0; i < maxSlots; i++) {
+            const contrib = slotContentMap.get(i);
+            if (contrib) {
+                ordered.push(contrib);
+            }
+        }
+        return ordered;
+    }, [slotContentMap, story.maxWeeves]);
+
+    const contributionsCount = orderedContributions.length;
+    const hasContributions = contributionsCount > 0;
+    const safeIndex = hasContributions ? currentIndex % contributionsCount : 0;
+    const currentContribution = hasContributions ? orderedContributions[safeIndex] : undefined;
+    const mediaUrl = currentContribution?.mediaUrl || story.coverImage;
+
     const mediaType: 'video' | 'image' | 'text' | 'drawing' = (() => {
         if (!hasContributions) {
-            return story.coverImage ? 'image' : 'text';
+            if (story.coverImage) {
+                // Check if the cover image is actually a video
+                const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov'];
+                const isVideo = videoExtensions.some(ext => story.coverImage?.toLowerCase().includes(ext));
+                return isVideo ? 'video' : 'image';
+            }
+            return 'text';
         }
         if (currentContribution?.mediaType === 'video' && currentContribution.mediaUrl) return 'video';
         if (currentContribution?.mediaType === 'drawing' && currentContribution.mediaUrl) return 'drawing';
         if (currentContribution?.mediaType === 'image' && currentContribution.mediaUrl) return 'image';
         return 'text';
     })();
+
+    // DEBUG: Log contribution details to help diagnose video display issue
+    useEffect(() => {
+        if (hasContributions) {
+            console.log('[FeedItem Debug]', {
+                storyId: story.id,
+                storyTitle: story.title,
+                contributionsCount,
+                currentIndex,
+                safeIndex,
+                currentContribution: currentContribution ? {
+                    id: currentContribution.id,
+                    mediaType: currentContribution.mediaType,
+                    hasMediaUrl: !!currentContribution.mediaUrl,
+                    mediaUrlPreview: currentContribution.mediaUrl?.substring(0, 60) + '...',
+                    content: currentContribution.content?.substring(0, 30)
+                } : null,
+                orderedContributions: orderedContributions.map(c => ({
+                    id: c.id,
+                    mediaType: c.mediaType,
+                    hasMediaUrl: !!c.mediaUrl,
+                    userId: c.userId
+                })),
+                slotMapEntries: Array.from(slotContentMap.entries()).map(([slot, c]) => ({
+                    slot,
+                    contributionId: c.id,
+                    mediaType: c.mediaType
+                })),
+                computedMediaType: mediaType,
+                videoState: mediaType === 'video' ? {
+                    isVideoReady,
+                    isVideoVisible,
+                    mediaUrl: mediaUrl?.substring(0, 60) + '...',
+                    videoReadyInCache: videoReadyRef.current.get(mediaUrl || '') ?? false
+                } : null
+            });
+        }
+    }, [story.id, contributionsCount, currentIndex, currentContribution, hasContributions, story.coverImage, story.title, orderedContributions, slotContentMap, mediaType, isVideoReady, isVideoVisible, mediaUrl]);
     const mediaPlaceholder = useMemo(() => {
         if (mediaType !== 'video') {
             return null;
@@ -323,7 +346,7 @@ export default function FeedItem({ story }: FeedItemProps) {
         }
 
         const previousContribution = contributionsCount > 1
-            ? contributions[(safeIndex - 1 + contributionsCount) % contributionsCount]
+            ? orderedContributions[(safeIndex - 1 + contributionsCount) % contributionsCount]
             : undefined;
 
         if (previousContribution?.mediaType === 'image' && previousContribution.mediaUrl) {
@@ -331,7 +354,7 @@ export default function FeedItem({ story }: FeedItemProps) {
         }
 
         return null;
-    }, [mediaType, currentContribution, story.coverImage, contributions, contributionsCount, safeIndex, videoReadyVersion, captureFrameFromVideo]);
+    }, [mediaType, currentContribution, story.coverImage, orderedContributions, contributionsCount, safeIndex, videoReadyVersion, captureFrameFromVideo]);
     const activeUserId = currentContribution?.userId;
     const waitingParticipant = story.currentTurnUserId
         ? story.participants.find((p) => p.id === story.currentTurnUserId)
@@ -444,34 +467,60 @@ export default function FeedItem({ story }: FeedItemProps) {
             return;
         }
 
+        let visibilityTimeout: NodeJS.Timeout | null = null;
+
         const handleReady = () => {
             markVideoReady(mediaUrl, video);
             setIsVideoReady(true);
+            
+            // Fallback: If video doesn't start playing within 500ms after ready, show it anyway
+            if (visibilityTimeout) clearTimeout(visibilityTimeout);
+            visibilityTimeout = setTimeout(() => {
+                if (!video.paused || video.currentTime > 0) {
+                    setIsVideoVisible(true);
+                }
+            }, 500);
         };
 
         const handlePlaying = () => {
+            if (visibilityTimeout) clearTimeout(visibilityTimeout);
             setIsVideoVisible(true);
             markVideoReady(mediaUrl, video);
         };
 
         const handleWaiting = () => {
+            // Don't hide video completely during buffering, just track the state
+            // This prevents flickering back to placeholder during buffering
+        };
+
+        const handleStalled = () => {
+            console.log('[FeedItem] Video stalled:', mediaUrl);
+        };
+
+        const handleError = (e: Event) => {
+            console.error('[FeedItem] Video error:', mediaUrl, e);
+            // Hide the video on error and show placeholder instead
             setIsVideoVisible(false);
+            setIsVideoReady(false);
+            // Mark as errored so we don't keep trying to play it
+            videoReadyRef.current.set(mediaUrl || '', false);
         };
 
         video.addEventListener('canplay', handleReady);
         video.addEventListener('canplaythrough', handleReady);
         video.addEventListener('playing', handlePlaying);
         video.addEventListener('waiting', handleWaiting);
-        video.addEventListener('pause', handleWaiting);
-        video.addEventListener('ended', handleWaiting);
+        video.addEventListener('stalled', handleStalled);
+        video.addEventListener('error', handleError);
 
         return () => {
+            if (visibilityTimeout) clearTimeout(visibilityTimeout);
             video.removeEventListener('canplay', handleReady);
             video.removeEventListener('canplaythrough', handleReady);
             video.removeEventListener('playing', handlePlaying);
             video.removeEventListener('waiting', handleWaiting);
-            video.removeEventListener('pause', handleWaiting);
-            video.removeEventListener('ended', handleWaiting);
+            video.removeEventListener('stalled', handleStalled);
+            video.removeEventListener('error', handleError);
         };
     }, [mediaType, mediaUrl, markVideoReady]);
 
@@ -508,7 +557,7 @@ export default function FeedItem({ story }: FeedItemProps) {
         let timeoutId: NodeJS.Timeout | undefined;
 
         const handleNext = () => {
-            setCurrentIndex((prev) => (prev + 1) % contributions.length);
+            setCurrentIndex((prev) => (prev + 1) % orderedContributions.length);
         };
 
         if (mediaType !== 'video') {
@@ -518,20 +567,55 @@ export default function FeedItem({ story }: FeedItemProps) {
 
         // For video, we rely on onEnded event, but we need to make sure it plays
         if (mediaType === 'video' && videoRef.current && isVideoReady) {
-            videoRef.current.play().catch(e => console.log("Autoplay prevented:", e));
+            const video = videoRef.current;
+            
+            // Try to play with sound first
+            video.muted = false;
+            video.volume = 1.0;
+            
+            const playPromise = video.play();
+            
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log('[FeedItem] Video playing with sound:', mediaUrl);
+                    })
+                    .catch(e => {
+                        console.log('[FeedItem] Autoplay with sound blocked, trying muted:', e.name);
+                        // If autoplay with sound is blocked, play muted and wait for user interaction
+                        video.muted = true;
+                        video.play().then(() => {
+                            console.log('[FeedItem] Playing muted, tap to enable sound');
+                            // Automatically unmute on any interaction with the page
+                            const unmute = () => {
+                                if (video.muted) {
+                                    video.muted = false;
+                                    video.volume = 1.0;
+                                    console.log('[FeedItem] Auto-unmuted after user interaction');
+                                }
+                                document.removeEventListener('touchstart', unmute, { capture: true });
+                                document.removeEventListener('click', unmute, { capture: true });
+                            };
+                            document.addEventListener('touchstart', unmute, { capture: true, once: true });
+                            document.addEventListener('click', unmute, { capture: true, once: true });
+                        }).catch(() => {
+                            setIsVideoVisible(true);
+                        });
+                    });
+            }
         }
 
         return () => {
             if (timeoutId) clearTimeout(timeoutId);
         };
-    }, [currentIndex, contributions.length, mediaType, isVisible, hasContributions, isCommentsOpen, isVideoReady]);
+    }, [currentIndex, orderedContributions.length, mediaType, isVisible, hasContributions, isCommentsOpen, isVideoReady, mediaUrl]);
 
     const handleVideoEnded = () => {
         setCurrentIndex((prev) => {
-            if (contributions.length === 0) {
+            if (orderedContributions.length === 0) {
                 return 0;
             }
-            return (prev + 1) % contributions.length;
+            return (prev + 1) % orderedContributions.length;
         });
     };
 
@@ -592,8 +676,35 @@ export default function FeedItem({ story }: FeedItemProps) {
         }
     };
 
+    const handleContainerClick = useCallback((e: React.MouseEvent) => {
+        console.log('[FeedItem] Container clicked, mediaType:', mediaType, 'hasVideo:', !!videoRef.current);
+        // Unmute video on user interaction
+        if (mediaType === 'video' && videoRef.current) {
+            const video = videoRef.current;
+            console.log('[FeedItem] Video muted state:', video.muted);
+            if (video.muted) {
+                console.log('[FeedItem] Unmuting video on user tap');
+                video.muted = false;
+                console.log('[FeedItem] Video muted after unmute:', video.muted);
+                // Ensure video is playing
+                if (video.paused) {
+                    video.play().catch((e) => {
+                        console.log('[FeedItem] Could not play video:', e);
+                    });
+                }
+                setHasInteracted(true);
+            } else {
+                console.log('[FeedItem] Video already unmuted');
+            }
+        }
+    }, [mediaType]);
+
     return (
-        <div ref={containerRef} className="relative w-full h-[calc(100vh-80px)] snap-start shrink-0 bg-gray-900 overflow-hidden">
+        <div 
+            ref={containerRef} 
+            className="relative w-full h-[calc(100vh-80px)] snap-start shrink-0 bg-gray-900 overflow-hidden"
+            onClick={handleContainerClick}
+        >
             {/* Media Background */}
             {waitingForFirstContribution ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white">
@@ -626,7 +737,9 @@ export default function FeedItem({ story }: FeedItemProps) {
                                 className="absolute inset-0 w-full h-full object-cover"
                             />
                         ) : (
-                            <div className="absolute inset-0 bg-gradient-to-br from-black via-gray-900 to-black" />
+                            <div className="absolute inset-0 bg-gradient-to-br from-black via-gray-900 to-black flex items-center justify-center">
+                                <div className="text-white text-sm opacity-50">Loading video...</div>
+                            </div>
                         )
                     )}
                     <video
@@ -635,16 +748,41 @@ export default function FeedItem({ story }: FeedItemProps) {
                         src={mediaUrl}
                         className="weeve-inline-video absolute inset-0 w-full h-full object-cover"
                         autoPlay
-                        muted={false}
+                        muted
                         playsInline
                         preload="auto"
                         controls={false}
                         controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                         disablePictureInPicture
                         onEnded={handleVideoEnded}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const video = e.currentTarget;
+                            console.log('[FeedItem] Video clicked, muted:', video.muted, 'volume:', video.volume);
+                            video.muted = false;
+                            video.volume = 1.0;
+                            console.log('[FeedItem] After click - muted:', video.muted, 'volume:', video.volume);
+                            setHasInteracted(true);
+                        }}
+                        onLoadedMetadata={(e) => {
+                            const video = e.currentTarget;
+                            // Set volume to maximum
+                            video.volume = 1.0;
+                            console.log('[FeedItem] Video metadata loaded, volume set to:', video.volume);
+                        }}
+                        onLoadedData={(e) => {
+                            console.log('[FeedItem] Video data loaded:', mediaUrl?.substring(0, 60));
+                        }}
+                        onPlay={(e) => {
+                            console.log('[FeedItem] Video started playing, muted:', e.currentTarget.muted);
+                        }}
+                        onVolumeChange={(e) => {
+                            console.log('[FeedItem] Volume changed, muted:', e.currentTarget.muted, 'volume:', e.currentTarget.volume);
+                        }}
                         style={{
                             opacity: isVideoVisible ? 1 : 0,
-                            visibility: isVideoVisible ? 'visible' : 'hidden',
+                            // Keep video in layout even when not visible to allow it to load
+                            visibility: 'visible',
                             transition: "opacity 180ms ease-out",
                             backgroundColor: '#000000'
                         }}

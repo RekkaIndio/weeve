@@ -939,7 +939,15 @@ export const useStore = create<AppState>()(
 
                     if (!storiesData) return;
 
-                    const formattedStories: Story[] = storiesData.map((s: any) => {
+                    const formattedStories: Story[] = storiesData
+                        // Filter out public stories with no contributions (better UX - hide empty posts from feed)
+                        .filter((s: any) => {
+                            // Always show private stories (for invited participants)
+                            if (s.visibility === 'private') return true;
+                            // For public stories, only show if they have at least 1 contribution
+                            return s.contributions && s.contributions.length > 0;
+                        })
+                        .map((s: any) => {
                         // Map participants
                         const participants = s.story_participants.map((sp: any) => {
                             // Handle case where profile might be missing (deleted user?)

@@ -2,9 +2,10 @@ import React from 'react';
 
 interface AestheticFallbackProps {
     className?: string;
+    showLogo?: boolean;
 }
 
-export default function AestheticFallback({ className = "" }: AestheticFallbackProps) {
+export default function AestheticFallback({ className = "", showLogo = true }: AestheticFallbackProps) {
     return (
         <div className={`relative w-full h-full bg-gray-900 overflow-hidden ${className}`}>
             {/* Weaving Lines Animation */}
@@ -51,13 +52,15 @@ export default function AestheticFallback({ className = "" }: AestheticFallbackP
             </svg>
 
             {/* Weeve Logo in Top Right */}
-            <div className="absolute top-2 right-2 z-10">
-                <img
-                    src="/weeve-logo.png"
-                    alt="Weeve"
-                    className="w-8 h-8 object-contain opacity-60"
-                />
-            </div>
+            {showLogo && (
+                <div className="absolute top-2 right-2 z-10">
+                    <img
+                        src="/weeve-logo.png"
+                        alt="Weeve"
+                        className="w-8 h-8 object-contain opacity-60"
+                    />
+                </div>
+            )}
 
             <style jsx>{`
                 @keyframes weave {

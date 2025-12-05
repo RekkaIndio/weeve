@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useStore } from "@/lib/store";
 import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Camera, Clock, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
@@ -12,6 +12,8 @@ import { getLatestSession, setLatestSession } from "@/lib/auth-session";
 import { buildPublicUrl } from "@/lib/url";
 import type { Session } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
+import AestheticFallback from "@/app/components/AestheticFallback";
+import VideoThumbnail from "@/app/components/VideoThumbnail";
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -1440,6 +1442,12 @@ export default function ProfilePage() {
 
                                 return (
                                     <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden border-2 border-[#EC1D99]/50">
+                                        {/* Wavy Lines Background - shown when no content */}
+                                        {!mediaUrl && !content && (!story.coverImage || story.coverImage.includes('placehold.co')) && (
+                                            <AestheticFallback className="absolute inset-0 z-0" showLogo={false} />
+                                        )}
+
+                                        {/* Logo indicator */}
                                         <div className="absolute top-2 right-2 z-20">
                                             <img
                                                 src="/weeve-logo.png"
@@ -1448,55 +1456,55 @@ export default function ProfilePage() {
                                             />
                                         </div>
 
+                                        {/* Media Content */}
                                         {mediaType === 'video' && mediaUrl ? (
                                             <video
                                                 src={mediaUrl}
-                                                className="weeve-inline-video w-full h-full object-cover opacity-60"
+                                                className="absolute inset-0 w-full h-full object-cover z-10"
                                                 autoPlay
                                                 loop
                                                 muted
                                                 playsInline
                                                 preload="auto"
                                                 controls={false}
+                                                controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                                                 disablePictureInPicture
-                                                poster={story.coverImage || "https://placehold.co/600x800/1a1a1a/EC1D99?text=Video"}
                                             />
                                         ) : mediaType === 'drawing' && mediaUrl ? (
-                                            <div className="w-full h-full flex items-center justify-center bg-gray-900/80">
-                                                <img
-                                                    src={mediaUrl}
-                                                    className="w-full h-auto max-h-full object-contain opacity-80"
-                                                    alt="Drawing contribution"
-                                                />
-                                            </div>
+                                            <img
+                                                src={mediaUrl}
+                                                className="absolute inset-0 z-10 w-full h-auto max-h-full object-contain opacity-80"
+                                                alt="Drawing contribution"
+                                            />
                                         ) : mediaType === 'image' && mediaUrl ? (
                                             <img
                                                 src={mediaUrl}
-                                                className="w-full h-full object-cover opacity-60"
+                                                className="absolute inset-0 z-10 w-full h-full object-cover opacity-60"
                                                 alt={story.title}
                                                 onError={(e) => {
-                                                    (e.target as HTMLImageElement).src = "https://placehold.co/600x800/1a1a1a/EC1D99?text=Weeve";
+                                                    e.currentTarget.style.display = 'none';
                                                 }}
                                             />
                                         ) : content ? (
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-3 text-center">
-                                                <p className="text-sm font-semibold leading-snug line-clamp-5 opacity-80">
+                                            <div className="absolute inset-0 z-10 flex items-center justify-center p-3">
+                                                <p className="text-sm font-semibold leading-snug line-clamp-5 text-white/90 drop-shadow-md text-center">
                                                     {content}
                                                 </p>
                                             </div>
-                                        ) : (
+                                        ) : story.coverImage && !story.coverImage.includes('placehold.co') ? (
                                             <img
-                                                src={story.coverImage || "https://via.placeholder.com/300"}
-                                                className="w-full h-full object-cover opacity-50"
+                                                src={story.coverImage}
+                                                className="absolute inset-0 z-10 w-full h-full object-cover opacity-50"
                                                 alt={story.title}
                                                 onError={(e) => {
-                                                    (e.target as HTMLImageElement).src = "https://placehold.co/600x800/1a1a1a/EC1D99?text=Weeve";
+                                                    e.currentTarget.style.display = 'none';
                                                 }}
                                             />
-                                        )}
+                                        ) : null}
 
+                                        {/* Timer metadata */}
                                         {showTimerMeta && (
-                                            <div className="absolute inset-x-0 bottom-0 bg-black/80 px-2 py-1.5">
+                                            <div className="absolute inset-x-0 bottom-0 bg-black/80 px-2 py-1.5 z-20">
                                                 <div className="flex items-center justify-between gap-2 text-[10px] font-medium">
                                                     <span className="text-white/80">Added {addedLabel}</span>
                                                     <span className={isExpired ? 'text-red-400' : 'text-[#EC1D99]'}>{timeLeftLabel}</span>

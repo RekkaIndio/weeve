@@ -58,29 +58,28 @@ export default function SettingsPage() {
         {
             title: "Account",
             items: [
-                { label: "Edit Profile", icon: User, action: () => console.log("Edit Profile") },
-                { label: "Change Password", icon: Lock, action: () => console.log("Change Password") },
+                { label: "Edit Profile", icon: User, action: () => router.push('/settings/edit-profile') },
+                { label: "Change Password", icon: Lock, action: () => router.push('/settings/change-password') },
             ]
         },
         {
             title: "Notifications",
             items: [
-                { label: "Push Notifications", icon: Bell, toggle: true },
-                { label: "Email Alerts", icon: Bell, toggle: true },
+                { label: "Notification Preferences", icon: Bell, action: () => router.push('/settings/notifications') },
             ]
         },
         {
             title: "Privacy",
             items: [
                 { label: "Account Privacy", icon: Lock, toggle: true },
-                { label: "Blocked Users", icon: User, action: () => console.log("Blocked Users") },
+                { label: "Blocked Users", icon: User, action: () => router.push('/settings/blocked-users') },
             ]
         },
         {
             title: "Support",
             items: [
-                { label: "Help Center", icon: HelpCircle, action: () => console.log("Help Center") },
-                { label: "Report a Problem", icon: HelpCircle, action: () => console.log("Report a Problem") },
+                { label: "Help Center", icon: HelpCircle, action: () => router.push('/settings/help-center') },
+                { label: "Report a Problem", icon: HelpCircle, action: () => router.push('/settings/report-problem') },
             ]
         }
     ];

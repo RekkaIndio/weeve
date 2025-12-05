@@ -1566,13 +1566,22 @@ function VideoPlayer({ src, onComplete, isPlaying }: { src?: string, onComplete:
             src={src}
             className="weeve-inline-video w-full h-full object-cover"
             playsInline
-            muted
             autoPlay={isPlaying}
             preload="auto"
             controls={false}
             controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
             disablePictureInPicture
             onEnded={onComplete}
+            onLoadedMetadata={(e) => {
+                const video = e.currentTarget;
+                video.volume = 1.0;
+                video.muted = false;
+            }}
+            onClick={(e) => {
+                const video = e.currentTarget;
+                video.muted = false;
+                video.volume = 1.0;
+            }}
         />
     );
 }

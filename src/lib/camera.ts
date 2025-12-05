@@ -294,3 +294,64 @@ function captureVideoViaFileInput({ useCamera }: { useCamera: boolean }): Promis
         input.click();
     });
 }
+
+/**
+ * Upload media (image/video) to Supabase storage
+ * @param file - The file to upload
+ * @param type - The media type ('image' or 'video')
+ * @returns Promise with the public URL of the uploaded file
+ */
+export async function uploadMedia(
+    file: File,
+    type: 'image' | 'video'
+): Promise<{ url: string; error?: Error }> {
+    try {
+        // Dynamic import to avoid issues in environments without supabase
+        const { supabase } = await import('./supabase');
+        
+        // Validate file
+        if (!file) {
+            throw new Error('No file provided');
+        }
+
+        const maxSize = type === 'image' ? 25 * 1024 * 1024 : 100 * 1024 * 1024; // 25MB for images, 100MB for videos
+        if (file.size > maxSize) {
+            throw new Error(`File too large. Maximum size is ${maxSize / (1024 * 1024)}MB`);
+        }
+
+        // Generate unique filename
+        const timestamp = Date.now();
+        const randomString = Math.random().toString(36).substring(2, 15);
+        const extension = file.name.split('.').pop() || (type === 'image' ? 'jpg' : 'mp4');
+        const filename = `${timestamp}-${randomString}.${extension}`;
+        
+        // Determine bucket based on type
+        const bucket = type === 'image' ? 'avatars' : 'videos';
+        
+        // Upload to Supabase storage
+        const { data, error } = await supabase.storage
+            .from(bucket)
+            .upload(filename, file, {
+                cacheControl: '3600',
+                upsert: false,
+            });
+
+        if (error) {
+            console.error('[Upload] Supabase storage error:', error);
+            throw error;
+        }
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+            .from(bucket)
+            .getPublicUrl(filename);
+
+        return { url: urlData.publicUrl };
+    } catch (error) {
+        console.error('[Upload] Error uploading media:', error);
+        return { 
+            url: '', 
+            error: error instanceof Error ? error : new Error('Upload failed') 
+        };
+    }
+}

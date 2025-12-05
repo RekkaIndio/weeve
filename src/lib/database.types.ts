@@ -519,6 +519,189 @@ export interface Database {
                     }
                 ]
             }
+            blocked_users: {
+                Row: {
+                    id: string
+                    user_id: string
+                    blocked_user_id: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    blocked_user_id: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    blocked_user_id?: string
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "blocked_users_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    },
+                    {
+                        foreignKeyName: "blocked_users_blocked_user_id_fkey"
+                        columns: ["blocked_user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
+            notification_preferences: {
+                Row: {
+                    id: string
+                    user_id: string
+                    push_notifications: boolean
+                    email_notifications: boolean
+                    story_invites: boolean
+                    story_turns: boolean
+                    story_completed: boolean
+                    story_likes: boolean
+                    story_comments: boolean
+                    friend_requests: boolean
+                    friend_accepted: boolean
+                    group_invites: boolean
+                    group_updates: boolean
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    push_notifications?: boolean
+                    email_notifications?: boolean
+                    story_invites?: boolean
+                    story_turns?: boolean
+                    story_completed?: boolean
+                    story_likes?: boolean
+                    story_comments?: boolean
+                    friend_requests?: boolean
+                    friend_accepted?: boolean
+                    group_invites?: boolean
+                    group_updates?: boolean
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    push_notifications?: boolean
+                    email_notifications?: boolean
+                    story_invites?: boolean
+                    story_turns?: boolean
+                    story_completed?: boolean
+                    story_likes?: boolean
+                    story_comments?: boolean
+                    friend_requests?: boolean
+                    friend_accepted?: boolean
+                    group_invites?: boolean
+                    group_updates?: boolean
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "notification_preferences_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
+            support_tickets: {
+                Row: {
+                    id: string
+                    user_id: string
+                    user_name: string
+                    category: 'bug' | 'abuse' | 'feature' | 'account' | 'other'
+                    subject: string
+                    description: string
+                    status: 'open' | 'in_progress' | 'resolved' | 'closed'
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    user_name: string
+                    category: 'bug' | 'abuse' | 'feature' | 'account' | 'other'
+                    subject: string
+                    description: string
+                    status?: 'open' | 'in_progress' | 'resolved' | 'closed'
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    user_name?: string
+                    category?: 'bug' | 'abuse' | 'feature' | 'account' | 'other'
+                    subject?: string
+                    description?: string
+                    status?: 'open' | 'in_progress' | 'resolved' | 'closed'
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "support_tickets_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
+            support_email_queue: {
+                Row: {
+                    id: string
+                    to_email: string
+                    user_name: string
+                    user_id: string
+                    category: string
+                    subject: string
+                    description: string
+                    status: 'pending' | 'sent' | 'failed'
+                    retry_count: number
+                    error_message: string | null
+                    created_at: string
+                    sent_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    to_email: string
+                    user_name: string
+                    user_id: string
+                    category: string
+                    subject: string
+                    description: string
+                    status?: 'pending' | 'sent' | 'failed'
+                    retry_count?: number
+                    error_message?: string | null
+                    created_at?: string
+                    sent_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    to_email?: string
+                    user_name?: string
+                    user_id?: string
+                    category?: string
+                    subject?: string
+                    description?: string
+                    status?: 'pending' | 'sent' | 'failed'
+                    retry_count?: number
+                    error_message?: string | null
+                    created_at?: string
+                    sent_at?: string | null
+                }
+                Relationships: []
+            }
         }
         Views: {
             [_ in never]: never
