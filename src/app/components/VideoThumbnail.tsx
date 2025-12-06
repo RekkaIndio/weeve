@@ -11,6 +11,7 @@ interface VideoThumbnailProps {
 export default function VideoThumbnail({ src, poster, className = "" }: VideoThumbnailProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [hasError, setHasError] = useState(false);
+    const [isLoaded, setIsLoaded] = useState(false);
 
     useEffect(() => {
         const video = videoRef.current;
@@ -18,14 +19,11 @@ export default function VideoThumbnail({ src, poster, className = "" }: VideoThu
 
         video.setAttribute('playsinline', 'true');
         video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('x-webkit-airplay', 'deny');
         video.muted = true;
-
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                console.log("Video autoplay prevented:", error);
-            });
-        }
+        
+        // Load video metadata
+        video.load();
     }, [src]);
 
     if (hasError || !src) {
@@ -36,16 +34,31 @@ export default function VideoThumbnail({ src, poster, className = "" }: VideoThu
         <video
             ref={videoRef}
             src={src}
-            className={`weeve-inline-video object-cover opacity-60 ${className}`}
-            autoPlay
+            className={`weeve-inline-video object-cover ${className}`}
             loop
             muted
             playsInline
-            preload="auto"
+            preload="metadata"
             controls={false}
             disablePictureInPicture
+            disableRemotePlayback
             poster={poster && !poster.includes('placehold.co') ? poster : undefined}
             onError={() => setHasError(true)}
+            onCanPlay={(e) => {
+                const video = e.currentTarget;
+                setIsLoaded(true);
+                video.play().catch(() => null);
+            }}
+            style={{
+                opacity: isLoaded ? 0.6 : 0,
+                visibility: isLoaded ? 'visible' : 'hidden',
+                transform: isLoaded ? 'translate3d(0,0,0)' : 'translate3d(-9999px,-9999px,0)',
+                transition: 'none',
+                backgroundColor: '#000000',
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                backgroundImage: 'none'
+            }}
         />
     );
 }

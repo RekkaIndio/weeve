@@ -803,6 +803,24 @@ export async function createStoryContribution(options: CreateStoryContributionOp
         textStyle,
     };
 
+    // Send turn notification to next user if applicable
+    if (options.nextTurnUserId) {
+        try {
+            const { notifyStoryTurn } = await import('./notifications');
+            const { data: storyData } = await supabase
+                .from('stories')
+                .select('title')
+                .eq('id', options.storyId)
+                .single();
+            
+            if (storyData) {
+                await notifyStoryTurn(options.storyId, storyData.title, options.nextTurnUserId);
+            }
+        } catch (error) {
+            console.error('Failed to send turn notification:', error);
+        }
+    }
+
     return { contribution };
 }
 

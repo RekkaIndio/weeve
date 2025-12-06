@@ -8,67 +8,45 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: Request) {
     try {
-        const { fromUserId, toUserId, amount } = await req.json();
+        const { fromUserId, toUserId, amount, referenceId, metadata } = await req.json();
 
         if (!fromUserId || !toUserId || !amount || amount <= 0) {
             return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
         }
 
-        // Get current balances
-        const { data: fromProfile, error: fromError } = await supabaseAdmin
-            .from('profiles')
-            .select('tokens')
-            .eq('user_id', fromUserId)
-            .single();
+        // Use atomic RPC function for safe transfer
+        const { data, error } = await supabaseAdmin.rpc('transfer_tokens', {
+            p_from_user_id: fromUserId,
+            p_to_user_id: toUserId,
+            p_token_amount: amount,
+            p_reference_id: referenceId || null,
+            p_metadata: metadata || null,
+        });
 
-        if (fromError || !fromProfile) {
-            return NextResponse.json({ error: 'Sender not found' }, { status: 404 });
+        if (error) {
+            console.error('Token transfer failed:', error);
+            
+            // Parse error message for better client feedback
+            const errorMessage = error.message || 'Transfer failed';
+            
+            if (errorMessage.includes('Insufficient balance')) {
+                return NextResponse.json({ error: 'Insufficient balance' }, { status: 400 });
+            }
+            if (errorMessage.includes('not found')) {
+                return NextResponse.json({ error: 'User not found' }, { status: 404 });
+            }
+            
+            return NextResponse.json({ error: errorMessage }, { status: 500 });
         }
 
-        const { data: toProfile, error: toError } = await supabaseAdmin
-            .from('profiles')
-            .select('tokens')
-            .eq('user_id', toUserId)
-            .single();
-
-        if (toError || !toProfile) {
-            return NextResponse.json({ error: 'Recipient not found' }, { status: 404 });
-        }
-
-        // Check if sender has enough tokens
-        if (fromProfile.tokens < amount) {
-            return NextResponse.json({ error: 'Insufficient balance' }, { status: 400 });
-        }
-
-        // Perform the transfer
-        const newFromBalance = fromProfile.tokens - amount;
-        const newToBalance = toProfile.tokens + amount;
-
-        const { error: deductError } = await supabaseAdmin
-            .from('profiles')
-            .update({ tokens: newFromBalance })
-            .eq('user_id', fromUserId);
-
-        if (deductError) {
-            console.error('Error deducting tokens:', deductError);
-            return NextResponse.json({ error: 'Transfer failed' }, { status: 500 });
-        }
-
-        const { error: creditError } = await supabaseAdmin
-            .from('profiles')
-            .update({ tokens: newToBalance })
-            .eq('user_id', toUserId);
-
-        if (creditError) {
-            console.error('Error crediting tokens:', creditError);
-            // TODO: Implement rollback mechanism
-            return NextResponse.json({ error: 'Transfer failed' }, { status: 500 });
-        }
+        // Parse the JSON result from the RPC function
+        const result = typeof data === 'string' ? JSON.parse(data) : data;
 
         return NextResponse.json({
             success: true,
-            newFromBalance,
-            newToBalance,
+            transactionId: result.transaction_id,
+            newFromBalance: result.from_balance,
+            newToBalance: result.to_balance,
         });
     } catch (error) {
         console.error('Transfer tokens error:', error);

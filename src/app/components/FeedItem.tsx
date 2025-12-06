@@ -367,16 +367,24 @@ export default function FeedItem({ story }: FeedItemProps) {
             return;
         }
 
-        setIsVideoVisible(false);
-
         const video = videoRef.current;
         if (!video) {
+            setIsVideoVisible(false);
             return;
         }
 
         video.setAttribute('playsinline', 'true');
         video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('x-webkit-airplay', 'deny');
+        video.setAttribute('disablePictureInPicture', 'true');
         video.preload = 'auto';
+        
+        // If video already has data loaded, show it immediately
+        if (video.readyState >= 2 && videoReadyRef.current.get(mediaUrl || '')) {
+            setIsVideoVisible(true);
+        } else {
+            setIsVideoVisible(false);
+        }
     }, [mediaType, mediaUrl]);
 
     // Show tutorial tooltip for onboarding story (only first time)
@@ -473,16 +481,28 @@ export default function FeedItem({ story }: FeedItemProps) {
             markVideoReady(mediaUrl, video);
             setIsVideoReady(true);
             
-            // Fallback: If video doesn't start playing within 500ms after ready, show it anyway
-            if (visibilityTimeout) clearTimeout(visibilityTimeout);
-            visibilityTimeout = setTimeout(() => {
-                if (!video.paused || video.currentTime > 0) {
-                    setIsVideoVisible(true);
-                }
-            }, 500);
+            // Show video immediately when ready and it has data loaded
+            if (video.readyState >= 3) {
+                setIsVideoVisible(true);
+            } else {
+                // Very short fallback for slower loading
+                if (visibilityTimeout) clearTimeout(visibilityTimeout);
+                visibilityTimeout = setTimeout(() => {
+                    if (!video.paused || video.currentTime > 0) {
+                        setIsVideoVisible(true);
+                    }
+                }, 100);
+            }
         };
 
         const handlePlaying = () => {
+            if (visibilityTimeout) clearTimeout(visibilityTimeout);
+            setIsVideoVisible(true);
+            markVideoReady(mediaUrl, video);
+        };
+        
+        const handleCanPlay = () => {
+            // Show video as soon as it can play
             if (visibilityTimeout) clearTimeout(visibilityTimeout);
             setIsVideoVisible(true);
             markVideoReady(mediaUrl, video);
@@ -506,7 +526,8 @@ export default function FeedItem({ story }: FeedItemProps) {
             videoReadyRef.current.set(mediaUrl || '', false);
         };
 
-        video.addEventListener('canplay', handleReady);
+        video.addEventListener('loadeddata', handleCanPlay);
+        video.addEventListener('canplay', handleCanPlay);
         video.addEventListener('canplaythrough', handleReady);
         video.addEventListener('playing', handlePlaying);
         video.addEventListener('waiting', handleWaiting);
@@ -515,7 +536,8 @@ export default function FeedItem({ story }: FeedItemProps) {
 
         return () => {
             if (visibilityTimeout) clearTimeout(visibilityTimeout);
-            video.removeEventListener('canplay', handleReady);
+            video.removeEventListener('loadeddata', handleCanPlay);
+            video.removeEventListener('canplay', handleCanPlay);
             video.removeEventListener('canplaythrough', handleReady);
             video.removeEventListener('playing', handlePlaying);
             video.removeEventListener('waiting', handleWaiting);
@@ -568,6 +590,11 @@ export default function FeedItem({ story }: FeedItemProps) {
         // For video, we rely on onEnded event, but we need to make sure it plays
         if (mediaType === 'video' && videoRef.current && isVideoReady) {
             const video = videoRef.current;
+            
+            // Ensure video is ready before attempting to play
+            if (video.readyState < 2) {
+                return; // Wait for more data
+            }
             
             // Try to play with sound first
             video.muted = false;
@@ -729,31 +756,30 @@ export default function FeedItem({ story }: FeedItemProps) {
                 </div>
             ) : mediaType === 'video' && mediaUrl ? (
                 <>
-                    {!isVideoVisible && (
-                        mediaPlaceholder ? (
-                            <img
-                                src={mediaPlaceholder}
-                                alt={story.title}
-                                className="absolute inset-0 w-full h-full object-cover"
-                            />
-                        ) : (
-                            <div className="absolute inset-0 bg-gradient-to-br from-black via-gray-900 to-black flex items-center justify-center">
-                                <div className="text-white text-sm opacity-50">Loading video...</div>
-                            </div>
-                        )
+                    {/* Always show placeholder when video not visible - no loading text */}
+                    {!isVideoVisible && mediaPlaceholder && (
+                        <img
+                            src={mediaPlaceholder}
+                            alt={story.title}
+                            className="absolute inset-0 w-full h-full object-cover"
+                        />
+                    )}
+                    {/* Black background when no placeholder available */}
+                    {!isVideoVisible && !mediaPlaceholder && (
+                        <div className="absolute inset-0 bg-black" />
                     )}
                     <video
                         ref={videoRef}
-                        key={mediaUrl} // Force re-render on url change to ensure autoplay works
+                        key={mediaUrl} // Force re-render on url change for clean video reset
                         src={mediaUrl}
                         className="weeve-inline-video absolute inset-0 w-full h-full object-cover"
-                        autoPlay
                         muted
                         playsInline
                         preload="auto"
                         controls={false}
                         controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                         disablePictureInPicture
+                        disableRemotePlayback
                         onEnded={handleVideoEnded}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -772,6 +798,13 @@ export default function FeedItem({ story }: FeedItemProps) {
                         }}
                         onLoadedData={(e) => {
                             console.log('[FeedItem] Video data loaded:', mediaUrl?.substring(0, 60));
+                            // Manually play the video after it's loaded to avoid browser play button
+                            const video = e.currentTarget;
+                            if (isVisible) {
+                                video.play().catch((err) => {
+                                    console.log('[FeedItem] Manual play failed:', err);
+                                });
+                            }
                         }}
                         onPlay={(e) => {
                             console.log('[FeedItem] Video started playing, muted:', e.currentTarget.muted);
@@ -781,10 +814,25 @@ export default function FeedItem({ story }: FeedItemProps) {
                         }}
                         style={{
                             opacity: isVideoVisible ? 1 : 0,
-                            // Keep video in layout even when not visible to allow it to load
-                            visibility: 'visible',
-                            transition: "opacity 180ms ease-out",
-                            backgroundColor: '#000000'
+                            // CRITICAL: Completely hide video until ready - prevents ANY icon from showing
+                            visibility: isVideoVisible ? 'visible' : 'hidden',
+                            // Position off-screen when hidden to prevent rendering artifacts
+                            transform: isVideoVisible ? 'translate3d(0,0,0)' : 'translate3d(-9999px,-9999px,0)',
+                            // Instant transition when video is ready - no fade delay
+                            transition: 'none',
+                            backgroundColor: '#000000',
+                            // Ensure video covers entire area immediately
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            // Force hide any browser-added play buttons
+                            WebkitAppearance: 'none',
+                            appearance: 'none',
+                            backgroundImage: 'none',
+                            // Extra safeguard
+                            pointerEvents: isVideoVisible ? 'auto' : 'none'
                         }}
                     />
                 </>
@@ -872,23 +920,22 @@ export default function FeedItem({ story }: FeedItemProps) {
                         <button
                             type="button"
                             onClick={() => {
-                                // MONETIZATION HIDDEN FOR NOW
-                                // if (story.monetizationCost && story.monetizationCost > 0) {
-                                //     // Check balance
-                                //     if ((currentUser?.tokens || 0) < story.monetizationCost) {
-                                //         // Show insufficient balance modal
-                                //         setShowMonetizationModal('insufficient');
-                                //     } else {
-                                //         // Show confirmation modal
-                                //         setShowMonetizationModal('confirm');
-                                //     }
-                                // } else {
-                                console.log("Weeve button clicked, toggling isForking", !isForking);
-                                setIsForking(!isForking);
-                                if (showTutorialTooltip) {
-                                    handleTooltipDismiss();
+                                if (story.monetizationCost && story.monetizationCost > 0) {
+                                    // Check balance
+                                    if ((currentUser?.tokens || 0) < story.monetizationCost) {
+                                        // Show insufficient balance modal
+                                        setShowMonetizationModal('insufficient');
+                                    } else {
+                                        // Show confirmation modal
+                                        setShowMonetizationModal('confirm');
+                                    }
+                                } else {
+                                    console.log("Weeve button clicked, toggling isForking", !isForking);
+                                    setIsForking(!isForking);
+                                    if (showTutorialTooltip) {
+                                        handleTooltipDismiss();
+                                    }
                                 }
-                                // }
                             }}
                             className={`w-10 h-10 rounded-full flex items-center justify-center border border-white/20 transition-all ${showTutorialTooltip
                                 ? "bg-[#EC1D99] text-white scale-110 animate-pulse ring-4 ring-[#EC1D99]/50"
@@ -931,8 +978,8 @@ export default function FeedItem({ story }: FeedItemProps) {
                 )}
             </div>
 
-            {/* Monetization Modal - HIDDEN FOR NOW */}
-            {/* {showMonetizationModal && (
+            {/* Monetization Modal */}
+            {showMonetizationModal && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6 animate-in fade-in duration-200">
                     <div className="bg-[#1a1a2e] border border-white/10 rounded-3xl p-6 w-full max-w-sm text-center shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
                         {showMonetizationModal === 'confirm' ? (
@@ -941,12 +988,24 @@ export default function FeedItem({ story }: FeedItemProps) {
                                     <span className="text-3xl">💎</span>
                                 </div>
                                 <h3 className="text-xl font-bold text-white mb-2">Premium Story</h3>
-                                <p className="text-gray-300 mb-6">
-                                    This story requires <span className="text-[#EC1D99] font-bold">{story.monetizationCost} tokens</span> to join.
+                                <p className="text-gray-300 mb-2">
+                                    This story requires payment to contribute:
                                 </p>
+                                <div className="bg-[#EC1D99]/10 border border-[#EC1D99]/20 rounded-xl p-4 mb-4">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-sm text-gray-300">Cost to Contribute</span>
+                                        <span className="text-xl font-bold text-[#EC1D99]">{story.monetizationCost} tokens</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-sm text-gray-400">≈ ${((story.monetizationCost || 0) * 0.10).toFixed(2)} USD</span>
+                                    </div>
+                                </div>
                                 <div className="bg-black/30 rounded-xl p-4 mb-6 flex items-center justify-between">
                                     <span className="text-sm text-gray-400">Your Balance</span>
-                                    <span className="text-lg font-bold text-white">{currentUser?.tokens || 0} 💎</span>
+                                    <div className="text-right">
+                                        <div className="text-lg font-bold text-white">{currentUser?.tokens || 0} tokens</div>
+                                        <div className="text-xs text-gray-400">${((currentUser?.tokens || 0) * 0.10).toFixed(2)}</div>
+                                    </div>
                                 </div>
                                 <div className="flex gap-3">
                                     <button
@@ -977,12 +1036,32 @@ export default function FeedItem({ story }: FeedItemProps) {
                                     <span className="text-3xl">🚫</span>
                                 </div>
                                 <h3 className="text-xl font-bold text-white mb-2">Insufficient Tokens</h3>
-                                <p className="text-gray-300 mb-6">
-                                    You need <span className="text-[#EC1D99] font-bold">{story.monetizationCost} tokens</span> to join this story.
+                                <p className="text-gray-300 mb-4">
+                                    You don&apos;t have enough tokens to contribute to this story.
                                 </p>
+                                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-3">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-sm text-gray-300">Required</span>
+                                        <span className="text-xl font-bold text-red-400">{story.monetizationCost} tokens</span>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-sm text-gray-400">${((story.monetizationCost || 0) * 0.10).toFixed(2)} USD</span>
+                                    </div>
+                                </div>
                                 <div className="bg-black/30 rounded-xl p-4 mb-6 flex items-center justify-between">
                                     <span className="text-sm text-gray-400">Your Balance</span>
-                                    <span className="text-lg font-bold text-white">{currentUser?.tokens || 0} 💎</span>
+                                    <div className="text-right">
+                                        <div className="text-lg font-bold text-white">{currentUser?.tokens || 0} tokens</div>
+                                        <div className="text-xs text-gray-400">${((currentUser?.tokens || 0) * 0.10).toFixed(2)}</div>
+                                    </div>
+                                </div>
+                                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 mb-4">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm text-gray-300">You need</span>
+                                        <span className="text-lg font-bold text-green-400">
+                                            {(story.monetizationCost || 0) - (currentUser?.tokens || 0)} more tokens
+                                        </span>
+                                    </div>
                                 </div>
                                 <div className="flex gap-3">
                                     <button
@@ -1002,7 +1081,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                         )}
                     </div>
                 </div>
-            )} */}
+            )}
             <div className="absolute bottom-0 left-0 right-0 p-6 pb-4 text-white z-10">
                 <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md">
                     {story.title}
@@ -1237,17 +1316,30 @@ export default function FeedItem({ story }: FeedItemProps) {
                                                                             <video
                                                                                 src={contribution.mediaUrl}
                                                                                 className="weeve-inline-video w-full h-full object-cover"
-                                                                                autoPlay
                                                                                 muted
                                                                                 playsInline
                                                                                 loop
-                                                                                preload="auto"
+                                                                                preload="metadata"
                                                                                 controls={false}
                                                                                 controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                                                                                 disablePictureInPicture
-                                                                                onLoadedData={(event) => {
+                                                                                disableRemotePlayback
+                                                                                onCanPlay={(event) => {
                                                                                     const element = event.currentTarget;
+                                                                                    element.style.opacity = '1';
+                                                                                    element.style.visibility = 'visible';
+                                                                                    element.style.transform = 'translate3d(0,0,0)';
                                                                                     element.play().catch(() => null);
+                                                                                }}
+                                                                                style={{
+                                                                                    opacity: 0,
+                                                                                    visibility: 'hidden',
+                                                                                    transform: 'translate3d(-9999px,-9999px,0)',
+                                                                                    transition: 'none',
+                                                                                    backgroundColor: '#000000',
+                                                                                    WebkitAppearance: 'none',
+                                                                                    appearance: 'none',
+                                                                                    backgroundImage: 'none'
                                                                                 }}
                                                                             />
                                                                         ) : contribution.mediaType === 'image' ? (

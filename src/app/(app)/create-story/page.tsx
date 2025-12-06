@@ -157,6 +157,19 @@ function CreateStoryContent() {
           console.error('Database error adding participants:', participantsError);
           throw participantsError;
         }
+
+        // Send invite notifications to invited users (excluding creator)
+        const invitedUserIds = finalParticipants
+          .filter(p => p.id !== currentUser.id)
+          .map(p => p.id);
+        
+        if (invitedUserIds.length > 0) {
+          import('@/lib/notifications').then(({ notifyStoryInvite }) => {
+            notifyStoryInvite(newStoryId, data.title, currentUser.name, invitedUserIds).catch(err => {
+              console.error('Failed to send invite notifications:', err);
+            });
+          }).catch(err => console.error('Failed to import notifications:', err));
+        }
       }
 
       // 3. Update Local Store for immediate feedback

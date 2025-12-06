@@ -9,6 +9,10 @@ const config: CapacitorConfig = {
     url: 'http://192.168.0.185:3000',
     cleartext: true
   },
+  // Deep linking configuration
+  ios: {
+    scheme: 'weeve',
+  },
   plugins: {
     GoogleAuth: {
       scopes: ['profile', 'email'],

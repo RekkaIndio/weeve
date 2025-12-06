@@ -1,18 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, signInWithGoogle } from "@/lib/auth";
 import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [socialLoading, setSocialLoading] = useState<"google" | null>(null);
+
+    // Store ref code from URL parameter
+    useEffect(() => {
+        const ref = searchParams?.get('ref');
+        if (ref) {
+            localStorage.setItem('weeve_invite_code', ref);
+        }
+    }, [searchParams]);
 
     const handleEmailLogin = async () => {
         if (!email || !password) {
@@ -191,7 +200,7 @@ export default function LoginPage() {
                     <p className="mt-6 text-center text-sm text-gray-300">
                         No account?{" "}
                         <a
-                            href="/signup"
+                            href={searchParams?.get('ref') ? `/signup?ref=${searchParams.get('ref')}` : "/signup"}
                             className="text-white font-semibold underline hover:text-gray-200 transition-colors"
                         >
                             Sign up

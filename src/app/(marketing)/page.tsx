@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/components/AuthProvider";
 import { ArrowRight, Smartphone, Users, Zap, Shield, Camera, Video, Smile, ChevronDown, Globe, Heart, Send, Plus, Play, Sparkles, TrendingUp, X, CheckCircle2, Ban } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,6 +10,7 @@ import MarketingNavbar from "@/app/components/MarketingNavbar";
 import MarketingFooter from "@/app/components/MarketingFooter";
 import WaitlistModal from "@/app/components/WaitlistModal";
 import StoryChainVisual from "@/app/components/StoryChainVisual";
+import SmartAppRedirect from "@/app/components/SmartAppRedirect";
 
 // --- Animations ---
 
@@ -178,12 +179,19 @@ const FAQItem = ({ question, answer }: { question: string; answer: string }) => 
 export default function LandingPage() {
     const { user, loading } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [waitlistOpen, setWaitlistOpen] = useState(false);
+
+    // SmartAppRedirect component handles mobile app redirects
+    // Desktop users stay on marketing page
 
     if (loading) return null;
 
     return (
         <div className="min-h-screen bg-black text-white selection:bg-[#EC1D99] selection:text-white overflow-x-hidden">
+            {/* Smart App Redirect for mobile users with ref codes */}
+            <SmartAppRedirect />
+            
             {/* Navigation */}
             <MarketingNavbar onWaitlistClick={() => setWaitlistOpen(true)} />
 

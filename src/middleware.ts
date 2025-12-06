@@ -23,7 +23,15 @@ export function middleware(request: NextRequest) {
     )
 
     if (isMobile && isMarketingPage) {
-        const url = new URL('/login', request.url)
+        // If user has ref code, redirect to app-redirect page for smart app detection
+        const hasRefCode = request.nextUrl.searchParams.has('ref');
+        if (hasRefCode) {
+            const url = new URL('/app-redirect', request.url)
+            url.search = request.nextUrl.search
+            return NextResponse.redirect(url)
+        }
+        // Otherwise go to signup
+        const url = new URL('/signup', request.url)
         url.search = request.nextUrl.search
         return NextResponse.redirect(url)
     }

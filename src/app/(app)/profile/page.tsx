@@ -1003,11 +1003,11 @@ export default function ProfilePage() {
             <div className="p-4 flex justify-between items-center">
                 <h1 className="font-bold text-lg">{currentUser.name}</h1>
                 <div className="flex items-center gap-4">
-                    {/* Wallet Link - HIDDEN FOR NOW */}
-                    {/* <Link href="/wallet" className="flex items-center gap-1 bg-gray-800 px-3 py-1.5 rounded-full">
+                    {/* Wallet Link */}
+                    <Link href="/wallet" className="flex items-center gap-1 bg-gray-800 px-3 py-1.5 rounded-full">
                         <Wallet className="w-4 h-4 text-[#EC1D99]" />
                         <span className="text-sm font-bold">{currentUser.tokens}</span>
-                    </Link> */}
+                    </Link>
                     <button onClick={() => setShowInviteModal(true)} className="text-white hover:text-gray-300 transition-colors">
                         <UserPlus className="w-6 h-6" />
                     </button>
@@ -1223,14 +1223,31 @@ export default function ProfilePage() {
                                         <video
                                             src={firstMediaUrl}
                                             className="weeve-inline-video w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                            autoPlay
                                             loop
                                             muted
                                             playsInline
-                                            preload="auto"
+                                            preload="metadata"
                                             controls={false}
                                             controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                                             disablePictureInPicture
+                                            disableRemotePlayback
+                                            style={{
+                                                opacity: 0,
+                                                visibility: 'hidden',
+                                                transform: 'translate3d(-9999px,-9999px,0)',
+                                                transition: 'none',
+                                                WebkitAppearance: 'none',
+                                                appearance: 'none',
+                                                backgroundImage: 'none',
+                                                backgroundColor: '#000000'
+                                            }}
+                                            onCanPlay={(e) => {
+                                                const video = e.currentTarget;
+                                                video.style.opacity = '1';
+                                                video.style.visibility = 'visible';
+                                                video.style.transform = 'translate3d(0,0,0)';
+                                                video.play().catch(() => null);
+                                            }}
                                         />
                                     ) : firstMediaType === 'drawing' && firstMediaUrl ? (
                                         <div className="w-full h-full flex items-center justify-center bg-gray-900">
@@ -1351,14 +1368,20 @@ export default function ProfilePage() {
                                             <video
                                                 src={firstMediaUrl}
                                                 className="weeve-inline-video w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                                autoPlay
                                                 loop
                                                 muted
                                                 playsInline
-                                                preload="auto"
+                                                preload="metadata"
                                                 controls={false}
                                                 controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                                                 disablePictureInPicture
+                                                disableRemotePlayback
+                                                onCanPlay={(e) => e.currentTarget.play().catch(() => null)}
+                                                style={{
+                                                    WebkitAppearance: 'none',
+                                                    appearance: 'none',
+                                                    backgroundImage: 'none'
+                                                }}
                                             />
                                         ) : firstMediaType === 'drawing' && firstMediaUrl ? (
                                             <div className="w-full h-full flex items-center justify-center bg-gray-900">
@@ -1460,15 +1483,21 @@ export default function ProfilePage() {
                                         {mediaType === 'video' && mediaUrl ? (
                                             <video
                                                 src={mediaUrl}
-                                                className="absolute inset-0 w-full h-full object-cover z-10"
-                                                autoPlay
+                                                className="weeve-inline-video absolute inset-0 w-full h-full object-cover z-10"
                                                 loop
                                                 muted
                                                 playsInline
-                                                preload="auto"
+                                                preload="metadata"
                                                 controls={false}
                                                 controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                                                 disablePictureInPicture
+                                                disableRemotePlayback
+                                                onCanPlay={(e) => e.currentTarget.play().catch(() => null)}
+                                                style={{
+                                                    WebkitAppearance: 'none',
+                                                    appearance: 'none',
+                                                    backgroundImage: 'none'
+                                                }}
                                             />
                                         ) : mediaType === 'drawing' && mediaUrl ? (
                                             <img

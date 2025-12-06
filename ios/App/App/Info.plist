@@ -74,6 +74,14 @@
 				<string>com.googleusercontent.apps.127490580268-lg2ohjpnff7abflq1642pjd6dd6hgfkc</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Weeve Deep Link</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>weeve</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

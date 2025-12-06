@@ -578,6 +578,16 @@ export const useStore = create<AppState>()(
                     const updatedContributions = [...currentStory.contributions, newContribution];
                     const reachedCapacity = maxWeeves !== null && updatedContributions.length >= maxWeeves;
 
+                    // Send completion notification if story just reached capacity
+                    if (reachedCapacity && currentStory.status !== 'completed') {
+                        import('./notifications').then(({ notifyStoryCompleted }) => {
+                            const participantIds = currentStory.participants.map(p => p.id);
+                            notifyStoryCompleted(currentStory.id, currentStory.title, participantIds).catch(err => {
+                                console.error('Failed to send completion notification:', err);
+                            });
+                        }).catch(err => console.error('Failed to import notifications:', err));
+                    }
+
                     const nextTurnUserId = (() => {
                         if (options && Object.prototype.hasOwnProperty.call(options, 'nextTurnUserId')) {
                             return options.nextTurnUserId ?? undefined;
@@ -678,6 +688,15 @@ export const useStore = create<AppState>()(
                         console.error('Failed to add like:', error);
                         return;
                     }
+
+                    // Send like notification to story creator
+                    if (story.creatorId !== currentUser.id) {
+                        import('./notifications').then(({ notifyStoryLike }) => {
+                            notifyStoryLike(storyId, story.title, story.creatorId, currentUser.name).catch(err => {
+                                console.error('Failed to send like notification:', err);
+                            });
+                        }).catch(err => console.error('Failed to import notifications:', err));
+                    }
                 }
 
                 const shouldLike = !alreadyLiked;
@@ -737,6 +756,23 @@ export const useStore = create<AppState>()(
                     content: insertedComment.content,
                     timestamp: insertedComment.timestamp ?? timestamp,
                 };
+
+                // Send comment notification to story creator
+                const state = get();
+                const story = state.stories.find((s) => s.id === storyId);
+                if (story && story.creatorId !== currentUser.id) {
+                    import('./notifications').then(({ notifyStoryComment }) => {
+                        notifyStoryComment(
+                            storyId,
+                            story.title,
+                            story.creatorId,
+                            currentUser.name,
+                            trimmed
+                        ).catch(err => {
+                            console.error('Failed to send comment notification:', err);
+                        });
+                    }).catch(err => console.error('Failed to import notifications:', err));
+                }
 
                 set((state) => {
                     const storyIndex = state.stories.findIndex((s) => s.id === storyId);

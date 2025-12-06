@@ -2,8 +2,9 @@
 
 import { useStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Coins } from 'lucide-react';
+import { ChevronLeft, Coins, TrendingUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useEffect, useState, useCallback, useRef } from 'react';
 
 // Stripe Payment Links
@@ -141,15 +142,23 @@ export default function WalletPage() {
     return (
         <div className="flex flex-col min-h-screen bg-black text-white">
             {/* Header */}
-            <header className="sticky top-0 z-20 bg-black/90 backdrop-blur-md border-b border-gray-800 px-4 py-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-3">
+            <header className="sticky top-0 z-20 bg-black/90 backdrop-blur-md border-b border-gray-800 px-4 py-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleBack}
+                        className="p-2 rounded-full border border-[#EC1D99] text-[#EC1D99] bg-black hover:bg-gray-900 transition-colors"
+                        aria-label="Go back"
+                    >
+                        <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <h1 className="text-2xl font-bold text-white font-sans">Wallet</h1>
+                </div>
                 <button
-                    onClick={handleBack}
-                    className="p-2 rounded-full border border-[#EC1D99] text-[#EC1D99] bg-black hover:bg-gray-900 transition-colors"
-                    aria-label="Go back"
+                    onClick={() => router.push('/earnings')}
+                    className="px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-semibold hover:bg-green-500/20 transition-colors"
                 >
-                    <ChevronLeft className="w-6 h-6" />
+                    💰 Earnings
                 </button>
-                <h1 className="text-2xl font-bold text-white font-sans">Wallet</h1>
             </header>
 
             <main className="flex-1 px-4 py-6">
@@ -164,6 +173,16 @@ export default function WalletPage() {
                             <span className="text-4xl font-bold text-white font-sans">{balance}</span>
                             <span className="text-yellow-500 font-medium">Tokens</span>
                         </div>
+                    </div>
+
+                    {/* Quick Info */}
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 mb-6">
+                        <p className="text-sm text-gray-300">
+                            <span className="font-semibold text-blue-400">💡 Did you know?</span> You can earn tokens by creating monetized stories! 
+                            <Link href="/earnings" className="text-[#EC1D99] hover:underline ml-1">
+                                View your earnings →
+                            </Link>
+                        </p>
                     </div>
 
                     <h2 className="text-xl font-bold text-white mb-4 font-sans">Top Up Tokens</h2>

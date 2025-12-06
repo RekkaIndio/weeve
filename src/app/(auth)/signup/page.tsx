@@ -1,17 +1,26 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signUp, signInWithGoogle } from "@/lib/auth";
 
 export default function SignUpPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [socialLoading, setSocialLoading] = useState<"google" | null>(null);
+
+    // Store ref code from URL parameter
+    useEffect(() => {
+        const ref = searchParams?.get('ref');
+        if (ref) {
+            localStorage.setItem('weeve_invite_code', ref);
+        }
+    }, [searchParams]);
 
     const handleEmailSignUp = async () => {
         if (!email || !password) {

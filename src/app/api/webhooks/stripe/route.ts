@@ -62,48 +62,51 @@ export async function POST(req: Request) {
         // We can't see it here.
         // Let's implement a safe fallback:
 
-        if (amountTotal) {
-            // Example logic:
-            // $5.00 (500 cents) -> 100 tokens
-            // $20.00 (2000 cents) -> 550 tokens
-            // $35.00 (3500 cents) -> 1000 tokens
+        // Map payment amount to tokens
+        // TODO: Update these values with your actual Stripe product prices
+        const PRICE_TO_TOKEN_MAP: Record<number, number> = {
+            100: 100,    // $1.00 = 100 tokens (adjust based on your pricing)
+            500: 550,    // $5.00 = 550 tokens
+            1000: 1000,  // $10.00 = 1000 tokens
+            2000: 2200,  // $20.00 = 2200 tokens (example bonus)
+            5000: 6000,  // $50.00 = 6000 tokens (example bonus)
+        };
 
-            // For now, let's just give a fixed amount for testing if it matches the test link
-            // or just give 100 tokens for any successful payment for the MVP test.
-            tokensToAdd = 100;
-
-            // TODO: Implement proper price-to-token mapping once prices are confirmed.
-            if (amountTotal > 1000) tokensToAdd = 550;
-            if (amountTotal > 3000) tokensToAdd = 1000;
+        // Try exact match first
+        if (amountTotal && PRICE_TO_TOKEN_MAP[amountTotal]) {
+            tokensToAdd = PRICE_TO_TOKEN_MAP[amountTotal];
+        } else if (amountTotal) {
+            // Fallback: approximate mapping for unknown amounts
+            console.warn(`Unknown payment amount: ${amountTotal} cents. Using fallback calculation.`);
+            tokensToAdd = Math.floor(amountTotal / 10); // 10 cents = 1 token as fallback
         }
 
-        console.log(`Processing payment for user ${userId}: Amount ${amountTotal}, Adding ${tokensToAdd} tokens`);
-
-        // Update user's token balance
-        const { data: profile, error: fetchError } = await supabaseAdmin
-            .from('profiles')
-            .select('tokens')
-            .eq('user_id', userId)
-            .single();
-
-        if (fetchError) {
-            console.error('Error fetching profile:', fetchError);
-            return NextResponse.json({ error: 'Profile not found' }, { status: 500 });
+        if (tokensToAdd === 0) {
+            console.error('Could not determine token amount for payment:', { userId, amountTotal });
+            return NextResponse.json({ error: 'Invalid payment amount' }, { status: 400 });
         }
 
-        const newBalance = (profile?.tokens || 0) + tokensToAdd;
+        console.log(`Processing payment for user ${userId}: Amount ${amountTotal} cents, Adding ${tokensToAdd} tokens`);
 
-        const { error: updateError } = await supabaseAdmin
-            .from('profiles')
-            .update({ tokens: newBalance })
-            .eq('user_id', userId);
+        // Use atomic RPC function to add tokens
+        const { data, error } = await supabaseAdmin.rpc('add_tokens', {
+            p_user_id: userId,
+            p_token_amount: tokensToAdd,
+            p_reference_id: session.id, // Stripe session ID
+            p_metadata: {
+                stripe_session_id: session.id,
+                amount_cents: amountTotal,
+                payment_status: session.payment_status,
+            },
+        });
 
-        if (updateError) {
-            console.error('Error updating tokens:', updateError);
-            return NextResponse.json({ error: 'Failed to update tokens' }, { status: 500 });
+        if (error) {
+            console.error('Error adding tokens:', error);
+            return NextResponse.json({ error: 'Failed to add tokens' }, { status: 500 });
         }
 
-        console.log(`Successfully added ${tokensToAdd} tokens to user ${userId}. New balance: ${newBalance}`);
+        const result = typeof data === 'string' ? JSON.parse(data) : data;
+        console.log(`Successfully added ${tokensToAdd} tokens to user ${userId}. New balance: ${result.new_balance}`);
     }
 
     return NextResponse.json({ received: true });

@@ -599,8 +599,8 @@ const CreateStory = ({
           </fieldset>
         )}
 
-        {/* Monetization Option - Only for Public Stories - HIDDEN FOR NOW */}
-        {/* {!groupId && formState.visibility === "public" && (
+        {/* Monetization Option - Only for Public Stories */}
+        {!groupId && formState.visibility === "public" && (
           <div className="mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="flex items-center justify-between mb-2">
               <label
@@ -614,9 +614,9 @@ const CreateStory = ({
               </div>
             </div>
             <p className="text-xs text-gray-500 mb-3 font-sans">
-              Set a token cost for others to contribute to this story. You will earn these tokens.
+              Set a token cost for others to contribute. You&apos;ll earn these tokens (1 token = $0.10).
             </p>
-            <div className="relative">
+            <div className="relative mb-2">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg">🪙</span>
               <input
                 id="monetization-cost"
@@ -638,8 +638,42 @@ const CreateStory = ({
                 className="w-full pl-10 pr-4 py-3 bg-gray-900 border border-gray-800 rounded-lg focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99] transition-colors text-white text-lg font-semibold placeholder-gray-600 font-sans appearance-none"
               />
             </div>
+            {formState.monetizationCost !== undefined && formState.monetizationCost > 0 && (
+              <div className="flex items-center justify-between text-xs mb-2">
+                <span className="text-gray-400">
+                  Value: <span className="text-green-400 font-semibold">${(formState.monetizationCost * 0.10).toFixed(2)} USD</span>
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  formState.monetizationCost <= 10 ? 'bg-green-500/10 text-green-400' :
+                  formState.monetizationCost <= 50 ? 'bg-yellow-500/10 text-yellow-400' :
+                  formState.monetizationCost <= 100 ? 'bg-orange-500/10 text-orange-400' :
+                  'bg-red-500/10 text-red-400'
+                }`}>
+                  {formState.monetizationCost <= 10 ? '💚 Low' :
+                   formState.monetizationCost <= 50 ? '💛 Medium' :
+                   formState.monetizationCost <= 100 ? '🧡 High' :
+                   '❤️ Premium'}
+                </span>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2 mt-2">
+              {[0, 5, 10, 25, 50, 100].map((price) => (
+                <button
+                  key={price}
+                  type="button"
+                  onClick={() => setFormState((prev) => ({ ...prev, monetizationCost: price === 0 ? undefined : price }))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    formState.monetizationCost === price || (price === 0 && !formState.monetizationCost)
+                      ? 'bg-[#EC1D99] text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  {price === 0 ? 'Free' : `${price} (${(price * 0.10).toFixed(price >= 10 ? 1 : 2)})`}
+                </button>
+              ))}
+            </div>
           </div>
-        )} */}
+        )}
 
         {/* Number of Contributors */}
         <div className="mb-6">
@@ -1090,6 +1124,7 @@ const CreateStory = ({
                   className="w-full px-3 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99] transition-colors text-white font-sans"
                 >
                   <option value="">No limit</option>
+                  <option value="6">6 hours</option>
                   <option value="12">12 hours</option>
                   <option value="24">24 hours</option>
                   <option value="48">48 hours</option>

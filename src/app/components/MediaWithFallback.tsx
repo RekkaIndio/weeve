@@ -50,12 +50,32 @@ export default function MediaWithFallback({
         return (
             <video
                 src={src}
-                className={`${className} ${videoClassName}`}
+                className={`weeve-inline-video ${className} ${videoClassName}`}
                 onError={onError}
                 muted
                 playsInline
                 loop
-                autoPlay
+                preload="metadata"
+                controls={false}
+                disablePictureInPicture
+                disableRemotePlayback
+                onCanPlay={(e) => {
+                    const video = e.currentTarget;
+                    video.style.opacity = '1';
+                    video.style.visibility = 'visible';
+                    video.style.transform = 'translate3d(0,0,0)';
+                    video.play().catch(() => null);
+                }}
+                style={{
+                    opacity: 0,
+                    visibility: 'hidden',
+                    transform: 'translate3d(-9999px,-9999px,0)',
+                    transition: 'none',
+                    WebkitAppearance: 'none',
+                    appearance: 'none',
+                    backgroundImage: 'none',
+                    backgroundColor: '#000000'
+                }}
                 {...props}
             />
         );

@@ -26,6 +26,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- OAuth callback -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -36,6 +37,31 @@
                     android:scheme="com.weeve.app"
                     android:host="auth"
                     android:path="/callback" />
+            </intent-filter>
+
+            <!-- Deep linking for weeve:// URLs -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                
+                <data android:scheme="weeve" />
+            </intent-filter>
+
+            <!-- Universal Links (https://tryweeve.com) -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                
+                <data
+                    android:scheme="https"
+                    android:host="tryweeve.com" />
+                <data
+                    android:scheme="https"
+                    android:host="www.tryweeve.com" />
             </intent-filter>
 
         </activity>

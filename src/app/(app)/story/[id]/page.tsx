@@ -11,6 +11,7 @@ import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, Pencil, X, 
 import EditStoryModal from "@/app/components/EditStoryModal";
 import { DrawingCanvas, type DrawingCanvasRef } from "@/app/components/DrawingCanvas";
 import { toast } from "sonner";
+import { useTimerCheck } from "@/lib/useTimerCheck";
 
 const FONT_OPTIONS = [
     { label: "Sans", value: "'Inter', 'Helvetica Neue', sans-serif" },
@@ -130,6 +131,25 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const hasCustomTextStyle = Boolean(activeSegment?.textStyle);
     const isMyTurn = !isStoryComplete && story?.currentTurnUserId === currentUser?.id;
     const hasContributions = contributions.length > 0;
+    
+    // Get last contribution timestamp for timer calculation
+    const lastContributionTimestamp = useMemo(() => {
+        if (contributions.length === 0) return undefined;
+        const sorted = [...contributions].sort((a, b) => b.timestamp - a.timestamp);
+        return sorted[0]?.timestamp;
+    }, [contributions]);
+
+    // Timer expiration check - automatically skips turn if expired
+    useTimerCheck(
+        story?.id,
+        story?.currentTurnUserId,
+        currentUser?.id,
+        story?.turnTimerHours,
+        lastContributionTimestamp,
+        story?.updated_at,
+        isMyTurn
+    );
+
     const participantMap = useMemo(() => {
         const map = new Map<string, User>();
         (story?.participants ?? []).forEach((participant) => {
@@ -1496,6 +1516,7 @@ function AutoAdvance({ onComplete, isPlaying, duration }: { onComplete: () => vo
 function VideoPlayer({ src, onComplete, isPlaying }: { src?: string, onComplete: () => void, isPlaying: boolean }) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [error, setError] = useState(false);
+    const [isReady, setIsReady] = useState(false);
 
     useEffect(() => {
         const video = videoRef.current;
@@ -1503,34 +1524,45 @@ function VideoPlayer({ src, onComplete, isPlaying }: { src?: string, onComplete:
 
         video.setAttribute('playsinline', 'true');
         video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('x-webkit-airplay', 'deny');
         video.preload = 'auto';
+        
+        // Set ready state on load
+        const handleReady = () => setIsReady(true);
+        video.addEventListener('loadeddata', handleReady);
+        video.addEventListener('canplay', handleReady);
+        
+        return () => {
+            video.removeEventListener('loadeddata', handleReady);
+            video.removeEventListener('canplay', handleReady);
+        };
     }, [src]);
 
     // Play or pause based on isPlaying
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
-        if (isPlaying) {
+        if (isPlaying && isReady) {
             const playVideo = async () => {
                 try {
                     video.currentTime = 0;
                     await video.play();
                 } catch (err) {
-                    console.error("Autoplay failed:", err);
+                    console.error("Play failed:", err);
                     video.muted = true;
                     try {
                         await video.play();
                     } catch (mutedErr) {
-                        console.error("Muted autoplay failed:", mutedErr);
+                        console.error("Muted play failed:", mutedErr);
                         setError(true);
                     }
                 }
             };
             playVideo();
-        } else {
+        } else if (!isPlaying) {
             video.pause();
         }
-    }, [src, isPlaying]);
+    }, [src, isPlaying, isReady]);
 
     // Notify when video ends or safety timer fires
     useEffect(() => {
@@ -1566,12 +1598,19 @@ function VideoPlayer({ src, onComplete, isPlaying }: { src?: string, onComplete:
             src={src}
             className="weeve-inline-video w-full h-full object-cover"
             playsInline
-            autoPlay={isPlaying}
             preload="auto"
             controls={false}
             controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
             disablePictureInPicture
+            disableRemotePlayback
             onEnded={onComplete}
+            onCanPlay={(e) => {
+                const video = e.currentTarget;
+                setIsReady(true);
+                if (isPlaying) {
+                    video.play().catch(() => null);
+                }
+            }}
             onLoadedMetadata={(e) => {
                 const video = e.currentTarget;
                 video.volume = 1.0;
@@ -1581,6 +1620,16 @@ function VideoPlayer({ src, onComplete, isPlaying }: { src?: string, onComplete:
                 const video = e.currentTarget;
                 video.muted = false;
                 video.volume = 1.0;
+            }}
+            style={{
+                opacity: isReady ? 1 : 0,
+                visibility: isReady ? 'visible' : 'hidden',
+                transform: isReady ? 'translate3d(0,0,0)' : 'translate3d(-9999px,-9999px,0)',
+                transition: 'none',
+                backgroundColor: '#000000',
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                backgroundImage: 'none'
             }}
         />
     );

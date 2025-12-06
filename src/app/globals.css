@@ -52,14 +52,87 @@ body {
 }
 
 video.weeve-inline-video {
-  background-color: transparent;
+  background-color: #000000 !important;
+  object-fit: cover;
+  /* Prevent any browser UI from showing */
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  /* Prevent any loading spinners or icons */
+  background-image: none !important;
+  /* CRITICAL: Force completely black/transparent rendering - NO gray icons */
+  color: transparent !important;
+  fill: transparent !important;
+  /* Optimize rendering to prevent flashes */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  /* Prevent any default video element styling */
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
+/* Prevent poster attribute flash - ensure poster displays immediately */
+video.weeve-inline-video[poster] {
+  object-fit: cover;
+  background-size: cover;
+  background-position: center;
+  background-color: #000000;
+  background-repeat: no-repeat;
+}
+
+/* Hide ALL possible video controls and play buttons - MAXIMUM COVERAGE */
 video.weeve-inline-video::-webkit-media-controls-start-playback-button,
 video.weeve-inline-video::-webkit-media-controls-play-button,
 video.weeve-inline-video::-webkit-media-controls-overlay-play-button,
-video.weeve-inline-video::-webkit-media-controls-enclosure {
+video.weeve-inline-video::-webkit-media-controls-enclosure,
+video.weeve-inline-video::-webkit-media-controls,
+video.weeve-inline-video::-webkit-media-controls-panel,
+video.weeve-inline-video::-webkit-media-controls-timeline,
+video.weeve-inline-video::-webkit-media-controls-current-time-display,
+video.weeve-inline-video::-webkit-media-controls-time-remaining-display,
+video.weeve-inline-video::-webkit-media-controls-timeline-container,
+video.weeve-inline-video::-webkit-media-controls-volume-slider,
+video.weeve-inline-video::-webkit-media-controls-mute-button,
+video.weeve-inline-video::-webkit-media-controls-fullscreen-button,
+video.weeve-inline-video::-webkit-media-controls-toggle-closed-captions-button,
+video.weeve-inline-video::-webkit-media-controls-container {
   display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Remove any browser-default loading indicators and play icons */
+video.weeve-inline-video::before,
+video.weeve-inline-video::after,
+video.weeve-inline-video[poster]::before,
+video.weeve-inline-video[poster]::after {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+  border: none !important;
+}
+
+/* NUCLEAR OPTION: Force all video element children/overlays to be invisible */
+video.weeve-inline-video * {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Ensure videos that are hidden stay completely out of view */
+video.weeve-inline-video[style*="visibility: hidden"] {
+  position: absolute !important;
+  left: -99999px !important;
+  top: -99999px !important;
 }
 
 @keyframes glow-pulse {

@@ -33,9 +33,18 @@ CREATE TABLE IF NOT EXISTS stories (
   cover_image TEXT,
   theme TEXT,
   group_id UUID REFERENCES groups(id) ON DELETE SET NULL,
+  monetization_cost INTEGER,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Add monetization_cost column for existing environments
+ALTER TABLE stories
+  ADD COLUMN IF NOT EXISTS monetization_cost INTEGER;
+
+-- Add check constraint to ensure monetization_cost is non-negative
+ALTER TABLE stories
+  ADD CONSTRAINT IF NOT EXISTS check_monetization_cost_non_negative CHECK (monetization_cost >= 0);
 
 -- Contributions table (individual story segments)
 CREATE TABLE IF NOT EXISTS contributions (

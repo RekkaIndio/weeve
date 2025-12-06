@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Search, Plus, Trash2 } from 'lucide-react';
+import { X, Search, Plus, Trash2, SkipForward } from 'lucide-react';
 import { Story, User, useStore } from '@/lib/store';
+import { skipTurn } from '@/lib/stories';
+import { toast } from 'sonner';
 
 interface EditStoryModalProps {
     story: Story;
@@ -12,6 +14,7 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
     const [participants, setParticipants] = useState<User[]>(story.participants);
     const [searchQuery, setSearchQuery] = useState('');
     const [showDropdown, setShowDropdown] = useState(false);
+    const [isSkipping, setIsSkipping] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
 
     // Filter friends who are NOT already in the story
@@ -30,6 +33,34 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
     const handleRemoveParticipant = (userId: string) => {
         if (userId === currentUser?.id) return; // Can't remove self
         setParticipants(participants.filter(p => p.id !== userId));
+    };
+
+    const handleSkipTurn = async (userId: string) => {
+        if (!currentUser || story.creatorId !== currentUser.id) {
+            toast.error('Only the story creator can skip turns');
+            return;
+        }
+
+        if (story.currentTurnUserId !== userId) {
+            toast.error('This user does not have the current turn');
+            return;
+        }
+
+        setIsSkipping(true);
+        try {
+            const result = await skipTurn(story.id, userId, 'manual_skip');
+            if (result.success) {
+                toast.success('Turn skipped successfully');
+                onClose(); // Close modal to refresh the view
+            } else {
+                toast.error(result.error || 'Failed to skip turn');
+            }
+        } catch (error) {
+            console.error('Error skipping turn:', error);
+            toast.error('An error occurred while skipping turn');
+        } finally {
+            setIsSkipping(false);
+        }
     };
 
     const handleSave = () => {
@@ -109,35 +140,55 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
                             Current Participants ({participants.length})
                         </label>
                         <div className="space-y-2">
-                            {participants.map(participant => (
-                                <div
-                                    key={participant.id}
-                                    className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl border border-gray-800"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <img
-                                            src={participant.avatar}
-                                            alt={participant.name}
-                                            className="w-10 h-10 rounded-full border border-gray-700"
-                                        />
-                                        <div>
-                                            <p className="text-white font-medium font-sans">
-                                                {participant.name}
-                                                {participant.id === currentUser?.id && <span className="text-gray-500 text-xs ml-2">(You)</span>}
-                                            </p>
+                            {participants.map(participant => {
+                                const isCurrentTurnUser = story.currentTurnUserId === participant.id;
+                                const isCreator = story.creatorId === currentUser?.id;
+                                const canSkip = isCreator && isCurrentTurnUser && story.status === 'active';
+
+                                return (
+                                    <div
+                                        key={participant.id}
+                                        className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl border border-gray-800"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <img
+                                                src={participant.avatar}
+                                                alt={participant.name}
+                                                className="w-10 h-10 rounded-full border border-gray-700"
+                                            />
+                                            <div>
+                                                <p className="text-white font-medium font-sans">
+                                                    {participant.name}
+                                                    {participant.id === currentUser?.id && <span className="text-gray-500 text-xs ml-2">(You)</span>}
+                                                    {isCurrentTurnUser && <span className="text-[#EC1D99] text-xs ml-2">• Current Turn</span>}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            {canSkip && (
+                                                <button
+                                                    onClick={() => handleSkipTurn(participant.id)}
+                                                    disabled={isSkipping}
+                                                    className="p-2 text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    title="Skip this person's turn"
+                                                >
+                                                    <SkipForward className="w-5 h-5" />
+                                                </button>
+                                            )}
+                                            {participant.id !== currentUser?.id && (
+                                                <button
+                                                    onClick={() => handleRemoveParticipant(participant.id)}
+                                                    className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                    title="Remove from story"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
-
-                                    {participant.id !== currentUser?.id && (
-                                        <button
-                                            onClick={() => handleRemoveParticipant(participant.id)}
-                                            className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                                        >
-                                            <Trash2 className="w-5 h-5" />
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
