@@ -729,7 +729,7 @@ export default function FeedItem({ story }: FeedItemProps) {
     return (
         <div 
             ref={containerRef} 
-            className="relative w-full h-[calc(100vh-80px)] snap-start shrink-0 bg-gray-900 overflow-hidden"
+            className="relative w-full h-[calc(100vh-64px)] snap-start shrink-0 bg-gray-900 overflow-hidden"
             onClick={handleContainerClick}
         >
             {/* Media Background */}
@@ -863,8 +863,9 @@ export default function FeedItem({ story }: FeedItemProps) {
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/90 pointer-events-none" />
 
-            {/* Right Sidebar Actions */}
-            <div className="absolute right-4 bottom-24 flex flex-col items-center gap-6 text-white z-20">
+            {/* Right Sidebar Actions - Vertically Aligned */}
+            <div className="absolute right-4 bottom-20 flex flex-col items-center gap-4 text-white z-20">
+                {/* Like Button */}
                 <div className="flex flex-col items-center gap-1">
                     <button
                         type="button"
@@ -876,6 +877,8 @@ export default function FeedItem({ story }: FeedItemProps) {
                     </button>
                     <span className="text-xs font-bold">{likeCount.toLocaleString()}</span>
                 </div>
+                
+                {/* Comment Button */}
                 {story.allowComments !== false && (
                     <div className="flex flex-col items-center gap-1">
                         <button
@@ -889,6 +892,8 @@ export default function FeedItem({ story }: FeedItemProps) {
                         <span className="text-xs font-bold">{comments.length}</span>
                     </div>
                 )}
+                
+                {/* Share Button */}
                 <div className="flex flex-col items-center gap-1">
                     <button
                         type="button"
@@ -900,6 +905,8 @@ export default function FeedItem({ story }: FeedItemProps) {
                     </button>
                     <span className="text-xs font-bold">Share</span>
                 </div>
+                
+                {/* Save Button */}
                 <div className="flex flex-col items-center gap-1">
                     <button
                         type="button"
@@ -914,19 +921,17 @@ export default function FeedItem({ story }: FeedItemProps) {
                     </button>
                     <span className="text-xs font-bold">Save</span>
                 </div>
-
+                
+                {/* Weeve Button */}
                 {story.visibility === 'public' && (
                     <div className="flex flex-col items-center gap-0.5 relative">
                         <button
                             type="button"
                             onClick={() => {
                                 if (story.monetizationCost && story.monetizationCost > 0) {
-                                    // Check balance
                                     if ((currentUser?.tokens || 0) < story.monetizationCost) {
-                                        // Show insufficient balance modal
                                         setShowMonetizationModal('insufficient');
                                     } else {
-                                        // Show confirmation modal
                                         setShowMonetizationModal('confirm');
                                     }
                                 } else {

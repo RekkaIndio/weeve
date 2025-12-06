@@ -37,7 +37,7 @@ export default function Home() {
       ))}
 
       {/* End of Feed Placeholder */}
-      <div className="h-[calc(100vh-80px)] snap-start flex items-center justify-center bg-black text-gray-500">
+      <div className="h-[calc(100vh-64px)] snap-start flex items-center justify-center bg-black text-gray-500">
         <div className="text-center">
           <p className="mb-4">You&apos;re all caught up!</p>
           <button className="text-[#EC1D99] font-bold">Discover more</button>

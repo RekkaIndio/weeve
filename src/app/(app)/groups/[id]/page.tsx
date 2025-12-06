@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
-import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera, Share2 } from 'lucide-react';
+import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera, Share2, Image as ImageIcon, X } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { capturePhoto } from '@/lib/camera';
@@ -21,8 +21,10 @@ export default function GroupDetailsPage() {
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [isMember, setIsMember] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [isOwner, setIsOwner] = useState(false);
     const [activeTab, setActiveTab] = useState<'stories' | 'members'>('stories');
     const [showShareModal, setShowShareModal] = useState(false);
+    const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
     useEffect(() => {
         if (id) fetchGroupDetails();
@@ -70,6 +72,7 @@ export default function GroupDetailsPage() {
                 const memberRecord = membersData?.find((m: any) => m.user_id === user.id);
                 setIsMember(!!memberRecord);
                 setIsAdmin(memberRecord?.role === 'admin');
+                setIsOwner(groupData.owner_id === user.id);
             }
 
             // Fetch group stories
@@ -94,10 +97,21 @@ export default function GroupDetailsPage() {
         }
     };
 
-    const handleAvatarClick = async () => {
-        if (!isAdmin) return;
+    const handleAvatarClick = () => {
+        if (!isAdmin && !isOwner) return;
+        setShowAvatarPicker(true);
+    };
 
-        const file = await capturePhoto();
+    const handleMediaSelect = async (source: 'camera' | 'gallery') => {
+        setShowAvatarPicker(false);
+        
+        // Double-check permissions
+        if (!isAdmin && !isOwner) {
+            toast.error('Only admins and owners can change the group photo');
+            return;
+        }
+        
+        const file = await capturePhoto(source);
         if (!file) return;
 
         // Validate file type
@@ -198,7 +212,7 @@ export default function GroupDetailsPage() {
                             <Share2 className="w-6 h-6" />
                         </button>
                     )}
-                    {isAdmin && (
+                    {(isAdmin || isOwner) && (
                         <button
                             onClick={() => router.push(`/groups/${id}/settings`)}
                             className="p-2 hover:bg-gray-900 rounded-full text-gray-400 hover:text-white"
@@ -211,9 +225,9 @@ export default function GroupDetailsPage() {
 
             {/* Group Info */}
             <div className="flex flex-col items-center mb-8">
-                {/* Avatar with click handler for admins */}
+                {/* Avatar with click handler for admins/owners */}
                 <div
-                    className={`relative mb-4 ${isAdmin ? 'cursor-pointer group' : ''}`}
+                    className={`relative mb-4 ${(isAdmin || isOwner) ? 'cursor-pointer' : ''}`}
                     onClick={handleAvatarClick}
                 >
                     <img
@@ -226,9 +240,9 @@ export default function GroupDetailsPage() {
                             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
                         </div>
                     )}
-                    {isAdmin && !uploadingAvatar && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Camera className="w-8 h-8 text-white" />
+                    {(isAdmin || isOwner) && !uploadingAvatar && (
+                        <div className="absolute bottom-0 right-0 bg-[#EC1D99] p-2 rounded-full border-2 border-black hover:bg-[#EC1D99]/90 transition-colors">
+                            <ImageIcon className="w-4 h-4 text-white" />
                         </div>
                     )}
                 </div>
@@ -362,6 +376,42 @@ export default function GroupDetailsPage() {
                     }}
                     onClose={() => setShowShareModal(false)}
                 />
+            )}
+
+            {/* Avatar Picker Modal */}
+            {showAvatarPicker && (
+                <div className="fixed inset-0 z-50 flex flex-col items-center justify-end pb-12 bg-black/90 backdrop-blur-sm animate-in slide-in-from-bottom duration-300">
+                    <button
+                        onClick={() => setShowAvatarPicker(false)}
+                        className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white"
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+
+                    <h2 className="text-xl font-bold mb-8 text-white">Update Group Photo</h2>
+
+                    <div className="flex gap-6 mb-8">
+                        <button
+                            onClick={() => handleMediaSelect('camera')}
+                            className="flex flex-col items-center gap-2 group"
+                        >
+                            <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                                <Camera className="w-8 h-8 text-white" />
+                            </div>
+                            <span className="text-sm font-medium text-white">Take Photo</span>
+                        </button>
+
+                        <button
+                            onClick={() => handleMediaSelect('gallery')}
+                            className="flex flex-col items-center gap-2 group"
+                        >
+                            <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                                <ImageIcon className="w-8 h-8 text-white" />
+                            </div>
+                            <span className="text-sm font-medium text-white">Upload Photo</span>
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );
