@@ -152,10 +152,9 @@ export default function LandingPage() {
                 <div className="max-w-5xl mx-auto px-6">
                     <div className="flex flex-wrap justify-center items-center gap-6 sm:gap-12 text-center">
                         {[
-                            { icon: Shield, label: "100% Ad-Free" },
-                            { icon: Heart, label: "No Algorithms" },
-                            { icon: Users, label: "Real Collaboration" },
-                            { icon: Sparkles, label: "You Own Your Content" }
+                            { icon: Heart, label: "Engagement beyond Algorithms" },
+                            { icon: Users, label: "Connection without Competition" },
+                            { icon: Sparkles, label: "Earn through Collaboration" }
                         ].map((item, i) => (
                             <motion.div
                                 key={i}
