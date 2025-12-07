@@ -6,32 +6,15 @@ export function middleware(request: NextRequest) {
     const { device, ua } = userAgent(request)
 
     // Check for mobile devices (phones and tablets)
-    // The device.type from next/server is usually 'mobile', 'tablet', 'console', 'smarttv', 'wearable', 'embedded', or undefined
-    // We also check the UA string for common mobile identifiers to be safe
     const isMobile = device.type === 'mobile' || device.type === 'tablet' ||
         /android|iphone|ipad|ipod/i.test(ua)
 
     const { pathname } = request.nextUrl
 
-    // Define marketing paths that should redirect on mobile
-    const marketingPaths = ['/', '/communities', '/influencers', '/brands']
-
-    // Check if the current path is a marketing path
-    // We handle the root path specifically, and others as startsWith to catch sub-pages if any
-    const isMarketingPage = marketingPaths.some(path =>
-        pathname === path || (path !== '/' && pathname.startsWith(path))
-    )
-
-    if (isMobile && isMarketingPage) {
-        // If user has ref code, redirect to app-redirect page for smart app detection
-        const hasRefCode = request.nextUrl.searchParams.has('ref');
-        if (hasRefCode) {
-            const url = new URL('/app-redirect', request.url)
-            url.search = request.nextUrl.search
-            return NextResponse.redirect(url)
-        }
-        // Otherwise go to signup
-        const url = new URL('/signup', request.url)
+    // Only handle mobile redirects for users with ref codes (app deep linking)
+    // Let everyone else see the landing page normally
+    if (isMobile && request.nextUrl.searchParams.has('ref')) {
+        const url = new URL('/app-redirect', request.url)
         url.search = request.nextUrl.search
         return NextResponse.redirect(url)
     }
