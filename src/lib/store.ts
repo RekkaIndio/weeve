@@ -13,6 +13,9 @@ export interface User {
     interactionCost?: number;
     inviteCode?: string;
     isPrivate?: boolean;
+    isVerified?: boolean;
+    verificationTier?: 'bronze' | 'silver' | 'gold' | null;
+    verifiedAt?: string;
     status?: 'accepted' | 'waiting' | 'declined'; // For story participants
     position?: number; // Slot position in the story
 }

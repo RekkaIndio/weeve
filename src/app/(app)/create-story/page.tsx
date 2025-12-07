@@ -101,7 +101,6 @@ function CreateStoryContent() {
           current_turn_user_id: currentUser.id, // Creator starts? Or first in list?
           group_id: groupId || null,
           allow_comments: data.allowComments,
-          allow_reuse: data.allowReuse,
           hashtags: data.hashtags,
           turn_timer_hours: data.turnTimerHours || null,
           monetization_cost: data.monetizationCost || null,
@@ -190,6 +189,7 @@ function CreateStoryContent() {
         likes: 0,
         likedBy: [],
         comments: [],
+        allowComments: data.allowComments,
 
         mode: 'invite',
         monetizationCost: data.monetizationCost,

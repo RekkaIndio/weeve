@@ -27,7 +27,6 @@ export interface CreateStoryFormState {
   inviteCount: number; // number of invite slots (1-10)
   hashtags?: string[];
   allowComments: boolean;
-  allowReuse: boolean;
   turnTimerHours?: number;
   monetizationCost?: number;
 }
@@ -70,7 +69,6 @@ const CreateStory = ({
     inviteCount: 3,
     hashtags: [],
     allowComments: true,
-    allowReuse: true,
     turnTimerHours: undefined,
     monetizationCost: undefined,
   });
@@ -599,82 +597,6 @@ const CreateStory = ({
           </fieldset>
         )}
 
-        {/* Monetization Option - Only for Public Stories */}
-        {!groupId && formState.visibility === "public" && (
-          <div className="mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="flex items-center justify-between mb-2">
-              <label
-                htmlFor="monetization-cost"
-                className="block text-sm font-medium text-gray-300 font-sans"
-              >
-                Monetization Cost (Tokens)
-              </label>
-              <div className="text-xs text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded-full border border-yellow-500/20">
-                Optional
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 mb-3 font-sans">
-              Set a token cost for others to contribute. You&apos;ll earn these tokens (1 token = $0.10).
-            </p>
-            <div className="relative mb-2">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg">🪙</span>
-              <input
-                id="monetization-cost"
-                type="number"
-                min="0"
-                placeholder="0"
-                value={formState.monetizationCost ?? ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === "") {
-                    setFormState((prev) => ({ ...prev, monetizationCost: undefined }));
-                    return;
-                  }
-                  const num = parseInt(val);
-                  if (!isNaN(num) && num >= 0) {
-                    setFormState((prev) => ({ ...prev, monetizationCost: num }));
-                  }
-                }}
-                className="w-full pl-10 pr-4 py-3 bg-gray-900 border border-gray-800 rounded-lg focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99] transition-colors text-white text-lg font-semibold placeholder-gray-600 font-sans appearance-none"
-              />
-            </div>
-            {formState.monetizationCost !== undefined && formState.monetizationCost > 0 && (
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="text-gray-400">
-                  Value: <span className="text-green-400 font-semibold">${(formState.monetizationCost * 0.10).toFixed(2)} USD</span>
-                </span>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                  formState.monetizationCost <= 10 ? 'bg-green-500/10 text-green-400' :
-                  formState.monetizationCost <= 50 ? 'bg-yellow-500/10 text-yellow-400' :
-                  formState.monetizationCost <= 100 ? 'bg-orange-500/10 text-orange-400' :
-                  'bg-red-500/10 text-red-400'
-                }`}>
-                  {formState.monetizationCost <= 10 ? '💚 Low' :
-                   formState.monetizationCost <= 50 ? '💛 Medium' :
-                   formState.monetizationCost <= 100 ? '🧡 High' :
-                   '❤️ Premium'}
-                </span>
-              </div>
-            )}
-            <div className="flex flex-wrap gap-2 mt-2">
-              {[0, 5, 10, 25, 50, 100].map((price) => (
-                <button
-                  key={price}
-                  type="button"
-                  onClick={() => setFormState((prev) => ({ ...prev, monetizationCost: price === 0 ? undefined : price }))}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    formState.monetizationCost === price || (price === 0 && !formState.monetizationCost)
-                      ? 'bg-[#EC1D99] text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                  }`}
-                >
-                  {price === 0 ? 'Free' : `${price} (${(price * 0.10).toFixed(price >= 10 ? 1 : 2)})`}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Number of Contributors */}
         <div className="mb-6">
           <label
@@ -1095,7 +1017,12 @@ const CreateStory = ({
           >
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-300 font-sans">Advanced Options</span>
-              <span className="text-xs text-gray-500">({formState.turnTimerHours ? 'Timer set' : 'Optional'})</span>
+              <span className="text-xs text-gray-500">
+                ({[
+                  formState.monetizationCost && '💰 Monetized',
+                  formState.turnTimerHours && '⏰ Timer',
+                ].filter(Boolean).join(', ') || 'Optional'})
+              </span>
             </div>
             <svg
               className={`w-5 h-5 text-gray-400 transition-transform ${showAdvancedOptions ? 'rotate-180' : ''}`}
@@ -1109,6 +1036,84 @@ const CreateStory = ({
 
           {showAdvancedOptions && (
             <div className="mt-4 p-4 bg-gray-900 border border-gray-800 rounded-lg space-y-4">
+              {/* Monetization */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label
+                    htmlFor="monetization-cost"
+                    className="block text-sm font-medium text-gray-300 font-sans"
+                  >
+                    Monetization Cost (Tokens)
+                  </label>
+                  <div className="text-xs text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded-full border border-yellow-500/20">
+                    💰 Earn
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mb-3 font-sans">
+                  {groupId 
+                    ? "Set a token cost for group members to join this story. You (story creator) earn these tokens (1 token = $0.10)."
+                    : formState.visibility === "public" 
+                      ? "Set a token cost for others to contribute. You'll earn these tokens (1 token = $0.10)."
+                      : "Set a token cost for invited users to join this exclusive story. You'll earn these tokens (1 token = $0.10)."}
+                </p>
+                <div className="relative mb-2">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg">🪙</span>
+                  <input
+                    id="monetization-cost"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={formState.monetizationCost ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "") {
+                        setFormState((prev) => ({ ...prev, monetizationCost: undefined }));
+                        return;
+                      }
+                      const num = parseInt(val);
+                      if (!isNaN(num) && num >= 0) {
+                        setFormState((prev) => ({ ...prev, monetizationCost: num }));
+                      }
+                    }}
+                    className="w-full pl-10 pr-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99] transition-colors text-white text-lg font-semibold placeholder-gray-600 font-sans appearance-none"
+                  />
+                </div>
+                {formState.monetizationCost !== undefined && formState.monetizationCost > 0 && (
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span className="text-gray-400">
+                      Value: <span className="text-green-400 font-semibold">${(formState.monetizationCost * 0.10).toFixed(2)} USD</span>
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      formState.monetizationCost <= 10 ? 'bg-green-500/10 text-green-400' :
+                      formState.monetizationCost <= 50 ? 'bg-yellow-500/10 text-yellow-400' :
+                      formState.monetizationCost <= 100 ? 'bg-orange-500/10 text-orange-400' :
+                      'bg-red-500/10 text-red-400'
+                    }`}>
+                      {formState.monetizationCost <= 10 ? '💚 Low' :
+                       formState.monetizationCost <= 50 ? '💛 Medium' :
+                       formState.monetizationCost <= 100 ? '🧡 High' :
+                       '❤️ Premium'}
+                    </span>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {[0, 5, 10, 25, 50, 100].map((price) => (
+                    <button
+                      key={price}
+                      type="button"
+                      onClick={() => setFormState((prev) => ({ ...prev, monetizationCost: price === 0 ? undefined : price }))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                        formState.monetizationCost === price || (price === 0 && !formState.monetizationCost)
+                          ? 'bg-[#EC1D99] text-white'
+                          : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                      }`}
+                    >
+                      {price === 0 ? 'Free' : `${price} (${(price * 0.10).toFixed(price >= 10 ? 1 : 2)})`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Turn Timer */}
               <div>
                 <label htmlFor="turn-timer" className="block text-sm font-medium text-gray-300 mb-2 font-sans">
@@ -1160,35 +1165,6 @@ const CreateStory = ({
                   >
                     <span
                       className={`block w-5 h-5 rounded-full bg-white shadow-lg transform transition-transform duration-200 ease-in-out ${formState.allowComments ? "translate-x-5" : "translate-x-0.5"} translate-y-0.5`}
-                    ></span>
-                  </span>
-                </label>
-              </div>
-
-              {/* Allow Reuse Toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-gray-300 font-medium font-sans">
-                    Allow reuse of content
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Duet, Stitch, stickers and add to Story
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formState.allowReuse}
-                    onChange={() => {
-                      setFormState(prev => ({ ...prev, allowReuse: !prev.allowReuse }));
-                    }}
-                    className="sr-only peer"
-                  />
-                  <span
-                    className={`w-11 h-6 rounded-full transition-colors ${formState.allowReuse ? "bg-[#EC1D99]" : "bg-gray-700"}`}
-                  >
-                    <span
-                      className={`block w-5 h-5 rounded-full bg-white shadow-lg transform transition-transform duration-200 ease-in-out ${formState.allowReuse ? "translate-x-5" : "translate-x-0.5"} translate-y-0.5`}
                     ></span>
                   </span>
                 </label>

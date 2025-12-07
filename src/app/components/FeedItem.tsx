@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, FormEvent, useCallback } from "react";
 import ShareModal from "./ShareModal";
+import VerificationBadge from "./VerificationBadge";
 
 interface FeedItemProps {
     story: Story;
@@ -1158,8 +1159,18 @@ export default function FeedItem({ story }: FeedItemProps) {
                                             <div key={comment.id} className="flex items-start gap-3">
                                                 <img src={avatar} alt={comment.userName} className="w-9 h-9 rounded-full border border-white/10 object-cover" />
                                                 <div className="flex-1">
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-1.5">
                                                         <span className="text-sm font-semibold text-white">{comment.userName}</span>
+                                                        {(() => {
+                                                            const participant = story.participants.find(p => p.id === comment.userId);
+                                                            return participant && (
+                                                                <VerificationBadge
+                                                                    isVerified={participant.isVerified || false}
+                                                                    tier={participant.verificationTier}
+                                                                    size="sm"
+                                                                />
+                                                            );
+                                                        })()}
                                                         <span className="text-xs text-gray-400">{formatRelativeTime(comment.timestamp)}</span>
                                                     </div>
                                                     <p className="text-sm text-gray-200 mt-1">{comment.content}</p>

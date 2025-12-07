@@ -14,6 +14,7 @@ import type { Session } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
 import AestheticFallback from "@/app/components/AestheticFallback";
 import VideoThumbnail from "@/app/components/VideoThumbnail";
+import VerificationBadge from "@/app/components/VerificationBadge";
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -1001,7 +1002,14 @@ export default function ProfilePage() {
         <div className="min-h-screen bg-black text-white pb-24 relative">
             {/* Header */}
             <div className="p-4 flex justify-between items-center">
-                <h1 className="font-bold text-lg">{currentUser.name}</h1>
+                <h1 className="font-bold text-lg flex items-center gap-1.5">
+                    {currentUser.name}
+                    <VerificationBadge 
+                        isVerified={currentUser.isVerified || false}
+                        tier={currentUser.verificationTier}
+                        size="md"
+                    />
+                </h1>
                 <div className="flex items-center gap-4">
                     {/* Wallet Link */}
                     <Link href="/wallet" className="flex items-center gap-1 bg-gray-800 px-3 py-1.5 rounded-full">
