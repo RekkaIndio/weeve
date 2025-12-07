@@ -10,7 +10,6 @@ import MarketingNavbar from "@/app/components/MarketingNavbar";
 import MarketingFooter from "@/app/components/MarketingFooter";
 import WaitlistModal from "@/app/components/WaitlistModal";
 import WeeveTreeVisual from "@/app/components/WeeveTreeVisual";
-import SmartAppRedirect from "@/app/components/SmartAppRedirect";
 
 // --- Components ---
 
@@ -48,16 +47,10 @@ export default function LandingPage() {
     const searchParams = useSearchParams();
     const [waitlistOpen, setWaitlistOpen] = useState(false);
 
-    // SmartAppRedirect component handles mobile app redirects
-    // Desktop users stay on marketing page
-
     if (loading) return null;
 
     return (
         <div className="min-h-screen bg-black text-white selection:bg-[#EC1D99] selection:text-white overflow-x-hidden">
-            {/* Smart App Redirect for mobile users with ref codes */}
-            <SmartAppRedirect />
-            
             {/* Navigation */}
             <MarketingNavbar onWaitlistClick={() => setWaitlistOpen(true)} />
 
