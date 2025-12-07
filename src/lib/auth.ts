@@ -20,6 +20,8 @@ export interface AuthUser {
     tokens: number;
     inviteCode?: string;
     isPrivate?: boolean;
+    onboardingStep?: number | null;
+    completedOnboarding?: boolean;
 }
 
 /**
@@ -171,6 +173,8 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
             tokens: data.tokens || 100,
             inviteCode: data.invite_code ?? undefined,
             isPrivate: data.is_private || false,
+            onboardingStep: data.onboarding_step ?? null,
+            completedOnboarding: data.completed_onboarding ?? false,
         };
     } catch (error) {
         console.error('[Auth] Get profile error:', error);
@@ -195,6 +199,8 @@ export async function createUserProfile(
             avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
             tokens: 100,
             invite_code: inviteCode || `${name.toUpperCase().slice(0, 3)}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+            onboarding_step: 1,
+            completed_onboarding: false,
         };
 
         const { error } = await supabase.from('profiles').insert(profileData);

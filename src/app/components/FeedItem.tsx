@@ -80,8 +80,8 @@ export default function FeedItem({ story }: FeedItemProps) {
 
     const deductTokens = useStore((state) => state.deductTokens);
 
-    // Detect if this is the onboarding story
-    const isOnboardingStory = story.id === '00000000-0000-0000-0000-000000000001';
+    // Detect if this is an onboarding story (personalized for each user)
+    const isOnboardingStory = story.title === 'Your First Weeve Story' && story.maxWeeves === 3;
 
     const captureFrameFromVideo = useCallback((video: HTMLVideoElement) => {
         if (typeof document === "undefined") {

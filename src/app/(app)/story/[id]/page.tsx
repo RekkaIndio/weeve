@@ -10,8 +10,10 @@ import { Capacitor } from "@capacitor/core";
 import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, Pencil, X, Loader2, Edit2, LogOut, Trash, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp, FileVideo, Image as ImageIcon } from "lucide-react";
 import EditStoryModal from "@/app/components/EditStoryModal";
 import { DrawingCanvas, type DrawingCanvasRef } from "@/app/components/DrawingCanvas";
+import OnboardingTutorialOverlay from "@/app/components/OnboardingTutorialOverlay";
 import { toast } from "sonner";
 import { useTimerCheck } from "@/lib/useTimerCheck";
+import { supabase } from "@/lib/supabase";
 
 const FONT_OPTIONS = [
     { label: "Sans", value: "'Inter', 'Helvetica Neue', sans-serif" },
@@ -116,6 +118,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const drawingCanvasRef = useRef<DrawingCanvasRef>(null);
+    const [showOnboardingTutorial, setShowOnboardingTutorial] = useState(false);
 
     const contributions = story?.contributions ?? EMPTY_CONTRIBUTIONS;
     const maxWeeves = typeof story?.maxWeeves === 'number' ? story.maxWeeves : null;
@@ -131,6 +134,19 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const hasCustomTextStyle = Boolean(activeSegment?.textStyle);
     const isMyTurn = !isStoryComplete && story?.currentTurnUserId === currentUser?.id;
     const hasContributions = contributions.length > 0;
+    
+    // Debug logging for onboarding
+    useEffect(() => {
+        if (story?.title === 'Your First Weeve Story') {
+            console.log('[Story] Turn debug:', {
+                isStoryComplete,
+                currentTurnUserId: story?.currentTurnUserId,
+                currentUserId: currentUser?.id,
+                isMyTurn,
+                storyMode: story?.mode
+            });
+        }
+    }, [story, currentUser?.id, isMyTurn, isStoryComplete]);
     
     // Get last contribution timestamp for timer calculation
     const lastContributionTimestamp = useMemo(() => {
@@ -149,6 +165,47 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         story?.updated_at,
         isMyTurn
     );
+
+    // Check if this is the user's onboarding story and they need tutorial
+    useEffect(() => {
+        const checkOnboardingStatus = async () => {
+            if (!currentUser?.id || !story) {
+                console.log('[Story] Waiting for user/story:', { hasUser: !!currentUser?.id, hasStory: !!story });
+                return;
+            }
+            
+            try {
+                // Check if this is an onboarding story (title matches and has max 3 weeves)
+                const isOnboardingStory = story.title === 'Your First Weeve Story' && story.maxWeeves === 3;
+                
+                console.log('[Story] Checking if onboarding story:', { 
+                    title: story.title, 
+                    maxWeeves: story.maxWeeves, 
+                    isOnboardingStory 
+                });
+                
+                if (!isOnboardingStory) return;
+                
+                const { data } = await supabase
+                    .from('profiles')
+                    .select('onboarding_step, completed_onboarding')
+                    .eq('user_id', currentUser.id)
+                    .single();
+                
+                console.log('[Story] Onboarding status:', data);
+                
+                // Show tutorial if onboarding_step is 2 and not completed
+                if (data && data.onboarding_step === 2 && !data.completed_onboarding) {
+                    console.log('[Story] Showing tutorial overlay');
+                    setShowOnboardingTutorial(true);
+                }
+            } catch (err) {
+                console.error('[Story] Error checking onboarding:', err);
+            }
+        };
+
+        checkOnboardingStatus();
+    }, [currentUser?.id, story]);
 
     const participantMap = useMemo(() => {
         const map = new Map<string, User>();
@@ -943,6 +1000,14 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         <p className="font-bold">Uploading...</p>
                     </div>
                 )}
+
+                {/* Onboarding Tutorial Overlay */}
+                {showOnboardingTutorial && (
+                    <OnboardingTutorialOverlay
+                        onDismiss={() => setShowOnboardingTutorial(false)}
+                        targetElementId="add-weeve-button"
+                    />
+                )}
             </div>
 
             {/* Timeline Controls */}
@@ -1018,7 +1083,11 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
                         {isMyTurn && (
                             <button
-                                onClick={() => setShowStitchMenu(true)}
+                                id="add-weeve-button"
+                                onClick={() => {
+                                    setShowStitchMenu(true);
+                                    setShowOnboardingTutorial(false);
+                                }}
                                 className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-gray-600 flex items-center justify-center text-gray-400 hover:text-[#EC1D99] hover:border-[#EC1D99] transition-colors"
                             >
                                 <Plus className="w-6 h-6" />

@@ -4,15 +4,17 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
+import { createOnboardingStory, getOnboardingStoryId } from "@/lib/onboarding";
+import { useStore } from "@/lib/store";
 import { Sparkles, ArrowRight } from "lucide-react";
 
-const ONBOARDING_STORY_ID = "00000000-0000-0000-0000-000000000001"; // UUID for the onboarding story
-const ONBOARDING_STORY_TITLE = "Welcome to Weeve";
-const ONBOARDING_STORY_PROMPT = "Share your first creative moment with the Weeve community. What story are you excited to tell?";
+const ONBOARDING_STORY_TITLE = "Your First Weeve Story";
+const ONBOARDING_STORY_PROMPT = "Complete this 3-part story! We've added the middle - you add the beginning and ending.";
 
 export default function PromptPage() {
     const router = useRouter();
     const { user } = useAuth();
+    const { fetchStories } = useStore();
     const [loading, setLoading] = useState(false);
     const [alreadyJoined, setAlreadyJoined] = useState(false);
 
@@ -24,19 +26,13 @@ export default function PromptPage() {
         if (!user) return;
 
         try {
-            // Check if user is already a participant in the onboarding story
-            const { data, error } = await supabase
-                .from('story_participants')
-                .select('id')
-                .eq('story_id', ONBOARDING_STORY_ID)
-                .eq('user_id', user.id)
-                .maybeSingle();
-
-            if (data) {
+            // Check if user already has an onboarding story
+            const storyId = await getOnboardingStoryId(user.id);
+            if (storyId) {
                 setAlreadyJoined(true);
             }
         } catch (err) {
-            console.error('[Prompt] Error checking participation:', err);
+            console.error('[Prompt] Error checking onboarding story:', err);
         }
     };
 
@@ -45,18 +41,30 @@ export default function PromptPage() {
 
         setLoading(true);
         try {
-            // Add user as participant to the onboarding story
-            const { error: participantError } = await supabase
-                .from('story_participants')
-                .insert({
-                    story_id: ONBOARDING_STORY_ID,
-                    user_id: user.id,
-                    position: 0, // Position doesn't matter for this open story
-                });
-
-            if (participantError && participantError.code !== '23505') {
-                // Ignore duplicate key errors (already joined)
-                throw participantError;
+            // Check if user already has an onboarding story
+            let storyId = await getOnboardingStoryId(user.id);
+            
+            if (storyId) {
+                // Story exists - update it to fix mode and current_turn_user_id
+                await supabase
+                    .from('stories')
+                    .update({
+                        mode: 'invite',
+                        current_turn_user_id: user.id,
+                    })
+                    .eq('id', storyId);
+                
+                // Fetch stories to reload with updated data
+                await fetchStories();
+            } else {
+                // Create a new personalized onboarding story for this user
+                const { storyId: newStoryId, error: createError } = await createOnboardingStory(user.id);
+                if (createError) throw createError;
+                if (!newStoryId) throw new Error('Failed to create onboarding story');
+                storyId = newStoryId;
+                
+                // Fetch stories to load the new story into the store
+                await fetchStories();
             }
 
             // Update onboarding step
@@ -65,10 +73,10 @@ export default function PromptPage() {
                 .update({ onboarding_step: 2 })
                 .eq('user_id', user.id);
 
-            // Redirect to the story page so they can contribute
-            router.push(`/story/${ONBOARDING_STORY_ID}`);
+            // Redirect to feed where they'll see the story and tutorial overlay
+            router.push(`/feed`);
         } catch (err) {
-            console.error('[Prompt] Error joining story:', err);
+            console.error('[Prompt] Error creating onboarding story:', err);
             setLoading(false);
         }
     };
@@ -123,40 +131,43 @@ export default function PromptPage() {
                         {/* Tutorial Explanation */}
                         <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/10">
                             <h3 className="text-sm font-semibold text-[#EC1D99] mb-2">📚 How Weeve Works:</h3>
-                            <p className="text-sm text-gray-300 leading-relaxed">
-                                We've started a story with the <strong>middle part</strong>. Your task is to add:
+                            <p className="text-sm text-gray-300 leading-relaxed mb-3">
+                                Weeve is all about <strong>collaborative storytelling</strong>. You'll add "weeves" (your parts) to create stories together!
                             </p>
                             <div className="mt-3 space-y-2 text-sm text-gray-400">
                                 <div className="flex items-start gap-2">
                                     <span className="text-[#EC1D99] font-bold">1.</span>
-                                    <span><strong>The Beginning</strong> - What led to this moment?</span>
+                                    <span>Tap the <strong className="text-white">+ button</strong> to add your weeve</span>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <span className="text-purple-400 font-bold">2.</span>
-                                    <span className="text-gray-500"><strong>The Middle</strong> - Already filled in! ✓</span>
+                                    <span className="text-[#EC1D99] font-bold">2.</span>
+                                    <span>Choose <strong className="text-white">photo, video, drawing,</strong> or <strong className="text-white">text</strong></span>
                                 </div>
                                 <div className="flex items-start gap-2">
                                     <span className="text-[#EC1D99] font-bold">3.</span>
-                                    <span><strong>The Ending</strong> - How does it conclude?</span>
+                                    <span>Create your contribution and watch the story grow!</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Prompt */}
                         <p className="text-center leading-relaxed mb-8 text-gray-300">
-                            This is "stitching" - the art of weaving stories together collaboratively!
+                            Let's practice by adding your first weeve to our welcome story! 🎉
                         </p>
 
                         {/* Action Button */}
                         <button
                             onClick={handleJoinStory}
-                            disabled={loading || alreadyJoined}
+                            disabled={loading}
                             className="w-full bg-[#EC1D99] hover:bg-[#d61a88] text-white font-bold py-4 rounded-full transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {loading ? (
                                 'Loading...'
                             ) : alreadyJoined ? (
-                                'Continue Tutorial'
+                                <>
+                                    <span>Continue Tutorial</span>
+                                    <ArrowRight className="w-5 h-5" />
+                                </>
                             ) : (
                                 <>
                                     <span>Start Tutorial</span>

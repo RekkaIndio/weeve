@@ -78,31 +78,37 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             }
 
             if (hasProfile) {
-                // Get profile data from Supabase and update
-                // We don't await this one strictly to avoid blocking redirect
-                getUserProfile(supabaseUser.id).then(profile => {
-                    if (profile) {
-                        // Update with database data
-                        const appUser = {
-                            id: supabaseUser.id,
-                            name: profile.name,
-                            avatar: profile.avatar,
-                            tagline: profile.tagline,
-                            tokens: profile.tokens,
-                            inviteCode: profile.inviteCode,
-                        };
-                        const storeState = useStore.getState();
-                        if (!storeState.profileUpdateInProgress) {
-                            setCurrentUser(appUser);
-                        }
+                // Get profile data from Supabase and check onboarding status
+                const profile = await getUserProfile(supabaseUser.id);
+                
+                if (profile) {
+                    // Update with database data
+                    const appUser = {
+                        id: supabaseUser.id,
+                        name: profile.name,
+                        avatar: profile.avatar,
+                        tagline: profile.tagline,
+                        tokens: profile.tokens,
+                        inviteCode: profile.inviteCode,
+                    };
+                    const storeState = useStore.getState();
+                    if (!storeState.profileUpdateInProgress) {
+                        setCurrentUser(appUser);
                     }
-                });
 
-                // Redirect to homepage if on auth pages
-                const currentPath = window.location.pathname;
-
-                if (isPublicRoute(currentPath)) {
-                    window.location.replace('/feed');
+                    // Check if user needs to complete onboarding
+                    const currentPath = window.location.pathname;
+                    const needsOnboarding = !profile.completedOnboarding && profile.onboardingStep !== null;
+                    
+                    if (needsOnboarding && !currentPath.startsWith('/onboarding') && !currentPath.startsWith('/feed') && !currentPath.startsWith('/story')) {
+                        // User has profile but hasn't completed onboarding
+                        // Allow them to access onboarding routes, feed, and stories during tutorial
+                        console.log('[AuthProvider] User needs onboarding, redirecting to /onboarding/prompt');
+                        window.location.replace('/onboarding/prompt');
+                    } else if (!needsOnboarding && isPublicRoute(currentPath)) {
+                        // User completed onboarding, redirect to feed if on auth pages
+                        window.location.replace('/feed');
+                    }
                 }
             } else {
                 // New user - redirect to setup if not already there
