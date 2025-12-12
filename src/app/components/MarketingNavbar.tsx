@@ -51,6 +51,13 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                     animate={{ opacity: 1, x: 0 }}
                     className="flex items-center gap-6"
                 >
+                    <Link
+                        href="/login"
+                        className="text-sm font-bold text-white hover:text-gray-300 transition-colors"
+                    >
+                        Log In
+                    </Link>
+
                     <button
                         onClick={onWaitlistClick}
                         className="px-5 py-2.5 bg-white text-black text-sm font-bold rounded-full hover:bg-gray-200 transition-colors"
@@ -100,6 +107,14 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                                 className="block text-base font-medium text-gray-400 hover:text-white transition-colors py-2"
                             >
                                 For Communities
+                            </Link>
+
+                            <Link
+                                href="/login"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="block text-base font-bold text-white hover:text-gray-300 transition-colors py-2"
+                            >
+                                Log In
                             </Link>
 
                             <button

@@ -10,6 +10,12 @@ export default function SignUpPage() {
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+
+    // DOB State
+    const [dobDay, setDobDay] = useState("");
+    const [dobMonth, setDobMonth] = useState("");
+    const [dobYear, setDobYear] = useState("");
+
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [socialLoading, setSocialLoading] = useState<"google" | null>(null);
@@ -23,8 +29,22 @@ export default function SignUpPage() {
     }, [searchParams]);
 
     const handleEmailSignUp = async () => {
-        if (!email || !password) {
+        if (!email || !password || !dobDay || !dobMonth || !dobYear) {
             setError("Please fill in all fields");
+            return;
+        }
+
+        // Validate Age (16+)
+        const birthDate = new Date(`${dobYear}-${dobMonth}-${dobDay}`);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+
+        if (age < 16) {
+            setError("You must be at least 16 years old to sign up.");
             return;
         }
 
@@ -54,7 +74,8 @@ export default function SignUpPage() {
         setError("");
 
         try {
-            const { user, error: authError } = await signUp(email, password);
+            const formattedDob = `${dobYear}-${dobMonth.padStart(2, '0')}-${dobDay.padStart(2, '0')}`;
+            const { user, error: authError } = await signUp(email, password, undefined, formattedDob);
 
             if (authError) throw authError;
             if (!user) throw new Error('Signup failed');
@@ -201,6 +222,46 @@ export default function SignUpPage() {
                         onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
                         disabled={loading}
                     />
+
+                    {/* Date of Birth Selection */}
+                    <div className="space-y-2">
+                        <label className="text-sm text-gray-300 ml-1">Date of Birth</label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <select
+                                value={dobMonth}
+                                onChange={(e) => setDobMonth(e.target.value)}
+                                className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-3 py-4 text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all appearance-none cursor-pointer"
+                                disabled={loading}
+                            >
+                                <option value="" className="text-black">Month</option>
+                                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                                    <option key={m} value={m} className="text-black">
+                                        {new Date(0, m - 1).toLocaleString('default', { month: 'short' })}
+                                    </option>
+                                ))}
+                            </select>
+                            <input
+                                type="number"
+                                placeholder="Day"
+                                min="1"
+                                max="31"
+                                value={dobDay}
+                                onChange={(e) => setDobDay(e.target.value)}
+                                className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-4 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all text-center"
+                                disabled={loading}
+                            />
+                            <input
+                                type="number"
+                                placeholder="Year"
+                                min="1900"
+                                max={new Date().getFullYear()}
+                                value={dobYear}
+                                onChange={(e) => setDobYear(e.target.value)}
+                                className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-4 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all text-center"
+                                disabled={loading}
+                            />
+                        </div>
+                    </div>
 
                     <button
                         onClick={handleEmailSignUp}

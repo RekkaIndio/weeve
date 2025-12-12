@@ -98,17 +98,24 @@ export const getFriends = async (userId: string): Promise<User[]> => {
         return [];
     }
 
-    return data.map((item: any) => ({
-        id: item.profiles.user_id,
-        name: item.profiles.name,
-        avatar: item.profiles.avatar,
-        tokens: item.profiles.tokens,
-        isInfluencer: item.profiles.is_influencer,
-        interactionCost: item.profiles.interaction_cost,
-        inviteCode: item.profiles.invite_code,
-        isFriend: true,
-        friendRequestStatus: 'accepted',
-    }));
+    console.log('[Friends] getFriends raw data count:', data?.length);
+    if (data?.length > 0) {
+         console.log('[Friends] First raw item:', data[0]);
+    }
+
+    return data
+        .filter((item: any) => item.profiles) // Filter out missing profiles
+        .map((item: any) => ({
+            id: item.profiles.user_id,
+            name: item.profiles.name,
+            avatar: item.profiles.avatar,
+            tokens: item.profiles.tokens,
+            isInfluencer: item.profiles.is_influencer,
+            interactionCost: item.profiles.interaction_cost,
+            inviteCode: item.profiles.invite_code,
+            isFriend: true,
+            friendRequestStatus: 'accepted',
+        }));
 };
 
 export const addFriend = async (userId: string, friendId: string) => {

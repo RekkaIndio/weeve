@@ -153,7 +153,8 @@ export default function SetupPage() {
                 displayName.trim(),
                 finalAvatar,
                 undefined, // inviteCode (auto-generated)
-                referrerCode
+                referrerCode,
+                user.user_metadata?.date_of_birth
             );
 
             // Clear invite code

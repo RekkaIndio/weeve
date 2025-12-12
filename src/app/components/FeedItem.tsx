@@ -1,5 +1,13 @@
 "use client";
 
+// Shared module-level caches that persist across component remounts/navigation
+const GLOBAL_VIDEO_PRELOAD_CACHE: Map<string, HTMLVideoElement> = (globalThis as any).__weeveVideoPreloadCache || new Map();
+const GLOBAL_VIDEO_POSTER_CACHE: Map<string, string> = (globalThis as any).__weeveVideoPosterCache || new Map();
+const GLOBAL_VIDEO_READY_REF: Map<string, boolean> = (globalThis as any).__weeveVideoReadyRef || new Map();
+if (!(globalThis as any).__weeveVideoPreloadCache) (globalThis as any).__weeveVideoPreloadCache = GLOBAL_VIDEO_PRELOAD_CACHE;
+if (!(globalThis as any).__weeveVideoPosterCache) (globalThis as any).__weeveVideoPosterCache = GLOBAL_VIDEO_POSTER_CACHE;
+if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoReadyRef = GLOBAL_VIDEO_READY_REF;
+
 import { Story, useStore, Contribution } from "@/lib/store";
 import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark } from "lucide-react";
 import Link from "next/link";
@@ -60,17 +68,21 @@ export default function FeedItem({ story }: FeedItemProps) {
     const [isCommentsOpen, setIsCommentsOpen] = useState(false);
     const [commentText, setCommentText] = useState("");
     const videoRef = useRef<HTMLVideoElement>(null);
+    const bufferVideoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const videoPreloadCache = useRef<Map<string, HTMLVideoElement>>(new Map());
-    const videoPosterCache = useRef<Map<string, string>>(new Map());
-    const videoReadyRef = useRef<Map<string, boolean>>(new Map());
+    const videoPreloadCache = useRef<Map<string, HTMLVideoElement>>(GLOBAL_VIDEO_PRELOAD_CACHE);
+    const videoPosterCache = useRef<Map<string, string>>(GLOBAL_VIDEO_POSTER_CACHE);
+    const videoReadyRef = useRef<Map<string, boolean>>(GLOBAL_VIDEO_READY_REF);
     const [videoReadyVersion, setVideoReadyVersion] = useState(0);
     const [isVideoReady, setIsVideoReady] = useState(false);
     const [isVideoVisible, setIsVideoVisible] = useState(false);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isBufferVisible, setIsBufferVisible] = useState(false);
+    const [currentVideoSrc, setCurrentVideoSrc] = useState<string | undefined>(undefined);
     const [hasInteracted, setHasInteracted] = useState(false);
 
     const [isForking, setIsForking] = useState(false);
-    const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+    const [selectedSlots, setSelectedSlots] = useState<number[]>([]);
     const [showParticipantPicker, setShowParticipantPicker] = useState(false);
     const [showFriendPicker, setShowFriendPicker] = useState(false);
     const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
@@ -135,6 +147,7 @@ export default function FeedItem({ story }: FeedItemProps) {
             setVideoReadyVersion((value) => value + 1);
         }
     }, [captureFrameFromVideo]);
+    const skipAutoAdvanceRef = useRef(false);
 
     // Touch handling refs for swipe gestures
     const touchStartX = useRef(0);
@@ -265,7 +278,7 @@ export default function FeedItem({ story }: FeedItemProps) {
     const hasContributions = contributionsCount > 0;
     const safeIndex = hasContributions ? currentIndex % contributionsCount : 0;
     const currentContribution = hasContributions ? orderedContributions[safeIndex] : undefined;
-    const mediaUrl = currentContribution?.mediaUrl || story.coverImage;
+    const mediaUrl = currentContribution?.mediaUrl;
 
     const mediaType: 'video' | 'image' | 'text' | 'drawing' = (() => {
         if (!hasContributions) {
@@ -277,9 +290,11 @@ export default function FeedItem({ story }: FeedItemProps) {
             }
             return 'text';
         }
-        if (currentContribution?.mediaType === 'video' && currentContribution.mediaUrl) return 'video';
+        // CRITICAL FIX: Only treat as video if we actually have a valid mediaUrl
+        if (currentContribution?.mediaType === 'video' && currentContribution.mediaUrl?.trim()) return 'video';
         if (currentContribution?.mediaType === 'drawing' && currentContribution.mediaUrl) return 'drawing';
         if (currentContribution?.mediaType === 'image' && currentContribution.mediaUrl) return 'image';
+        // FALLBACK: If mediaType is video but no URL, treat as text to avoid black screen
         return 'text';
     })();
 
@@ -297,65 +312,38 @@ export default function FeedItem({ story }: FeedItemProps) {
                     mediaType: currentContribution.mediaType,
                     hasMediaUrl: !!currentContribution.mediaUrl,
                     mediaUrlPreview: currentContribution.mediaUrl?.substring(0, 60) + '...',
+                    mediaUrlLength: currentContribution.mediaUrl?.length,
+                    mediaUrlIsEmpty: !currentContribution.mediaUrl?.trim(),
                     content: currentContribution.content?.substring(0, 30)
                 } : null,
                 orderedContributions: orderedContributions.map(c => ({
                     id: c.id,
                     mediaType: c.mediaType,
                     hasMediaUrl: !!c.mediaUrl,
+                    mediaUrlIsEmpty: !c.mediaUrl?.trim(),
                     userId: c.userId
                 })),
                 slotMapEntries: Array.from(slotContentMap.entries()).map(([slot, c]) => ({
                     slot,
                     contributionId: c.id,
-                    mediaType: c.mediaType
+                    mediaType: c.mediaType,
+                    hasMediaUrl: !!c.mediaUrl,
+                    mediaUrlIsEmpty: !c.mediaUrl?.trim()
                 })),
                 computedMediaType: mediaType,
                 videoState: mediaType === 'video' ? {
                     isVideoReady,
                     isVideoVisible,
-                    mediaUrl: mediaUrl?.substring(0, 60) + '...',
+                    mediaUrl: mediaUrl?.substring(0, 100),
+                    mediaUrlFull: mediaUrl,
                     videoReadyInCache: videoReadyRef.current.get(mediaUrl || '') ?? false
                 } : null
             });
         }
     }, [story.id, contributionsCount, currentIndex, currentContribution, hasContributions, story.coverImage, story.title, orderedContributions, slotContentMap, mediaType, isVideoReady, isVideoVisible, mediaUrl]);
-    const mediaPlaceholder = useMemo(() => {
-        if (mediaType !== 'video') {
-            return null;
-        }
-
-        const url = currentContribution?.mediaUrl;
-        if (url) {
-            const cachedPoster = videoPosterCache.current.get(url);
-            if (cachedPoster) {
-                return cachedPoster;
-            }
-
-            const preloaded = videoPreloadCache.current.get(url);
-            if (preloaded && videoReadyRef.current.get(url)) {
-                const snapshot = captureFrameFromVideo(preloaded);
-                if (snapshot) {
-                    videoPosterCache.current.set(url, snapshot);
-                    return snapshot;
-                }
-            }
-        }
-
-        if (story.coverImage) {
-            return story.coverImage;
-        }
-
-        const previousContribution = contributionsCount > 1
-            ? orderedContributions[(safeIndex - 1 + contributionsCount) % contributionsCount]
-            : undefined;
-
-        if (previousContribution?.mediaType === 'image' && previousContribution.mediaUrl) {
-            return previousContribution.mediaUrl;
-        }
-
-        return null;
-    }, [mediaType, currentContribution, story.coverImage, orderedContributions, contributionsCount, safeIndex, videoReadyVersion, captureFrameFromVideo]);
+    // We intentionally avoid generating video posters/placeholders for feed items.
+    // Keeping a solid black overlay until playback begins ensures no poster or
+    // snapshot flash appears (some sources may include a baked-in play icon).
     const activeUserId = currentContribution?.userId;
     const waitingParticipant = story.currentTurnUserId
         ? story.participants.find((p) => p.id === story.currentTurnUserId)
@@ -369,6 +357,13 @@ export default function FeedItem({ story }: FeedItemProps) {
         }
 
         const video = videoRef.current;
+        const buffer = bufferVideoRef.current;
+        const cachedReady = videoReadyRef.current.get(mediaUrl || '') ?? false;
+        if (cachedReady && currentVideoSrc !== mediaUrl) {
+            setCurrentVideoSrc(mediaUrl);
+            setIsVideoReady(true);
+            setIsVideoVisible(true);
+        }
         if (!video) {
             setIsVideoVisible(false);
             return;
@@ -379,14 +374,34 @@ export default function FeedItem({ story }: FeedItemProps) {
         video.setAttribute('x-webkit-airplay', 'deny');
         video.setAttribute('disablePictureInPicture', 'true');
         video.preload = 'auto';
-        
+
         // If video already has data loaded, show it immediately
-        if (video.readyState >= 2 && videoReadyRef.current.get(mediaUrl || '')) {
+        if (videoReadyRef.current.get(mediaUrl || '') && video.readyState >= 2) {
             setIsVideoVisible(true);
+            // If we're visible, try to play right away (muted to satisfy autoplay rules)
+            if (isVisible) {
+                video.muted = true;
+                video.play().catch(() => null);
+            }
         } else {
             setIsVideoVisible(false);
         }
-    }, [mediaType, mediaUrl]);
+    }, [mediaType, mediaUrl, isVisible]);
+
+    // If the document visibility changes (e.g., returning from a Create Story page), try to resume playback
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && isVisible && mediaType === 'video' && videoRef.current) {
+                const video = videoRef.current;
+                if (videoReadyRef.current.get(mediaUrl || '') && video.paused) {
+                    video.muted = true;
+                    video.play().catch(() => null);
+                }
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [isVisible, mediaType, mediaUrl]);
 
     // Show tutorial tooltip for onboarding story (only first time)
     useEffect(() => {
@@ -416,7 +431,11 @@ export default function FeedItem({ story }: FeedItemProps) {
 
         for (const contribution of contributions) {
             const mediaUrl = contribution.mediaUrl;
-            if (contribution.mediaType !== 'video' || !mediaUrl) {
+            // CRITICAL: Check for empty/invalid URLs
+            if (contribution.mediaType !== 'video' || !mediaUrl || !mediaUrl.trim()) {
+                if (contribution.mediaType === 'video' && !mediaUrl?.trim()) {
+                    console.warn('[FeedItem] Video contribution has empty URL:', contribution.id);
+                }
                 continue;
             }
 
@@ -435,7 +454,14 @@ export default function FeedItem({ story }: FeedItemProps) {
                 cleanup();
             };
 
-            const handleError = () => {
+            const handleError = (e: Event) => {
+                const target = e.target as HTMLVideoElement;
+                console.error('[FeedItem] Preload video error:', {
+                    contributionId: contribution.id,
+                    mediaUrl: mediaUrl.substring(0, 100),
+                    errorCode: target.error?.code,
+                    errorMessage: target.error?.message
+                });
                 cleanup();
             };
 
@@ -461,32 +487,124 @@ export default function FeedItem({ story }: FeedItemProps) {
     }, [contributions, markVideoReady]);
 
     useEffect(() => {
-        if (mediaType !== 'video' || !mediaUrl) {
-            setIsVideoReady(true);
+        // Instantly skip to next video if not ready or error, no placeholder
+        if (mediaType !== 'video' || !mediaUrl || !mediaUrl.trim()) {
+            if (mediaType === 'video' && !mediaUrl?.trim()) {
+                console.error('[FeedItem] Video mediaType but empty URL detected!', {
+                    storyId: story.id,
+                    contributionId: currentContribution?.id,
+                    mediaUrl
+                });
+            }
+            setIsVideoReady(false);
             setIsVideoVisible(false);
+            // Skip to next playable index once (avoid infinite loops)
+            if (orderedContributions.length > 1) {
+                const findNextPlayable = (start: number) => {
+                    for (let i = 1; i <= orderedContributions.length; i++) {
+                        const idx = (start + i) % orderedContributions.length;
+                        const cand = orderedContributions[idx];
+                        if (!cand) continue;
+                        const isCandVideo = cand.mediaType === 'video';
+                        const hasUrl = !!(cand.mediaUrl && cand.mediaUrl.trim());
+                        if (!isCandVideo || (isCandVideo && hasUrl)) return idx;
+                    }
+                    return start;
+                };
+                const next = findNextPlayable(currentIndex);
+                if (next !== currentIndex && !skipAutoAdvanceRef.current) {
+                    skipAutoAdvanceRef.current = true;
+                    setCurrentIndex(next);
+                    setTimeout(() => {
+                        skipAutoAdvanceRef.current = false;
+                    }, 700);
+                }
+            }
             return;
         }
 
-        const cachedReady = videoReadyRef.current.get(mediaUrl) ?? false;
-        setIsVideoReady(cachedReady);
-        setIsVideoVisible(false);
-
         const video = videoRef.current;
+        const buffer = bufferVideoRef.current;
         if (!video) {
+            setIsVideoReady(false);
+            setIsVideoVisible(false);
+            if (orderedContributions.length > 1) {
+                const findNextPlayable = (start: number) => {
+                    for (let i = 1; i <= orderedContributions.length; i++) {
+                        const idx = (start + i) % orderedContributions.length;
+                        const cand = orderedContributions[idx];
+                        if (!cand) continue;
+                        const isCandVideo = cand.mediaType === 'video';
+                        const hasUrl = !!(cand.mediaUrl && cand.mediaUrl.trim());
+                        if (!isCandVideo || (isCandVideo && hasUrl)) return idx;
+                    }
+                    return start;
+                };
+                const next = findNextPlayable(currentIndex);
+                if (next !== currentIndex && !skipAutoAdvanceRef.current) {
+                    skipAutoAdvanceRef.current = true;
+                    setCurrentIndex(next);
+                    setTimeout(() => {
+                        skipAutoAdvanceRef.current = false;
+                    }, 700);
+                }
+            }
             return;
         }
 
         let visibilityTimeout: NodeJS.Timeout | null = null;
+        // Capture cached readiness
+        const cachedReady = videoReadyRef.current.get(mediaUrl || '') ?? false;
+        // If not already preloaded, start a buffer preload and adopt once ready
+        let bufferCanPlayHandler: (() => void) | null = null;
+        if (!cachedReady && buffer && mediaUrl) {
+            try {
+                buffer.src = mediaUrl;
+                buffer.preload = 'auto';
+                buffer.muted = true;
+                buffer.playsInline = true;
+                bufferCanPlayHandler = () => {
+                    if (currentVideoSrc === mediaUrl) return;
+                    // Show buffer element to start crossfade
+                    setIsBufferVisible(true);
+                    // Fade: after small delay, fade primary out then swap.
+                    setTimeout(() => {
+                        setIsVideoVisible(false);
+                        setTimeout(() => {
+                            try {
+                                if (video && buffer) {
+                                    // Swap primary src to buffer's src and start playback
+                                    video.pause();
+                                    video.src = buffer.src;
+                                    video.load();
+                                    video.muted = true;
+                                    video.play().catch(() => null);
+                                    setIsVideoReady(true);
+                                    setCurrentVideoSrc(mediaUrl);
+                                }
+                            } catch (err) {
+                                console.debug('[FeedItem] Error during buffer swap', err);
+                            }
+                            // Fade back in and hide buffer
+                            setIsBufferVisible(false);
+                            setIsVideoVisible(true);
+                        }, 160);
+                    }, 8);
+                };
+                buffer.addEventListener('canplay', bufferCanPlayHandler);
+                buffer.addEventListener('canplaythrough', bufferCanPlayHandler);
+                buffer.load();
+            } catch (err) {
+                console.debug('[FeedItem] buffer preload error', err);
+            }
+        }
 
         const handleReady = () => {
             markVideoReady(mediaUrl, video);
             setIsVideoReady(true);
-            
-            // Show video immediately when ready and it has data loaded
             if (video.readyState >= 3) {
                 setIsVideoVisible(true);
             } else {
-                // Very short fallback for slower loading
                 if (visibilityTimeout) clearTimeout(visibilityTimeout);
                 visibilityTimeout = setTimeout(() => {
                     if (!video.paused || video.currentTime > 0) {
@@ -501,39 +619,85 @@ export default function FeedItem({ story }: FeedItemProps) {
             setIsVideoVisible(true);
             markVideoReady(mediaUrl, video);
         };
-        
+
         const handleCanPlay = () => {
-            // Show video as soon as it can play
             if (visibilityTimeout) clearTimeout(visibilityTimeout);
             setIsVideoVisible(true);
             markVideoReady(mediaUrl, video);
         };
 
-        const handleWaiting = () => {
-            // Don't hide video completely during buffering, just track the state
-            // This prevents flickering back to placeholder during buffering
-        };
-
-        const handleStalled = () => {
-            console.log('[FeedItem] Video stalled:', mediaUrl);
-        };
-
         const handleError = (e: Event) => {
-            console.error('[FeedItem] Video error:', mediaUrl, e);
-            // Hide the video on error and show placeholder instead
+            const target = e.target as HTMLVideoElement;
+            const error = target.error;
+            console.error('[FeedItem] Video error:', {
+                mediaUrl,
+                errorCode: error?.code,
+                errorMessage: error?.message,
+                networkState: target.networkState,
+                readyState: target.readyState,
+                src: target.src
+            });
             setIsVideoVisible(false);
             setIsVideoReady(false);
-            // Mark as errored so we don't keep trying to play it
             videoReadyRef.current.set(mediaUrl || '', false);
+            // Find next playable index and skip to it (do only one state update)
+            if (orderedContributions.length > 1) {
+                const findNextPlayable = (start: number) => {
+                    for (let i = 1; i <= orderedContributions.length; i++) {
+                        const idx = (start + i) % orderedContributions.length;
+                        const cand = orderedContributions[idx];
+                        if (!cand) continue;
+                        const isCandVideo = cand.mediaType === 'video';
+                        const hasUrl = !!(cand.mediaUrl && cand.mediaUrl.trim());
+                        if (!isCandVideo || (isCandVideo && hasUrl)) return idx;
+                    }
+                    return start;
+                };
+                const next = findNextPlayable(currentIndex);
+                if (next !== currentIndex && !skipAutoAdvanceRef.current) {
+                    skipAutoAdvanceRef.current = true;
+                    setCurrentIndex(next);
+                    setTimeout(() => {
+                        skipAutoAdvanceRef.current = false;
+                    }, 700);
+                }
+            }
         };
 
         video.addEventListener('loadeddata', handleCanPlay);
         video.addEventListener('canplay', handleCanPlay);
         video.addEventListener('canplaythrough', handleReady);
         video.addEventListener('playing', handlePlaying);
-        video.addEventListener('waiting', handleWaiting);
-        video.addEventListener('stalled', handleStalled);
         video.addEventListener('error', handleError);
+
+        // Immediately skip if video is not ready after a short timeout
+        visibilityTimeout = setTimeout(() => {
+            if (!videoReadyRef.current.get(mediaUrl)) {
+                setIsVideoVisible(false);
+                setIsVideoReady(false);
+                if (orderedContributions.length > 1) {
+                    const findNextPlayable = (start: number) => {
+                        for (let i = 1; i <= orderedContributions.length; i++) {
+                            const idx = (start + i) % orderedContributions.length;
+                            const cand = orderedContributions[idx];
+                            if (!cand) continue;
+                            const isCandVideo = cand.mediaType === 'video';
+                            const hasUrl = !!(cand.mediaUrl && cand.mediaUrl.trim());
+                            if (!isCandVideo || (isCandVideo && hasUrl)) return idx;
+                        }
+                        return start;
+                    };
+                    const next = findNextPlayable(currentIndex);
+                    if (next !== currentIndex && !skipAutoAdvanceRef.current) {
+                        skipAutoAdvanceRef.current = true;
+                        setCurrentIndex(next);
+                        setTimeout(() => {
+                            skipAutoAdvanceRef.current = false;
+                        }, 700);
+                    }
+                }
+            }
+        }, 1200);
 
         return () => {
             if (visibilityTimeout) clearTimeout(visibilityTimeout);
@@ -541,13 +705,17 @@ export default function FeedItem({ story }: FeedItemProps) {
             video.removeEventListener('canplay', handleCanPlay);
             video.removeEventListener('canplaythrough', handleReady);
             video.removeEventListener('playing', handlePlaying);
-            video.removeEventListener('waiting', handleWaiting);
-            video.removeEventListener('stalled', handleStalled);
             video.removeEventListener('error', handleError);
+            if (buffer && bufferCanPlayHandler) {
+                try {
+                    buffer.removeEventListener('canplay', bufferCanPlayHandler);
+                    buffer.removeEventListener('canplaythrough', bufferCanPlayHandler);
+                } catch (e) { }
+            }
         };
-    }, [mediaType, mediaUrl, markVideoReady]);
+    }, [mediaType, mediaUrl, markVideoReady, orderedContributions.length, currentContribution, currentIndex, currentVideoSrc]);
 
-    // Intersection Observer to track visibility
+    // Intersection Observer to track visibility and trigger autoplay reset on remount
     useEffect(() => {
         const element = containerRef.current;
         if (!element) return;
@@ -555,6 +723,35 @@ export default function FeedItem({ story }: FeedItemProps) {
         const observer = new IntersectionObserver(
             ([entry]) => {
                 setIsVisible(entry.isIntersecting);
+                // When becoming visible, try to play or restore ready state from cache
+                if (entry.isIntersecting && mediaType === 'video') {
+                    try {
+                        const cachedReady = videoReadyRef.current.get(mediaUrl || '') ?? false;
+                        const preloaded = videoPreloadCache.current.get(mediaUrl || '');
+                        if (cachedReady) {
+                            setIsVideoReady(true);
+                            setIsVideoVisible(true);
+                            if (videoRef.current && videoRef.current.paused) {
+                                // Ensure autoplay, prefer muted playback to satisfy browsers
+                                videoRef.current.muted = true;
+                                videoRef.current.play().catch(() => null);
+                            }
+                        } else if (preloaded && preloaded.readyState >= 2) {
+                            // If preloaded has enough data, mark ready and play
+                            markVideoReady(mediaUrl || '', preloaded);
+                            setIsVideoReady(true);
+                            setIsVideoVisible(true);
+                            if (videoRef.current) {
+                                videoRef.current.muted = true;
+                                videoRef.current.play().catch(() => null);
+                            }
+                        } else {
+                            // If not ready, do not forcibly reload; allow preloader to continue
+                        }
+                    } catch (err) {
+                        console.debug('[FeedItem] Intersection handler error', err);
+                    }
+                }
             },
             { threshold: 0.6 }
         );
@@ -565,7 +762,7 @@ export default function FeedItem({ story }: FeedItemProps) {
             observer.unobserve(element);
             observer.disconnect();
         };
-    }, []);
+    }, [mediaType]);
 
     // Handle auto-advancement and playback
     useEffect(() => {
@@ -591,18 +788,18 @@ export default function FeedItem({ story }: FeedItemProps) {
         // For video, we rely on onEnded event, but we need to make sure it plays
         if (mediaType === 'video' && videoRef.current && isVideoReady) {
             const video = videoRef.current;
-            
+
             // Ensure video is ready before attempting to play
             if (video.readyState < 2) {
                 return; // Wait for more data
             }
-            
+
             // Try to play with sound first
             video.muted = false;
             video.volume = 1.0;
-            
+
             const playPromise = video.play();
-            
+
             if (playPromise !== undefined) {
                 playPromise
                     .then(() => {
@@ -667,26 +864,34 @@ export default function FeedItem({ story }: FeedItemProps) {
     }, [participantsMap]);
 
     const handleForkStory = async (participantId: string) => {
-        console.log("handleForkStory called", { participantId, selectedSlot, storyId: story.id });
-        if (selectedSlot === null) {
-            console.error("No slot selected");
+        console.log("handleForkStory called", { participantId, selectedSlots, storyId: story.id });
+        if (selectedSlots.length === 0) {
+            console.error("No slots selected");
             return;
         }
 
+        // Convert slot indices to contribution IDs using slotContentMap
+        // This ensures we're passing the correct contributions to exclude, not just array indices
+        const contributionIdsToReplace = selectedSlots
+            .map(slotIndex => slotContentMap.get(slotIndex)?.id)
+            .filter((id): id is string => id !== undefined);
+
+        console.log("Converting slots to contribution IDs:", { selectedSlots, contributionIdsToReplace });
+
         try {
-            const result = await forkStory(story.id, selectedSlot, participantId);
+            const result = await forkStory(story.id, selectedSlots, participantId, contributionIdsToReplace);
             console.log("forkStory result:", result);
 
             setIsForking(false);
-            setSelectedSlot(null);
+            setSelectedSlots([]);
             setShowParticipantPicker(false);
             setShowFriendPicker(false);
 
             if (result.success && result.storyId) {
                 // Check if user selected themselves vs inviting a friend
                 if (participantId === currentUser?.id) {
-                    // Navigate directly to story page for immediate contribution
-                    router.push(`/story/${story.id}`);
+                    // Navigate to the new forked story for immediate contribution
+                    router.push(`/story/${result.storyId}`);
                 } else {
                     // Show success message for friend invitations
                     setTimeout(() => {
@@ -728,8 +933,8 @@ export default function FeedItem({ story }: FeedItemProps) {
     }, [mediaType]);
 
     return (
-        <div 
-            ref={containerRef} 
+        <div
+            ref={containerRef}
             className="relative w-full h-[calc(100vh-64px)] snap-start shrink-0 bg-gray-900 overflow-hidden"
             onClick={handleContainerClick}
         >
@@ -755,25 +960,24 @@ export default function FeedItem({ story }: FeedItemProps) {
                         </span>
                     </div>
                 </div>
-            ) : mediaType === 'video' && mediaUrl ? (
+            ) : mediaType === 'video' && (mediaUrl || currentVideoSrc) ? (
                 <>
-                    {/* Always show placeholder when video not visible - no loading text */}
-                    {!isVideoVisible && mediaPlaceholder && (
-                        <img
-                            src={mediaPlaceholder}
-                            alt={story.title}
-                            className="absolute inset-0 w-full h-full object-cover"
-                        />
-                    )}
-                    {/* Black background when no placeholder available */}
-                    {!isVideoVisible && !mediaPlaceholder && (
-                        <div className="absolute inset-0 bg-black" />
-                    )}
+                    {/* Black overlay that sits above the video until playback is ready */}
+                    <div
+                        className="absolute inset-0 bg-black transition-opacity"
+                        style={{
+                            pointerEvents: 'none',
+                            opacity: isPlaying ? 0 : 1,
+                            transition: 'opacity 160ms linear',
+                            zIndex: 9
+                        }}
+                    />
                     <video
                         ref={videoRef}
-                        key={mediaUrl} // Force re-render on url change for clean video reset
-                        src={mediaUrl}
+                        src={currentVideoSrc}
+                        poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23000000'/%3E%3C/svg%3E"
                         className="weeve-inline-video absolute inset-0 w-full h-full object-cover"
+                        autoPlay
                         muted
                         playsInline
                         preload="auto"
@@ -782,6 +986,13 @@ export default function FeedItem({ story }: FeedItemProps) {
                         disablePictureInPicture
                         disableRemotePlayback
                         onEnded={handleVideoEnded}
+                        onPlay={(e) => {
+                            setIsPlaying(true);
+                            console.log('[FeedItem] Video started playing, muted:', e.currentTarget.muted);
+                        }}
+                        onPause={() => {
+                            setIsPlaying(false);
+                        }}
                         onClick={(e) => {
                             e.stopPropagation();
                             const video = e.currentTarget;
@@ -807,20 +1018,15 @@ export default function FeedItem({ story }: FeedItemProps) {
                                 });
                             }
                         }}
-                        onPlay={(e) => {
-                            console.log('[FeedItem] Video started playing, muted:', e.currentTarget.muted);
-                        }}
                         onVolumeChange={(e) => {
                             console.log('[FeedItem] Volume changed, muted:', e.currentTarget.muted, 'volume:', e.currentTarget.volume);
                         }}
                         style={{
                             opacity: isVideoVisible ? 1 : 0,
-                            // CRITICAL: Completely hide video until ready - prevents ANY icon from showing
-                            visibility: isVideoVisible ? 'visible' : 'hidden',
-                            // Position off-screen when hidden to prevent rendering artifacts
-                            transform: isVideoVisible ? 'translate3d(0,0,0)' : 'translate3d(-9999px,-9999px,0)',
-                            // Instant transition when video is ready - no fade delay
-                            transition: 'none',
+                            // CRITICAL: Use opacity transition for crossfade between primary and buffer
+                            visibility: 'visible',
+                            transform: 'translate3d(0,0,0)',
+                            transition: 'opacity 160ms linear',
                             backgroundColor: '#000000',
                             // Ensure video covers entire area immediately
                             position: 'absolute',
@@ -834,6 +1040,26 @@ export default function FeedItem({ story }: FeedItemProps) {
                             backgroundImage: 'none',
                             // Extra safeguard
                             pointerEvents: isVideoVisible ? 'auto' : 'none'
+                        }}
+                    />
+                    <video
+                        ref={bufferVideoRef}
+                        poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23000000'/%3E%3C/svg%3E"
+                        className="weeve-inline-video absolute inset-0 w-full h-full object-cover pointer-events-none"
+                        muted
+                        playsInline
+                        preload="auto"
+                        controls={false}
+                        autoPlay
+                        style={{
+                            opacity: isBufferVisible ? 1 : 0,
+                            visibility: 'visible',
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            backgroundColor: '#000000'
                         }}
                     />
                 </>
@@ -878,7 +1104,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                     </button>
                     <span className="text-xs font-bold">{likeCount.toLocaleString()}</span>
                 </div>
-                
+
                 {/* Comment Button */}
                 {story.allowComments !== false && (
                     <div className="flex flex-col items-center gap-1">
@@ -893,7 +1119,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                         <span className="text-xs font-bold">{comments.length}</span>
                     </div>
                 )}
-                
+
                 {/* Share Button */}
                 <div className="flex flex-col items-center gap-1">
                     <button
@@ -906,7 +1132,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                     </button>
                     <span className="text-xs font-bold">Share</span>
                 </div>
-                
+
                 {/* Save Button */}
                 <div className="flex flex-col items-center gap-1">
                     <button
@@ -922,7 +1148,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                     </button>
                     <span className="text-xs font-bold">Save</span>
                 </div>
-                
+
                 {/* Weeve Button */}
                 {story.visibility === 'public' && (
                     <div className="flex flex-col items-center gap-0.5 relative">
@@ -1117,9 +1343,6 @@ export default function FeedItem({ story }: FeedItemProps) {
                             );
                         })}
                     </div>
-                    <Link href={`/story/${story.id}`} className="text-sm font-medium text-gray-300 ml-2 hover:text-white transition-colors">
-                        {story.participants.length} Weevers
-                    </Link>
                 </div>
 
                 {story.hashtags && story.hashtags.length > 0 && (
@@ -1218,7 +1441,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                         </div>
 
                         <h3 className="text-2xl font-bold text-white mb-2">Weeve In</h3>
-                        <p className="text-gray-300 text-center mb-6 max-w-xs">Swipe to select a spot to insert yourself or a friend into this story.</p>
+                        <p className="text-gray-300 text-center mb-6 max-w-xs">Swipe through slots and tap to select which parts you want to replace with your own content.</p>
 
                         {(() => {
                             const maxSlots = story.maxWeeves || 3;
@@ -1316,15 +1539,21 @@ export default function FeedItem({ story }: FeedItemProps) {
                                                             e.stopPropagation();
                                                             console.log("Slot clicked:", index, "isActive:", isActive);
                                                             if (isActive) {
-                                                                setSelectedSlot(index);
-                                                                setShowParticipantPicker(true);
+                                                                // Toggle slot selection
+                                                                setSelectedSlots(prev => {
+                                                                    if (prev.includes(index)) {
+                                                                        return prev.filter(s => s !== index);
+                                                                    } else {
+                                                                        return [...prev, index];
+                                                                    }
+                                                                });
                                                             } else {
                                                                 setCurrentSlotIndex(index);
                                                             }
                                                         }}
                                                         className={`relative group ${isActive ? 'cursor-pointer' : 'cursor-pointer'}`}
                                                     >
-                                                        <div className="w-64 h-64 rounded-3xl border-2 border-dashed border-white/30 overflow-hidden transition-all hover:border-[#EC1D99] bg-gray-800 relative">
+                                                        <div className={`w-64 h-64 rounded-3xl border-2 overflow-hidden transition-all bg-gray-800 relative ${selectedSlots.includes(index) ? 'border-[#EC1D99] border-solid' : 'border-dashed border-white/30 hover:border-[#EC1D99]'}`}>
                                                             {contribution || p ? (
                                                                 contribution ? (
                                                                     <>
@@ -1418,8 +1647,18 @@ export default function FeedItem({ story }: FeedItemProps) {
                                                                 </div>
                                                             )}
 
+                                                            {/* Selection indicator */}
+                                                            {selectedSlots.includes(index) && (
+                                                                <div className="absolute inset-0 flex items-center justify-center bg-[#EC1D99]/20">
+                                                                    <div className="bg-[#EC1D99] rounded-full p-3 shadow-lg">
+                                                                        <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                                        </svg>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                             {/* Overlay Icon for active slot */}
-                                                            {isActive && (
+                                                            {isActive && !selectedSlots.includes(index) && (
                                                                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
                                                                     <div className="bg-[#EC1D99] rounded-full p-3 shadow-lg">
                                                                         <UserPlus className="w-6 h-6 text-white" />
@@ -1437,7 +1676,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                                     </div>
 
                                     {/* Carousel Indicators */}
-                                    <div className="flex justify-center gap-2">
+                                    <div className="flex justify-center gap-2 mb-6">
                                         {Array.from({ length: maxSlots }).map((_, index) => (
                                             <button
                                                 key={`indicator-${index}`}
@@ -1448,6 +1687,24 @@ export default function FeedItem({ story }: FeedItemProps) {
                                                     }`}
                                             />
                                         ))}
+                                    </div>
+
+                                    {/* Instructions and Continue Button */}
+                                    <div className="px-4 space-y-4">
+                                        <p className="text-gray-300 text-sm text-center">
+                                            {selectedSlots.length === 0
+                                                ? "Tap slots to select which parts you want to add your own content to"
+                                                : `${selectedSlots.length} slot${selectedSlots.length === 1 ? '' : 's'} selected`
+                                            }
+                                        </p>
+                                        {selectedSlots.length > 0 && (
+                                            <button
+                                                onClick={() => setShowParticipantPicker(true)}
+                                                className="w-full bg-[#EC1D99] text-white font-bold py-3 rounded-full hover:bg-[#D41C84] transition-colors"
+                                            >
+                                                Continue
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -1461,12 +1718,15 @@ export default function FeedItem({ story }: FeedItemProps) {
                 showParticipantPicker && (
                     <div className="absolute inset-0 z-40 bg-black/90 flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
                         <div className="w-full max-w-sm bg-[#1a1a2e] rounded-3xl p-6 border border-white/10">
-                            <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-xl font-bold text-white">Who's jumping in?</h3>
                                 <button onClick={() => setShowParticipantPicker(false)} className="p-1 hover:bg-white/10 rounded-full transition-colors">
                                     <X className="w-5 h-5 text-gray-400" />
                                 </button>
                             </div>
+                            <p className="text-gray-400 text-sm mb-6">
+                                This will create your own version of the story with {selectedSlots.length} new slot{selectedSlots.length === 1 ? '' : 's'} to fill
+                            </p>
 
                             {!showFriendPicker ? (
                                 <div className="space-y-3">

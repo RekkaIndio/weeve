@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, Camera, X } from "lucide-react";
+import { ChevronLeft, Camera, X, CheckCircle, XCircle, Loader } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { updateUserProfile } from "@/lib/auth";
+import { updateUserProfile, checkDisplayNameAvailability } from "@/lib/auth";
 import { uploadMedia } from "@/lib/camera";
 import { toast } from "sonner";
 
@@ -18,6 +18,62 @@ export default function EditProfilePage() {
     const [avatar, setAvatar] = useState(currentUser?.avatar || "");
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+
+    // Name availability checking
+    const [nameAvailability, setNameAvailability] = useState<{
+        available: boolean | null;
+        loading: boolean;
+    }>({ available: null, loading: false });
+    const [nameCheckTimeout, setNameCheckTimeout] = useState<NodeJS.Timeout | null>(null);
+
+    // Calculate if name can be changed (14 day cooldown)
+    const canChangeName = !currentUser?.lastNameChangeAt || 
+        (new Date().getTime() - new Date(currentUser.lastNameChangeAt).getTime()) >= 14 * 24 * 60 * 60 * 1000;
+    
+    const daysUntilNameChange = currentUser?.lastNameChangeAt 
+        ? Math.ceil((14 * 24 * 60 * 60 * 1000 - (new Date().getTime() - new Date(currentUser.lastNameChangeAt).getTime())) / (24 * 60 * 60 * 1000))
+        : 0;
+
+    // Debounced name availability check
+    const checkNameAvailability = useCallback(async (nameToCheck: string) => {
+        if (!nameToCheck.trim()) {
+            setNameAvailability({ available: null, loading: false });
+            return;
+        }
+
+        if (nameToCheck === currentUser?.name) {
+            setNameAvailability({ available: null, loading: false });
+            return;
+        }
+
+        setNameAvailability({ available: null, loading: true });
+
+        try {
+            const { available, error } = await checkDisplayNameAvailability(nameToCheck, currentUser?.id);
+            if (error) throw error;
+            setNameAvailability({ available, loading: false });
+        } catch (error) {
+            console.error('[EditProfile] Name availability check error:', error);
+            setNameAvailability({ available: null, loading: false });
+        }
+    }, [currentUser?.id, currentUser?.name]);
+
+    // Debounce name checking
+    useEffect(() => {
+        if (nameCheckTimeout) {
+            clearTimeout(nameCheckTimeout);
+        }
+
+        const timeout = setTimeout(() => {
+            checkNameAvailability(name);
+        }, 500); // 500ms debounce
+
+        setNameCheckTimeout(timeout);
+
+        return () => {
+            clearTimeout(timeout);
+        };
+    }, [name, checkNameAvailability]);
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();
@@ -58,6 +114,33 @@ export default function EditProfilePage() {
         }
 
         setIsSaving(true);
+
+        // Check name availability if it's changed
+        if (name.trim() !== currentUser.name) {
+            // Check cooldown period
+            if (!canChangeName) {
+                setIsSaving(false);
+                return;
+            }
+            
+            if (nameAvailability.available === false) {
+                setIsSaving(false);
+                return;
+            }
+            if (nameAvailability.available === null && !nameAvailability.loading) {
+                // If we haven't checked availability yet, do a final check
+                const { available, error } = await checkDisplayNameAvailability(name.trim(), currentUser.id);
+                if (error) {
+                    setIsSaving(false);
+                    toast.error('Failed to verify name availability');
+                    return;
+                }
+                if (!available) {
+                    setIsSaving(false);
+                    return;
+                }
+            }
+        }
         try {
             const { error } = await updateUserProfile(currentUser.id, {
                 name: name.trim(),
@@ -65,7 +148,37 @@ export default function EditProfilePage() {
                 avatar: avatar || null,
             });
 
-            if (error) throw error;
+            if (error) {
+                const errorMessage = (error.message || String(error)).toLowerCase();
+                const errorCode = (error as any).code?.toLowerCase() || '';
+                const errorHint = (error as any).hint?.toLowerCase() || '';
+                const errorDetails = (error as any).details?.toLowerCase() || '';
+                
+                const allErrorText = `${errorMessage} ${errorCode} ${errorHint} ${errorDetails}`;
+                
+                // Check for name-related errors
+                if (allErrorText.includes('display name') || 
+                    allErrorText.includes('unique') || 
+                    allErrorText.includes('duplicate') ||
+                    allErrorText.includes('already exists') ||
+                    errorCode === '23505') {
+                    setIsSaving(false);
+                    return;
+                }
+                
+                // Check for cooldown errors
+                if (allErrorText.includes('name can only be changed') ||
+                    allErrorText.includes('14 days') || 
+                    allErrorText.includes('cooldown') || 
+                    allErrorText.includes('once every')) {
+                    setIsSaving(false);
+                    return;
+                }
+                
+                setIsSaving(false);
+                toast.error('Failed to update profile');
+                return;
+            }
 
             // Update local state
             setCurrentUser({
@@ -75,13 +188,52 @@ export default function EditProfilePage() {
                 avatar: avatar || undefined,
             });
 
+            setIsSaving(false);
             toast.success('Profile updated successfully');
             router.back();
-        } catch (error) {
-            console.error('Profile update error:', error);
-            toast.error('Failed to update profile');
-        } finally {
+        } catch (err: any) {
+            console.error('🔴 CAUGHT ERROR IN NEW CODE:', err);
+            console.error('Error type:', typeof err);
+            console.error('Error keys:', err ? Object.keys(err) : 'null');
+            
+            // Get all possible error text sources
+            const errorMessage = (err?.message || err?.error?.message || String(err)).toLowerCase();
+            const errorCode = (err?.code || err?.error?.code || '').toLowerCase();
+            const errorHint = (err?.hint || err?.error?.hint || '').toLowerCase();
+            const errorDetails = (err?.details || err?.error?.details || '').toLowerCase();
+            
+            // Log for debugging
+            console.log('Checking error text:', { errorMessage, errorCode, errorHint, errorDetails });
+            
+            const allErrorText = `${errorMessage} ${errorCode} ${errorHint} ${errorDetails}`;
+            
+            // Check for cooldown errors - more permissive matching
+            if (errorMessage.includes('name can only be changed') ||
+                errorMessage.includes('14 days') ||
+                errorMessage.includes('once every 14 days') ||
+                allErrorText.includes('14 days') || 
+                allErrorText.includes('cooldown') || 
+                allErrorText.includes('once every')) {
+                console.log('Detected cooldown error - silently returning');
+                setIsSaving(false);
+                return;
+            }
+            
+            // Check for name-related errors
+            if (errorMessage.includes('display name already exists') ||
+                errorMessage.includes('unique') || 
+                errorMessage.includes('duplicate') ||
+                errorMessage.includes('already exists') ||
+                errorCode === '23505' ||
+                allErrorText.includes('display name')) {
+                console.log('Detected duplicate name error - silently returning');
+                setIsSaving(false);
+                return;
+            }
+            
+            console.log('Unhandled error - showing toast');
             setIsSaving(false);
+            toast.error('Failed to update profile');
         }
     };
 
@@ -158,17 +310,57 @@ export default function EditProfilePage() {
                         <label className="block text-sm font-medium text-gray-400 mb-2">
                             Display Name
                         </label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            maxLength={50}
-                            className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#EC1D99] transition-colors"
-                            placeholder="Your Name"
-                        />
-                        <p className="text-xs text-gray-600 mt-1.5">
-                            {name.length}/50 characters
-                        </p>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                maxLength={50}
+                                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#EC1D99] transition-colors pr-10"
+                                placeholder="Your Name"
+                            />
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                {nameAvailability.loading ? (
+                                    <Loader className="w-5 h-5 text-gray-500 animate-spin" />
+                                ) : nameAvailability.available === true ? (
+                                    <CheckCircle className="w-5 h-5 text-green-500" />
+                                ) : nameAvailability.available === false ? (
+                                    <XCircle className="w-5 h-5 text-red-500" />
+                                ) : null}
+                            </div>
+                        </div>
+                        <div className="mt-1.5 space-y-1">
+                            <div className="flex items-center justify-between">
+                                <p className="text-xs text-gray-600">
+                                    {name.length}/50 characters
+                                </p>
+                                {name.trim() && name !== currentUser?.name && (
+                                    <div className="flex items-center gap-1.5">
+                                        {nameAvailability.loading && (
+                                            <p className="text-xs text-gray-400">Checking...</p>
+                                        )}
+                                        {nameAvailability.available === true && (
+                                            <p className="text-xs text-green-400 flex items-center gap-1">
+                                                <CheckCircle className="w-3 h-3" /> Available
+                                            </p>
+                                        )}
+                                        {nameAvailability.available === false && (
+                                            <p className="text-xs text-red-400 flex items-center gap-1">
+                                                <XCircle className="w-3 h-3" /> Already taken
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            {!canChangeName && name !== currentUser?.name && (
+                                <p className="text-xs text-amber-400">
+                                    ⚠️ You can change your name in {daysUntilNameChange} day{daysUntilNameChange !== 1 ? 's' : ''}
+                                </p>
+                            )}
+                            <p className="text-xs text-gray-600">
+                                Display names must be unique and can only be changed once every 14 days
+                            </p>
+                        </div>
                     </div>
 
                     <div>

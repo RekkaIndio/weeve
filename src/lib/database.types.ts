@@ -27,6 +27,8 @@ export interface Database {
                     onboarding_step: number | null
                     completed_onboarding: boolean
                     preferences: Json
+                    last_name_change_at: string | null
+                    date_of_birth: string | null
                     created_at: string
                     updated_at: string
                 }
@@ -44,6 +46,8 @@ export interface Database {
                     onboarding_step?: number | null
                     completed_onboarding?: boolean
                     preferences?: Json
+                    last_name_change_at?: string | null
+                    date_of_birth?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -61,6 +65,8 @@ export interface Database {
                     onboarding_step?: number | null
                     completed_onboarding?: boolean
                     preferences?: Json
+                    last_name_change_at?: string | null
+                    date_of_birth?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -263,6 +269,7 @@ export interface Database {
                     story_id: string
                     user_id: string
                     position: number
+                    status: 'accepted' | 'waiting' | 'declined'
                     created_at: string
                 }
                 Insert: {
@@ -270,6 +277,7 @@ export interface Database {
                     story_id: string
                     user_id: string
                     position?: number
+                    status?: 'accepted' | 'waiting' | 'declined'
                     created_at?: string
                 }
                 Update: {
@@ -277,6 +285,7 @@ export interface Database {
                     story_id?: string
                     user_id?: string
                     position?: number
+                    status?: 'accepted' | 'waiting' | 'declined'
                     created_at?: string
                 }
                 Relationships: [

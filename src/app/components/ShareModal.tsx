@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { X, Share2, MessageCircle, Send, Check, Copy, Search as SearchIcon } from 'lucide-react';
+import { X, Share2, MessageCircle, Send, Check, Copy, Search as SearchIcon, Download } from 'lucide-react';
 import { Story, useStore } from '@/lib/store';
 import { searchUsers } from '@/lib/friends';
 import { notifyStoryShared } from '@/lib/notifications';
 import { buildPublicUrl } from '@/lib/url';
 import { toast } from 'sonner';
+import { useVideoStitcher } from '@/hooks/useVideoStitcher';
 
 interface ShareModalProps {
     story: Story;
@@ -22,6 +23,9 @@ interface Recipient {
 }
 
 export default function ShareModal({ story, onClose }: ShareModalProps) {
+    // Feature flag to temporarily disable client-side download until bug is resolved
+    const ENABLE_DOWNLOAD_FEATURE = false;
+
     const friends = useStore((state) => state.friends);
     const currentUser = useStore((state) => state.currentUser);
     const fetchFriends = useStore((state) => state.fetchFriends);
@@ -31,6 +35,20 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [searching, setSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<Recipient[]>([]);
+    const { stitchStory, stitchingState, progress, videoUrl, reset } = useVideoStitcher();
+
+    // Debug logging
+    useEffect(() => {
+        console.log('🎬 ShareModal videoUrl changed:', videoUrl);
+    }, [videoUrl]);
+
+    // Reset stitcher state when modal closes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        return () => {
+            reset();
+        };
+    }, []); // Empty deps - only run on mount/unmount, not when reset changes
 
     useEffect(() => {
         // Load friends when modal mounts or user changes so the list shows immediately
@@ -346,7 +364,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                 >
                     {/* Quick Share - moved to footer */}
                     <div className="pb-3">
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className={`grid ${story.status === 'completed' ? (ENABLE_DOWNLOAD_FEATURE ? 'grid-cols-4' : 'grid-cols-3') : 'grid-cols-3'} gap-3`}>
                             <button
                                 onClick={handleDeviceShare}
                                 className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
@@ -382,6 +400,161 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                     {copied ? 'Copied' : 'Copy'}
                                 </span>
                             </button>
+
+                            {story.status === 'completed' && ENABLE_DOWNLOAD_FEATURE && (
+                                <>
+                                    {console.log('🔍 Render check - videoUrl:', videoUrl, '| stitchingState:', stitchingState)}
+                                    {!videoUrl ? (
+                                        <button
+                                            onClick={() => stitchStory(story)}
+                                            disabled={stitchingState !== 'idle' && stitchingState !== 'error'}
+                                            className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors disabled:opacity-100"
+                                        >
+                                            <div className="relative w-10 h-10 flex items-center justify-center">
+                                                {/* Background Circle */}
+                                                <div className="absolute inset-0 rounded-full bg-[#EC1D99]/20" />
+
+                                                {stitchingState === 'loading-ffmpeg' || stitchingState === 'downloading-assets' || stitchingState === 'stitching' ? (
+                                                    <div className="relative w-10 h-10">
+                                                        <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                                                            {/* Track */}
+                                                            <path
+                                                                className="text-[#EC1D99]/30"
+                                                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                                                fill="none"
+                                                                stroke="currentColor"
+                                                                strokeWidth="3"
+                                                            />
+                                                            {/* Progress */}
+                                                            <path
+                                                                className="text-[#EC1D99] transition-all duration-300 ease-out"
+                                                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                                                fill="none"
+                                                                stroke="currentColor"
+                                                                strokeWidth="3"
+                                                                strokeDasharray="100, 100"
+                                                                strokeDashoffset={100 - progress}
+                                                            />
+                                                        </svg>
+                                                        <div className="absolute inset-0 flex items-center justify-center">
+                                                            <span className="text-[9px] font-bold text-[#EC1D99]">{Math.round(progress)}%</span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <Download className="w-5 h-5 text-[#EC1D99]" />
+                                                )}
+                                            </div>
+                                            <span className="text-xs text-white">
+                                                {stitchingState === 'idle' ? 'Download' :
+                                                    stitchingState === 'loading-ffmpeg' ? 'Loading' :
+                                                        stitchingState === 'downloading-assets' ? 'Saving' :
+                                                            stitchingState === 'stitching' ? 'Processing' :
+                                                                stitchingState === 'error' ? 'Retry' : 'Download'}
+                                            </span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={async () => {
+                                                const filename = `${story.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_weeve.mp4`;
+
+                                                if (!videoUrl) return;
+
+                                                // If the stitch result is an object URL blob, prefer direct anchor download (user gesture preservation)
+                                                if (videoUrl.startsWith('blob:')) {
+                                                    try {
+                                                        // Direct anchor download using existing blob: URL — synchronous click preserves user gesture
+                                                        const a = document.createElement('a');
+                                                        a.href = videoUrl;
+                                                        a.download = filename;
+                                                        a.target = '_blank';
+                                                        a.rel = 'noopener noreferrer';
+                                                        a.style.display = 'none';
+                                                        document.body.appendChild(a);
+                                                        a.click();
+                                                        document.body.removeChild(a);
+                                                        // Delay revocation slightly to ensure browser processes the download
+                                                        setTimeout(() => {
+                                                            try { URL.revokeObjectURL(videoUrl); } catch (err) { }
+                                                        }, 5000);
+
+                                                        console.log('Direct anchor download clicked for blob', { filename, userAgent: navigator.userAgent });
+                                                        toast.success('Download started!');
+                                                        return;
+                                                    } catch (err) {
+                                                        console.warn('Direct blob anchor download failed - falling back to fetch flow:', err);
+                                                        // continue to fetch approach below
+                                                    }
+                                                }
+
+                                                // Otherwise, fetch remote URL or HTTP URL and download
+                                                try {
+                                                    const response = await fetch(videoUrl);
+                                                    const blob = await response.blob();
+                                                    const file = new File([blob], filename, { type: 'video/mp4' });
+
+                                                    // Try Web Share API first (works on mobile with user gesture)
+                                                    try {
+                                                        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                                                            await navigator.share({ files: [file], title: story.title });
+                                                            toast.success('Video saved/shared!');
+                                                            return;
+                                                        }
+                                                    } catch (e: any) {
+                                                        if (e.name === 'AbortError') return; // User cancelled
+                                                        console.warn('Share failed, falling back to download:', e);
+                                                    }
+
+                                                    // Use File System Access API if available (native save dialog)
+                                                    // @ts-ignore - showSaveFilePicker is an experimental API
+                                                    if (typeof (window as any).showSaveFilePicker === 'function') {
+                                                        try {
+                                                            // @ts-ignore
+                                                            const handle = await (window as any).showSaveFilePicker({
+                                                                suggestedName: filename,
+                                                                types: [{ description: 'Video', accept: { 'video/mp4': ['.mp4'] } }],
+                                                            });
+                                                            // @ts-ignore
+                                                            const writable = await handle.createWritable();
+                                                            await writable.write(blob);
+                                                            await writable.close();
+                                                            toast.success('Saved to device');
+                                                            return;
+                                                        } catch (saveErr) {
+                                                            console.warn('showSaveFilePicker failed:', saveErr);
+                                                            // Fall through to anchor download
+                                                        }
+                                                    }
+
+                                                    // Fallback: anchor download using a Blob URL (works on Android + desktop)
+                                                    const downloadUrl = window.URL.createObjectURL(blob);
+                                                    const a = document.createElement('a');
+                                                    a.href = downloadUrl;
+                                                    a.download = filename;
+                                                    a.target = '_blank';
+                                                    a.rel = 'noopener noreferrer';
+                                                    a.style.display = 'none';
+                                                    document.body.appendChild(a);
+                                                    a.click();
+                                                    document.body.removeChild(a);
+                                                    setTimeout(() => { try { window.URL.revokeObjectURL(downloadUrl); } catch (err) { } }, 5000);
+                                                    console.log('Download anchor clicked:', { filename, downloadUrl, userAgent: navigator.userAgent });
+                                                    toast.success('Download started!');
+                                                } catch (e) {
+                                                    console.warn('Fallback download failed, opening in new tab:', e);
+                                                    window.open(videoUrl, '_blank');
+                                                    toast.success('Video opened! Use browser menu to save.');
+                                                }
+                                            }}
+                                            className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
+                                        >
+                                            <div className="w-10 h-10 rounded-full bg-[#EC1D99] flex items-center justify-center animate-pulse shadow-lg shadow-[#EC1D99]/50">
+                                                <Download className="w-5 h-5 text-white" />
+                                            </div>
+                                            <span className="text-xs text-[#EC1D99] font-bold">Save Video</span>
+                                        </button>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

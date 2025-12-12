@@ -1004,18 +1004,19 @@ export default function ProfilePage() {
             <div className="p-4 flex justify-between items-center">
                 <h1 className="font-bold text-lg flex items-center gap-1.5">
                     {currentUser.name}
-                    <VerificationBadge 
+                    <VerificationBadge
                         isVerified={currentUser.isVerified || false}
                         tier={currentUser.verificationTier}
                         size="md"
                     />
                 </h1>
                 <div className="flex items-center gap-4">
-                    {/* Wallet Link */}
+                    {/* Wallet Link - HIDDEN
                     <Link href="/wallet" className="flex items-center gap-1 bg-gray-800 px-3 py-1.5 rounded-full">
                         <Wallet className="w-4 h-4 text-[#EC1D99]" />
                         <span className="text-sm font-bold">{currentUser.tokens}</span>
                     </Link>
+                    */}
                     <button onClick={() => setShowInviteModal(true)} className="text-white hover:text-gray-300 transition-colors">
                         <UserPlus className="w-6 h-6" />
                     </button>

@@ -120,10 +120,22 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const drawingCanvasRef = useRef<DrawingCanvasRef>(null);
     const [showOnboardingTutorial, setShowOnboardingTutorial] = useState(false);
 
-    const contributions = story?.contributions ?? EMPTY_CONTRIBUTIONS;
-    const maxWeeves = typeof story?.maxWeeves === 'number' ? story.maxWeeves : null;
+    // Sort contributions by timestamp to ensure proper ordering (especially for forked stories)
+    const contributions = useMemo(() => {
+        const raw = story?.contributions ?? EMPTY_CONTRIBUTIONS;
+        return [...raw].sort((a, b) => a.timestamp - b.timestamp);
+    }, [story?.contributions]);
+    const maxWeeves = typeof story?.maxWeeves === 'number' ? story?.maxWeeves : null;
     const contributionsCount = contributions.length;
-    const isAtCapacity = maxWeeves !== null && contributionsCount >= maxWeeves;
+    
+    // Check if current user has a waiting slot AND hasn't contributed yet (for branched stories)
+    const currentUserParticipant = story?.participants?.find(p => p.id === currentUser?.id);
+    const userHasWaitingSlot = currentUserParticipant?.status === 'waiting';
+    const userHasContributed = currentUser?.id ? contributions.some(c => c.userId === currentUser.id) : false;
+    const canContributeDespiteCapacity = userHasWaitingSlot && !userHasContributed;
+    
+    // Story is at capacity ONLY if contributions >= maxWeeves AND user can't contribute
+    const isAtCapacity = maxWeeves !== null && contributionsCount >= maxWeeves && !canContributeDespiteCapacity;
     const isStoryComplete = story?.status === 'completed' || isAtCapacity;
     const remainingSlots = maxWeeves !== null ? Math.max(maxWeeves - contributionsCount, 0) : null;
     const activeSegment = contributions[activeIndex];
@@ -132,8 +144,27 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         ...(activeSegment?.textStyle ?? {}),
     }), [activeSegment?.textStyle]);
     const hasCustomTextStyle = Boolean(activeSegment?.textStyle);
-    const isMyTurn = !isStoryComplete && story?.currentTurnUserId === currentUser?.id;
+    
+    // Check if it's the user's turn - either explicitly their turn OR they have a waiting slot they haven't filled
+    const isExplicitlyMyTurn = !isStoryComplete && story?.currentTurnUserId === currentUser?.id;
+    const canContributeWithWaitingSlot = !isStoryComplete && userHasWaitingSlot && !userHasContributed;
+    const isMyTurn = isExplicitlyMyTurn || canContributeWithWaitingSlot;
     const hasContributions = contributions.length > 0;
+    
+    // Debug logging for forked stories
+    useEffect(() => {
+        if (story?.visibility === 'private') {
+            console.log('[Story] Forked story debug:', {
+                storyId: story?.id,
+                visibility: story?.visibility,
+                participants: story?.participants?.map(p => ({ id: p.id, name: p.name, status: p.status, position: p.position })),
+                contributions: contributions.map((c, i) => ({ index: i, userId: c.userId, timestamp: c.timestamp })),
+                currentUserParticipant: currentUserParticipant ? { id: currentUserParticipant.id, status: currentUserParticipant.status, position: currentUserParticipant.position } : null,
+                userHasWaitingSlot,
+                isMyTurn,
+            });
+        }
+    }, [story, contributions, currentUserParticipant, userHasWaitingSlot, isMyTurn]);
     
     // Debug logging for onboarding
     useEffect(() => {
@@ -214,26 +245,108 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         });
         return map;
     }, [story?.participants]);
+    // Build a unified timeline that includes both contributions AND empty slots (waiting participants)
+    // Empty slots should appear at their designated position, not at the end
     const timelineEntries = useMemo(() => {
         const occurrences = new Map<string, number>();
         const latestIndexByUser = new Map<string, number>();
         contributions.forEach((contribution, index) => {
             latestIndexByUser.set(contribution.userId, index);
         });
-        return contributions.map((contribution, index) => {
-            const occurrence = (occurrences.get(contribution.userId) ?? 0) + 1;
-            occurrences.set(contribution.userId, occurrence);
-            return {
-                contribution,
-                index,
-                occurrence,
-                isLatestForUser: latestIndexByUser.get(contribution.userId) === index,
-            };
+        
+        // Get participants with status 'waiting' who haven't contributed yet
+        const contributors = new Set(contributions.map(c => c.userId));
+        const allParticipants = story?.participants ?? [];
+        
+        console.log('[Timeline] All participants DETAILED:', JSON.stringify(allParticipants.map(p => ({ 
+            id: p.id, 
+            name: p.name, 
+            status: p.status, 
+            position: p.position,
+            positionType: typeof p.position,
+            hasContributed: contributors.has(p.id)
+        })), null, 2));
+        
+        // For forked stories (private visibility), show empty slot for participants with status='waiting'
+        // even if hasContributed is true (because contributions might have been copied from original)
+        // For regular stories, show empty slot if participant hasn't contributed
+        const isForkedStory = story?.visibility === 'private';
+        const waitingParticipants = allParticipants.filter(p => {
+            const hasPosition = p.position !== undefined && p.position !== null;
+            if (isForkedStory && p.status === 'waiting' && hasPosition) {
+                // For forked stories, show slot for waiting participants regardless of contribution status
+                return true;
+            }
+            // For regular stories, show if no contribution and has position
+            return !contributors.has(p.id) && hasPosition;
         });
-    }, [contributions]);
+        
+        console.log('[Timeline] Waiting participants after filter:', JSON.stringify(waitingParticipants.map(p => ({ 
+            id: p.id, 
+            status: p.status, 
+            position: p.position 
+        })), null, 2));
+        
+        // Create entries for contributions
+        // Exclude contributions at positions where there's a waiting participant (empty slot)
+        const waitingPositions = new Set(waitingParticipants.map(p => p.position as number));
+        
+        const contributionEntries = contributions
+            .map((contribution, index) => {
+                const occurrence = (occurrences.get(contribution.userId) ?? 0) + 1;
+                occurrences.set(contribution.userId, occurrence);
+                // Calculate position from timestamp (position = timestamp / 1000000 - 1)
+                const position = contribution.timestamp >= 1000000 && contribution.timestamp < 100000000 
+                    ? Math.floor(contribution.timestamp / 1000000) - 1 
+                    : index;
+                return {
+                    type: 'contribution' as const,
+                    contribution,
+                    index,
+                    occurrence,
+                    isLatestForUser: latestIndexByUser.get(contribution.userId) === index,
+                    position,
+                };
+            })
+            // Filter out contributions at positions that have waiting participants
+            .filter(entry => !waitingPositions.has(entry.position));
+        
+        // Create entries for empty slots (waiting participants)
+        const emptySlotEntries = waitingParticipants.map(participant => ({
+            type: 'empty' as const,
+            participant,
+            position: participant.position as number,
+        }));
+        
+        // Debug logging
+        if (story?.visibility === 'private') {
+            console.log('[Timeline] Building entries:', {
+                waitingParticipants: waitingParticipants.map(p => ({ id: p.id, position: p.position, status: p.status })),
+                contributionEntries: contributionEntries.map(e => ({ index: e.index, timestamp: e.contribution.timestamp, calculatedPosition: e.position })),
+                emptySlotEntries: emptySlotEntries.map(e => ({ participantId: e.participant.id, position: e.position })),
+            });
+        }
+        
+        // Combine and sort by position
+        const allEntries = [
+            ...contributionEntries.map(e => ({ ...e, sortPosition: e.position })),
+            ...emptySlotEntries.map(e => ({ ...e, sortPosition: e.position })),
+        ].sort((a, b) => a.sortPosition - b.sortPosition);
+        
+        return allEntries;
+    }, [contributions, story?.participants]);
+    
+    // Separate out contribution entries for backward compatibility
+    const contributionTimelineEntries = useMemo(() => 
+        timelineEntries.filter(e => e.type === 'contribution'),
+    [timelineEntries]);
+    
     const participantsWithoutContributions = useMemo(() => {
         const contributors = new Set(contributions.map((contribution) => contribution.userId));
-        return (story?.participants ?? []).filter((participant) => !contributors.has(participant.id));
+        // Exclude 'waiting' participants as they're shown inline in the timeline
+        return (story?.participants ?? []).filter(
+            (participant) => !contributors.has(participant.id) && participant.status !== 'waiting'
+        );
     }, [story?.participants, contributions]);
     const handleContributionSelect = useCallback((index: number) => {
         setActiveIndex(index);
@@ -255,6 +368,12 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         }
         return false;
     }, [stitchMode, textElements]);
+
+    // Check if current user is a participant (not creator) - must be before early returns
+    const isUserParticipant = useMemo(() => {
+        if (!currentUser || !story) return false;
+        return story.participants.some(p => p.id === currentUser.id) && story.creatorId !== currentUser.id;
+    }, [currentUser, story]);
 
     const mediaPickerConfig = useMemo(() => {
         if (!mediaSourcePicker) return null;
@@ -675,6 +794,18 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             const willComplete = maxWeeves !== null && story.contributions.length + 1 >= maxWeeves;
             const computedNextTurnUserId = computeNextTurnUserId(willComplete);
             const nextTurnUpdate = willComplete ? null : computedNextTurnUserId;
+            
+            // Calculate timestamp based on slot position for proper ordering
+            // If user has a waiting slot (forked story), use their position to determine timestamp
+            // Position 0 = 1000000, Position 1 = 2000000, etc.
+            // This ensures their contribution appears in the correct slot
+            let contributionTimestamp = Date.now();
+            if (currentUserParticipant?.status === 'waiting' && typeof currentUserParticipant.position === 'number') {
+                // Use position-based timestamp: (position + 1) * 1000000
+                contributionTimestamp = (currentUserParticipant.position + 1) * 1000000;
+                console.log('[Story] Using position-based timestamp for slot:', currentUserParticipant.position, 'timestamp:', contributionTimestamp);
+            }
+            
             const { contribution } = await createStoryContribution({
                 storyId: story.id,
                 userId: currentUser.id,
@@ -683,7 +814,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 content: caption,
                 file: stitchMode === 'drawing' ? drawingFile : mediaDraft?.file,
                 textStyle: textStylePayload,
-                timestamp: Date.now(),
+                timestamp: contributionTimestamp,
                 nextTurnUserId: nextTurnUpdate,
             });
 
@@ -700,12 +831,6 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             setIsUploading(false);
         }
     };
-
-    // Check if current user is a participant (not creator)
-    const isUserParticipant = useMemo(() => {
-        if (!currentUser || !story) return false;
-        return story.participants.some(p => p.id === currentUser.id) && story.creatorId !== currentUser.id;
-    }, [currentUser, story]);
 
     // Handle leaving the story
     const handleLeaveStory = async () => {
@@ -990,7 +1115,31 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         )}
                     </>
                 ) : (
-                    <div className="text-gray-500">No segments yet. Be the first!</div>
+                    // Show waiting element for forked stories with user's slot, otherwise generic message
+                    currentUserParticipant?.status === 'waiting' ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white">
+                            <div className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-black/40 border border-white/10 backdrop-blur-sm">
+                                <div className="relative">
+                                    <div className="w-16 h-16 rounded-full border-2 border-[#EC1D99]/70 p-1 animate-pulse">
+                                        <img
+                                            src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser?.name || 'You')}`}
+                                            alt={currentUser?.name || 'You'}
+                                            className="w-full h-full rounded-full object-cover"
+                                        />
+                                    </div>
+                                    <div className="absolute -bottom-1 -right-1 bg-[#EC1D99] rounded-full p-1">
+                                        <div className="w-2 h-2 bg-white rounded-full animate-ping" />
+                                    </div>
+                                </div>
+                                <span className="text-sm font-semibold tracking-wide uppercase text-gray-300">Your turn</span>
+                                <span className="text-lg font-bold text-white">
+                                    Add your stitch!
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-gray-500">No segments yet. Be the first!</div>
+                    )
                 )}
 
                 {/* Uploading Overlay */}
@@ -1014,7 +1163,76 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             {!isComposerOpen && (
                 <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-30 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
                     <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap">
-                        {timelineEntries.map(({ contribution, index, occurrence, isLatestForUser }) => {
+                        {timelineEntries.map((entry, entryIndex) => {
+                            // Handle empty slot entries (waiting participants)
+                            if (entry.type === 'empty') {
+                                const participant = entry.participant;
+                                const isCurrentUser = currentUser?.id === participant.id;
+                                const isCurrentTurn = story.currentTurnUserId === participant.id;
+                                
+                                console.log('[Timeline] Empty slot render:', {
+                                    participantId: participant.id,
+                                    participantName: participant.name,
+                                    currentUserId: currentUser?.id,
+                                    isCurrentUser,
+                                    isCurrentTurn,
+                                    isMyTurn,
+                                    position: entry.position,
+                                });
+                                
+                                // Show clickable + button for current user's empty slot
+                                if (isCurrentUser && isMyTurn) {
+                                    return (
+                                        <button
+                                            key={`empty-${participant.id}`}
+                                            id="add-weeve-button"
+                                            onClick={() => {
+                                                setShowStitchMenu(true);
+                                                setShowOnboardingTutorial(false);
+                                            }}
+                                            className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
+                                        >
+                                            <div className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors">
+                                                <Plus className="w-6 h-6" />
+                                            </div>
+                                            <span className="text-[10px] text-[#EC1D99] font-medium max-w-[64px] truncate">
+                                                Your turn
+                                            </span>
+                                            <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
+                                        </button>
+                                    );
+                                }
+                                
+                                // Show disabled placeholder for other users' empty slots
+                                return (
+                                    <button
+                                        key={`empty-${participant.id}`}
+                                        type="button"
+                                        disabled
+                                        className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
+                                    >
+                                        <div
+                                            className={`w-12 h-12 rounded-full border-2 border-dashed overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99]/70' : 'border-gray-600'}`}
+                                        >
+                                            <img
+                                                src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
+                                                alt={participant.name}
+                                                className="w-full h-full object-cover opacity-50"
+                                            />
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 font-medium max-w-[64px] truncate" title={participant.name}>
+                                            {participant.name.split(' ').slice(0, 2).join(' ')}
+                                        </span>
+                                        <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
+                                        {isCurrentTurn && (
+                                            <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
+                                        )}
+                                    </button>
+                                );
+                            }
+                            
+                            // Handle contribution entries
+                            const { contribution, index, occurrence, isLatestForUser } = entry;
                             const participant = participantMap.get(contribution.userId);
                             const displayName = participant?.name ?? contribution.userName;
                             const avatar = participant?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`;
@@ -1081,7 +1299,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                             );
                         })}
 
-                        {isMyTurn && (
+                        {/* Show + button only if it's user's turn AND they don't have a specific waiting slot */}
+                        {isMyTurn && !userHasWaitingSlot && (
                             <button
                                 id="add-weeve-button"
                                 onClick={() => {
@@ -1112,7 +1331,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         <div className="text-center text-xs text-gray-500 py-2">
                             Story complete — stitch limit reached.
                         </div>
-                    ) : isMyTurn ? (
+                    ) : isMyTurn && !userHasWaitingSlot ? (
                         <button
                             onClick={() => setShowStitchMenu(true)}
                             className="w-full bg-[#EC1D99] text-white font-bold py-3 rounded-full flex items-center justify-center gap-2 hover:bg-[#D41C84] transition-colors"
@@ -1509,66 +1728,72 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     </div>
                 </>
             )}
-            {/* Edit Story Modal */}
-            {showEditModal && (
-                <EditStoryModal
-                    story={story}
-                    onClose={() => setShowEditModal(false)}
-                />
-            )}
+    {/* Edit Story Modal */ }
+    {
+        showEditModal && (
+            <EditStoryModal
+                story={story}
+                onClose={() => setShowEditModal(false)}
+            />
+        )
+    }
 
-            {/* Leave Story Confirmation Modal */}
-            {showLeaveConfirm && (
-                <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full">
-                        <h2 className="text-xl font-bold mb-2">Leave Story?</h2>
-                        <p className="text-gray-400 text-sm mb-6">
-                            Are you sure you want to leave "<span className="text-white font-medium">{story.title}</span>"? This will free up your slot for someone else.
-                        </p>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setShowLeaveConfirm(false)}
-                                className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleLeaveStory}
-                                className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
-                            >
-                                Yes, Leave
-                            </button>
-                        </div>
+    {/* Leave Story Confirmation Modal */ }
+    {
+        showLeaveConfirm && (
+            <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full">
+                    <h2 className="text-xl font-bold mb-2">Leave Story?</h2>
+                    <p className="text-gray-400 text-sm mb-6">
+                        Are you sure you want to leave "<span className="text-white font-medium">{story.title}</span>"? This will free up your slot for someone else.
+                    </p>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => setShowLeaveConfirm(false)}
+                            className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleLeaveStory}
+                            className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+                        >
+                            Yes, Leave
+                        </button>
                     </div>
                 </div>
-            )}
+            </div>
+        )
+    }
 
-            {/* Delete Story Confirmation Modal */}
-            {showDeleteConfirm && (
-                <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full">
-                        <h2 className="text-xl font-bold mb-2 text-red-400">Delete Story?</h2>
-                        <p className="text-gray-400 text-sm mb-6">
-                            Are you sure you want to permanently delete "<span className="text-white font-medium">{story.title}</span>"? This action cannot be undone and will remove all contributions, comments, and likes.
-                        </p>
-                        <div className="flex gap-3">
-                            <button
-                                onClick={() => setShowDeleteConfirm(false)}
-                                className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleDeleteStory}
-                                className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
-                            >
-                                Yes, Delete
-                            </button>
-                        </div>
+    {/* Delete Story Confirmation Modal */ }
+    {
+        showDeleteConfirm && (
+            <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full">
+                    <h2 className="text-xl font-bold mb-2 text-red-400">Delete Story?</h2>
+                    <p className="text-gray-400 text-sm mb-6">
+                        Are you sure you want to permanently delete "<span className="text-white font-medium">{story.title}</span>"? This action cannot be undone and will remove all contributions, comments, and likes.
+                    </p>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => setShowDeleteConfirm(false)}
+                            className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleDeleteStory}
+                            className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+                        >
+                            Yes, Delete
+                        </button>
                     </div>
                 </div>
-            )}
-        </div>
+            </div>
+        )
+    }
+        </div >
     );
 }
 

@@ -26,8 +26,14 @@ export default function UserProfilePage() {
     }
 
     // Redirect to main profile if it's the current user (check this first!)
-    if (userId === currentUser.id) {
-        router.replace('/profile');
+    // Redirect to main profile if it's the current user
+    useEffect(() => {
+        if (currentUser && userId === currentUser.id) {
+            router.replace('/profile');
+        }
+    }, [userId, currentUser, router]);
+
+    if (currentUser && userId === currentUser.id) {
         return null;
     }
 

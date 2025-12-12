@@ -729,6 +729,55 @@ export async function createStoryContribution(options: CreateStoryContributionOp
         throw new Error('Contribution insert did not return data');
     }
 
+    // Update participant status from 'waiting' to 'accepted' after contributing
+    try {
+        await supabase
+            .from('story_participants')
+            .update({ status: 'accepted' })
+            .eq('story_id', options.storyId)
+            .eq('user_id', options.userId)
+            .eq('status', 'waiting');
+    } catch (statusUpdateError) {
+        console.warn('[Upload] Failed to update participant status:', statusUpdateError);
+        // Non-blocking - continue even if this fails
+    }
+
+    // Check if this was a forked story (private) and all slots are now filled
+    // If so, make it public so it appears on the main feed
+    try {
+        const { data: storyCheck } = await supabase
+            .from('stories')
+            .select('visibility, max_weeves')
+            .eq('id', options.storyId)
+            .single();
+        
+        if (storyCheck?.visibility === 'private' && storyCheck?.max_weeves) {
+            // Count contributions for this story
+            const { count: contributionCount } = await supabase
+                .from('contributions')
+                .select('id', { count: 'exact', head: true })
+                .eq('story_id', options.storyId);
+            
+            console.log('[Upload] Checking if forked story is complete:', { 
+                contributionCount, 
+                maxWeeves: storyCheck.max_weeves 
+            });
+            
+            // If all slots are filled, make the story public
+            if (contributionCount && contributionCount >= storyCheck.max_weeves) {
+                console.log('[Upload] Forked story complete! Making it public...');
+                await supabase
+                    .from('stories')
+                    .update({ visibility: 'public' })
+                    .eq('id', options.storyId);
+                console.log('[Upload] Story is now public and visible on the main feed');
+            }
+        }
+    } catch (visibilityCheckError) {
+        console.warn('[Upload] Failed to check/update story visibility:', visibilityCheckError);
+        // Non-blocking - continue even if this fails
+    }
+
     if (options.nextTurnUserId !== undefined) {
         const updatePayload = { current_turn_user_id: options.nextTurnUserId ?? null };
         let updateSucceeded = false;

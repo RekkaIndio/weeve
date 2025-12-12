@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   interaction_cost INTEGER,
   is_private BOOLEAN DEFAULT FALSE,
   invite_code TEXT UNIQUE,
+  date_of_birth DATE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -223,7 +224,9 @@ CREATE POLICY "Users can insert their own profile" ON profiles
 
 DROP POLICY IF EXISTS "Users can update their own profile" ON profiles;
 CREATE POLICY "Users can update their own profile" ON profiles
-  FOR UPDATE USING (true);
+  FOR UPDATE 
+  USING (auth.uid()::text = user_id)
+  WITH CHECK (auth.uid()::text = user_id);
 
 -- Stories: Anyone can read, only creator can delete
 DROP POLICY IF EXISTS "Stories are viewable by everyone" ON stories;

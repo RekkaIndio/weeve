@@ -22,12 +22,14 @@ export interface AuthUser {
     isPrivate?: boolean;
     onboardingStep?: number | null;
     completedOnboarding?: boolean;
+    lastNameChangeAt?: string;
+    dateOfBirth?: string;
 }
 
 /**
  * Sign up a new user with email and password
  */
-export async function signUp(email: string, password: string, name?: string): Promise<{ user: User | null; error: Error | null }> {
+export async function signUp(email: string, password: string, name?: string, dateOfBirth?: string): Promise<{ user: User | null; error: Error | null }> {
     try {
         // Create auth user
         const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -36,6 +38,7 @@ export async function signUp(email: string, password: string, name?: string): Pr
             options: name ? {
                 data: {
                     name, // Store name in auth metadata if provided
+                    date_of_birth: dateOfBirth,
                 },
             } : undefined,
         });
@@ -175,6 +178,8 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
             isPrivate: data.is_private || false,
             onboardingStep: data.onboarding_step ?? null,
             completedOnboarding: data.completed_onboarding ?? false,
+            lastNameChangeAt: data.last_name_change_at || undefined,
+            dateOfBirth: data.date_of_birth || undefined,
         };
     } catch (error) {
         console.error('[Auth] Get profile error:', error);
@@ -190,7 +195,8 @@ export async function createUserProfile(
     name: string,
     avatar?: string,
     inviteCode?: string,
-    referrerCode?: string
+    referrerCode?: string,
+    dateOfBirth?: string
 ): Promise<{ error: Error | null }> {
     try {
         const profileData: ProfileInsert = {
@@ -201,6 +207,7 @@ export async function createUserProfile(
             invite_code: inviteCode || `${name.toUpperCase().slice(0, 3)}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
             onboarding_step: 1,
             completed_onboarding: false,
+            date_of_birth: dateOfBirth,
         };
 
         const { error } = await supabase.from('profiles').insert(profileData);
@@ -249,6 +256,37 @@ export async function profileExists(userId: string): Promise<boolean> {
 }
 
 /**
+ * Check if a display name is available (not already taken)
+ */
+export async function checkDisplayNameAvailability(name: string, excludeUserId?: string): Promise<{ available: boolean; error: Error | null }> {
+    try {
+        if (!name.trim()) {
+            return { available: false, error: null };
+        }
+
+        let query = supabase
+            .from('profiles')
+            .select('user_id')
+            .eq('name', name.trim());
+
+        // If we're checking for a specific user (e.g., when editing their own profile),
+        // exclude their current name from the check
+        if (excludeUserId) {
+            query = query.neq('user_id', excludeUserId);
+        }
+
+        const { data, error } = await query.maybeSingle();
+
+        if (error) throw error;
+
+        return { available: !data, error: null };
+    } catch (error) {
+        console.error('[Auth] Check display name availability error:', error);
+        return { available: false, error: error as Error };
+    }
+}
+
+/**
  * Update user profile
  */
 export async function updateUserProfile(
@@ -273,7 +311,10 @@ export async function updateUserProfile(
             .update(dbUpdates)
             .eq('user_id', userId);
 
-        if (updateError) throw updateError;
+        if (updateError) {
+            console.error('[Auth] Update error details:', updateError);
+            throw updateError;
+        }
 
         const { data: refreshedProfile, error: fetchError } = await supabase
             .from('profiles')

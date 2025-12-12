@@ -22,10 +22,12 @@ function CreateStoryContent() {
     }
   }, [groupId]);
 
-  // Fetch friends on mount
+  // Fetch friends when user is available and on mount
   useEffect(() => {
-    fetchFriends();
-  }, [fetchFriends]);
+    if (currentUser) {
+      fetchFriends();
+    }
+  }, [fetchFriends, currentUser]);
 
   const fetchGroupInfo = async () => {
     if (!groupId) return;
@@ -161,7 +163,7 @@ function CreateStoryContent() {
         const invitedUserIds = finalParticipants
           .filter(p => p.id !== currentUser.id)
           .map(p => p.id);
-        
+
         if (invitedUserIds.length > 0) {
           import('@/lib/notifications').then(({ notifyStoryInvite }) => {
             notifyStoryInvite(newStoryId, data.title, currentUser.name, invitedUserIds).catch(err => {
@@ -230,6 +232,9 @@ function CreateStoryContent() {
       groupId={groupId || undefined}
       groupName={groupInfo?.name}
       groupAvatar={groupInfo?.avatar}
+      onRefreshFriends={async () => {
+        await fetchFriends();
+      }}
     />
   );
 }

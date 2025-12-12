@@ -16,6 +16,7 @@ export interface User {
     isVerified?: boolean;
     verificationTier?: 'bronze' | 'silver' | 'gold' | null;
     verifiedAt?: string;
+    lastNameChangeAt?: string;
     status?: 'accepted' | 'waiting' | 'declined'; // For story participants
     position?: number; // Slot position in the story
 }
@@ -126,7 +127,7 @@ interface AppState {
     addStoryComment: (storyId: string, content: string) => Promise<void>;
     logoutUser: () => void;
     fetchFriends: () => Promise<void>;
-    forkStory: (originalStoryId: string, slotIndex: number, newParticipantId: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
+    forkStory: (originalStoryId: string, slotIndices: number[], newParticipantId: string, contributionIdsToExclude?: string[]) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     fetchStories: () => Promise<void>;
     setProfileUpdateInProgress: (value: boolean) => void;
 
@@ -798,12 +799,21 @@ export const useStore = create<AppState>()(
 
             fetchFriends: async () => {
                 const { currentUser } = get();
-                if (!currentUser) return;
-                const friends = await getFriends(currentUser.id);
-                set({ friends });
+                console.log('[Store] fetchFriends called. CurrentUser:', currentUser?.id);
+                if (!currentUser) {
+                    console.log('[Store] fetchFriends aborted: No currentUser');
+                    return;
+                }
+                try {
+                    const friends = await getFriends(currentUser.id);
+                    console.log('[Store] fetchFriends success. Found:', friends.length);
+                    set({ friends });
+                } catch (err) {
+                     console.error('[Store] fetchFriends failed:', err);
+                }
             },
 
-            forkStory: async (originalStoryId: string, slotIndex: number, newParticipantId: string) => {
+            forkStory: async (originalStoryId: string, slotIndices: number[], newParticipantId: string, contributionIdsToExclude?: string[]) => {
                 const { currentUser } = get();
                 if (!currentUser) return { success: false, error: "User not logged in" };
 
@@ -832,7 +842,7 @@ export const useStore = create<AppState>()(
                             description: originalStory.description,
                             creator_id: currentUser.id, // The forker becomes the creator of the new branch
                             mode: originalStory.mode, // Copy mode from original story
-                            visibility: 'public', // Default to public for now
+                            visibility: 'private', // Set to private so it appears in waiting tab
                             status: 'active',
                             max_weeves: originalStory.max_weeves,
                             cover_image: originalStory.cover_image,
@@ -849,96 +859,109 @@ export const useStore = create<AppState>()(
                     }
 
                     const newStoryId = newStoryData.id;
+                    console.log('[forkStory] Created new story:', newStoryId);
+                    console.log('[forkStory] Original contributions count:', originalStory.contributions.length);
+                    console.log('[forkStory] Selected slots to replace:', slotIndices);
+                    console.log('[forkStory] Contribution IDs to exclude:', contributionIdsToExclude);
 
-                    // 3. Copy participants and update the target slot
-                    // First, filter out the new participant if they already exist in any position
-                    // to avoid duplicate user constraint violations
-                    const filteredParticipants = originalStory.story_participants.filter((p: any) =>
-                        p.user_id !== newParticipantId
+                    // 3. Sort contributions by timestamp to determine slot positions
+                    const sortedContributions = [...originalStory.contributions].sort(
+                        (a: any, b: any) => a.timestamp - b.timestamp
                     );
-
-                    let slotFilled = false;
-                    const participants = filteredParticipants.map((p: any) => {
-                        // Check if this is the slot we are replacing
-                        if (p.position === slotIndex) {
-                            slotFilled = true;
-                            return {
+                    console.log('[forkStory] Sorted contributions:', sortedContributions.map((c: any, i: number) => ({ index: i, id: c.id, user_id: c.user_id, timestamp: c.timestamp })));
+                    
+                    // 4. Copy contributions EXCEPT those that should be excluded
+                    // If contributionIdsToExclude is provided, use that; otherwise fall back to slotIndices
+                    const excludeIds = new Set(contributionIdsToExclude || []);
+                    const keptUserIds = new Set<string>();
+                    const contributionsToCopy: any[] = [];
+                    
+                    sortedContributions.forEach((c: any, originalIndex: number) => {
+                        // Exclude if ID is in exclude list, OR if no IDs provided and index is in slotIndices
+                        const shouldExclude = excludeIds.size > 0 
+                            ? excludeIds.has(c.id)
+                            : slotIndices.includes(originalIndex);
+                        
+                        if (!shouldExclude) {
+                            keptUserIds.add(c.user_id);
+                            contributionsToCopy.push({
                                 story_id: newStoryId,
-                                user_id: newParticipantId,
-                                position: p.position,
-                                status: 'waiting', // New participant is waiting
-                            };
+                                user_id: c.user_id,
+                                user_name: c.user_name,
+                                content: c.content,
+                                media_type: c.media_type,
+                                media_url: c.media_url,
+                                // Use position-based timestamp to maintain slot order
+                                // Position 0 = 1000000, Position 1 = 2000000, etc.
+                                // This leaves "gaps" for selected slots
+                                timestamp: (originalIndex + 1) * 1000000,
+                                text_style: c.text_style
+                            });
+                        } else {
+                            console.log('[forkStory] Excluding contribution:', { id: c.id, index: originalIndex });
                         }
-                        return {
-                            story_id: newStoryId,
-                            user_id: p.user_id,
-                            position: p.position,
-                            status: p.status,
-                        };
+                    });
+                    
+                    console.log('[forkStory] Contributions to copy:', contributionsToCopy.length);
+                    console.log('[forkStory] Kept user IDs:', Array.from(keptUserIds));
+
+                    // 5. Build participant list
+                    // Include: participants whose contributions we're keeping + the new participant
+                    const participants: any[] = [];
+                    const addedUserIds = new Set<string>();
+                    
+                    // Add participants for kept contributions (maintain their original positions)
+                    originalStory.story_participants.forEach((p: any) => {
+                        // Only add if we're keeping their contribution AND they're not the new participant
+                        if (keptUserIds.has(p.user_id) && p.user_id !== newParticipantId && !addedUserIds.has(p.user_id)) {
+                            participants.push({
+                                story_id: newStoryId,
+                                user_id: p.user_id,
+                                position: p.position,
+                                status: 'accepted', // They already have content
+                            });
+                            addedUserIds.add(p.user_id);
+                        }
                     });
 
-                    // If the slot was empty (no existing participant at that position), add the new participant
-                    if (!slotFilled) {
-                        participants.push({
-                            story_id: newStoryId,
-                            user_id: newParticipantId,
-                            position: slotIndex,
-                            status: 'waiting',
-                        });
-                    }
+                    // Add the new participant at the first selected slot position
+                    const firstSelectedSlot = slotIndices[0];
+                    participants.push({
+                        story_id: newStoryId,
+                        user_id: newParticipantId,
+                        position: firstSelectedSlot,
+                        status: 'waiting',
+                    });
+                    console.log('[forkStory] Participants to insert:', participants);
 
                     const { error: participantsError } = await supabase
                         .from('story_participants')
                         .insert(participants);
 
                     if (participantsError) {
-                        console.error('Error adding participants:', participantsError);
-                        // Should probably delete the story if this fails
+                        console.error('[forkStory] Error adding participants:', participantsError);
                         return { success: false, error: `Failed to add participants: ${participantsError.message}` };
                     }
+                    console.log('[forkStory] Participants inserted successfully');
 
-                    // 4. Copy contributions (excluding the one at the replaced slot)
-                    // We need to identify which contribution belongs to the replaced slot.
-                    // This is tricky if contributions aren't explicitly linked to slots/positions.
-                    // Strategy: Filter out contributions by the user who was at that slot in the original story.
-
-                    // Find the user ID of the participant at the target slot in the original story
-                    const originalParticipant = originalStory.story_participants.find((p: any) => p.position === slotIndex);
-                    const originalParticipantId = originalParticipant?.user_id;
-
-                    const contributionsToCopy = originalStory.contributions
-                        .filter((c: any) => c.user_id !== originalParticipantId)
-                        .map((c: any) => ({
-                            story_id: newStoryId,
-                            user_id: c.user_id,
-                            user_name: c.user_name,
-                            content: c.content,
-                            media_type: c.media_type,
-                            media_url: c.media_url,
-                            timestamp: c.timestamp,
-                            text_style: c.text_style
-                        }));
-
+                    // 6. Insert the copied contributions
                     if (contributionsToCopy.length > 0) {
+                        console.log('[forkStory] Inserting contributions...');
                         const { error: contributionsError } = await supabase
                             .from('contributions')
                             .insert(contributionsToCopy);
 
                         if (contributionsError) {
-                            console.error('Error copying contributions:', contributionsError);
+                            console.error('[forkStory] Error copying contributions:', contributionsError);
                             // Not critical enough to fail the whole fork, but worth noting
+                        } else {
+                            console.log('[forkStory] Contributions inserted successfully');
                         }
+                    } else {
+                        console.log('[forkStory] No contributions to copy');
                     }
 
-                    // 5. Update local state (fetch the new story to ensure full data)
-                    // For now, we can just trigger a fetchStories or manually construct it.
-                    // Let's manually construct to be fast.
-                    // Actually, simpler to just return the ID and let the UI redirect or refresh.
-                    // But we should update the store.
-
-                    // We'll rely on fetchStories for now as constructing the full object with profiles is tedious here.
-                    // Or we can add a simple version.
-
+                    // 7. Update local state (fetch the new story to ensure full data)
                     // Let's trigger a fetch in the background
                     get().fetchStories();
 
@@ -1002,17 +1025,28 @@ export const useStore = create<AppState>()(
                             };
                         }).sort((a: any, b: any) => (a.position || 0) - (b.position || 0));
 
-                        // Map contributions
-                        const contributions = s.contributions.map((c: any) => ({
-                            id: c.id,
-                            userId: c.user_id,
-                            userName: c.user_name,
-                            content: c.content,
-                            mediaType: c.media_type,
-                            mediaUrl: c.media_url,
-                            timestamp: c.timestamp,
-                            textStyle: c.text_style
-                        }));
+                        // Map contributions with validation
+                        const contributions = s.contributions.map((c: any) => {
+                            // Log if video has no URL
+                            if (c.media_type === 'video' && (!c.media_url || !c.media_url.trim())) {
+                                console.warn('[Store] Video contribution with empty media_url:', {
+                                    contributionId: c.id,
+                                    storyId: s.id,
+                                    storyTitle: s.title,
+                                    mediaUrl: c.media_url
+                                });
+                            }
+                            return {
+                                id: c.id,
+                                userId: c.user_id,
+                                userName: c.user_name,
+                                content: c.content,
+                                mediaType: c.media_type,
+                                mediaUrl: c.media_url?.trim() || null, // Ensure null if empty string
+                                timestamp: c.timestamp,
+                                textStyle: c.text_style
+                            };
+                        });
 
                         // Map comments
                         const comments = s.story_comments.map((cm: any) => ({
