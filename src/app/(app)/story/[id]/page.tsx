@@ -1605,14 +1605,6 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         <div className="text-center text-xs text-gray-500 py-2">
                             Story complete — stitch limit reached.
                         </div>
-                    ) : isMyTurn && !userHasWaitingSlot ? (
-                        <button
-                            onClick={() => setShowStitchMenu(true)}
-                            className="w-full bg-[#EC1D99] text-white font-bold py-3 rounded-full flex items-center justify-center gap-2 hover:bg-[#D41C84] transition-colors"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Stitch Your Part
-                        </button>
                     ) : (
                         <div className="text-center text-xs text-gray-500 py-2">
                             Waiting for {story.participants.find(p => p.id === story.currentTurnUserId)?.name ?? 'the next creator'} to stitch...
