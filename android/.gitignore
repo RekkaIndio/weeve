@@ -57,6 +57,9 @@ captures/
 #*.jks
 #*.keystore
 
+# Local keystore properties containing absolute paths and passwords (DO NOT COMMIT)
+keystore.properties
+
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild
 .cxx/
