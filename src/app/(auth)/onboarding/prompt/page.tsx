@@ -90,6 +90,8 @@ export default function PromptPage() {
                 .update({ onboarding_step: 2 })
                 .eq('user_id', user.id);
 
+            try { if (typeof window !== 'undefined' && user?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + user.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + user.id, 'true'); } } catch (err) {}
+
             router.push('/onboarding/follows');
         } catch (err) {
             console.error('[Prompt] Error skipping:', err);

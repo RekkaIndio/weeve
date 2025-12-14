@@ -590,6 +590,10 @@ export const useStore = create<AppState>()(
                                 console.error('Failed to send completion notification:', err);
                             });
                         }).catch(err => console.error('Failed to import notifications:', err));
+                        // Refresh stories from server so completed story appears in the main tab
+                        setTimeout(() => {
+                            try { get().fetchStories(); } catch (err) { console.warn('[Store] fetchStories failed after completion', err); }
+                        }, 1000);
                     }
 
                     const nextTurnUserId = (() => {
@@ -610,11 +614,31 @@ export const useStore = create<AppState>()(
                         if (index !== storyIndex) {
                             return story;
                         }
+
+                        // Update participant status for the contributor to 'accepted'
+                        const updatedParticipants = story.participants.map(p => {
+                            if (p.id === fallbackUserId && p.status === 'waiting') {
+                                return { ...p, status: 'accepted' as 'accepted' }; 
+                            }
+                            return p;
+                        });
+
+                        // If we reached capacity, mark story completed and accept all participants,
+                        // and make it public so it moves out of the waiting tab in profile view.
+                        let visibilityUpdate = story.visibility;
+                        let finalParticipants = updatedParticipants;
+                        if (reachedCapacity) {
+                            finalParticipants = updatedParticipants.map(p => ({ ...p, status: 'accepted' as 'accepted' }));
+                            visibilityUpdate = 'public';
+                        }
+
                         return {
                             ...story,
                             contributions: updatedContributions,
                             currentTurnUserId: nextTurnUserId,
                             status: reachedCapacity ? 'completed' : story.status,
+                            participants: finalParticipants,
+                            visibility: visibilityUpdate,
                         };
                     });
 
@@ -655,7 +679,10 @@ export const useStore = create<AppState>()(
                 return false;
             },
 
-            setCurrentUser: (user) => set({ currentUser: user }),
+            setCurrentUser: (user) => {
+                console.log('[Store] setCurrentUser called with:', user);
+                set({ currentUser: user });
+            },
 
             setProfileUpdateInProgress: (value) => set({ profileUpdateInProgress: value }),
 
@@ -818,6 +845,7 @@ export const useStore = create<AppState>()(
                 if (!currentUser) return { success: false, error: "User not logged in" };
 
                 try {
+                    let warningMessage: string | undefined = undefined;
                     // 1. Fetch original story details
                     const { data: originalStory, error: fetchError } = await supabase
                         .from('stories')
@@ -908,19 +936,17 @@ export const useStore = create<AppState>()(
                     // 5. Build participant list
                     // Include: participants whose contributions we're keeping + the new participant
                     const participants: any[] = [];
-                    const addedUserIds = new Set<string>();
                     
                     // Add participants for kept contributions (maintain their original positions)
                     originalStory.story_participants.forEach((p: any) => {
                         // Only add if we're keeping their contribution AND they're not the new participant
-                        if (keptUserIds.has(p.user_id) && p.user_id !== newParticipantId && !addedUserIds.has(p.user_id)) {
+                        if (keptUserIds.has(p.user_id) && p.user_id !== newParticipantId) {
                             participants.push({
                                 story_id: newStoryId,
                                 user_id: p.user_id,
                                 position: p.position,
                                 status: 'accepted', // They already have content
                             });
-                            addedUserIds.add(p.user_id);
                         }
                     });
 
@@ -934,13 +960,40 @@ export const useStore = create<AppState>()(
                     });
                     console.log('[forkStory] Participants to insert:', participants);
 
-                    const { error: participantsError } = await supabase
+                    let insertResult = await supabase
                         .from('story_participants')
                         .insert(participants);
 
-                    if (participantsError) {
-                        console.error('[forkStory] Error adding participants:', participantsError);
-                        return { success: false, error: `Failed to add participants: ${participantsError.message}` };
+                    if (insertResult.error) {
+                        const err = insertResult.error;
+                        console.error('[forkStory] Error adding participants:', err);
+
+                        // If unique constraint prevents duplicate participants in the DB, try a dedupe fallback
+                        const isDuplicateConstraint = typeof err.message === 'string' && err.message.includes('duplicate key value violates unique constraint');
+                        if (isDuplicateConstraint) {
+                            console.warn('[forkStory] DB uniqueness constraint prevented duplicate participants. Trying to insert deduped participants as a fallback.');
+                            const dedupMap = new Map<string, any>();
+                            participants.forEach((p) => {
+                                if (!dedupMap.has(p.user_id)) dedupMap.set(p.user_id, p);
+                            });
+                            const deduped = Array.from(dedupMap.values());
+                            const { error: dedupError } = await supabase
+                                .from('story_participants')
+                                .insert(deduped);
+
+                            if (dedupError) {
+                                console.error('[forkStory] Fallback dedup insert failed:', dedupError);
+                                // Roll back the created story if we can't add participants
+                                try { await supabase.from('stories').delete().eq('id', newStoryId); } catch (delErr) { console.warn('[forkStory] Failed to rollback story creation:', delErr); }
+                                return { success: false, error: `Failed to add participants: ${dedupError.message}` };
+                            }
+
+                            console.warn('[forkStory] Story created but duplicate participants were removed due to DB constraints. To support duplicates, apply the migration supabase/migration_allow_duplicate_story_participants.sql');
+                            warningMessage = 'Story created, but duplicate participants were removed due to DB constraints. Run supabase/migration_allow_duplicate_story_participants.sql to enable duplicates.';
+                            // Continue - deduped insert succeeded
+                        } else {
+                            return { success: false, error: `Failed to add participants: ${err.message}` };
+                        }
                     }
                     console.log('[forkStory] Participants inserted successfully');
 
@@ -965,7 +1018,7 @@ export const useStore = create<AppState>()(
                     // Let's trigger a fetch in the background
                     get().fetchStories();
 
-                    return { success: true, storyId: newStoryId };
+                    return { success: true, storyId: newStoryId, warning: warningMessage };
 
                 } catch (err: any) {
                     console.error('Unexpected error in forkStory:', err);
@@ -1002,12 +1055,28 @@ export const useStore = create<AppState>()(
                     if (!storiesData) return;
 
                     const formattedStories: Story[] = storiesData
-                        // Filter out public stories with no contributions (better UX - hide empty posts from feed)
+                        // Filter out stories we don't want on the public feed
                         .filter((s: any) => {
-                            // Always show private stories (for invited participants)
-                            if (s.visibility === 'private') return true;
-                            // For public stories, only show if they have at least 1 contribution
-                            return s.contributions && s.contributions.length > 0;
+                            const currentUserId = get()?.currentUser?.id;
+
+                            // For public stories, only show if they have at least 1 contribution OR the current user is a participant
+                            if (s.visibility === 'public') {
+                                const hasContributions = s.contributions && s.contributions.length > 0;
+                                const isParticipant = currentUserId && (s.story_participants ?? []).some((p: any) => p.user_id === currentUserId);
+                                return hasContributions || isParticipant;
+                            }
+
+                            // For private stories, hide those where the current user is a waiting participant
+                            if (currentUserId) {
+                                const isWaitingForCurrentUser = (s.story_participants ?? []).some((p: any) => p.user_id === currentUserId && p.status === 'waiting');
+                                if (isWaitingForCurrentUser) {
+                                    // This story belongs in the Waiting tab instead of the main feed
+                                    return false;
+                                }
+                            }
+
+                            // Otherwise include the private story (e.g., created by current user or others)
+                            return true;
                         })
                         .map((s: any) => {
                         // Map participants
@@ -1020,7 +1089,7 @@ export const useStore = create<AppState>()(
                                 avatar: profile.avatar,
                                 tokens: 0, // Not needed for display
                                 isInfluencer: profile.is_influencer,
-                                status: sp.status,
+                                status: (sp.status === 'accepted' || sp.status === 'waiting' || sp.status === 'declined') ? (sp.status as 'accepted' | 'waiting' | 'declined') : undefined,
                                 position: sp.position
                             };
                         }).sort((a: any, b: any) => (a.position || 0) - (b.position || 0));
@@ -1042,7 +1111,7 @@ export const useStore = create<AppState>()(
                                 userName: c.user_name,
                                 content: c.content,
                                 mediaType: c.media_type,
-                                mediaUrl: c.media_url?.trim() || null, // Ensure null if empty string
+                                mediaUrl: c.media_url?.trim() || undefined, // Ensure undefined if empty string
                                 timestamp: c.timestamp,
                                 textStyle: c.text_style
                             };

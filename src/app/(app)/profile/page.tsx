@@ -414,7 +414,7 @@ const formatDurationShort = (ms: number): string => {
 };
 
 export default function ProfilePage() {
-    const { currentUser, stories, setCurrentUser, friends, fetchFriends, setProfileUpdateInProgress, savedStoryIds, fetchSavedStories } = useStore();
+    const { currentUser, stories, setCurrentUser, friends, fetchFriends, setProfileUpdateInProgress, savedStoryIds, fetchSavedStories, fetchStories } = useStore();
     const [activeTab, setActiveTab] = useState<'weeves' | 'saved' | 'waiting'>('weeves');
 
     useEffect(() => {
@@ -454,8 +454,11 @@ export default function ProfilePage() {
         const userParticipant = s.participants.find(p => p.id === currentUser.id);
         if (!userParticipant) return false;
 
-        // Must be accepted or undefined status
-        if (userParticipant.status !== 'accepted' && userParticipant.status !== undefined) return false;
+        // If story is not completed, only show when participant is accepted (or status undefined)
+        if (s.status !== 'completed' && userParticipant.status !== 'accepted' && userParticipant.status !== undefined) return false;
+
+        // Exclude stories where the user has a pending waiting slot — these belong in the Waiting tab
+        if (userParticipant.status === 'waiting') return false;
 
         // Exclude stories where it's the user's turn (those belong in the timer tab)
         if (s.status === 'active' && s.currentTurnUserId === currentUser.id) return false;
@@ -463,13 +466,24 @@ export default function ProfilePage() {
         return true;
     }) : [];
 
+    // Count contributions across all stories by the current user
+    const contributionsCount = stories.reduce((acc, s) => acc + (s.contributions ? s.contributions.filter(c => c.userId === currentUser?.id).length : 0), 0);
+
     // Timer tab: Stories that need user action - pending invites OR active stories where it's the user's turn
     const waitingStories = currentUser ? stories.filter(s => {
         const userParticipant = s.participants.find(p => p.id === currentUser.id);
         if (!userParticipant) return false;
 
-        // Show if pending invite
-        if (userParticipant.status === 'waiting') return true;
+        // Exclude completed stories from waiting tab — they should appear in main weeves tab
+        if (s.status === 'completed') return false;
+        // Exclude stories that have reached their max contributions (full)
+        if (typeof s.maxWeeves === 'number' && s.maxWeeves > 0 && (
+            (s.contributions?.length ?? 0) >= s.maxWeeves ||
+            (s.participants?.length ?? 0) >= s.maxWeeves
+        )) return false;
+
+        // Show if pending invite (any participant entry for user has status 'waiting')
+        if (s.participants.some(p => p.id === currentUser.id && p.status === 'waiting')) return true;
 
         // Show if it's their turn in an active story
         if (s.status === 'active' && s.currentTurnUserId === currentUser.id) return true;
@@ -485,6 +499,17 @@ export default function ProfilePage() {
     useEffect(() => {
         fetchSavedStories();
     }, [fetchSavedStories]);
+
+    // Refresh stories when the user opens the Waiting tab to ensure we hide any fully completed stories
+    useEffect(() => {
+        if (activeTab === 'waiting') {
+            try {
+                fetchStories();
+            } catch (err) {
+                console.warn('[Profile] fetchStories failed while refreshing waiting tab:', err);
+            }
+        }
+    }, [activeTab, fetchStories]);
 
     const handleSave = async () => {
         console.log('[Profile] handleSave called');
@@ -1122,7 +1147,7 @@ export default function ProfilePage() {
                                 <div className="text-xs text-gray-500">Weeves</div>
                             </div>
                             <div className="text-center">
-                                <div className="font-bold text-lg">142</div>
+                                <div className="font-bold text-lg">{contributionsCount}</div>
                                 <div className="text-xs text-gray-500">Contributions</div>
                             </div>
                             <div className="text-center">
@@ -1207,56 +1232,11 @@ export default function ProfilePage() {
 
                             return (
                                 <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden">
-                                    {waitingForFirstContribution ? (
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-3">
-                                            <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-sm w-full max-w-[85%]">
-                                                <div className="relative">
-                                                    <div className="w-12 h-12 rounded-full border-2 border-[#EC1D99]/70 p-0.5 animate-pulse">
-                                                        <img
-                                                            src={waitingForUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${waitingForUser?.name || 'Storyteller'}`}
-                                                            alt={waitingForUser?.name || 'Next creator'}
-                                                            className="w-full h-full rounded-full object-cover"
-                                                        />
-                                                    </div>
-                                                    <div className="absolute -bottom-1 -right-1 bg-[#EC1D99] rounded-full p-0.5">
-                                                        <div className="w-2 h-2 bg-white rounded-full animate-ping" />
-                                                    </div>
-                                                </div>
-                                                <span className="text-[11px] uppercase tracking-wide text-gray-300">Waiting for</span>
-                                                <span className="text-sm font-bold text-white truncate max-w-full">
-                                                    {waitingForUser?.name?.split(' ')[0] || 'a collaborator'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ) : firstMediaType === 'video' && firstMediaUrl ? (
-                                        <video
+                                    {firstMediaType === 'video' && firstMediaUrl ? (
+                                        <VideoThumbnail
                                             src={firstMediaUrl}
+                                            poster={story.coverImage}
                                             className="weeve-inline-video w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                            loop
-                                            muted
-                                            playsInline
-                                            preload="metadata"
-                                            controls={false}
-                                            controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
-                                            disablePictureInPicture
-                                            disableRemotePlayback
-                                            style={{
-                                                opacity: 0,
-                                                visibility: 'hidden',
-                                                transform: 'translate3d(-9999px,-9999px,0)',
-                                                transition: 'none',
-                                                WebkitAppearance: 'none',
-                                                appearance: 'none',
-                                                backgroundImage: 'none',
-                                                backgroundColor: '#000000'
-                                            }}
-                                            onCanPlay={(e) => {
-                                                const video = e.currentTarget;
-                                                video.style.opacity = '1';
-                                                video.style.visibility = 'visible';
-                                                video.style.transform = 'translate3d(0,0,0)';
-                                                video.play().catch(() => null);
-                                            }}
                                         />
                                     ) : firstMediaType === 'drawing' && firstMediaUrl ? (
                                         <div className="w-full h-full flex items-center justify-center bg-gray-900">
@@ -1286,36 +1266,7 @@ export default function ProfilePage() {
                                         />
                                     )}
 
-                                    {!waitingForFirstContribution && isMyTurn && (
-                                        <div className="absolute top-2 right-2 z-20">
-                                            <img
-                                                src="/weeve-logo.png"
-                                                alt="Your Turn"
-                                                className="w-6 h-6 animate-glow-pulse drop-shadow-md"
-                                            />
-                                        </div>
-                                    )}
 
-                                    {!waitingForFirstContribution && isWaitingForNextCreator && waitingForUser && (
-                                        <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center p-2 text-center backdrop-blur-[2px]">
-                                            <div className="relative mb-2">
-                                                <div className="w-10 h-10 rounded-full border-2 border-[#EC1D99] p-0.5 animate-pulse">
-                                                    <img
-                                                        src={waitingForUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${waitingForUser.name}`}
-                                                        className="w-full h-full rounded-full object-cover"
-                                                        alt={waitingForUser.name}
-                                                    />
-                                                </div>
-                                                <div className="absolute -bottom-1 -right-1 bg-[#EC1D99] rounded-full p-0.5">
-                                                    <div className="w-2 h-2 bg-white rounded-full animate-ping" />
-                                                </div>
-                                            </div>
-                                            <span className="text-xs font-bold text-white mb-0.5">Waiting for</span>
-                                            <span className="text-[10px] text-[#EC1D99] font-medium truncate max-w-full">
-                                                {waitingForUser.name.split(' ')[0]}
-                                            </span>
-                                        </div>
-                                    )}
 
                                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                                     <div className="absolute bottom-1 left-1 flex items-center gap-1 text-[10px] font-bold drop-shadow-md text-white">
@@ -1346,6 +1297,7 @@ export default function ProfilePage() {
                                 const waitingForUser = story.currentTurnUserId
                                     ? story.participants.find(p => p.id === story.currentTurnUserId)
                                     : null;
+                                const isMyTurn = story.status === 'active' && story.currentTurnUserId === currentUser.id;
 
                                 const firstMediaType = firstContribution?.mediaType;
                                 const firstMediaUrl = firstContribution?.mediaUrl;
@@ -1374,23 +1326,13 @@ export default function ProfilePage() {
                                                 </div>
                                             </div>
                                         ) : firstMediaType === 'video' && firstMediaUrl ? (
-                                            <video
+                                        
+                                        
+
+                                            <VideoThumbnail
                                                 src={firstMediaUrl}
+                                                poster={story.coverImage}
                                                 className="weeve-inline-video w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                                loop
-                                                muted
-                                                playsInline
-                                                preload="metadata"
-                                                controls={false}
-                                                controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
-                                                disablePictureInPicture
-                                                disableRemotePlayback
-                                                onCanPlay={(e) => e.currentTarget.play().catch(() => null)}
-                                                style={{
-                                                    WebkitAppearance: 'none',
-                                                    appearance: 'none',
-                                                    backgroundImage: 'none'
-                                                }}
                                             />
                                         ) : firstMediaType === 'drawing' && firstMediaUrl ? (
                                             <div className="w-full h-full flex items-center justify-center bg-gray-900">
@@ -1420,6 +1362,12 @@ export default function ProfilePage() {
                                             />
                                         )}
 
+                                        {isMyTurn && waitingForFirstContribution && (
+                                            <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+                                                <img src="/weeve-logo.png" alt="Your Turn" className="w-6 h-6 animate-glow-pulse drop-shadow-md" />
+                                                <span className="text-[11px] font-bold text-white bg-[#EC1D99] px-2 py-0.5 rounded-full">Your turn</span>
+                                            </div>
+                                        )}
                                         <div className="absolute top-2 right-2">
                                             <Bookmark className="w-4 h-4 text-white fill-white drop-shadow-md" />
                                         </div>
@@ -1444,10 +1392,17 @@ export default function ProfilePage() {
                     <>
                         {waitingStories.length > 0 ? (
                             waitingStories.map(story => {
-                                const sortedContributions = (story.contributions || [])
-                                    .slice()
-                                    .sort((a, b) => a.timestamp - b.timestamp);
+                                    const sortedContributions = (story.contributions || [])
+                                        .slice()
+                                        .sort((a, b) => a.timestamp - b.timestamp);
+                                    
+                                
                                 const lastContribution = sortedContributions[sortedContributions.length - 1];
+                                const hasContributions = sortedContributions.length > 0;
+                                const waitingForFirstContribution = !hasContributions;
+                                const waitingForUser = story.currentTurnUserId
+                                    ? story.participants.find(p => p.id === story.currentTurnUserId)
+                                    : null;
 
                                 const mediaType = lastContribution?.mediaType;
                                 const mediaUrl = lastContribution?.mediaUrl;
@@ -1479,34 +1434,59 @@ export default function ProfilePage() {
                                             <AestheticFallback className="absolute inset-0 z-0" showLogo={false} />
                                         )}
 
-                                        {/* Logo indicator */}
-                                        <div className="absolute top-2 right-2 z-20">
-                                            <img
-                                                src="/weeve-logo.png"
-                                                alt="Your Turn"
-                                                className="w-6 h-6 animate-glow-pulse drop-shadow-md"
-                                            />
-                                        </div>
+                                        {/* Waiting for first contribution overlay */}
+                                        {waitingForFirstContribution && (
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-3">
+                                                <div className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-sm w-full max-w-[85%]">
+                                                    <div className="relative">
+                                                        <div className="w-12 h-12 rounded-full border-2 border-[#EC1D99]/70 p-0.5 animate-pulse">
+                                                            <img
+                                                                src={waitingForUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${waitingForUser?.name || 'Storyteller'}`}
+                                                                alt={waitingForUser?.name || 'Next creator'}
+                                                                className="w-full h-full rounded-full object-cover"
+                                                            />
+                                                        </div>
+                                                        <div className="absolute -bottom-1 -right-1 bg-[#EC1D99] rounded-full p-0.5">
+                                                            <div className="w-2 h-2 bg-white rounded-full animate-ping" />
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-[11px] uppercase tracking-wide text-gray-300">Waiting for</span>
+                                                    <span className="text-sm font-bold text-white truncate max-w-full">
+                                                        {waitingForUser?.name?.split(' ')[0] || 'a collaborator'}
+                                                    </span>
+                                                </div>
+
+                                                {isMyTurn && (
+                                                    <div className="absolute top-2 right-2 z-20 flex items-center gap-2">
+                                                        <img
+                                                            src="/weeve-logo.png"
+                                                            alt="Your Turn"
+                                                            className="w-6 h-6 animate-glow-pulse drop-shadow-md"
+                                                        />
+                                                        <span className="hidden sm:inline-block text-[11px] font-bold text-white bg-[#EC1D99] px-2 py-0.5 rounded-full">Your turn</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Logo indicator - show only when it's my turn */}
+                                        {isMyTurn && (
+                                            <div className="absolute top-2 right-2 z-20 flex items-center gap-2">
+                                                <img
+                                                    src="/weeve-logo.png"
+                                                    alt="Your Turn"
+                                                    className="w-6 h-6 animate-glow-pulse drop-shadow-md"
+                                                />
+                                                <span className="hidden sm:inline-block text-[11px] font-bold text-white bg-[#EC1D99] px-2 py-0.5 rounded-full">Your turn</span>
+                                            </div>
+                                        )}
 
                                         {/* Media Content */}
                                         {mediaType === 'video' && mediaUrl ? (
-                                            <video
+                                            <VideoThumbnail
                                                 src={mediaUrl}
+                                                poster={story.coverImage}
                                                 className="weeve-inline-video absolute inset-0 w-full h-full object-cover z-10"
-                                                loop
-                                                muted
-                                                playsInline
-                                                preload="metadata"
-                                                controls={false}
-                                                controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
-                                                disablePictureInPicture
-                                                disableRemotePlayback
-                                                onCanPlay={(e) => e.currentTarget.play().catch(() => null)}
-                                                style={{
-                                                    WebkitAppearance: 'none',
-                                                    appearance: 'none',
-                                                    backgroundImage: 'none'
-                                                }}
                                             />
                                         ) : mediaType === 'drawing' && mediaUrl ? (
                                             <img

@@ -2,15 +2,19 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useStore, User } from "@/lib/store";
-import { Grid, UserPlus, ChevronLeft, Share2 } from "lucide-react";
+import { Grid, UserPlus, ChevronLeft, Share2, Check } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { toast } from 'sonner';
+import { sendFriendRequest, getFriendRequests } from "@/lib/friends";
+import VideoThumbnail from '@/app/components/VideoThumbnail';
+import MediaWithFallback from '@/app/components/MediaWithFallback';
 
 export default function UserProfilePage() {
     const params = useParams();
     const router = useRouter();
-    const { currentUser, friends, stories } = useStore();
+    const { currentUser, friends, stories, fetchFriends, fetchStories } = useStore();
 
     const userId = params?.id as string;
 
@@ -42,6 +46,12 @@ export default function UserProfilePage() {
         friends.find(f => f.id === userId)
     );
     const [loadingProfile, setLoadingProfile] = useState(false);
+
+    // Friendship and follow state
+    const [isFollowing, setIsFollowing] = useState(false);
+    const [isFriend, setIsFriend] = useState(false);
+    const [friendRequestSent, setFriendRequestSent] = useState(false);
+    const [processingFriendAction, setProcessingFriendAction] = useState(false);
 
     useEffect(() => {
         async function fetchProfile() {
@@ -77,6 +87,49 @@ export default function UserProfilePage() {
         fetchProfile();
     }, [userId, user, currentUser]);
 
+    // Fetch friends once when the current user is available
+    useEffect(() => {
+        if (!currentUser) return;
+        (async () => {
+            try {
+                await fetchFriends();
+            } catch (err) {
+                console.warn('[UserProfile] fetchFriends on mount failed', err);
+            }
+
+            // Also ensure stories are loaded so we can render the user's weeves
+            try {
+                await fetchStories();
+            } catch (err) {
+                console.warn('[UserProfile] fetchStories on mount failed', err);
+            }
+        })();
+    }, [currentUser, fetchFriends, fetchStories]);
+
+    // Keep isFollowing and isFriend state updated when the friends list changes
+    useEffect(() => {
+        const resolvedIsFollowing = !!friends.find(f => f.id === userId);
+        setIsFollowing(resolvedIsFollowing);
+        setIsFriend(resolvedIsFollowing);
+    }, [friends, userId]);
+
+    // Determine whether a friend request was sent
+    useEffect(() => {
+        if (!currentUser) return;
+        (async () => {
+            try {
+                const { sent } = await getFriendRequests(currentUser.id);
+                if (sent && sent.some(req => req.receiver_id === userId)) {
+                    setFriendRequestSent(true);
+                } else {
+                    setFriendRequestSent(false);
+                }
+            } catch (err) {
+                console.error('[UserProfile] Failed to fetch friend requests:', err);
+            }
+        })();
+    }, [currentUser, userId]);
+
     // If user not found (in a real app, fetch from API)
     if (loadingProfile) {
         return (
@@ -100,7 +153,80 @@ export default function UserProfilePage() {
         );
     }
 
+    // Friend / Follow handlers
+    const handleFollowToggle = async () => {
+        if (!currentUser || !user) return;
+        setProcessingFriendAction(true);
+        try {
+            if (isFollowing) {
+                // Unfollow (delete one-directional friendship)
+                const { error } = await supabase
+                    .from('friendships')
+                    .delete()
+                    .match({ user_id: currentUser.id, friend_id: user.id });
+
+                if (error) {
+                    throw error;
+                }
+
+                // Refresh store
+                try { await fetchFriends(); } catch (err) { console.warn('[UserProfile] fetchFriends after unfollow failed', err); }
+                setIsFollowing(false);
+                toast.success('Unfollowed');
+            } else {
+                // Follow (one-directional)
+                const { error } = await supabase
+                    .from('friendships')
+                    .insert({ user_id: currentUser.id, friend_id: user.id });
+
+                if (error) {
+                    throw error;
+                }
+
+                try { await fetchFriends(); } catch (err) { console.warn('[UserProfile] fetchFriends after follow failed', err); }
+                setIsFollowing(true);
+                toast.success('Following');
+            }
+        } catch (err) {
+            console.error('[UserProfile] Follow toggle failed:', err);
+            toast.error('Failed to update follow status');
+        } finally {
+            setProcessingFriendAction(false);
+        }
+    };
+
+    const handleAddFriend = async () => {
+        if (!currentUser || !user) return;
+        if (isFriend) {
+            toast('Already friends');
+            return;
+        }
+        if (friendRequestSent) {
+            toast('Friend request already sent');
+            return;
+        }
+
+        setProcessingFriendAction(true);
+        try {
+            const sent = await sendFriendRequest(currentUser.id, user.id);
+            if (sent) {
+                setFriendRequestSent(true);
+                toast.success('Friend request sent');
+            } else {
+                toast.error('Unable to send friend request');
+            }
+        } catch (err) {
+            console.error('[UserProfile] sendFriendRequest failed:', err);
+            toast.error('Failed to send friend request');
+        } finally {
+            setProcessingFriendAction(false);
+        }
+    };
+
     const userStories = stories.filter(s => s.participants.some(p => p.id === user.id));
+
+    // Count contributions across all stories by this user
+    const contributionsCount = stories.reduce((acc, s) => acc + (s.contributions ? s.contributions.filter(c => c.userId === user.id).length : 0), 0);
 
     return (
         <div className="min-h-screen bg-black text-white pb-24 relative">
@@ -142,7 +268,7 @@ export default function UserProfilePage() {
                         <div className="text-xs text-gray-500">Weeves</div>
                     </div>
                     <div className="text-center">
-                        <div className="font-bold text-lg">42</div>
+                        <div className="font-bold text-lg">{contributionsCount}</div>
                         <div className="text-xs text-gray-500">Contributions</div>
                     </div>
                     <div className="text-center">
@@ -152,15 +278,27 @@ export default function UserProfilePage() {
                 </div>
 
                 <div className="flex gap-2 w-full max-w-xs">
-                    <Link
-                        href={`/create-story?invite=${user.id}`}
-                        className="flex-1 bg-[#EC1D99] text-white font-bold py-2 rounded-lg text-sm text-center hover:bg-[#D41C84] transition-colors flex items-center justify-center gap-2"
+                    <button
+                        onClick={handleAddFriend}
+                        disabled={processingFriendAction || isFriend || friendRequestSent}
+                        className={`flex-1 ${isFriend ? 'bg-gray-800' : 'bg-[#EC1D99]'} text-white font-bold py-2 rounded-lg text-sm text-center ${isFriend ? 'hover:bg-gray-800' : 'hover:bg-[#D41C84]'} transition-colors flex items-center justify-center gap-2`}
                     >
                         <UserPlus className="w-4 h-4" />
-                        Invite to Weeve
-                    </Link>
-                    <button className="flex-1 bg-gray-800 text-white font-bold py-2 rounded-lg text-sm hover:bg-gray-700 transition-colors">
-                        Follow
+                        {isFriend ? 'Friends' : (friendRequestSent ? 'Requested' : 'Add Friend')}
+                    </button>
+                    <button
+                        onClick={handleFollowToggle}
+                        disabled={processingFriendAction}
+                        className={`flex-1 ${isFollowing ? 'bg-gray-800 text-white' : 'bg-gray-800 text-white'} font-bold py-2 rounded-lg text-sm hover:bg-gray-700 transition-colors flex items-center justify-center gap-2`}
+                    >
+                        {isFollowing ? (
+                            <span className="flex items-center gap-2">
+                                <Check className="w-4 h-4" />
+                                Following
+                            </span>
+                        ) : (
+                            'Follow'
+                        )}
                     </button>
                 </div>
             </div>
@@ -177,19 +315,37 @@ export default function UserProfilePage() {
             {/* Grid */}
             <div className="grid grid-cols-3 gap-0.5">
                 {userStories.length > 0 ? (
-                    userStories.map(story => (
-                        <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden">
-                            <img
-                                src={story.coverImage || story.contributions[0]?.mediaUrl || "https://via.placeholder.com/300"}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                            />
-                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <div className="absolute bottom-1 left-1 flex items-center gap-1 text-[10px] font-bold drop-shadow-md text-white">
-                                <div className="w-2 h-2 bg-white rounded-full"></div>
-                                {story.contributions.length}
-                            </div>
-                        </Link>
-                    ))
+                    userStories.map(story => {
+                        const sortedContributions = (story.contributions || []).slice().sort((a, b) => a.timestamp - b.timestamp);
+                        const firstContribution = sortedContributions[0];
+                        const firstMediaType = firstContribution?.mediaType;
+                        const firstMediaUrl = firstContribution?.mediaUrl;
+
+                        return (
+                            <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden">
+                                {/* Prefer contribution media for preview, fall back to coverImage */}
+                                {firstMediaType === 'video' && firstMediaUrl ? (
+                                    <VideoThumbnail src={firstMediaUrl} poster={story.coverImage} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                ) : firstMediaType === 'image' && firstMediaUrl ? (
+                                    <MediaWithFallback src={firstMediaUrl} alt={story.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                ) : story.coverImage ? (
+                                    <MediaWithFallback src={story.coverImage} alt={story.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                ) : (
+                                    <img
+                                        src="https://via.placeholder.com/300"
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        alt={story.title}
+                                    />
+                                )}
+
+                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="absolute bottom-1 left-1 flex items-center gap-1 text-[10px] font-bold drop-shadow-md text-white">
+                                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                                    {story.contributions.length}
+                                </div>
+                            </Link>
+                        );
+                    })
                 ) : (
                     <div className="col-span-3 flex flex-col items-center justify-center py-16 text-gray-500">
                         <Grid className="w-12 h-12 mb-3 opacity-50" />

@@ -65,16 +65,15 @@ const CreateStory = ({
     visibility: "private",
     selectedFriends: [],
     orderedParticipants: currentUser
-      ? [{ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }, ...Array(3).fill(null)]
-      : Array(4).fill(null),
+      ? [{ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }, ...Array(1).fill(null)]
+      : Array(2).fill(null),
 
-    inviteCount: 3,
+    inviteCount: 1,
     hashtags: [],
     allowComments: true,
     turnTimerHours: undefined,
     monetizationCost: undefined,
   });
-
   const [hashtagInput, setHashtagInput] = useState("");
   const hashtagInputRef = useRef<HTMLInputElement | null>(null);
   const friendsInputRef = useRef<HTMLInputElement | null>(null);
@@ -250,6 +249,8 @@ const CreateStory = ({
 
     setFormState((prev) => {
       const newParticipants = [...(prev.orderedParticipants || [])];
+
+
       let inserted = false;
 
       // If slotToFill is set, place friend into that slot
@@ -613,13 +614,13 @@ const CreateStory = ({
             htmlFor="invite-count"
             className="block text-sm font-medium text-gray-300 mb-2 font-sans"
           >
-            Number of Contributors
+            Number of Contributors (excluding you)
           </label>
           <div className="flex items-center gap-3">
             <input
               id="invite-count"
               type="range"
-              min={2}
+              min={1}
               max={10}
               value={formState.inviteCount}
               onChange={(e) => {
@@ -649,7 +650,7 @@ const CreateStory = ({
               }}
               className="w-full accent-[#EC1D99]"
               aria-label="Number of contributors"
-              aria-valuemin={2}
+              aria-valuemin={1}
               aria-valuemax={10}
               aria-valuenow={formState.inviteCount}
               aria-describedby="invite-count-value"

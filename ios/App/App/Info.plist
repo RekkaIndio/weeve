@@ -64,6 +64,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.jay.weeve.app</string>
+				<string>com.weeve.app</string>
 			</array>
 		</dict>
 		<dict>

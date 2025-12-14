@@ -100,10 +100,10 @@ export default function Feed() {
   }
 
   return (
-    <div className="h-full overflow-y-auto snap-y snap-mandatory">
+    <div className="h-full overflow-y-auto weeve-snap-container snap-y snap-mandatory">
       <div className="flex flex-col">
         {posts.map((post) => (
-          <article key={post.id} className="relative h-screen snap-start">
+          <article key={post.id} className="relative h-[calc(100vh-64px)] weeve-snap-item snap-start">
             {post.imageUrl && (
               <>
                 <img src={post.imageUrl} className="absolute inset-0 w-full h-full object-cover z-0" alt="story image" />

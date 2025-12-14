@@ -876,12 +876,37 @@ export async function createStoryContribution(options: CreateStoryContributionOp
 export async function fetchGroups(): Promise<Group[]> {
     try {
         // Get current user
-        const { data: { user } } = await supabase.auth.getUser();
+        const sessionCheckTimeoutMs = 6000;
+        const sessionPromise = supabase.auth.getUser();
+        const sessionResult: unknown = await Promise.race([
+            sessionPromise,
+            new Promise<unknown>((resolve) => setTimeout(() => resolve({ timedOut: true }), sessionCheckTimeoutMs)),
+        ]);
 
-        const { data, error } = await supabase
+        let user: { id: string } | null = null;
+        if (!sessionResult || (sessionResult as { timedOut?: boolean })?.timedOut) {
+            console.warn('[fetchGroups] supabase.auth.getUser timed out');
+        } else {
+            const maybeUser = (sessionResult as { data?: { user?: unknown } })?.data?.user ?? null;
+            if (maybeUser && typeof (maybeUser as { id?: unknown }).id === 'string') {
+                user = { id: (maybeUser as { id: string }).id };
+            } else {
+                user = null;
+            }
+        }
+
+        // Query groups with timeout to avoid stuck UI when network or backend is slow
+        const groupsQueryTimeoutMs = 8000;
+        const groupsQueryPromise = supabase
             .from('groups')
             .select('*')
             .order('created_at', { ascending: false });
+        const groupsResult: unknown = await Promise.race([
+            groupsQueryPromise,
+            new Promise<unknown>((resolve) => setTimeout(() => resolve({ data: null, error: new Error('Groups query timeout') }), groupsQueryTimeoutMs)),
+        ]);
+
+        const { data, error } = groupsResult as { data?: GroupRow[] | null; error?: any };
 
         if (error) {
             console.error('Error fetching groups:', error);
@@ -904,7 +929,7 @@ export async function fetchGroups(): Promise<Group[]> {
             }
         }
 
-        return data.map((group): Group => ({
+        return (data ?? []).map((group): Group => ({
             id: group.id,
             name: group.name,
             description: group.description,

@@ -36,10 +36,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex justify-center min-h-[100dvh] bg-black text-white">
             {/* Mobile Container - Centered on Desktop */}
-            <div className="w-full max-w-md bg-black h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-800">
+            <div className="w-full max-w-md bg-black h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-800 safe-area-pt">
 
                 {showHomeNotification && (
-                    <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 pb-2 flex justify-end pointer-events-none">
+                    <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-2 flex justify-end pointer-events-none">
                         <NotificationBell
                             userId={currentUser?.id}
                             className="bg-black/70 border border-white/10 backdrop-blur-md shadow-lg pointer-events-auto"

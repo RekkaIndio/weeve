@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useOnScreen from '@/hooks/useOnScreen';
 import AestheticFallback from './AestheticFallback';
 
 interface MediaWithFallbackProps extends React.HTMLAttributes<HTMLElement> {
@@ -17,6 +18,8 @@ export default function MediaWithFallback({
 }: MediaWithFallbackProps) {
     const [hasError, setHasError] = useState(false);
     const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+    const [containerRef, isVisible] = useOnScreen<HTMLDivElement>({ threshold: 0.25, rootMargin: '200px' });
+    const [shouldLoad, setShouldLoad] = useState(false);
 
     useEffect(() => {
         setHasError(false);
@@ -40,6 +43,10 @@ export default function MediaWithFallback({
         }
     };
 
+    useEffect(() => {
+        if (isVisible) setShouldLoad(true);
+    }, [isVisible]);
+
     // If there's an error or no src, render the aesthetic fallback
     if (hasError || !src) {
         return <AestheticFallback className={className} />;
@@ -48,14 +55,18 @@ export default function MediaWithFallback({
     // Render video
     if (mediaType === 'video') {
         return (
-            <video
-                src={src}
-                className={`weeve-inline-video ${className} ${videoClassName}`}
+            <div ref={containerRef as any} className={className}>
+                {(!shouldLoad) ? (
+                    <div className="w-full h-full bg-gray-900" />
+                ) : (
+                    <video
+                        src={shouldLoad ? src : undefined}
+                        className={`weeve-inline-video ${className} ${videoClassName}`}
                 onError={onError}
                 muted
                 playsInline
                 loop
-                preload="metadata"
+                        preload={shouldLoad ? 'auto' : 'metadata'}
                 controls={false}
                 disablePictureInPicture
                 disableRemotePlayback
@@ -78,17 +89,22 @@ export default function MediaWithFallback({
                 }}
                 {...props}
             />
+                )}
+            </div>
         );
     }
 
     // Render image
     return (
-        <img
-            src={src}
-            alt={alt}
-            className={className}
-            onError={onError}
-            {...props}
-        />
+        <div ref={containerRef as any} className={className}>
+            <img
+                src={shouldLoad ? src : undefined}
+                alt={alt}
+                className={className}
+                onError={onError}
+                loading="lazy"
+                {...props}
+            />
+        </div>
     );
 }

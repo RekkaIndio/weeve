@@ -73,6 +73,7 @@ export const searchUsers = async (query: string, currentUserId: string): Promise
                 id: profile.user_id,
                 name: profile.name,
                 avatar: profile.avatar,
+                tagline: profile.tagline ?? undefined,
                 tokens: profile.tokens,
                 isInfluencer: profile.is_influencer,
                 interactionCost: profile.interaction_cost,

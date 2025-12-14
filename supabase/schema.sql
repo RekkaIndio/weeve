@@ -125,8 +125,7 @@ CREATE TABLE IF NOT EXISTS story_participants (
   user_id TEXT NOT NULL REFERENCES profiles(user_id) ON DELETE CASCADE,
   position INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL CHECK (status IN ('accepted', 'waiting', 'declined')) DEFAULT 'accepted',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(story_id, user_id)
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Ensure status column exists for environments created before this column was added

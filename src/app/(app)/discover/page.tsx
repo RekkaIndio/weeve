@@ -7,6 +7,7 @@ import { Search, TrendingUp, Sparkles, Clock, Users, Plus, X } from "lucide-reac
 import NotificationBell from "@/app/components/NotificationBell";
 
 import MediaWithFallback from "@/app/components/MediaWithFallback";
+import { searchUsers, sendFriendRequest, Friend as FriendType } from '@/lib/friends';
 
 function DiscoverContent() {
     const { stories, groups, addGroup, currentUser } = useStore();
@@ -16,7 +17,10 @@ function DiscoverContent() {
     const [newGroupName, setNewGroupName] = useState('');
     const [newGroupDesc, setNewGroupDesc] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [viewMode, setViewMode] = useState<'all' | 'groups'>(tabParam === 'groups' ? 'groups' : 'all');
+    const [viewMode, setViewMode] = useState<'all' | 'groups' | 'people'>(tabParam === 'groups' ? 'groups' : 'all');
+
+    const [peopleResults, setPeopleResults] = useState<FriendType[]>([]);
+    const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
     // Update view mode when URL param changes
     useEffect(() => {
@@ -24,6 +28,30 @@ function DiscoverContent() {
             setViewMode('groups');
         }
     }, [tabParam]);
+
+    // Fetch people matches when in People view or when searchQuery changes
+    useEffect(() => {
+        let mounted = true;
+        const timeout = setTimeout(async () => {
+            const q = searchQuery.trim();
+            if (!q || q.length < 2) {
+                if (mounted) setPeopleResults([]);
+                return;
+            }
+
+            setIsSearchingPeople(true);
+            try {
+                const uid = currentUser?.id ?? '';
+                const results = await searchUsers(q, uid);
+                if (mounted) setPeopleResults(results);
+            } catch (err) {
+                console.warn('[Discover] searchUsers failed', err);
+            } finally {
+                setIsSearchingPeople(false);
+            }
+        }, 300);
+        return () => { mounted = false; clearTimeout(timeout); };
+    }, [searchQuery, viewMode, currentUser]);
 
     // Filter stories based on search query
     const filteredStories = stories.filter(story => {
@@ -80,6 +108,19 @@ function DiscoverContent() {
         setNewGroupDesc('');
     };
 
+    const handleSendFriendRequest = async (personId: string) => {
+        if (!currentUser) return;
+        try {
+            const success = await sendFriendRequest(currentUser.id, personId);
+            if (success) {
+                setPeopleResults(prev => prev.map(p => p.id === personId ? { ...p, friendRequestStatus: 'pending_sent' } : p));
+            }
+        } catch (err) {
+            console.warn('[Discover] sendFriendRequest failed', err);
+        }
+    };
+
+
     return (
         <div className="min-h-screen bg-black text-white p-4 pb-24">
             {/* Search Header */}
@@ -128,6 +169,18 @@ function DiscoverContent() {
                     <Users className="w-4 h-4 text-green-500" />
                     <span className="text-sm font-medium">Groups</span>
                 </button>
+
+                <button
+                    onClick={() => setViewMode('people')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-colors border ${
+                        viewMode === 'people'
+                            ? 'bg-gray-800 border-[#EC1D99]'
+                            : 'bg-gray-900 border-gray-800 hover:bg-gray-800'
+                    }`}
+                >
+                    <Users className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm font-medium">People</span>
+                </button>
             </div>
 
             {/* Content Area */}
@@ -170,7 +223,7 @@ function DiscoverContent() {
                         ) : (
                             <div className="text-center py-12 space-y-3">
                                 <Users className="w-12 h-12 text-gray-700 mx-auto" />
-                                <p className="text-gray-400">No groups found matching "{searchQuery}"</p>
+                                <p className="text-gray-400">{`No groups found matching "${searchQuery}"`}</p>
                                 <button
                                     onClick={() => {
                                         setSearchQuery('');
@@ -184,8 +237,63 @@ function DiscoverContent() {
                         )}
                     </div>
                 </div>
+            ) : viewMode === 'people' ? (
+                <div className="space-y-4">
+                    <div className="mb-4 grid grid-cols-1 gap-3">
+                        {isSearchingPeople ? (
+                            <div className="text-center text-gray-400">Searching...</div>
+                        ) : (peopleResults.length > 0 ? (
+                            peopleResults.map((person) => (
+                                <div key={person.id} className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition-colors cursor-pointer">
+                                    <Link href={`/profile/${person.id}`} className="flex items-center gap-4 flex-1">
+                                        <MediaWithFallback
+                                            src={person.avatar}
+                                            alt={person.name}
+                                            className="w-12 h-12 rounded-full bg-gray-800"
+                                        />
+                                        <div className="flex-1">
+                                            <h3 className="font-bold text-base">{person.name}</h3>
+                                            {person.tagline && <p className="text-xs text-gray-400 line-clamp-1">{person.tagline}</p>}
+                                            <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                                                {person.isFriend ? <span className="bg-gray-800 px-1.5 rounded text-[10px]">Friend</span> : null}
+                                            </div>
+                                        </div>
+                                    </Link>
+                                    {person.isFriend ? (
+                                        <div className="text-xs font-medium text-gray-300 border border-gray-700 px-3 py-1 rounded-full">Friends</div>
+                                    ) : person.friendRequestStatus === 'none' ? (
+                                        <button onClick={(e) => { e.stopPropagation(); handleSendFriendRequest(person.id); }} className="text-xs font-medium text-[#EC1D99] border border-[#EC1D99] px-3 py-1 rounded-full hover:bg-[#EC1D99] hover:text-white transition-colors">Add Friend</button>
+                                    ) : person.friendRequestStatus === 'pending_sent' ? (
+                                        <div className="text-xs font-medium text-blue-500 border border-blue-500 px-3 py-1 rounded-full">Requested</div>
+                                    ) : (
+                                        <div className="text-xs font-medium text-gray-500 border border-gray-700 px-3 py-1 rounded-full">Pending</div>
+                                    )}
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-center py-12 space-y-3">
+                                <Users className="w-12 h-12 text-gray-700 mx-auto" />
+                                <p className="text-gray-400">{`No people found matching "${searchQuery}"`}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             ) : (
-                /* Masonry Grid (Simulated with 2 columns) */
+                <div className="space-y-4">
+                {/* Masonry Grid (Simulated with 2 columns) */}
+                {searchQuery.trim() && peopleResults.length > 0 && (
+                    <div className="mb-4 grid grid-cols-1 gap-3 col-span-2">
+                        <h3 className="text-sm font-bold">{`People matching "${searchQuery}"`}</h3>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                            {peopleResults.slice(0, 8).map(person => (
+                                <Link key={person.id} href={`/profile/${person.id}`} className="inline-flex items-center gap-2 bg-gray-900 border border-gray-800 px-3 py-2 rounded-full hover:border-gray-700">
+                                    <MediaWithFallback src={person.avatar} alt={person.name} className="w-6 h-6 rounded-full" />
+                                    <span className="text-xs">{person.name.split(' ').slice(0, 2).join(' ')}</span>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                     {filteredStories.length > 0 ? (
                         <>
@@ -206,7 +314,7 @@ function DiscoverContent() {
                                             <div className="flex -space-x-1">
                                                 {story.participants.slice(0, 2).map(p => (
                                                     <MediaWithFallback
-                                                        key={p.id}
+                                                        key={`${p.id}-${p.position}`}
                                                         src={p.avatar}
                                                         className="w-4 h-4 rounded-full border border-black"
                                                     />
@@ -221,15 +329,16 @@ function DiscoverContent() {
                     ) : (
                         <div className="col-span-2 text-center py-12 space-y-3">
                             <Search className="w-12 h-12 text-gray-700 mx-auto" />
-                            <p className="text-gray-400">No stories found matching "{searchQuery}"</p>
+                            <p className="text-gray-400">{`No stories found matching "${searchQuery}"`}</p>
                             <Link
                                 href="/create-story"
                                 className="inline-block text-[#EC1D99] text-sm font-medium hover:underline"
                             >
-                                Create a story about "{searchQuery}" →
+                                {`Create a story about "${searchQuery}" →`}
                             </Link>
                         </div>
                     )}
+                </div>
                 </div>
             )}
 

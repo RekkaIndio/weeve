@@ -23,6 +23,30 @@ export default function LoginPage() {
         }
     }, [searchParams]);
 
+    const [isIosChrome, setIsIosChrome] = useState(false);
+
+    useEffect(() => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN') {
+                setSocialLoading(null);
+                router.replace('/feed');
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, [router]);
+
+    useEffect(() => {
+        try {
+            const ua = navigator.userAgent || navigator.vendor || (window as any).opera || '';
+            const isiOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
+            const isChrome = /CriOS|Chrome/.test(ua);
+            setIsIosChrome(isiOS && isChrome);
+        } catch (err) {
+            setIsIosChrome(false);
+        }
+    }, []);
+
     const handleEmailLogin = async () => {
         if (!email || !password) {
             setError("Please fill in all fields");
@@ -149,6 +173,11 @@ export default function LoginPage() {
 
                     {/* Social Logins */}
                     <div className="w-full">
+                        {isIosChrome && (
+                            <div className="mb-2 p-3 rounded-lg bg-yellow-900/20 border border-yellow-700 text-yellow-100 text-sm">
+                                Tip: On iOS browsers other than Safari (e.g., Chrome), OAuth flows might not open the app. Try Safari or install the Weeve app for the best experience.
+                            </div>
+                        )}
                         <button
                             onClick={handleGoogleLogin}
                             disabled={loading || socialLoading === "google"}

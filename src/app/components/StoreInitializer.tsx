@@ -18,10 +18,10 @@ export default function StoreInitializer() {
             // We'll keep it simple for now but could add a ref if we see double fetches.
 
             try {
-                console.log('Fetching stories via store action...');
+                console.log('Fetching stories via store action... (currentUser:)', currentUser.id, currentUser.name);
                 await fetchStories();
 
-                console.log('Fetching groups...');
+                console.log('Fetching groups... (currentUser:)', currentUser.id, currentUser.name);
                 const groups = await fetchGroups();
                 console.log('Fetched groups:', groups.length);
                 setGroups(groups);

@@ -1,8 +1,10 @@
 "use client";
 
 import { use, useState, useEffect, useRef, useMemo, useCallback } from "react";
+import FeedItem from "@/app/components/FeedItem";
+import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
 import { useRouter } from "next/navigation";
-import { useStore, type TextStyle, type Contribution, type User, type TextElement } from "@/lib/store";
+import { useStore, type TextStyle, type Contribution, type User, type TextElement, type Story } from "@/lib/store";
 import { createStoryContribution } from "@/lib/data";
 import { leaveStory, deleteStory } from "@/lib/stories";
 import { capturePhoto, captureVideo } from "@/lib/camera";
@@ -80,11 +82,18 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
 
 function StoryPageContent({ storyId }: { storyId: string }) {
     const router = useRouter();
-    const { stories, currentUser, addContribution } = useStore();
+    const { stories, currentUser, addContribution, fetchStories, addStory } = useStore();
 
     const story = stories.find((s) => s.id === storyId);
+
+    useEffect(() => {
+        console.debug('[StoryPage] resolving storyId', storyId, 'found:', !!story, 'storiesCount:', stories.length, 'visibleIds:', stories.slice(0, 10).map(s => s.id));
+    }, [storyId, story, stories]);
+
     const [activeIndex, setActiveIndex] = useState(0);
     const [isPlaying, setIsPlaying] = useState(true);
+    const [isFetchingStory, setIsFetchingStory] = useState(false);
+    const [hasFetchedOnce, setHasFetchedOnce] = useState(false);
 
     // Stitch Flow States
     const [showStitchMenu, setShowStitchMenu] = useState(false);
@@ -130,13 +139,15 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     
     // Check if current user has a waiting slot AND hasn't contributed yet (for branched stories)
     const currentUserParticipant = story?.participants?.find(p => p.id === currentUser?.id);
-    const userHasWaitingSlot = currentUserParticipant?.status === 'waiting';
+    const userHasWaitingSlotRaw = currentUserParticipant?.status === 'waiting';
     const userHasContributed = currentUser?.id ? contributions.some(c => c.userId === currentUser.id) : false;
-    const canContributeDespiteCapacity = userHasWaitingSlot && !userHasContributed;
+    const canContributeDespiteCapacity = userHasWaitingSlotRaw && !userHasContributed;
     
     // Story is at capacity ONLY if contributions >= maxWeeves AND user can't contribute
     const isAtCapacity = maxWeeves !== null && contributionsCount >= maxWeeves && !canContributeDespiteCapacity;
     const isStoryComplete = story?.status === 'completed' || isAtCapacity;
+    // Final user waiting slot considers story completeness
+    const userHasWaitingSlot = userHasWaitingSlotRaw && !isStoryComplete;
     const remainingSlots = maxWeeves !== null ? Math.max(maxWeeves - contributionsCount, 0) : null;
     const activeSegment = contributions[activeIndex];
     const activeTextStyle = useMemo<TextStyle>(() => ({
@@ -152,6 +163,123 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const hasContributions = contributions.length > 0;
     
     // Debug logging for forked stories
+    useEffect(() => {
+        // Refresh stories on mount to ensure we have the latest state
+        try { fetchStories(); } catch (err) { console.warn('[Story] fetchStories failed on mount:', err); }
+    }, [fetchStories]);
+
+    useEffect(() => {
+        // If the story isn't available in the store, try fetching it directly by id.
+        if (story || isFetchingStory || hasFetchedOnce) return;
+        let cancelled = false;
+
+        const fetchStoryById = async () => {
+            try {
+                setIsFetchingStory(true);
+                setHasFetchedOnce(false);
+                const { data: s, error } = await supabase
+                    .from('stories')
+                    .select(`
+                        *,
+                        contributions (*),
+                        story_participants (
+                            *,
+                            profiles:user_id (id, name, avatar, is_influencer)
+                        ),
+                        story_likes (user_id),
+                        story_comments (
+                            *,
+                            profiles:user_id (name, avatar)
+                        )
+                    `)
+                    .eq('id', storyId)
+                    .single();
+
+                if (error || !s) {
+                    console.warn('[Story] fetchStoryById: not found or error', { id: storyId, error });
+                    setHasFetchedOnce(true);
+                    return;
+                }
+
+                if (cancelled) return;
+
+                const participants = (s.story_participants || []).map((sp: any) => {
+                    const profile = sp.profiles || { name: 'Unknown', avatar: '' };
+                    return {
+                        id: sp.user_id,
+                        name: profile.name,
+                        avatar: profile.avatar,
+                        tokens: 0,
+                        isInfluencer: profile.is_influencer,
+                        status: (sp.status === 'accepted' || sp.status === 'waiting' || sp.status === 'declined') ? (sp.status as 'accepted' | 'waiting' | 'declined') : undefined,
+                        position: sp.position,
+                    } as User;
+                }).sort((a: any, b: any) => (a.position || 0) - (b.position || 0));
+
+                const contributionsFromServer = (s.contributions || []).map((c: any) => ({
+                    id: c.id,
+                    userId: c.user_id,
+                    userName: c.user_name,
+                    content: c.content,
+                    mediaType: c.media_type,
+                    mediaUrl: (c.media_url && c.media_url.trim()) ? c.media_url : undefined,
+                    timestamp: c.timestamp,
+                    textStyle: c.text_style,
+                })) as Contribution[];
+
+                const comments = (s.story_comments || []).map((cm: any) => ({
+                    id: cm.id,
+                    userId: cm.user_id,
+                    userName: cm.user_name || cm.profiles?.name || 'Unknown',
+                    content: cm.content,
+                    timestamp: cm.timestamp,
+                }));
+
+                const likedBy = (s.story_likes || []).map((l: any) => l.user_id);
+
+                const mapped: Story = {
+                    id: s.id,
+                    title: s.title,
+                    description: s.description,
+                    creatorId: s.creator_id,
+                    visibility: s.visibility,
+                    mode: s.mode ?? 'invite',
+                    status: s.status,
+                    currentTurnUserId: s.current_turn_user_id ?? undefined,
+                    contributions: contributionsFromServer,
+                    participants,
+                    maxWeeves: s.max_weeves ?? undefined,
+                    coverImage: s.cover_image ?? undefined,
+                    theme: s.theme ?? undefined,
+                    groupId: s.group_id ?? undefined,
+                    likes: likedBy.length,
+                    likedBy,
+                    comments,
+                    created_at: s.created_at ?? undefined,
+                    updated_at: s.updated_at ?? undefined,
+                    hashtags: s.hashtags ?? undefined,
+                    monetizationCost: (s as any).monetization_cost ?? undefined,
+                    allowComments: (s as any).allow_comments ?? undefined,
+                    allowReuse: (s as any).allow_reuse ?? undefined,
+                    turnTimerHours: s.turn_timer_hours ?? undefined,
+                };
+
+                addStory(mapped);
+                setHasFetchedOnce(true);
+                console.log('[Story] Fetched story by id and added to store:', mapped.id);
+            } catch (err) {
+                console.error('[Story] Error fetching story by id:', err);
+                setHasFetchedOnce(true);
+            } finally {
+                if (!cancelled) setIsFetchingStory(false);
+            }
+        };
+
+        fetchStoryById();
+
+        return () => { cancelled = true; };
+    }, [story, storyId, isFetchingStory, hasFetchedOnce, addStory]);
+
     useEffect(() => {
         if (story?.visibility === 'private') {
             console.log('[Story] Forked story debug:', {
@@ -227,8 +355,14 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 
                 // Show tutorial if onboarding_step is 2 and not completed
                 if (data && data.onboarding_step === 2 && !data.completed_onboarding) {
-                    console.log('[Story] Showing tutorial overlay');
-                    setShowOnboardingTutorial(true);
+                    // Respect a local dismissal flag so this doesn't keep showing repeatedly
+                    let dismissed = false;
+                    try { dismissed = !!(typeof window !== 'undefined' && localStorage.getItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id)); } catch (err) { dismissed = false; }
+
+                    if (!dismissed) {
+                        console.log('[Story] Showing tutorial overlay');
+                        setShowOnboardingTutorial(true);
+                    }
                 }
             } catch (err) {
                 console.error('[Story] Error checking onboarding:', err);
@@ -271,7 +405,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         // even if hasContributed is true (because contributions might have been copied from original)
         // For regular stories, show empty slot if participant hasn't contributed
         const isForkedStory = story?.visibility === 'private';
-        const waitingParticipants = allParticipants.filter(p => {
+        let waitingParticipants = allParticipants.filter(p => {
             const hasPosition = p.position !== undefined && p.position !== null;
             if (isForkedStory && p.status === 'waiting' && hasPosition) {
                 // For forked stories, show slot for waiting participants regardless of contribution status
@@ -280,6 +414,11 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             // For regular stories, show if no contribution and has position
             return !contributors.has(p.id) && hasPosition;
         });
+
+        // If the story is complete or at capacity, do not display waiting slots — play like a normal completed post
+        if (isStoryComplete) {
+            waitingParticipants = [];
+        }
         
         console.log('[Timeline] Waiting participants after filter:', JSON.stringify(waitingParticipants.map(p => ({ 
             id: p.id, 
@@ -342,11 +481,22 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     [timelineEntries]);
     
     const participantsWithoutContributions = useMemo(() => {
-        const contributors = new Set(contributions.map((contribution) => contribution.userId));
-        // Exclude 'waiting' participants as they're shown inline in the timeline
-        return (story?.participants ?? []).filter(
-            (participant) => !contributors.has(participant.id) && participant.status !== 'waiting'
+        const contributorIds = new Set(contributions.map((contribution) => contribution.userId));
+        // Also collect IDs that are shown as waiting slots (positions)
+        const waitingSlotIds = new Set((story?.participants ?? []).filter(p => p.position !== undefined && p.position !== null).map(p => p.id));
+        // Exclude 'waiting' participants and those with explicit positions (they're shown inline in the timeline)
+        const list = (story?.participants ?? []).filter(
+            (participant) => !contributorIds.has(participant.id) && participant.status !== 'waiting' && (participant.position === undefined || participant.position === null)
         );
+        // Deduplicate by user id so the UI doesn't render repeated entries for the same user
+        const seen = new Set<string>();
+        return list.filter(p => {
+            // Also exclude participants who are already shown in waiting positions (shouldn't be duplicated)
+            if (waitingSlotIds.has(p.id)) return false;
+            if (seen.has(p.id)) return false;
+            seen.add(p.id);
+            return true;
+        });
     }, [story?.participants, contributions]);
     const handleContributionSelect = useCallback((index: number) => {
         setActiveIndex(index);
@@ -355,8 +505,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
     const isComposerOpen = stitchMode !== null && !showStitchMenu;
     const composerTitle = useMemo(() => {
-        if (stitchMode === 'video') return 'Add Video Caption';
-        if (stitchMode === 'image') return 'Add Photo Caption';
+        if (stitchMode === 'video') return 'Add Video';
+        if (stitchMode === 'image') return 'Add Photo';
         if (stitchMode === 'text') return 'Write Caption';
         if (stitchMode === 'drawing') return 'Create Drawing';
         return 'Compose';
@@ -580,8 +730,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 setMediaDraft({ type, file, previewUrl });
                 setTextElements([]); // Clear any existing text
                 setStitchMode(type);
-                // Add initial text box for caption
-                addTextElement();
+                // No initial text box created for media uploads
+
             } else {
                 console.log(`[Story] No ${type} file returned (user may have cancelled)`);
                 toast.error(`${type === 'video' ? 'Video' : 'Photo'} capture cancelled or failed. Please try again.`);
@@ -606,14 +756,131 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         if (!isStoryComplete) return;
         resetComposer();
         setShowStitchMenu(false);
+        setIsPlaying(true);
     }, [isStoryComplete]);
 
-    if (!story) return <div>Story not found</div>;
+    if (!story) {
+        if (isFetchingStory || !hasFetchedOnce) {
+            return (
+                <div className="min-h-screen bg-black text-white flex items-center justify-center">
+                    <div className="text-gray-500">Loading...</div>
+                </div>
+            );
+        }
+        return <div>Story not found</div>;
+    }
 
     if (!currentUser) {
         return (
             <div className="min-h-screen bg-black text-white flex items-center justify-center">
                 <div className="text-gray-500">Loading...</div>
+            </div>
+        );
+    }
+
+    // If story is complete, render it using the feed-style UI so it behaves like a normal post
+    if (isStoryComplete) {
+        return (
+            <div className="h-full flex flex-col bg-black text-white relative">
+                {/* Header (same as story header) */}
+                <div className="absolute top-0 left-0 right-0 z-20 p-4 flex items-center justify-between bg-gradient-to-b from-black/90 via-black/50 to-transparent pointer-events-none">
+                    <button onClick={() => router.back()} className="p-2 rounded-full glass hover:bg-white/10 transition-colors pointer-events-auto">
+                        <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <div className="flex flex-col items-center">
+                        <h1 className="font-bold text-sm tracking-wide uppercase opacity-80 font-sans">Weeve Timeline</h1>
+                        {story?.title && <div className="text-sm text-gray-300 mt-1 font-semibold">{story.title}</div>}
+                        {story.groupId && (
+                            <button
+                                onClick={() => router.push(`/groups/${story.groupId}`)}
+                                className="flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                                {story.groupAvatar && (
+                                    <img
+                                        src={story.groupAvatar}
+                                        alt="Group"
+                                        className="w-3 h-3 rounded-full"
+                                    />
+                                )}
+                                <span className="text-[10px] font-medium text-gray-300">From Group</span>
+                            </button>
+                        )}
+                    </div>
+                    <div className="relative pointer-events-auto">
+                        <button
+                            onClick={() => setShowMenu(!showMenu)}
+                            className="p-2 rounded-full glass hover:bg-white/10 transition-colors pointer-events-auto"
+                        >
+                            <MoreVertical className="w-6 h-6" />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {showMenu && (
+                            <div className="absolute top-full right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden pointer-events-auto z-50">
+                                {story.creatorId === currentUser.id && (
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                setShowEditModal(true);
+                                                setShowMenu(false);
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors"
+                                        >
+                                            <Edit2 className="w-4 h-4 text-gray-400" />
+                                            <span className="text-sm font-medium text-white">Edit Story</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowDeleteConfirm(true);
+                                                setShowMenu(false);
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-t border-gray-800"
+                                        >
+                                            <Trash className="w-4 h-4 text-red-400" />
+                                            <span className="text-sm font-medium text-red-400">Delete Story</span>
+                                        </button>
+                                    </>
+                                )}
+                                {isUserParticipant && (
+                                    <button
+                                        onClick={() => {
+                                            setShowLeaveConfirm(true);
+                                            setShowMenu(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-t border-gray-800"
+                                    >
+                                        <LogOut className="w-4 h-4 text-red-400" />
+                                        <span className="text-sm font-medium text-red-400">Leave Story</span>
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* FeedItem renders the feed-style post UI */}
+                <div className="flex-1">
+                    {/* Choose initial contribution to match the profile thumbnail if possible */}
+                    {(() => {
+                        let chosenId: string | undefined = undefined;
+                        if (contributions && contributions.length > 0) {
+                            const exact = contributions.find(c => c.mediaUrl === story.coverImage);
+                            if (exact) chosenId = exact.id;
+                            else {
+                                const substring = contributions.find(c => c.mediaUrl && story.coverImage && (c.mediaUrl.includes(story.coverImage) || (story.coverImage.includes && story.coverImage.includes(c.mediaUrl))));
+                                if (substring) chosenId = substring.id;
+                            }
+                            if (!chosenId) chosenId = contributions[0]?.id;
+                        }
+                        console.debug('[StoryPage] Rendering completed story via FeedItem - chosenId:', chosenId, 'contributionIds:', (contributions || []).map(c => ({ id: c.id, mediaUrl: c.mediaUrl })));
+                        return (
+                            <FeedItem
+                                story={story}
+                                initialContributionId={chosenId}
+                            />
+                        );
+                    })()}
+                </div>
             </div>
         );
     }
@@ -636,7 +903,10 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         resetComposer();
 
         if (mode === 'text') {
+            setTextElements([]);
             setStitchMode('text');
+            // Ensure we have an initial element to edit
+            addTextElement();
             return;
         }
 
@@ -692,7 +962,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             return;
         }
 
-        const trimmed = textElements.map(el => el.content).join(" ").trim();
+        const trimmed = (stitchMode === 'text' || stitchMode === 'drawing') ? textElements.map(el => el.content).join(" ").trim() : '';
 
         if (stitchMode === 'text' && trimmed.length === 0) {
             toast.error('Please add some text before posting.');
@@ -730,10 +1000,9 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
         const caption = (() => {
             if (trimmed.length > 0) return trimmed;
-            if (stitchMode === 'video') return 'Check out this view! 🎥';
-            if (stitchMode === 'image') return 'Captured this moment 📸';
             if (stitchMode === 'drawing') return 'Created this drawing! 🎨';
-            return 'Just added a new part! ✨';
+            // For image/video uploads, do not include default caption text
+            return '';
         })();
 
         const shouldPersistStyle = stitchMode === 'text' || trimmed.length > 0;
@@ -902,6 +1171,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 </button>
                 <div className="flex flex-col items-center">
                     <h1 className="font-bold text-sm tracking-wide uppercase opacity-80 font-sans">Weeve Timeline</h1>
+                        {story?.title && <div className="text-sm text-gray-300 mt-1 font-semibold">{story.title}</div>}
                     {story.groupId && (
                         <button
                             onClick={() => router.push(`/groups/${story.groupId}`)}
@@ -1005,7 +1275,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                         : 'w-full h-full object-cover'}
                                     alt={activeSegment.mediaType === 'drawing' ? 'Drawing' : 'Story segment'}
                                 />
-                                <AutoAdvance onComplete={handleNext} isPlaying={isPlaying} duration={3000} />
+                                <AutoAdvance onComplete={handleNext} isPlaying={isPlaying} duration={NON_VIDEO_AUTO_ADVANCE_MS} />
                             </div>
                         ) : (
                             /* Text-only background */
@@ -1017,7 +1287,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                         : activeTextStyle.backgroundColor,
                                 }}
                             >
-                                <AutoAdvance onComplete={handleNext} isPlaying={isPlaying} duration={3000} />
+                                <AutoAdvance onComplete={handleNext} isPlaying={isPlaying} duration={NON_VIDEO_AUTO_ADVANCE_MS} />
                             </div>
                         )}
 
@@ -1116,7 +1386,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     </>
                 ) : (
                     // Show waiting element for forked stories with user's slot, otherwise generic message
-                    currentUserParticipant?.status === 'waiting' ? (
+                    (currentUserParticipant?.status === 'waiting' && !isStoryComplete && currentUserParticipant?.id !== currentUser?.id) ? (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white">
                             <div className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-black/40 border border-white/10 backdrop-blur-sm">
                                 <div className="relative">
@@ -1153,7 +1423,10 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 {/* Onboarding Tutorial Overlay */}
                 {showOnboardingTutorial && (
                     <OnboardingTutorialOverlay
-                        onDismiss={() => setShowOnboardingTutorial(false)}
+                        onDismiss={() => {
+                            try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) {}
+                            setShowOnboardingTutorial(false);
+                        }}
                         targetElementId="add-weeve-button"
                     />
                 )}
@@ -1181,10 +1454,10 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                 });
                                 
                                 // Show clickable + button for current user's empty slot
-                                if (isCurrentUser && isMyTurn) {
+                                if (isCurrentUser && isMyTurn && !isStoryComplete) {
                                     return (
                                         <button
-                                            key={`empty-${participant.id}`}
+                                            key={`empty-${participant.id}-${entry.position}`}
                                             id="add-weeve-button"
                                             onClick={() => {
                                                 setShowStitchMenu(true);
@@ -1206,7 +1479,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                 // Show disabled placeholder for other users' empty slots
                                 return (
                                     <button
-                                        key={`empty-${participant.id}`}
+                                        key={`empty-${participant.id}-${entry.position}`}
                                         type="button"
                                         disabled
                                         className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
@@ -1270,11 +1543,11 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                             );
                         })}
 
-                        {participantsWithoutContributions.map((participant) => {
+                        {participantsWithoutContributions.map((participant, idx) => {
                             const isCurrentTurn = story.currentTurnUserId === participant.id;
                             return (
                                 <button
-                                    key={`pending-${participant.id}`}
+                                    key={`pending-${participant.id}-${participant.position ?? idx}`}
                                     type="button"
                                     disabled
                                     className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
@@ -1300,10 +1573,11 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         })}
 
                         {/* Show + button only if it's user's turn AND they don't have a specific waiting slot */}
-                        {isMyTurn && !userHasWaitingSlot && (
+                        {isMyTurn && !userHasWaitingSlot && !isStoryComplete && (
                             <button
                                 id="add-weeve-button"
                                 onClick={() => {
+                                    try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) {}
                                     setShowStitchMenu(true);
                                     setShowOnboardingTutorial(false);
                                 }}
@@ -1381,10 +1655,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         </button>
 
                         <button
-                            onClick={() => {
-                                handleStitchOption('text');
-                                addTextElement();
-                            }}
+                            onClick={() => handleStitchOption('text')}
                             className="flex flex-col items-center gap-2 group"
                         >
                             <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
@@ -1470,7 +1741,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                             </div>
                         )}
 
-                        {textElements.map((element) => (
+                        {(stitchMode === 'text' || stitchMode === 'drawing') && textElements.map((element) => (
                             <div
                                 key={element.id}
                                 ref={(el) => {
@@ -1528,7 +1799,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                             // Stop propagation when clicking on textarea to allow typing
                                             e.stopPropagation();
                                         }}
-                                        placeholder={stitchMode === 'text' ? "Type something..." : 'Add a caption...'}
+                                        placeholder={stitchMode === 'drawing' || stitchMode === 'text' ? "Type something..." : ''}
                                         className="min-w-[200px] max-w-[80vw] overflow-hidden bg-transparent resize-none focus:outline-none text-center placeholder:text-white/50"
                                         style={{
                                             fontFamily: element.style.fontFamily,
@@ -1565,7 +1836,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                             </button>
 
                             {/* Add Text Button */}
-                            {textElements.length < 5 && (
+                            {((stitchMode === 'text' || stitchMode === 'drawing') && textElements.length < 5) && (
                                 <button
                                     onClick={addTextElement}
                                     className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md text-white font-medium hover:bg-white/20 transition-colors flex items-center gap-2"

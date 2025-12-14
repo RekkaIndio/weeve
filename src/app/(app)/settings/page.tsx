@@ -43,14 +43,15 @@ export default function SettingsPage() {
             const { error } = await signOut();
             if (error) {
                 console.error('[Settings] Logout error:', error);
-                return;
+            } else {
+                console.log('[Settings] Signout successful');
             }
-            console.log('[Settings] Signout successful, clearing state');
-            logoutUser();
-            console.log('[Settings] Redirecting to login');
-            router.push('/login');
         } catch (err) {
             console.error('[Settings] Unexpected logout error:', err);
+        } finally {
+            console.log('[Settings] Clearing local state and redirecting to login (force)');
+            logoutUser();
+            router.push('/login');
         }
     };
 

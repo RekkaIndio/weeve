@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase";
 import type { Session, User } from "@supabase/supabase-js";
 import { Capacitor } from "@capacitor/core";
 import { addFriend } from "./friends";
@@ -9,7 +9,17 @@ type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
 
-export const NATIVE_GOOGLE_REDIRECT_URI = 'com.weeve.app://auth/callback';
+export const NATIVE_GOOGLE_REDIRECT_URI_ANDROID = 'com.weeve.app://auth/callback';
+export const NATIVE_GOOGLE_REDIRECT_URI_IOS = 'com.jay.weeve.app://auth/callback';
+export function getNativeRedirectUri(platform?: string) {
+    try {
+        const p = platform ?? (typeof Capacitor !== 'undefined' ? Capacitor.getPlatform() : 'web');
+        return p === 'ios' ? NATIVE_GOOGLE_REDIRECT_URI_IOS : NATIVE_GOOGLE_REDIRECT_URI_ANDROID;
+    } catch (e) {
+        return NATIVE_GOOGLE_REDIRECT_URI_ANDROID;
+    }
+}
+export const NATIVE_GOOGLE_REDIRECT_URIS = [NATIVE_GOOGLE_REDIRECT_URI_ANDROID, NATIVE_GOOGLE_REDIRECT_URI_IOS];
 
 export interface AuthUser {
     id: string;
@@ -90,23 +100,23 @@ export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise
         // Determine redirect URL based on platform
         let redirectTo: string | undefined;
 
-        if (isCapacitor || platform === 'ios' || platform === 'android') {
-            console.log('[Auth] Detected native platform, using deep link redirect');
-            redirectTo = NATIVE_GOOGLE_REDIRECT_URI;
+        if (isCapacitor) {
+            console.log('[Auth] Detected native Capacitor platform, using deep link redirect');
+            redirectTo = getNativeRedirectUri(platform);
         } else {
-            // Web Flow
+            // Web Flow (including mobile browsers)
             const buildRedirect = () => {
                 if (!redirectPath) return undefined;
                 if (redirectPath.startsWith('http')) return redirectPath;
                 return buildPublicUrl(redirectPath);
             };
             redirectTo = buildRedirect();
-            console.log('[Auth] Detected web platform, using standard redirect');
+            console.log('[Auth] Detected web platform (or mobile browser), using standard redirect:', redirectTo);
         }
 
         // ... inside function
 
-        console.log('[Auth] Initiating OAuth with redirect:', redirectTo);
+        console.log('[Auth] Initiating OAuth with redirect:', redirectTo, { isCapacitor, platform });
 
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
@@ -158,13 +168,25 @@ export async function getCurrentUser(): Promise<User | null> {
  */
 export async function getUserProfile(userId: string): Promise<AuthUser | null> {
     try {
-        const { data, error } = await supabase
+        console.log('[Auth] getUserProfile requested for user:', userId);
+        const fetchPromise = supabase
             .from('profiles')
             .select('*')
             .eq('user_id', userId)
             .maybeSingle();
 
+        const timeoutMs = 4000;
+        const timeoutPromise = new Promise<{ data: null; error: Error }>((_, reject) => {
+            const id = setTimeout(() => {
+                clearTimeout(id);
+                reject(new Error('getUserProfile timeout'));
+            }, timeoutMs);
+        });
+
+        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as { data: any; error: any };
+
         if (error) throw error;
+        console.log('[Auth] getUserProfile result:', { userId, data });
         if (!data) return null;
 
         return {
@@ -188,6 +210,60 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
 }
 
 /**
+ * Attempt to fetch profile using REST endpoint with an access token.
+ * This is a fast fallback to get profile data immediately after OAuth flows.
+ */
+export async function fetchProfileWithAccessToken(accessToken: string, userId: string, timeoutMs = 400): Promise<AuthUser | null> {
+    try {
+        if (!accessToken) return null;
+        const restUrl = new URL(`${SUPABASE_URL}/rest/v1/profiles`);
+        restUrl.searchParams.set('user_id', `eq.${encodeURIComponent(userId)}`);
+        restUrl.searchParams.set('select', '*');
+
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeoutMs);
+        const response = await fetch(restUrl.toString(), {
+            method: 'GET',
+            headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+            },
+            signal: controller.signal,
+        });
+        clearTimeout(id);
+
+        if (!response.ok) {
+            console.warn('[Auth] fetchProfileWithAccessToken: REST request returned', response.status);
+            return null;
+        }
+
+        const payload = await response.json();
+        const row = Array.isArray(payload) ? payload[0] : payload;
+        if (!row) return null;
+
+        return {
+            id: row.user_id,
+            email: '',
+            name: row.name,
+            avatar: row.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
+            tagline: row.tagline || undefined,
+            tokens: row.tokens || 100,
+            inviteCode: row.invite_code ?? undefined,
+            isPrivate: row.is_private || false,
+            onboardingStep: row.onboarding_step ?? null,
+            completedOnboarding: row.completed_onboarding ?? false,
+            lastNameChangeAt: row.last_name_change_at || undefined,
+            dateOfBirth: row.date_of_birth || undefined,
+        };
+    } catch (err) {
+        console.warn('[Auth] fetchProfileWithAccessToken error:', err);
+        return null;
+    }
+}
+
+/**
  * Create a user profile in the profiles table
  */
 export async function createUserProfile(
@@ -197,7 +273,7 @@ export async function createUserProfile(
     inviteCode?: string,
     referrerCode?: string,
     dateOfBirth?: string
-): Promise<{ error: Error | null }> {
+): Promise<{ data: ProfileRow | null; error: Error | null }> {
     try {
         const profileData: ProfileInsert = {
             user_id: userId,
@@ -210,9 +286,15 @@ export async function createUserProfile(
             date_of_birth: dateOfBirth,
         };
 
-        const { error } = await supabase.from('profiles').insert(profileData);
+        const { data: insertedProfile, error } = await supabase
+            .from('profiles')
+            .upsert(profileData, { onConflict: 'user_id' })
+            .select()
+            .maybeSingle();
 
-        if (error) throw error;
+        if (error) {
+            throw error;
+        }
 
         // Handle referrer
         if (referrerCode) {
@@ -228,10 +310,10 @@ export async function createUserProfile(
             }
         }
 
-        return { error: null };
+        return { data: insertedProfile ?? null, error: null };
     } catch (error) {
         console.error('[Auth] Create profile error:', error);
-        return { error: error as Error };
+        return { data: null, error: error as Error };
     }
 }
 
@@ -240,6 +322,7 @@ export async function createUserProfile(
  */
 export async function profileExists(userId: string): Promise<boolean> {
     try {
+        console.log('[Auth] profileExists check for user:', userId);
         const { data, error } = await supabase
             .from('profiles')
             .select('user_id')
@@ -247,6 +330,7 @@ export async function profileExists(userId: string): Promise<boolean> {
             .maybeSingle();
 
         if (error) throw error;
+        console.log('[Auth] profileExists result:', { userId, hasProfile: !!data });
 
         return !!data;
     } catch (error) {

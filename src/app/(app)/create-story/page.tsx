@@ -12,7 +12,7 @@ function CreateStoryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const groupId = searchParams?.get('groupId');
-  const { addStory, currentUser, friends, deductTokens, fetchFriends } = useStore();
+  const { addStory, currentUser, friends, deductTokens, fetchFriends, fetchStories } = useStore();
   const [groupInfo, setGroupInfo] = useState<{ name: string; avatar: string } | null>(null);
 
   // Fetch group info if groupId is present
@@ -89,7 +89,32 @@ function CreateStoryContent() {
         inviteCount: data.inviteCount,
       });
 
-      // 1. Create Story in Supabase
+      // Build ordered participants and deduplicate while preserving order
+      // Build final participants directly from ordered slots (preserve user slot positions)
+      const orderedSlots = data.orderedParticipants || [];
+      // Ensure current user is in at least one slot - if not, add them to the first empty slot
+      let slotsWithUser = orderedSlots.slice();
+      if (!slotsWithUser.some(s => s && s.id === currentUser.id)) {
+        const firstEmpty = slotsWithUser.findIndex(s => s === null);
+        if (firstEmpty !== -1) {
+          slotsWithUser[firstEmpty] = { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar };
+        } else {
+          // No empty slots (rare), add the creator at the beginning
+          slotsWithUser.unshift({ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar });
+        }
+      }
+
+      // Build participants list from slot positions (allow duplicates)
+      const finalParticipants = slotsWithUser.map((slot, idx) => slot ? ({
+        ...mapToUser(slot),
+        position: idx,
+      }) : null).filter((p): p is User & { position: number } => p !== null);
+
+      const computedMaxWeeves = Math.max(data.inviteCount + 1, slotsWithUser.length);
+
+      // Create story in Supabase with first slot (first non-null slot) as initial turn
+      const initialTurnUserId = slotsWithUser.find(s => s)?.id ?? currentUser.id;
+
       const { data: storyData, error: storyError } = await supabase
         .from('stories')
         .insert({
@@ -99,8 +124,8 @@ function CreateStoryContent() {
           mode: 'invite', // Defaulting to invite mode for now based on UI
           visibility: data.visibility, // Assuming DB has visibility column or we map it
           status: 'active',
-          max_weeves: data.inviteCount, // Using inviteCount as max_weeves/participants
-          current_turn_user_id: currentUser.id, // Creator starts? Or first in list?
+          max_weeves: computedMaxWeeves, // Store total slots including creator (inviteCount is friend count)
+          current_turn_user_id: finalParticipants[0]?.id ?? currentUser.id, // Set first slot as initial turn
           group_id: groupId || null,
           allow_comments: data.allowComments,
           hashtags: data.hashtags,
@@ -117,46 +142,128 @@ function CreateStoryContent() {
       if (!storyData) throw new Error('Failed to create story');
 
       console.log('Story created successfully:', storyData.id);
-
       const newStoryId = storyData.id;
-      const participantList = (data.orderedParticipants || [])
-        .filter((participant): participant is Friend => participant !== null)
-        .map(mapToUser);
 
-      const uniqueParticipants: User[] = [];
-      const seenParticipantIds = new Set<string>();
-
-      for (const participant of participantList) {
-        if (!seenParticipantIds.has(participant.id)) {
-          uniqueParticipants.push(participant);
-          seenParticipantIds.add(participant.id);
-        }
-      }
-
-      let creatorParticipant = uniqueParticipants.find((participant) => participant.id === currentUser.id);
-
-      if (!creatorParticipant) {
-        creatorParticipant = mapToUser({ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar });
-      }
-
-      const finalParticipants = [creatorParticipant, ...uniqueParticipants.filter((participant) => participant.id !== currentUser.id)];
-
-      const participantsToInsert = finalParticipants.map((participant, index) => ({
+      const participantsToInsert = finalParticipants.map((participant) => ({
         story_id: newStoryId,
         user_id: participant.id,
-        position: index,
+        position: participant.position,
+        status: participant.id === currentUser.id ? ('accepted' as 'accepted') : ('waiting' as 'waiting'),
       }));
 
       // 2. Add Participants
       if (participantsToInsert.length > 0) {
         console.log('Adding participants:', participantsToInsert.length);
-        const { error: participantsError } = await supabase
+        let insertedParticipantsResult = await supabase
           .from('story_participants')
           .insert(participantsToInsert);
 
-        if (participantsError) {
-          console.error('Database error adding participants:', participantsError);
-          throw participantsError;
+        if (insertedParticipantsResult.error) {
+          const err = insertedParticipantsResult.error;
+          console.error('Database error adding participants:', err);
+
+          // If unique constraint prevented duplicate participants (older DB), try deduping
+          const isDuplicateConstraint = typeof err.message === 'string' && err.message.includes('duplicate key value violates unique constraint');
+
+          if (isDuplicateConstraint) {
+            console.warn('[CreateStory] DB uniqueness constraint prevented duplicate participants. Trying to insert deduped participants as a fallback.');
+
+            // Dedupe while preserving first occurrence and position
+            const dedupMap = new Map<string, typeof participantsToInsert[0]>();
+            participantsToInsert.forEach((p) => {
+              if (!dedupMap.has(p.user_id)) {
+                dedupMap.set(p.user_id, p);
+              }
+            });
+            const deduped = Array.from(dedupMap.values());
+
+            try {
+              const { error: dedupError } = await supabase
+                .from('story_participants')
+                .insert(deduped);
+
+              if (dedupError) {
+                console.error('[CreateStory] Fallback dedup insert failed:', dedupError);
+                // Rollback story creation to avoid partially created state
+                try { await supabase.from('stories').delete().eq('id', newStoryId); } catch (delErr) { console.warn('Failed to rollback story creation:', delErr); }
+                throw dedupError;
+              }
+
+              // Success: inform user that duplicates were removed due to DB constraints
+              console.warn('[CreateStory] Story created but duplicate participants were removed due to DB constraints. To support duplicates, apply the migration supabase/migration_allow_duplicate_story_participants.sql');
+              toast(`Story created, but duplicate participants were removed due to DB constraints. Run supabase/migration_allow_duplicate_story_participants.sql to enable duplicates.`, { duration: 12000 });
+
+              // Update DB maxWeeves for consistency
+              try {
+                if (computedMaxWeeves !== storyData.max_weeves) {
+                  await supabase
+                    .from('stories')
+                    .update({ max_weeves: computedMaxWeeves })
+                    .eq('id', newStoryId);
+                }
+              } catch (updateError) {
+                console.warn('Failed to update story max_weeves for consistency:', updateError);
+              }
+
+              // Update local participants list to the deduped subset
+              // Build new participant list for local store update
+              const actualParticipantsForStore = finalParticipants.filter(p => dedupMap.has(p.id));
+              const newStoryForStore: Story = {
+                id: newStoryId,
+                title: data.title,
+                description: description,
+                creatorId: currentUser.id,
+                visibility: data.visibility,
+                status: 'active',
+                currentTurnUserId: actualParticipantsForStore[0]?.id ?? currentUser.id,
+                contributions: [],
+                participants: actualParticipantsForStore.map((p, index) => ({ ...p, position: p.position, status: p.id === currentUser.id ? 'accepted' as 'accepted' : 'waiting' as 'waiting' })),
+
+                maxWeeves: computedMaxWeeves,
+                groupId: groupId || undefined,
+                groupAvatar: groupInfo?.avatar,
+                hashtags: data.hashtags,
+                likes: 0,
+                likedBy: [],
+                comments: [],
+                allowComments: data.allowComments,
+
+                mode: 'invite',
+                monetizationCost: data.monetizationCost,
+                turnTimerHours: storyData.turn_timer_hours ?? (data.turnTimerHours ?? undefined),
+                created_at: storyData.created_at,
+                updated_at: storyData.updated_at,
+              };
+
+              addStory(newStoryForStore);
+
+            } catch (fallbackErr) {
+              console.error('[CreateStory] Fallback insert or rollback failed:', fallbackErr);
+              const errorMessage = (fallbackErr && (fallbackErr as any).message) || 'Failed to add participants to the story.';
+              toast.error(errorMessage);
+              // Rethrow to be caught by outer try/catch
+              throw fallbackErr;
+            }
+
+            // Continue - we've handled participants insertion via fallback
+          } else {
+            // Regular error, rethrow
+            throw err;
+          }
+        } else {
+          // No error on initial insert
+
+          // Ensure DB max_weeves is consistent with computed value
+          try {
+            if (computedMaxWeeves !== storyData.max_weeves) {
+              await supabase
+                .from('stories')
+                .update({ max_weeves: computedMaxWeeves })
+                .eq('id', newStoryId);
+            }
+          } catch (updateError) {
+            console.warn('Failed to update story max_weeves for consistency:', updateError);
+          }
         }
 
         // Send invite notifications to invited users (excluding creator)
@@ -181,10 +288,11 @@ function CreateStoryContent() {
         creatorId: currentUser.id,
         visibility: data.visibility,
         status: 'active',
-        currentTurnUserId: currentUser.id,
+        currentTurnUserId: finalParticipants[0]?.id ?? currentUser.id,
         contributions: [],
-        participants: finalParticipants,
-        maxWeeves: data.inviteCount,
+        participants: finalParticipants.map((p, index) => ({ ...p, position: index, status: p.id === currentUser.id ? 'accepted' as 'accepted' : 'waiting' as 'waiting' })),
+
+        maxWeeves: computedMaxWeeves,
         groupId: groupId || undefined,
         groupAvatar: groupInfo?.avatar,
         hashtags: data.hashtags,
@@ -201,6 +309,13 @@ function CreateStoryContent() {
       };
 
       addStory(newStory);
+
+      // Ensure the server story list is up-to-date before routing so the story page can rely on fresh DB data
+      try {
+        await fetchStories();
+      } catch (err) {
+        console.warn('[CreateStory] fetchStories after create failed:', err);
+      }
 
       console.log('Story created and added to store, redirecting...');
       // Redirect to the new story

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { NATIVE_GOOGLE_REDIRECT_URI_IOS, NATIVE_GOOGLE_REDIRECT_URI_ANDROID } from '@/lib/auth';
 
 export default function AuthCallbackPage() {
     const router = useRouter();
@@ -19,6 +20,29 @@ export default function AuthCallbackPage() {
             setError(errorDescription || 'Authentication failed');
             setTimeout(() => router.push('/login'), 3000);
             return;
+        }
+
+        // If we are on iOS/Android browser (not the Capacitor native app), try to open the
+        // installed app with the same callback URL so the native app consumes the OAuth code.
+        try {
+            const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+            const isIos = /iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream;
+            const isAndroid = /android/i.test(userAgent);
+            const isCapacitor = (window as any).Capacitor && typeof (window as any).Capacitor.isNativePlatform === 'function' ? (window as any).Capacitor.isNativePlatform() : false;
+
+            if (!isCapacitor && (isIos || isAndroid)) {
+                const scheme = isIos ? NATIVE_GOOGLE_REDIRECT_URI_IOS : NATIVE_GOOGLE_REDIRECT_URI_ANDROID;
+                const callbackUrl = `${scheme}${window.location.search}${window.location.hash}`;
+                console.info('[Callback] Attempting to open installed app with callback:', callbackUrl);
+                // Attempt to open the app deep link. If it fails, the browser stays on the web callback.
+                window.location.assign(callbackUrl);
+                // If the app did not open within ~1.8s, continue as web flow (no-op)
+                const _fallbackTimer = setTimeout(() => {
+                    console.info('[Callback] Native app did not open; continuing with web callback');
+                }, 1800);
+            }
+        } catch (err) {
+            console.warn('[Callback] Failed to attempt native app open:', err);
         }
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {

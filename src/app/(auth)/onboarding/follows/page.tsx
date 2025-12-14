@@ -118,8 +118,10 @@ export default function FollowsPage() {
                 })
                 .eq('user_id', user.id);
 
-            // Navigate to home
-            router.push('/');
+            // Respect local dismissal flags so tutorials don't reappear
+            try { if (typeof window !== 'undefined' && user?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + user.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + user.id, 'true'); } } catch (err) {}
+            // Navigate to feed
+            router.push('/feed');
         } catch (err) {
             console.error('[Follows] Error completing onboarding:', err);
         } finally {

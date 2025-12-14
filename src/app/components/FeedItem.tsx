@@ -9,6 +9,7 @@ if (!(globalThis as any).__weeveVideoPosterCache) (globalThis as any).__weeveVid
 if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoReadyRef = GLOBAL_VIDEO_READY_REF;
 
 import { Story, useStore, Contribution } from "@/lib/store";
+import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
 import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,6 +19,7 @@ import VerificationBadge from "./VerificationBadge";
 
 interface FeedItemProps {
     story: Story;
+    initialContributionId?: string;
 }
 
 const formatRelativeTime = (timestamp: number) => {
@@ -61,9 +63,10 @@ const formatRelativeTime = (timestamp: number) => {
     return `${Math.max(0, deltaYears)}y ago`;
 };
 
-export default function FeedItem({ story }: FeedItemProps) {
+export default function FeedItem({ story, initialContributionId }: FeedItemProps) {
     const router = useRouter();
     const [currentIndex, setCurrentIndex] = useState(0);
+    const initialSet = useRef(false);
     const [isVisible, setIsVisible] = useState(false);
     const [isCommentsOpen, setIsCommentsOpen] = useState(false);
     const [commentText, setCommentText] = useState("");
@@ -182,6 +185,10 @@ export default function FeedItem({ story }: FeedItemProps) {
     const toggleStorySave = useStore((state) => state.toggleStorySave);
 
     useEffect(() => {
+        if (!isVisible) {
+            // Avoid preloading when the story isn't visible (prevent loading everything)
+            return;
+        }
         if (showFriendPicker && friends.length === 0) {
             fetchFriends();
         }
@@ -245,7 +252,7 @@ export default function FeedItem({ story }: FeedItemProps) {
         }
 
         // 2. Fill gaps with remaining contributions (Implicit Mapping)
-        // This handles cases where a user has multiple contributions but only one participant entry (due to DB unique constraint)
+        // This handles cases where a user has multiple contributions but only one participant entry.
         const remainingContributions = sortedContributions.filter(c => !usedContributionIds.has(c.id));
         const maxSlots = story.maxWeeves || 3;
 
@@ -274,10 +281,93 @@ export default function FeedItem({ story }: FeedItemProps) {
         return ordered;
     }, [slotContentMap, story.maxWeeves]);
 
-    const contributionsCount = orderedContributions.length;
+    // Fallback: if mapping produced nothing, fall back to raw contributions order
+    const effectiveOrderedContributions = useMemo(() => {
+        if (orderedContributions.length > 0) return orderedContributions;
+        // use raw contributions sorted by timestamp
+        return (story.contributions || []).slice().sort((a, b) => a.timestamp - b.timestamp);
+    }, [orderedContributions, story.contributions]);
+
+    // If an initial id is provided and that raw contribution doesn't appear in the
+    // effective ordered list (due to mappings), ensure it is at the front so we can
+    // start playback there.
+    const chosenRawContribution = initialContributionId ? contributions.find(c => c.id === initialContributionId) : undefined;
+
+    const displayOrderedContributions = useMemo(() => {
+        if (!chosenRawContribution) return effectiveOrderedContributions;
+        const exists = effectiveOrderedContributions.some(c => c.id === chosenRawContribution.id);
+        if (exists) return effectiveOrderedContributions;
+        return [chosenRawContribution, ...effectiveOrderedContributions.filter(c => c.id !== chosenRawContribution.id)];
+    }, [effectiveOrderedContributions, chosenRawContribution]);
+
+    // If an initialContributionId prop is provided, set the initial index to the
+    // matching contribution position. This ensures opening via profile/feed starts
+    // at the expected contribution (e.g., the shield thumbnail)
+    useEffect(() => {
+        // Only auto-select initial index if user hasn't interacted
+        if (hasInteracted) return;
+        if (effectiveOrderedContributions.length === 0) return;
+
+        const debug = (msg: string, obj?: unknown) => console.debug('[FeedItem:init]', msg, obj);
+
+        const applyIndex = (idx: number | null) => {
+            if (idx === null || idx < 0 || idx >= effectiveOrderedContributions.length) return false;
+            setCurrentIndex(idx);
+            initialSet.current = true;
+            return true;
+        };
+
+        if (initialContributionId) {
+            debug('initialContributionId provided', { initialContributionId });
+            // 1) Try direct id match in effectiveOrderedContributions
+            const foundIndex = effectiveOrderedContributions.findIndex(c => c.id === initialContributionId);
+            if (foundIndex >= 0 && applyIndex(foundIndex)) {
+                debug('Found initial by id in effectiveOrderedContributions', { foundIndex });
+                return;
+            }
+
+            // 2) If not found by id, look up the contribution by id in raw contributions and match by mediaUrl
+            const rawContrib = contributions.find(c => c.id === initialContributionId);
+            if (rawContrib) {
+                debug('Found raw contribution for id', { rawContrib });
+                const mediaUrlToMatch = rawContrib.mediaUrl || rawContrib.content || '';
+                // try exact mediaUrl match first
+                const foundByMedia = effectiveOrderedContributions.findIndex(c => (c.mediaUrl || '').includes(mediaUrlToMatch) || (mediaUrlToMatch || '').includes(c.mediaUrl || ''));
+                if (foundByMedia >= 0 && applyIndex(foundByMedia)) {
+                    debug('Found initial by mediaUrl in effectiveOrderedContributions', { foundByMedia });
+                    return;
+                }
+
+                // 3) Try matching by userId + content
+                const foundByUserContent = effectiveOrderedContributions.findIndex(c => c.userId === rawContrib.userId && c.content === rawContrib.content);
+                if (foundByUserContent >= 0 && applyIndex(foundByUserContent)) {
+                    debug('Found initial by userId+content', { foundByUserContent });
+                    return;
+                }
+            } else {
+                debug('initialContributionId not found in raw contributions', { initialContributionId, contributions: contributions.map(c => c.id) });
+            }
+
+            debug('initialContributionId not found in effectiveOrderedContributions, falling back');
+        }
+
+        // If we get here we didn't match initial contribution, try to set to first playable
+        const firstPlayable = effectiveOrderedContributions.findIndex(c => {
+            if (!c) return false;
+            if (c.mediaType !== 'video') return true;
+            return !!(c.mediaUrl && c.mediaUrl.trim());
+        });
+
+        if (firstPlayable >= 0 && applyIndex(firstPlayable)) {
+            debug('Set initial to firstPlayable', { firstPlayable });
+        }
+
+    }, [initialContributionId, effectiveOrderedContributions, contributions, hasInteracted]);
+
+    const contributionsCount = displayOrderedContributions.length;
     const hasContributions = contributionsCount > 0;
     const safeIndex = hasContributions ? currentIndex % contributionsCount : 0;
-    const currentContribution = hasContributions ? orderedContributions[safeIndex] : undefined;
+    const currentContribution = hasContributions ? displayOrderedContributions[safeIndex] : undefined;
     const mediaUrl = currentContribution?.mediaUrl;
 
     const mediaType: 'video' | 'image' | 'text' | 'drawing' = (() => {
@@ -316,7 +406,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                     mediaUrlIsEmpty: !currentContribution.mediaUrl?.trim(),
                     content: currentContribution.content?.substring(0, 30)
                 } : null,
-                orderedContributions: orderedContributions.map(c => ({
+                orderedContributions: displayOrderedContributions.map(c => ({
                     id: c.id,
                     mediaType: c.mediaType,
                     hasMediaUrl: !!c.mediaUrl,
@@ -340,7 +430,13 @@ export default function FeedItem({ story }: FeedItemProps) {
                 } : null
             });
         }
-    }, [story.id, contributionsCount, currentIndex, currentContribution, hasContributions, story.coverImage, story.title, orderedContributions, slotContentMap, mediaType, isVideoReady, isVideoVisible, mediaUrl]);
+    }, [story.id, contributionsCount, currentIndex, currentContribution, hasContributions, story.coverImage, story.title, displayOrderedContributions, slotContentMap, mediaType, isVideoReady, isVideoVisible, mediaUrl]);
+
+    // Log current play item when it changes
+    useEffect(() => {
+        if (!currentContribution) return;
+        console.debug('[FeedItem] Playing contribution:', { id: currentContribution.id, mediaType: currentContribution.mediaType, mediaUrl: currentContribution.mediaUrl, index: currentIndex });
+    }, [currentContribution, currentIndex]);
     // We intentionally avoid generating video posters/placeholders for feed items.
     // Keeping a solid black overlay until playback begins ensures no poster or
     // snapshot flash appears (some sources may include a baked-in play icon).
@@ -477,6 +573,7 @@ export default function FeedItem({ story }: FeedItemProps) {
 
             preloadVideo.load();
 
+            // Cache preload only when visible; this reduces background requests
             videoPreloadCache.current.set(mediaUrl, preloadVideo);
             cleanupFns.push(cleanup);
         }
@@ -484,7 +581,7 @@ export default function FeedItem({ story }: FeedItemProps) {
         return () => {
             cleanupFns.forEach((fn) => fn());
         };
-    }, [contributions, markVideoReady]);
+    }, [contributions, markVideoReady, isVisible]);
 
     useEffect(() => {
         // Instantly skip to next video if not ready or error, no placeholder
@@ -499,11 +596,11 @@ export default function FeedItem({ story }: FeedItemProps) {
             setIsVideoReady(false);
             setIsVideoVisible(false);
             // Skip to next playable index once (avoid infinite loops)
-            if (orderedContributions.length > 1) {
+            if (displayOrderedContributions.length > 1) {
                 const findNextPlayable = (start: number) => {
-                    for (let i = 1; i <= orderedContributions.length; i++) {
-                        const idx = (start + i) % orderedContributions.length;
-                        const cand = orderedContributions[idx];
+                    for (let i = 1; i <= displayOrderedContributions.length; i++) {
+                        const idx = (start + i) % displayOrderedContributions.length;
+                        const cand = displayOrderedContributions[idx];
                         if (!cand) continue;
                         const isCandVideo = cand.mediaType === 'video';
                         const hasUrl = !!(cand.mediaUrl && cand.mediaUrl.trim());
@@ -675,11 +772,11 @@ export default function FeedItem({ story }: FeedItemProps) {
             if (!videoReadyRef.current.get(mediaUrl)) {
                 setIsVideoVisible(false);
                 setIsVideoReady(false);
-                if (orderedContributions.length > 1) {
+                if (displayOrderedContributions.length > 1) {
                     const findNextPlayable = (start: number) => {
-                        for (let i = 1; i <= orderedContributions.length; i++) {
-                            const idx = (start + i) % orderedContributions.length;
-                            const cand = orderedContributions[idx];
+                        for (let i = 1; i <= displayOrderedContributions.length; i++) {
+                            const idx = (start + i) % displayOrderedContributions.length;
+                            const cand = displayOrderedContributions[idx];
                             if (!cand) continue;
                             const isCandVideo = cand.mediaType === 'video';
                             const hasUrl = !!(cand.mediaUrl && cand.mediaUrl.trim());
@@ -713,7 +810,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                 } catch (e) { }
             }
         };
-    }, [mediaType, mediaUrl, markVideoReady, orderedContributions.length, currentContribution, currentIndex, currentVideoSrc]);
+    }, [mediaType, mediaUrl, markVideoReady, displayOrderedContributions.length, currentContribution, currentIndex, currentVideoSrc]);
 
     // Intersection Observer to track visibility and trigger autoplay reset on remount
     useEffect(() => {
@@ -777,12 +874,12 @@ export default function FeedItem({ story }: FeedItemProps) {
         let timeoutId: NodeJS.Timeout | undefined;
 
         const handleNext = () => {
-            setCurrentIndex((prev) => (prev + 1) % orderedContributions.length);
+            setCurrentIndex((prev) => (prev + 1) % displayOrderedContributions.length);
         };
 
         if (mediaType !== 'video') {
-            // Auto-advance images after 4 seconds
-            timeoutId = setTimeout(handleNext, 4000);
+            // Auto-advance images after 5 seconds
+            timeoutId = setTimeout(handleNext, NON_VIDEO_AUTO_ADVANCE_MS);
         }
 
         // For video, we rely on onEnded event, but we need to make sure it plays
@@ -833,14 +930,14 @@ export default function FeedItem({ story }: FeedItemProps) {
         return () => {
             if (timeoutId) clearTimeout(timeoutId);
         };
-    }, [currentIndex, orderedContributions.length, mediaType, isVisible, hasContributions, isCommentsOpen, isVideoReady, mediaUrl]);
+    }, [currentIndex, displayOrderedContributions.length, mediaType, isVisible, hasContributions, isCommentsOpen, isVideoReady, mediaUrl]);
 
     const handleVideoEnded = () => {
         setCurrentIndex((prev) => {
-            if (orderedContributions.length === 0) {
+            if (displayOrderedContributions.length === 0) {
                 return 0;
             }
-            return (prev + 1) % orderedContributions.length;
+            return (prev + 1) % displayOrderedContributions.length;
         });
     };
 
@@ -888,6 +985,13 @@ export default function FeedItem({ story }: FeedItemProps) {
             setShowFriendPicker(false);
 
             if (result.success && result.storyId) {
+                // Show any warnings returned by the server
+                if ((result as any).warning) {
+                    setTimeout(() => {
+                        alert((result as any).warning);
+                    }, 120);
+                }
+
                 // Check if user selected themselves vs inviting a friend
                 if (participantId === currentUser?.id) {
                     // Navigate to the new forked story for immediate contribution
@@ -935,11 +1039,11 @@ export default function FeedItem({ story }: FeedItemProps) {
     return (
         <div
             ref={containerRef}
-            className="relative w-full h-[calc(100vh-64px)] snap-start shrink-0 bg-gray-900 overflow-hidden"
+            className="relative w-full h-[calc(100vh-64px)] weeve-snap-item snap-start shrink-0 bg-gray-900 overflow-hidden"
             onClick={handleContainerClick}
         >
             {/* Media Background */}
-            {waitingForFirstContribution ? (
+            {waitingForFirstContribution && waitingParticipant?.id !== currentUser?.id ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white">
                     <div className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-black/40 border border-white/10 backdrop-blur-sm">
                         <div className="relative">
@@ -959,6 +1063,12 @@ export default function FeedItem({ story }: FeedItemProps) {
                             {waitingParticipant?.name?.split(' ')[0] || 'the first stitch'}
                         </span>
                     </div>
+                    {story.currentTurnUserId === currentUser?.id && (
+                        <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+                            <img src="/weeve-logo.png" alt="Your Turn" className="w-6 h-6 animate-glow-pulse drop-shadow-md" />
+                            <span className="text-[11px] font-bold text-white bg-[#EC1D99] px-2 py-0.5 rounded-full">Your turn</span>
+                        </div>
+                    )}
                 </div>
             ) : mediaType === 'video' && (mediaUrl || currentVideoSrc) ? (
                 <>
@@ -1329,7 +1439,7 @@ export default function FeedItem({ story }: FeedItemProps) {
                             const isActive = p.id === activeUserId;
                             return (
                                 <Link
-                                    key={p.id}
+                                    key={`${p.id}-${p.position}`}
                                     href={`/profile/${p.id}`}
                                     onClick={(e) => e.stopPropagation()}
                                     className={`relative rounded-full ${isActive ? 'z-10 scale-110 transition-transform duration-300' : ''}`}
