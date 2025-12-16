@@ -1,14 +1,18 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+
+
+// Make the dev server opt-in via env var so production builds use bundled assets
+const server = process.env.CAPACITOR_SERVER_URL
+  ? { url: process.env.CAPACITOR_SERVER_URL, cleartext: process.env.CAPACITOR_SERVER_CLEARTEXT === 'true' }
+  : undefined;
+
 const config: CapacitorConfig = {
   // Development bundle id changed to personal dev id so Xcode can auto-provision
   appId: 'com.weeve.app',
   appName: 'Weeve',
   webDir: 'public',
-  server: {
-    url: 'http://192.168.0.185:3000',
-    cleartext: true
-  },
+  server,
   // Deep linking configuration
   ios: {
     scheme: 'weeve',

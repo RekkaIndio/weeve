@@ -36,7 +36,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data
-                    android:scheme="com.weeve.app"
+                    android:scheme="${applicationId}"
                     android:host="auth"
                     android:path="/callback" />
             </intent-filter>

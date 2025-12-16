@@ -13,7 +13,12 @@
     "prisma:migrate": "prisma migrate dev --name init",
     "seed": "node prisma/seed.js",
     "seed:supabase": "tsx scripts/seed-supabase.ts",
-    "docker:dev": "docker-compose up --build"
+    "docker:dev": "docker-compose up --build",
+    "android:release:bundle": "npm run build && npx cap sync android && cd android && ./gradlew bundleRelease",
+    "android:release:bundle:remote": "CAPACITOR_SERVER_URL=\"https://tryweeve.com\" CAPACITOR_SERVER_CLEARTEXT=false npm run build && npx cap sync android && cd android && ./gradlew bundleRelease",
+    "android:staging:bundle": "CAPACITOR_SERVER_URL=\"https://staging.tryweeve.com\" CAPACITOR_SERVER_CLEARTEXT=false npm run build && npx cap sync android && cd android && ./gradlew bundleStaging",
+    "android:dev:sync": "CAPACITOR_SERVER_URL=\"http://192.168.0.185:3000\" CAPACITOR_SERVER_CLEARTEXT=true npx cap sync android && npx cap open android",
+    "android:emulator:sync": "CAPACITOR_SERVER_URL=\"http://10.0.2.2:3000\" CAPACITOR_SERVER_CLEARTEXT=true npx cap sync android && npx cap open android"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.933.0",

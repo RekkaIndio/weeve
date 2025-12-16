@@ -38,21 +38,32 @@ npm run dev -- -H 0.0.0.0
 
 ## ⚙️ Configuration
 
-### Changing the Server URL
-Currently, the app points to `http://192.168.0.185:3000`.
-If your IP changes or you want to point to a production URL (e.g., `https://your-app.com`), edit `capacitor.config.ts`:
+### Server URL (dev vs production)
+By default in development you may point the app at your computer's dev server. Do NOT ship that value to production — Play Store users will see a WebView error like `ERR_CONNECTION_REFUSED` when that dev server is unreachable.
 
-```typescript
-// capacitor.config.ts
-const config: CapacitorConfig = {
-  // ...
-  server: {
-    url: 'https://your-production-url.com', // <--- Update this
-    cleartext: true // Set to false for https
-  }
-};
+- For development only: set the server URL at build time with env vars so it is opt-in:
+
+```bash
+CAPACITOR_SERVER_URL="http://192.168.0.185:3000" CAPACITOR_SERVER_CLEARTEXT=true npx cap sync android
 ```
 
+- For production/release: the recommended approach is to leave `CAPACITOR_SERVER_URL` unset so the app loads the bundled `webDir` assets from the APK/AAB.
+
+  If you instead want the installed app to load the remote production web app, set `CAPACITOR_SERVER_URL` to `https://tryweeve.com` and `CAPACITOR_SERVER_CLEARTEXT=false` when building and syncing before producing a release bundle. Example:
+
+  ```bash
+  # Option A: bundled assets (recommended)
+  npm run build
+  npx cap sync android
+  cd android && ./gradlew bundleRelease
+
+  # Option B: point release at https://tryweeve.com (if intentional)
+  CAPACITOR_SERVER_URL="https://tryweeve.com" CAPACITOR_SERVER_CLEARTEXT=false npm run build
+  npx cap sync android
+  cd android && ./gradlew bundleRelease
+  ```
+
+If you accidentally published an APK/AAB that points at your local dev server, remove the `server.url` (or unset the env var), rebuild the release, and submit an update to the Play Store.
 ### Syncing Changes
 If you install new npm packages or change assets in `public/`, run:
 ```bash
