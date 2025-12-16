@@ -51,7 +51,7 @@ export default function AppRedirectPage() {
         const ref = searchParams?.get('ref');
         
         // Build deep link URLs
-        const appScheme = 'weeve://';
+        const appScheme = 'com.weeve.app://';
         const deepLinkPath = ref ? `signup?ref=${ref}` : 'feed';
         const deepLink = `${appScheme}${deepLinkPath}`;
         

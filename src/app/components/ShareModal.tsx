@@ -23,6 +23,20 @@ interface Recipient {
 }
 
 export default function ShareModal({ story, onClose }: ShareModalProps) {
+    // Helper to open URLs using Capacitor Browser on native, falling back to window.open on web
+    const openUrl = async (url: string) => {
+        try {
+            const { Capacitor } = await import('@capacitor/core');
+            if (Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+                const { Browser } = await import('@capacitor/browser');
+                await Browser.open({ url });
+                return;
+            }
+        } catch (e) {
+            // ignore and fallback to window.open
+        }
+        try { window.open(url, '_blank'); } catch (e) { /* ignore */ }
+    };
     // Feature flag to temporarily disable client-side download until bug is resolved
     const ENABLE_DOWNLOAD_FEATURE = false;
 
@@ -141,9 +155,9 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
         }
     };
 
-    const handleWhatsAppShare = () => {
+    const handleWhatsAppShare = async () => {
         const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
-        window.open(whatsappUrl, '_blank');
+        await openUrl(whatsappUrl);
         toast.success('Opening WhatsApp...');
     };
 
@@ -541,7 +555,11 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                                     toast.success('Download started!');
                                                 } catch (e) {
                                                     console.warn('Fallback download failed, opening in new tab:', e);
-                                                    window.open(videoUrl, '_blank');
+                                                        try {
+                                                            await openUrl(videoUrl);
+                                                        } catch (openErr) {
+                                                            // fallback: already handled in openUrl
+                                                        }
                                                     toast.success('Video opened! Use browser menu to save.');
                                                 }
                                             }}

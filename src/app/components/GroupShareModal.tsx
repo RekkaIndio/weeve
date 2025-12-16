@@ -28,6 +28,20 @@ interface Recipient {
 }
 
 export default function GroupShareModal({ group, onClose }: GroupShareModalProps) {
+    // Helper to open URLs using Capacitor Browser on native, falling back to window.open on web
+    const openUrl = async (url: string) => {
+        try {
+            const { Capacitor } = await import('@capacitor/core');
+            if (Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+                const { Browser } = await import('@capacitor/browser');
+                await Browser.open({ url });
+                return;
+            }
+        } catch (e) {
+            // ignore and fallback to window.open
+        }
+        try { window.open(url, '_blank'); } catch (e) { /* ignore */ }
+    };
     const friends = useStore((state) => state.friends);
     const currentUser = useStore((state) => state.currentUser);
     const fetchFriends = useStore((state) => state.fetchFriends);
@@ -129,9 +143,9 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
         }
     };
 
-    const handleWhatsAppShare = () => {
+    const handleWhatsAppShare = async () => {
         const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
-        window.open(whatsappUrl, '_blank');
+        await openUrl(whatsappUrl);
         toast.success('Opening WhatsApp...');
     };
 

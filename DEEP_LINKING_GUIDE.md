@@ -12,7 +12,7 @@ The Weeve app now intelligently redirects users to the native mobile app when th
 2. Middleware detects mobile device + ref parameter
 3. Redirects to: `/app-redirect?ref=JAM-JHJVLP`
 4. App redirect page detects platform (iOS/Android)
-5. Attempts to open native app via deep link: `weeve://signup?ref=JAM-JHJVLP`
+5. Attempts to open native app via deep link: `com.weeve.app://signup?ref=JAM-JHJVLP`
 6. If app installed: Opens directly to signup with ref code
 7. If app not installed: Redirects to App Store/Play Store
 
@@ -25,10 +25,10 @@ The Weeve app now intelligently redirects users to the native mobile app when th
 ### Deep Link Formats
 
 ```
-weeve://feed                    # Opens to main feed
-weeve://signup?ref=JAM-JHJVLP  # Opens to signup with referral code
-weeve://story/[id]             # Opens specific story
-weeve://profile/[username]     # Opens user profile
+com.weeve.app://feed                    # Opens to main feed
+com.weeve.app://signup?ref=JAM-JHJVLP  # Opens to signup with referral code
+com.weeve.app://story/[id]             # Opens specific story
+com.weeve.app://profile/[username]     # Opens user profile
 ```
 
 ## Technical Implementation
@@ -51,27 +51,27 @@ weeve://profile/[username]     # Opens user profile
 
 4. **capacitor.config.ts**
    - Added deep linking scheme configuration
-   - Supports `weeve://` URL scheme
+   - Supports `com.weeve.app://` URL scheme
 
 5. **android/app/src/main/AndroidManifest.xml**
    - Added deep link intent filters
-   - Supports both `weeve://` and `https://tryweeve.com`
+   - Supports both `com.weeve.app://` and `https://tryweeve.com`
    - Enables App Links (verified universal links)
 
 6. **ios/App/App/Info.plist**
-   - Added `weeve://` URL scheme
+   - Added `com.weeve.app://` URL scheme
    - Enables deep linking on iOS
 
 ### Deep Link Configuration
 
 #### Android (`AndroidManifest.xml`)
 ```xml
-<!-- Deep linking for weeve:// URLs -->
+<!-- Deep linking for com.weeve.app:// URLs -->
 <intent-filter android:autoVerify="true">
     <action android:name="android.intent.action.VIEW" />
     <category android:name="android.intent.category.DEFAULT" />
     <category android:name="android.intent.category.BROWSABLE" />
-    <data android:scheme="weeve" />
+    <data android:scheme="com.weeve.app" />
 </intent-filter>
 
 <!-- Universal Links (https://tryweeve.com) -->
@@ -91,7 +91,7 @@ weeve://profile/[username]     # Opens user profile
     <string>Weeve Deep Link</string>
     <key>CFBundleURLSchemes</key>
     <array>
-        <string>weeve</string>
+        <string>com.weeve.app</string>
     </array>
 </dict>
 ```
@@ -148,12 +148,12 @@ const androidPlayStoreUrl = 'https://play.google.com/store/apps/details?id=com.w
 
 #### On iOS (Simulator or Device):
 ```bash
-xcrun simctl openurl booted "weeve://signup?ref=JAM-JHJVLP"
+xcrun simctl openurl booted "com.weeve.app://signup?ref=JAM-JHJVLP"
 ```
 
 #### On Android (Device via ADB):
 ```bash
-adb shell am start -W -a android.intent.action.VIEW -d "weeve://signup?ref=JAM-JHJVLP" com.weeve.app
+adb shell am start -W -a android.intent.action.VIEW -d "com.weeve.app://signup?ref=JAM-JHJVLP" com.weeve.app
 ```
 
 ### Test User Flow
@@ -215,6 +215,11 @@ The system uses multiple signals to detect platform:
 const detectPlatform = () => {
   const userAgent = navigator.userAgent;
   
+  // App detection (via custom UA appended in capacitor.config.ts)
+  if (userAgent.includes('WeeveApp')) {
+      return 'app'; // Native app
+  }
+
   // iOS detection
   if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
     return 'ios';
@@ -227,6 +232,24 @@ const detectPlatform = () => {
   
   return 'web';
 };
+```
+
+### Server Configuration (`capacitor.config.ts`)
+
+To prevent the Android app from opening `tryweeve.com` links in the system browser, we treat it as a navigable domain:
+```typescript
+server: {
+  allowNavigation: [
+    'tryweeve.com',
+    'www.tryweeve.com',
+    '*.tryweeve.com'
+  ]
+}
+```
+
+And we append a clean UserAgent string to identify the app:
+```typescript
+appendUserAgent: ' WeeveApp'
 ```
 
 ## Fallback Strategy
@@ -260,7 +283,7 @@ const detectPlatform = () => {
    ```
 
 3. **Check URL format:**
-   - Must be exactly: `weeve://path?params`
+   - Must be exactly: `com.weeve.app://path?params`
    - No spaces or special characters
 
 ### Store Redirect Not Working

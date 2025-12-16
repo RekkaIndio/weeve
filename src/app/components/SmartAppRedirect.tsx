@@ -41,8 +41,8 @@ export default function SmartAppRedirect() {
 
             // Build deep link with referral code if present
             const deepLink = ref 
-                ? `weeve://signup?ref=${ref}`
-                : 'weeve://feed';
+                ? `com.weeve.app://signup?ref=${ref}`
+                : 'com.weeve.app://feed';
 
             // iOS App Store URL
             const iosAppStoreUrl = 'https://apps.apple.com/app/weeve/idXXXXXXXXXX'; // TODO: Replace with actual App Store ID

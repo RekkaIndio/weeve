@@ -6,8 +6,10 @@ export function middleware(request: NextRequest) {
     const { device, ua } = userAgent(request)
 
     // Check for mobile devices (phones and tablets)
-    const isMobile = device.type === 'mobile' || device.type === 'tablet' ||
-        /android|iphone|ipad|ipod/i.test(ua)
+    // BUT exclude our native app (which we identify via custom user agent)
+    const isNativeApp = ua.includes('WeeveApp')
+    const isMobile = (device.type === 'mobile' || device.type === 'tablet' ||
+        /android|iphone|ipad|ipod/i.test(ua)) && !isNativeApp
 
     const { pathname } = request.nextUrl
 

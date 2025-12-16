@@ -10,7 +10,7 @@ type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
 
 export const NATIVE_GOOGLE_REDIRECT_URI_ANDROID = 'com.weeve.app://auth/callback';
-export const NATIVE_GOOGLE_REDIRECT_URI_IOS = 'com.jay.weeve.app://auth/callback';
+export const NATIVE_GOOGLE_REDIRECT_URI_IOS = 'com.weeve.app://auth/callback';
 export function getNativeRedirectUri(platform?: string) {
     try {
         const p = platform ?? (typeof Capacitor !== 'undefined' ? Capacitor.getPlatform() : 'web');

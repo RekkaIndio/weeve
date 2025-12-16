@@ -18,6 +18,22 @@
       <a class="button" id="open-site" href="https://tryweeve.com">Open website</a>
     </div>
     <script>
+        // Defensive stub: ensure `window.Capacitor` exists to avoid uncaught errors
+        // when the native layer calls `triggerEvent` before the bridge is injected.
+        // Only create a noop stub if Capacitor isn't already present.
+        if (typeof window !== 'undefined' && !window.Capacitor) {
+          // Minimal stub matching methods the app/native bridge expects.
+          // Real Capacitor will overwrite this when the bridge is injected.
+          // Keep functions synchronous and non-throwing.
+          window.Capacitor = {
+            isNativePlatform: () => false,
+            getPlatform: () => 'web',
+            triggerEvent: () => false,
+            Platforms: {},
+            __isStub: true,
+          };
+        }
+
       // If the page is opened in a normal browser and not in the Capacitor WebView, redirect to the site.
       // When running in the native app's WebView, don't auto-redirect so the user stays inside the app.
       const isCapacitor = !!(window.Capacitor || window.__capacitor__);

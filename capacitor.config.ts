@@ -3,9 +3,19 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 
 // Make the dev server opt-in via env var so production builds use bundled assets
-const server = process.env.CAPACITOR_SERVER_URL
-  ? { url: process.env.CAPACITOR_SERVER_URL, cleartext: process.env.CAPACITOR_SERVER_CLEARTEXT === 'true' }
-  : undefined;
+// Make the dev server opt-in via env var so production builds use bundled assets
+// Default to production URL if not specified
+const serverUrl = process.env.CAPACITOR_SERVER_URL || 'https://tryweeve.com';
+const server = {
+  url: serverUrl,
+  cleartext: process.env.CAPACITOR_SERVER_CLEARTEXT === 'true',
+  // precise domain needed for deep links to not open in browser
+  allowNavigation: [
+    'tryweeve.com',
+    'www.tryweeve.com',
+    '*.tryweeve.com'
+  ],
+};
 
 const config: CapacitorConfig = {
   // Development bundle id changed to personal dev id so Xcode can auto-provision
@@ -13,9 +23,11 @@ const config: CapacitorConfig = {
   appName: 'Weeve',
   webDir: 'public',
   server,
+  // Add a unique string to the User Agent so we can detect the app in middleware
+  appendUserAgent: ' WeeveApp',
   // Deep linking configuration
   ios: {
-    scheme: 'weeve',
+    scheme: 'com.weeve.app',
   },
   plugins: {
     GoogleAuth: {

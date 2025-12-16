@@ -22,12 +22,12 @@ Instead of being stuck in web browser! 🎉
 
 **iOS:**
 ```bash
-xcrun simctl openurl booted "weeve://signup?ref=JAM-JHJVLP"
+xcrun simctl openurl booted "com.weeve.app://signup?ref=JAM-JHJVLP"
 ```
 
 **Android:**
 ```bash
-adb shell am start -W -a android.intent.action.VIEW -d "weeve://signup?ref=JAM-JHJVLP" com.weeve.app
+adb shell am start -W -a android.intent.action.VIEW -d "com.weeve.app://signup?ref=JAM-JHJVLP" com.weeve.app
 ```
 
 ### 2. Test Full Flow (real device)
@@ -48,8 +48,8 @@ adb shell am start -W -a android.intent.action.VIEW -d "weeve://signup?ref=JAM-J
 ```
 ✅ https://www.tryweeve.com/?ref=JAM-JHJVLP
 ✅ https://tryweeve.com/?ref=JAM-JHJVLP
-✅ weeve://signup?ref=JAM-JHJVLP
-✅ weeve://feed
+✅ com.weeve.app://signup?ref=JAM-JHJVLP
+✅ com.weeve.app://feed
 ```
 
 ## Files Changed

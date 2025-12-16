@@ -111,7 +111,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                 if (!storeState.profileUpdateInProgress) {
                                     setCurrentUser(appUser);
                                 }
-                                try { if (typeof setupRedirectTimer !== 'undefined') clearTimeout(setupRedirectTimer); } catch {}
+                                try { if (typeof setupRedirectTimer !== 'undefined') clearTimeout(setupRedirectTimer); } catch { }
                                 clearInterval(intervalId);
                             } else if (backgroundAttempts >= 8) {
                                 clearInterval(intervalId);
@@ -284,7 +284,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
         if (Capacitor.isNativePlatform()) {
             const processAuthCallbackUrl = async (url?: string) => {
-                if (!url || (!url.startsWith(NATIVE_GOOGLE_REDIRECT_URI_ANDROID) && !url.startsWith(NATIVE_GOOGLE_REDIRECT_URI_IOS))) return;
+                if (!url || (!url.startsWith(NATIVE_GOOGLE_REDIRECT_URI_ANDROID) && !url.startsWith(NATIVE_GOOGLE_REDIRECT_URI_IOS))) {
+                    return;
+                }
 
                 try {
                     const parsed = new URL(url);
@@ -339,7 +341,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                             // No profile found — attempt to auto-create a profile for UX (will be null if creation fails)
                                             try {
                                                 const candidateName = data.user.user_metadata?.name ?? data.user.email?.split('@')[0] ?? 'User';
-                                                        const createdProfile = await attemptCreateProfileAndSet(data.user.id, candidateName, data.user.user_metadata?.picture);
+                                                const createdProfile = await attemptCreateProfileAndSet(data.user.id, candidateName, data.user.user_metadata?.picture);
                                                 // try quickly to fetch after create
                                                 await attemptFastProfileLoad(accessToken as string | undefined, data.user.id);
                                             } catch (createErr) {
@@ -446,8 +448,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                         await processAuthCallbackUrl(launchUrl);
                     }
                 } catch (err) {
-                console.warn('[AuthProvider] Failed to get launch URL:', err);
-            }
+                    console.warn('[AuthProvider] Failed to get launch URL:', err);
+                }
             })();
 
             const nativeListenerPromise = App.addListener('appUrlOpen', async ({ url }) => {

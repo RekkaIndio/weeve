@@ -58,11 +58,11 @@ Supabase still performs the initial OAuth handshake through its own callback. Ad
 - `https://fvyhyexdndynoonkzwbd.supabase.co/auth/v1/callback`
 - `http://localhost:3000/auth/callback`
 - Any additional environments you pass via `redirectTo` (for example your LAN IP such as `http://192.168.0.185:3000/auth/callback` or your production domain).
-- The native deep links used by the Capacitor apps: `com.jay.weeve.app://auth/callback` (iOS) and `com.weeve.app://auth/callback` (Android)
+- The native deep links used by the Capacitor apps: `com.weeve.app://auth/callback` (iOS and Android)
 
 Register the same URIs under **Additional Redirect URLs** in Supabase (Authentication → URL Configuration) so Supabase accepts the callback as well.
 
-If you plan to customise the native scheme, update the Capacitor configuration and the `NATIVE_GOOGLE_REDIRECT_URI` constants in `src/lib/auth.ts` to match, then re-run `npx cap sync`. Otherwise keep the defaults `com.weeve.app://auth/callback` (Android) and `com.jay.weeve.app://auth/callback` (iOS) listed above.
+If you plan to customise the native scheme, update the Capacitor configuration and the `NATIVE_GOOGLE_REDIRECT_URI` constants in `src/lib/auth.ts` to match, then re-run `npx cap sync`. Otherwise keep the defaults `com.weeve.app://auth/callback` for both Android and iOS listed above.
 
 ## Troubleshooting Google Sign-In
 
@@ -77,7 +77,14 @@ If you plan to customise the native scheme, update the Capacitor configuration a
 - Check that bundle ID matches between `capacitor.config.ts` and iOS/Android project
 - Verify `iosClientId` is configured in `capacitor.config.ts` (required for iOS)
 - Run `npx cap sync` after any configuration changes
-- Ensure the native deep links are registered in Google Cloud Console: `com.jay.weeve.app://auth/callback` (iOS) and `com.weeve.app://auth/callback` (Android)
+- Ensure the native deep links are registered in Google Cloud Console: `com.weeve.app://auth/callback` (iOS and Android)
+
+**Checklist for production:**
+- Confirm the iOS App Bundle ID in Xcode matches the redirect URI scheme (e.g., `com.weeve.app`). If the bundle id differs (e.g., `com.jay.weeve.app` for dev), update the `NATIVE_GOOGLE_REDIRECT_URI_IOS` constant or the bundle id to match production.
+- Add `com.weeve.app://auth/callback` and your web callback (e.g., `https://www.tryweeve.com/auth/callback`) to the **Authorized redirect URIs** in the Google Cloud OAuth client.
+- Ensure `NEXT_PUBLIC_WEB_APP_URL_PROD` (or `NEXT_PUBLIC_WEB_APP_URL`) is set in your production environment so web OAuth redirects use the correct domain.
+- After changes to `capacitor.config.ts` or native project files, run `npx cap sync` and rebuild the native apps.
+
 
 **3. "Invalid client" error**
 - Verify Client ID and Client Secret in Supabase dashboard match Google Cloud Console
@@ -93,7 +100,7 @@ If you plan to customise the native scheme, update the Capacitor configuration a
 
 The following must all use the SAME bundle identifier:
 - `capacitor.config.ts` → `appId` (currently: `com.weeve.app`)
-- `src/lib/auth.ts` → `NATIVE_GOOGLE_REDIRECT_URI` (should match appId)
+- `src/lib/auth.ts` → `NATIVE_GOOGLE_REDIRECT_URI` (should match appId; use `com.weeve.app://auth/callback` for both Android and iOS unless you intentionally customise the scheme).
 - iOS Xcode project → Bundle Identifier
 - Android `AndroidManifest.xml` → package name
 - Google Cloud Console → iOS/Android app registration
