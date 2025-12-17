@@ -137,7 +137,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             let profileFound = false;
             const setupRedirectTimer = setTimeout(() => {
                 if (!profileFound) {
-                    try { router.replace('/feed'); } catch { window.location.replace('/feed'); }
+                    const currentPath = window.location.pathname;
+                    if (isPublicRoute(currentPath)) {
+                        try { router.replace('/feed'); } catch { window.location.replace('/feed'); }
+                    }
                 }
             }, 10000);
 
@@ -189,7 +192,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 // missing after some time, we can guide the user to set up their profile.
                 console.warn('[AuthProvider] No profile found after retries; continuing with placeholder user and background poll');
                 const currentPath = window.location.pathname;
-                if (!currentPath.startsWith('/feed')) {
+                if (isPublicRoute(currentPath)) {
                     try { router.replace('/feed'); } catch { window.location.replace('/feed'); }
                 }
             }
