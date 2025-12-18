@@ -7,10 +7,10 @@ import { Search, TrendingUp, Sparkles, Clock, Users, Plus, X } from "lucide-reac
 import NotificationBell from "@/app/components/NotificationBell";
 
 import MediaWithFallback from "@/app/components/MediaWithFallback";
-import { searchUsers, sendFriendRequest, Friend as FriendType } from '@/lib/friends';
+import { searchUsers, fetchPublicUsers, sendFriendRequest, Friend as FriendType } from '@/lib/friends';
 
 function DiscoverContent() {
-    const { stories, groups, addGroup, currentUser } = useStore();
+    const { stories, groups, addGroup, currentUser, friends } = useStore();
     const searchParams = useSearchParams();
     const tabParam = searchParams?.get('tab');
     const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -34,18 +34,27 @@ function DiscoverContent() {
         let mounted = true;
         const timeout = setTimeout(async () => {
             const q = searchQuery.trim();
-            if (!q || q.length < 2) {
-                if (mounted) setPeopleResults([]);
-                return;
-            }
 
             setIsSearchingPeople(true);
             try {
                 const uid = currentUser?.id ?? '';
-                const results = await searchUsers(q, uid);
+                let results: FriendType[] = [];
+
+                if (!q || q.length < 2) {
+                    // No search term -> show public (non-private) users
+                    results = await fetchPublicUsers(uid);
+                } else {
+                    // Attempt a targeted search; fall back to public users if nothing found
+                    results = await searchUsers(q, uid);
+                    if (!results || results.length === 0) {
+                        results = await fetchPublicUsers(uid);
+                    }
+                }
+
                 if (mounted) setPeopleResults(results);
             } catch (err) {
-                console.warn('[Discover] searchUsers failed', err);
+                console.warn('[Discover] searchUsers/fetchPublicUsers failed', err);
+                if (mounted) setPeopleResults([]);
             } finally {
                 setIsSearchingPeople(false);
             }
@@ -68,8 +77,13 @@ function DiscoverContent() {
         // Search in hashtags
         if (story.hashtags?.some(tag => tag.toLowerCase().includes(query))) return true;
 
-        // Search in participant names
-        if (story.participants.some(p => p.name.toLowerCase().includes(query))) return true;
+        // Search in participant names, but ignore private participants unless the current user is the participant or is friends with them
+        const friendIds = new Set((friends || []).map(f => f.id));
+        const participantMatches = story.participants.some(p => {
+            const allowed = !p.isPrivate || (currentUser && (p.id === currentUser.id || friendIds.has(p.id)));
+            return allowed && p.name.toLowerCase().includes(query);
+        });
+        if (participantMatches) return true;
 
         return false;
     });
@@ -273,7 +287,7 @@ function DiscoverContent() {
                         ) : (
                             <div className="text-center py-12 space-y-3">
                                 <Users className="w-12 h-12 text-gray-700 mx-auto" />
-                                <p className="text-gray-400">{`No people found matching "${searchQuery}"`}</p>
+                                <p className="text-gray-400">No people found</p>
                             </div>
                         ))}
                     </div>

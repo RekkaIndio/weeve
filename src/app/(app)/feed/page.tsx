@@ -230,7 +230,7 @@ export default function Home() {
               if (el) itemRefs.current.set(index, el);
               else itemRefs.current.delete(index);
             }}
-            className="h-[calc(100vh-64px)] weeve-snap-item snap-start shrink-0"
+            className="h-full weeve-snap-item snap-start shrink-0"
             data-index={index}
           >
             {Math.abs(index - activeIndex) <= 1 ? (
@@ -242,7 +242,7 @@ export default function Home() {
         ))}
 
         {/* End of Feed Placeholder */}
-        <div className="h-[calc(100vh-64px)] weeve-snap-item snap-start flex items-center justify-center bg-black text-gray-500">
+        <div className="h-full weeve-snap-item snap-start flex items-center justify-center bg-black text-gray-500">
           <div className="text-center">
             <p className="mb-4">You&apos;re all caught up!</p>
             <button className="text-[#EC1D99] font-bold">Discover more</button>

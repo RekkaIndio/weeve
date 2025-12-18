@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 // ============================================
 // TYPES
@@ -142,7 +143,7 @@ export const subscribeToNotifications = (
                 table: 'notifications',
                 filter: `user_id=eq.${userId}`,
             },
-            (payload) => {
+            (payload: RealtimePostgresChangesPayload<any>) => {
                 callback(payload.new as Notification);
             }
         )

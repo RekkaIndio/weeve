@@ -18,7 +18,11 @@
     "android:release:bundle:remote": "CAPACITOR_SERVER_URL=\"https://tryweeve.com\" CAPACITOR_SERVER_CLEARTEXT=false npm run build && npx cap sync android && cd android && ./gradlew bundleRelease",
     "android:staging:bundle": "CAPACITOR_SERVER_URL=\"https://staging.tryweeve.com\" CAPACITOR_SERVER_CLEARTEXT=false npm run build && npx cap sync android && cd android && ./gradlew bundleStaging",
     "android:dev:sync": "CAPACITOR_SERVER_URL=\"http://192.168.0.230:3000\" CAPACITOR_SERVER_CLEARTEXT=true npx cap sync android && npx cap open android",
-    "android:emulator:sync": "CAPACITOR_SERVER_URL=\"http://10.0.2.2:3000\" CAPACITOR_SERVER_CLEARTEXT=true npx cap sync android && npx cap open android"
+    "android:emulator:sync": "CAPACITOR_SERVER_URL=\"http://10.0.2.2:3000\" CAPACITOR_SERVER_CLEARTEXT=true npx cap sync android && npx cap open android",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.933.0",
@@ -73,6 +77,15 @@
     "prettier": "^3.6.2",
     "tailwindcss": "^4",
     "tsx": "^4.20.6",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^1.0.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/user-event": "^14.0.0",
+    "vite": "^5.0.0",
+    "tsconfig-paths": "^4.0.0",
+    "vite-tsconfig-paths": "^4.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "happy-dom": "^2.35.0"
   }
 }

@@ -8,8 +8,75 @@ export interface Friend extends User {
     friendRequestStatus?: 'none' | 'pending_sent' | 'pending_received' | 'accepted';
 }
 
+export const fetchPublicUsers = async (currentUserId: string, limit = 50): Promise<Friend[]> => {
+    // Return a list of public profiles (is_private = false), excluding current user
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .neq('user_id', currentUserId)
+        .eq('is_private', false)
+        .limit(limit);
+
+    if (error) {
+        console.error('Error fetching public users:', error);
+        return [];
+    }
+
+    // Check friendship status
+    const { data: friendships } = await supabase
+        .from('friendships')
+        .select('friend_id')
+        .eq('user_id', currentUserId);
+
+    const friendIds = new Set(friendships?.map((f: { friend_id: string }) => f.friend_id) || []);
+
+    // Check friend request status
+    const { data: sentRequests } = await supabase
+        .from('friend_requests')
+        .select('receiver_id, status')
+        .eq('sender_id', currentUserId)
+        .eq('status', 'pending');
+
+    const { data: receivedRequests } = await supabase
+        .from('friend_requests')
+        .select('sender_id, status')
+        .eq('receiver_id', currentUserId)
+        .eq('status', 'pending');
+
+    const sentRequestIds = new Set(sentRequests?.map((r: { receiver_id: string }) => r.receiver_id) || []);
+    const receivedRequestIds = new Set(receivedRequests?.map((r: { sender_id: string }) => r.sender_id) || []);
+
+    return (data || [])
+        .map((profile: any) => {
+            const isFriend = friendIds.has(profile.user_id);
+            let friendRequestStatus: Friend['friendRequestStatus'] = 'none';
+
+            if (isFriend) {
+                friendRequestStatus = 'accepted';
+            } else if (sentRequestIds.has(profile.user_id)) {
+                friendRequestStatus = 'pending_sent';
+            } else if (receivedRequestIds.has(profile.user_id)) {
+                friendRequestStatus = 'pending_received';
+            }
+
+            return {
+                id: profile.user_id,
+                name: profile.name,
+                avatar: profile.avatar,
+                tagline: profile.tagline ?? undefined,
+                tokens: profile.tokens,
+                isInfluencer: profile.is_influencer,
+                interactionCost: profile.interaction_cost,
+                inviteCode: profile.invite_code,
+                isFriend,
+                isPrivate: profile.is_private,
+                friendRequestStatus,
+            };
+        });
+};
+
 export const searchUsers = async (query: string, currentUserId: string): Promise<Friend[]> => {
-    if (!query || query.length < 2) return [];
+    if (!query || query.length < 2) return fetchPublicUsers(currentUserId);
 
     // Search by name or invite code
     const { data, error } = await supabase
@@ -30,7 +97,7 @@ export const searchUsers = async (query: string, currentUserId: string): Promise
         .select('friend_id')
         .eq('user_id', currentUserId);
 
-    const friendIds = new Set(friendships?.map(f => f.friend_id) || []);
+    const friendIds = new Set(friendships?.map((f: { friend_id: string }) => f.friend_id) || []);
 
     // Check friend request status
     const { data: sentRequests } = await supabase
@@ -45,8 +112,8 @@ export const searchUsers = async (query: string, currentUserId: string): Promise
         .eq('receiver_id', currentUserId)
         .eq('status', 'pending');
 
-    const sentRequestIds = new Set(sentRequests?.map(r => r.receiver_id) || []);
-    const receivedRequestIds = new Set(receivedRequests?.map(r => r.sender_id) || []);
+    const sentRequestIds = new Set(sentRequests?.map((r: { receiver_id: string }) => r.receiver_id) || []);
+    const receivedRequestIds = new Set(receivedRequests?.map((r: { sender_id: string }) => r.sender_id) || []);
 
     return data
         .filter((profile: any) => {

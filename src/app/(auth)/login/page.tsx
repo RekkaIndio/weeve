@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, signInWithGoogle } from "@/lib/auth";
 import { supabase } from '@/lib/supabase';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -26,7 +27,7 @@ export default function LoginPage() {
     const [isIosChrome, setIsIosChrome] = useState(false);
 
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
             if (event === 'SIGNED_IN') {
                 setSocialLoading(null);
                 router.replace('/feed');

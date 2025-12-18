@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useStore } from '@/lib/store';
 import { fetchGroups } from '@/lib/data';
 import { supabase } from '@/lib/supabase';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export default function StoreInitializer() {
     const { currentUser, setStories, setGroups, fetchStories } = useStore();
@@ -45,7 +46,7 @@ export default function StoreInitializer() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'stories' },
-                (payload) => {
+                (payload: RealtimePostgresChangesPayload<any>) => {
                     console.log('Stories table changed:', payload);
                     fetchStories();
                 }
@@ -58,7 +59,7 @@ export default function StoreInitializer() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'contributions' },
-                (payload) => {
+                (payload: RealtimePostgresChangesPayload<any>) => {
                     console.log('Contributions table changed:', payload);
                     fetchStories();
                 }
@@ -71,7 +72,7 @@ export default function StoreInitializer() {
             .on(
                 'postgres_changes',
                 { event: '*', schema: 'public', table: 'story_participants' },
-                (payload) => {
+                (payload: RealtimePostgresChangesPayload<any>) => {
                     console.log('Story participants table changed:', payload);
                     fetchStories();
                 }
