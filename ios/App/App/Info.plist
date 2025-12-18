@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Weeve</string>
+	<string>Weeve</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -60,10 +60,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.jay.weeve.app</string>
+			<string>com.weeve.app</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.jay.weeve.app</string>
+				<string>com.weeve.app</string>
 				<string>com.weeve.app</string>
 			</array>
 		</dict>

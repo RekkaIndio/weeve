@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, Check, X, UserPlus, MessageCircle, Heart, Users, Loader } from 'lucide-react';
+import { Bell, Check, X, UserPlus, MessageCircle, Heart, Users, Loader, Trash2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     getNotifications,
     markAsRead,
     markAllAsRead,
     subscribeToNotifications,
+    deleteNotification,
     type Notification
 } from '@/lib/notifications';
 import { acceptFriendRequest, declineFriendRequest, getFriendRequests, type FriendRequest } from '@/lib/friends';
@@ -24,6 +26,7 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
     const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState<'all' | 'requests' | 'stories' | 'groups'>('all');
+    const [isDraggingId, setIsDraggingId] = useState<string | null>(null);
 
     useEffect(() => {
         loadData();
@@ -113,6 +116,32 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
             }
         } else {
             toast.error('Failed to decline request');
+        }
+    };
+
+    const handleDeleteNotification = async (notificationId: string) => {
+        const original = notifications;
+        const toDelete = notifications.find(n => n.id === notificationId);
+
+        // Optimistic UI update
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        if (onNotificationCountChange) {
+            const unreadCount = original.filter(n => !n.read && n.id !== notificationId).length + friendRequests.length;
+            onNotificationCountChange(unreadCount);
+        }
+
+        try {
+            const success = await deleteNotification(notificationId);
+            if (!success) {
+                setNotifications(original);
+                toast.error('Failed to delete notification');
+                return;
+            }
+
+            toast.success('Notification deleted');
+        } catch (e) {
+            setNotifications(original);
+            toast.error('Failed to delete notification');
         }
     };
 
@@ -225,32 +254,62 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
             {/* Notifications List */}
             {filteredNotifications.length > 0 ? (
                 <div className="space-y-2">
-                    {filteredNotifications.map(notification => (
-                        <div
-                            key={notification.id}
-                            onClick={() => handleNotificationClick(notification)}
-                            className={`p-4 rounded-lg border cursor-pointer transition-colors ${notification.read
-                                ? 'bg-gray-900 border-gray-800 hover:bg-gray-850'
-                                : 'bg-gray-800 border-[#EC1D99]/30 hover:bg-gray-750'
-                                }`}
-                        >
-                            <div className="flex items-start gap-3">
-                                <div className={`p-2 rounded-full ${notification.read ? 'bg-gray-800' : 'bg-[#EC1D99]/20'}`}>
-                                    {getIcon(notification.type)}
+                            <AnimatePresence>
+                        {filteredNotifications.map(notification => (
+                            <motion.div
+                                key={notification.id}
+                                layout
+                                initial={{ x: 0, opacity: 1 }}
+                                exit={{ x: -500, opacity: 0, transition: { duration: 0.18 } }}
+                                whileTap={{ scale: 0.995 }}
+                                drag="x"
+                                dragMomentum={false}
+                                dragConstraints={{ left: -240, right: 0 }}
+                                dragElastic={0.08}
+                                style={{ touchAction: 'pan-y' }}
+                                onDragStart={() => setIsDraggingId(notification.id)}
+                                onDragEnd={(event, info) => {
+                                    setIsDraggingId(null);
+                                    // Lowered delete threshold for mobile, and use offset to detect left swipe
+                                    if (info.offset.x < -60) {
+                                        handleDeleteNotification(notification.id);
+                                    }
+                                }}
+                                onClick={() => { if (!isDraggingId) handleNotificationClick(notification); }}
+                                className={`group relative p-4 rounded-lg border cursor-pointer transition-colors overflow-hidden ${notification.read
+                                    ? 'bg-gray-900 border-gray-800 hover:bg-gray-850'
+                                    : 'bg-gray-800 border-[#EC1D99]/30 hover:bg-gray-750'
+                                    }`}
+                            >
+                                <div className="flex items-start gap-3">
+                                    <div className={`p-2 rounded-full ${notification.read ? 'bg-gray-800' : 'bg-[#EC1D99]/20'}`}>
+                                        {getIcon(notification.type)}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="text-white font-medium">{notification.title}</p>
+                                        <p className="text-sm text-gray-400 mt-1">{notification.message}</p>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            {new Date(notification.created_at).toLocaleDateString()} at {new Date(notification.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    </div>
+                                    {!notification.read && (
+                                        <div className="w-2 h-2 bg-[#EC1D99] rounded-full"></div>
+                                    )}
                                 </div>
-                                <div className="flex-1">
-                                    <p className="text-white font-medium">{notification.title}</p>
-                                    <p className="text-sm text-gray-400 mt-1">{notification.message}</p>
-                                    <p className="text-xs text-gray-500 mt-2">
-                                        {new Date(notification.created_at).toLocaleDateString()} at {new Date(notification.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </p>
+
+                                {/* Delete button (visible on hover or when dragging) */}
+                                <div className="absolute inset-y-0 right-3 flex items-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteNotification(notification.id); }}
+                                        className="p-2 bg-red-600 hover:bg-red-500 text-white rounded-full"
+                                        aria-label="Delete notification"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
                                 </div>
-                                {!notification.read && (
-                                    <div className="w-2 h-2 bg-[#EC1D99] rounded-full"></div>
-                                )}
-                            </div>
-                        </div>
-                    ))}
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
                 </div>
             ) : (
                 <div className="text-center py-12">

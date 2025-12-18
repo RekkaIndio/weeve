@@ -81,6 +81,11 @@ DROP POLICY IF EXISTS "Users can update their own notifications" ON notification
 CREATE POLICY "Users can update their own notifications" ON notifications
   FOR UPDATE USING (user_id = auth.uid()::text);
 
+-- Allow users to delete their own notifications
+DROP POLICY IF EXISTS "Users can delete their own notifications" ON notifications;
+CREATE POLICY "Users can delete their own notifications" ON notifications
+  FOR DELETE USING (user_id = auth.uid()::text);
+
 -- System can create notifications (via service role)
 DROP POLICY IF EXISTS "System can create notifications" ON notifications;
 CREATE POLICY "System can create notifications" ON notifications

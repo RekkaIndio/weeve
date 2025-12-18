@@ -360,3 +360,27 @@ export const notifyStoryShared = async (
         read: false,
     });
 };
+/**
+ * Delete a notification
+ */
+export const deleteNotification = async (notificationId: string): Promise<boolean> => {
+    // Request deleted rows back so we can confirm deletion (RLS could silently prevent delete)
+    const { data, error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', notificationId)
+        .select();
+
+    if (error) {
+        console.error('Error deleting notification:', error);
+        return false;
+    }
+
+    // If no rows were returned, deletion did not occur (likely RLS prevented it)
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+        console.warn('Delete returned no rows — deletion may have been blocked by RLS');
+        return false;
+    }
+
+    return true;
+};

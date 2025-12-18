@@ -139,8 +139,11 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     
     // Check if current user has a waiting slot AND hasn't contributed yet (for branched stories)
     const currentUserParticipant = story?.participants?.find(p => p.id === currentUser?.id);
-    const userHasWaitingSlotRaw = currentUserParticipant?.status === 'waiting';
+    // Consider a user to have a "waiting slot" if they are explicitly marked as waiting OR
+    // if they have an assigned position but haven't contributed yet (this matches how we
+    // render waiting slots in the timeline and prevents showing a duplicate add button).
     const userHasContributed = currentUser?.id ? contributions.some(c => c.userId === currentUser.id) : false;
+    const userHasWaitingSlotRaw = currentUserParticipant?.status === 'waiting' || (currentUserParticipant?.position !== undefined && currentUserParticipant?.position !== null && !userHasContributed);
     const canContributeDespiteCapacity = userHasWaitingSlotRaw && !userHasContributed;
     
     // Story is at capacity ONLY if contributions >= maxWeeves AND user can't contribute
@@ -498,6 +501,9 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             return true;
         });
     }, [story?.participants, contributions]);
+
+    // Styles for timeline items to support scroll snapping on mobile
+    const timelineItemSnapStyle = useMemo(() => ({ scrollSnapAlign: 'center' as const }), []);
     const handleContributionSelect = useCallback((index: number) => {
         setActiveIndex(index);
         setIsPlaying(true);
@@ -1435,7 +1441,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             {/* Timeline Controls */}
             {!isComposerOpen && (
                 <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-30 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
-                    <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap">
+                    <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', scrollSnapType: 'x mandatory' }}>
                         {timelineEntries.map((entry, entryIndex) => {
                             // Handle empty slot entries (waiting participants)
                             if (entry.type === 'empty') {
@@ -1464,6 +1470,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                                 setShowOnboardingTutorial(false);
                                             }}
                                             className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
+                                            style={timelineItemSnapStyle}
                                         >
                                             <div className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors">
                                                 <Plus className="w-6 h-6" />
@@ -1483,6 +1490,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                         type="button"
                                         disabled
                                         className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
+                                        style={timelineItemSnapStyle}
                                     >
                                         <div
                                             className={`w-12 h-12 rounded-full border-2 border-dashed overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99]/70' : 'border-gray-600'}`}
@@ -1518,6 +1526,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                     type="button"
                                     onClick={() => handleContributionSelect(index)}
                                     className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none text-white"
+                                    style={timelineItemSnapStyle}
                                 >
                                     <div
                                         className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isActive
@@ -1551,6 +1560,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                     type="button"
                                     disabled
                                     className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
+                                    style={timelineItemSnapStyle}
                                 >
                                     <div
                                         className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]' : 'border-gray-700'}`}
@@ -1582,6 +1592,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                     setShowOnboardingTutorial(false);
                                 }}
                                 className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-gray-600 flex items-center justify-center text-gray-400 hover:text-[#EC1D99] hover:border-[#EC1D99] transition-colors"
+                                style={timelineItemSnapStyle}
                             >
                                 <Plus className="w-6 h-6" />
                             </button>
@@ -1594,22 +1605,13 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         </div>
                     )}
 
-                    {/* Action Button */}
-                    {!isStoryComplete && remainingSlots !== null && (
-                        <div className="text-center text-[10px] text-gray-500 pb-2">
-                            {remainingSlots} stitch{remainingSlots === 1 ? '' : 'es'} remaining.
-                        </div>
-                    )}
+
 
                     {isStoryComplete ? (
                         <div className="text-center text-xs text-gray-500 py-2">
                             Story complete — stitch limit reached.
                         </div>
-                    ) : (
-                        <div className="text-center text-xs text-gray-500 py-2">
-                            Waiting for {story.participants.find(p => p.id === story.currentTurnUserId)?.name ?? 'the next creator'} to stitch...
-                        </div>
-                    )}
+                    ) : null}
                 </div>
             )}
 

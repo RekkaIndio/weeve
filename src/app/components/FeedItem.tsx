@@ -10,7 +10,7 @@ if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoR
 
 import { Story, useStore, Contribution } from "@/lib/store";
 import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
-import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark } from "lucide-react";
+import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, MoreVertical, Flag } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, FormEvent, useCallback } from "react";
@@ -90,6 +90,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     const [showFriendPicker, setShowFriendPicker] = useState(false);
     const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [showTutorialTooltip, setShowTutorialTooltip] = useState(false);
     const [showMonetizationModal, setShowMonetizationModal] = useState<'confirm' | 'insufficient' | null>(null);
 
@@ -946,6 +947,12 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         await toggleStoryLike(story.id);
     }, [currentUser, story.id, toggleStoryLike]);
 
+    const handleReport = useCallback(() => {
+        // Placeholder for report functionality
+        alert("Thanks for reporting. We will review this content shortly.");
+        setIsMenuOpen(false);
+    }, []);
+
     const handleCommentSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const trimmed = commentText.trim();
@@ -1201,7 +1208,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/90 pointer-events-none" />
 
             {/* Right Sidebar Actions - Vertically Aligned */}
-            <div className="absolute right-4 bottom-20 flex flex-col items-center gap-4 text-white z-20">
+            <div className="absolute right-4 bottom-4 flex flex-col items-center gap-4 text-white z-20">
                 {/* Like Button */}
                 <div className="flex flex-col items-center gap-1">
                     <button
@@ -1230,18 +1237,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                     </div>
                 )}
 
-                {/* Share Button */}
-                <div className="flex flex-col items-center gap-1">
-                    <button
-                        type="button"
-                        onClick={() => setIsShareModalOpen(true)}
-                        className={`w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-white/20 transition-colors ${isShareModalOpen ? "text-[#EC1D99]" : "text-white"}`}
-                        aria-label="Share story"
-                    >
-                        <Share2 className="w-6 h-6" />
-                    </button>
-                    <span className="text-xs font-bold">Share</span>
-                </div>
+
 
                 {/* Save Button */}
                 <div className="flex flex-col items-center gap-1">
@@ -1318,6 +1314,51 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                         )}
                     </div>
                 )}
+
+                {/* More / Share Menu */}
+                <div className="flex flex-col items-center gap-1 relative">
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
+                        className={`w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-white/20 transition-colors ${isMenuOpen ? "text-[#EC1D99]" : "text-white"}`}
+                        aria-label="More options"
+                    >
+                        <MoreVertical className="w-6 h-6" />
+                    </button>
+                    {/* <span className="text-xs font-bold">More</span> */}
+
+                    {isMenuOpen && (
+                        <>
+                            <div className="fixed inset-0 z-30" onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); }} />
+                            <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 flex flex-col bg-black/90 border border-white/10 rounded-xl overflow-hidden min-w-[140px] z-40 backdrop-blur-md animate-in fade-in slide-in-from-right-4 duration-200 shadow-xl">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsMenuOpen(false);
+                                        setIsShareModalOpen(true);
+                                    }}
+                                    className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors text-left"
+                                >
+                                    <Share2 className="w-5 h-5" />
+                                    <span className="font-medium text-sm text-white">Share</span>
+                                </button>
+                                <div className="h-[1px] bg-white/10 mx-2" />
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleReport();
+                                    }}
+                                    className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors text-left text-red-500"
+                                >
+                                    <Flag className="w-5 h-5" />
+                                    <span className="font-medium text-sm">Report</span>
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
 
             {/* Monetization Modal */}
