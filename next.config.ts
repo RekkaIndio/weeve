@@ -15,6 +15,13 @@ const nextConfig: NextConfig = {
     },
   },
   async headers() {
+    // Only enable cross-origin isolation (COOP/COEP) when explicitly requested.
+    // This prevents blocking normal cross-origin image/audio/video resources
+    // from CDNs and third-party services unless `ENABLE_CROSS_ORIGIN_ISOLATION` is set.
+    if (process.env.ENABLE_CROSS_ORIGIN_ISOLATION !== '1') {
+      return [];
+    }
+
     return [
       {
         source: '/(.*)',
