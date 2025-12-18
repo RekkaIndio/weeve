@@ -40,7 +40,7 @@ export async function skipTurn(
         }
 
         // 3. Find next user (circular)
-        const currentIndex = participants.findIndex(p => p.user_id === skippedUserId);
+        const currentIndex = participants.findIndex((p: { user_id: string; position: number }) => p.user_id === skippedUserId);
         if (currentIndex === -1) {
             return { success: false, error: 'Current user not found in participants' };
         }

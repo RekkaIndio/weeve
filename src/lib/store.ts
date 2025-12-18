@@ -495,7 +495,7 @@ export const useStore = create<AppState>()(
                     return;
                 }
 
-                set({ savedStoryIds: data.map(item => item.story_id) });
+                set({ savedStoryIds: data.map((item: { story_id: string }) => item.story_id) });
             },
 
             toggleStorySave: async (storyId) => {
@@ -1037,7 +1037,7 @@ export const useStore = create<AppState>()(
                             contributions (*),
                             story_participants (
                                 *,
-                                profiles:user_id (id, name, avatar, is_influencer)
+                                profiles:user_id (id, name, avatar, is_influencer, is_private)
                             ),
                             story_likes (user_id),
                             story_comments (
@@ -1089,6 +1089,7 @@ export const useStore = create<AppState>()(
                                 avatar: profile.avatar,
                                 tokens: 0, // Not needed for display
                                 isInfluencer: profile.is_influencer,
+                                isPrivate: profile.is_private === true,
                                 status: (sp.status === 'accepted' || sp.status === 'waiting' || sp.status === 'declined') ? (sp.status as 'accepted' | 'waiting' | 'declined') : undefined,
                                 position: sp.position
                             };

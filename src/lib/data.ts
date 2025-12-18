@@ -350,7 +350,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
             });
 
             const sessionResult = await Promise.race([
-                supabase.auth.getSession().then((result) => ({ ...result, timedOut: false as const })).catch((error) => ({ data: null, error, timedOut: false as const })),
+                supabase.auth.getSession().then((result: any) => ({ ...result, timedOut: false as const })).catch((error: any) => ({ data: null, error, timedOut: false as const })),
                 timeoutPromise,
             ]);
 
@@ -391,7 +391,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                 });
 
                 const refreshResult = await Promise.race([
-                    supabase.auth.refreshSession().then((result) => ({ ...result, timedOut: false as const })).catch((error) => ({ data: null, error, timedOut: false as const })),
+                    supabase.auth.refreshSession().then((result: any) => ({ ...result, timedOut: false as const })).catch((error: any) => ({ data: null, error, timedOut: false as const })),
                     refreshTimeout,
                 ]);
 
@@ -422,7 +422,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
             });
 
             const refreshResult = await Promise.race([
-                supabase.auth.refreshSession().then((result) => ({ ...result, timedOut: false as const })).catch((error) => ({ data: null, error, timedOut: false as const })),
+                supabase.auth.refreshSession().then((result: any) => ({ ...result, timedOut: false as const })).catch((error: any) => ({ data: null, error, timedOut: false as const })),
                 fallbackRefreshTimeout,
             ]);
 
@@ -922,7 +922,7 @@ export async function fetchGroups(): Promise<Group[]> {
                 .eq('user_id', user.id);
 
             if (!memberError && memberships) {
-                membershipMap = memberships.reduce((acc, m) => {
+                membershipMap = memberships.reduce((acc: Record<string, boolean>, m: { group_id: string }) => {
                     acc[m.group_id] = true;
                     return acc;
                 }, {} as Record<string, boolean>);

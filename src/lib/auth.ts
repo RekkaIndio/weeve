@@ -118,12 +118,11 @@ export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise
 
         console.log('[Auth] Initiating OAuth with redirect:', redirectTo, { isCapacitor, platform });
 
+        const options = isCapacitor ? { redirectTo, skipBrowserRedirect: true } : { redirectTo, skipBrowserRedirect: false };
+
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
-            options: {
-                redirectTo,
-                skipBrowserRedirect: false, // Ensure browser redirect happens
-            },
+            options,
         });
 
         if (error) throw error;

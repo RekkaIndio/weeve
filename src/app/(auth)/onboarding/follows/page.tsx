@@ -14,6 +14,13 @@ interface SuggestedUser {
     story_count?: number;
 }
 
+type ProfileRow = {
+    user_id: string;
+    name: string;
+    avatar: string | null;
+    tagline: string | null;
+};
+
 export default function FollowsPage() {
     const router = useRouter();
     const { user } = useAuth();
@@ -40,7 +47,7 @@ export default function FollowsPage() {
             if (error) throw error;
 
             if (data) {
-                setSuggestedUsers(data.map(u => ({
+                setSuggestedUsers(data.map((u: ProfileRow) => ({
                     id: u.user_id,
                     name: u.name,
                     avatar: u.avatar,

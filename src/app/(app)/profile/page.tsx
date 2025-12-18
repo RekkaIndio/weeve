@@ -145,8 +145,8 @@ async function acquireUploadSession(): Promise<Session | null> {
             const sessionResult = await Promise.race([
                 supabase.auth
                     .getSession()
-                    .then((result) => ({ ...result, timedOut: false as const }))
-                    .catch((error) => ({ data: null, error, timedOut: false as const })),
+                    .then((result: any) => ({ ...result, timedOut: false as const }))
+                    .catch((error: any) => ({ data: null, error, timedOut: false as const })),
                 timeoutPromise,
             ]);
 
@@ -189,8 +189,8 @@ async function acquireUploadSession(): Promise<Session | null> {
                 const refreshResult = await Promise.race([
                     supabase.auth
                         .refreshSession()
-                        .then((result) => ({ ...result, timedOut: false as const }))
-                        .catch((error) => ({ data: null, error, timedOut: false as const })),
+                        .then((result: any) => ({ ...result, timedOut: false as const }))
+                        .catch((error: any) => ({ data: null, error, timedOut: false as const })),
                     refreshTimeout,
                 ]);
 
@@ -222,8 +222,8 @@ async function acquireUploadSession(): Promise<Session | null> {
             const refreshResult = await Promise.race([
                 supabase.auth
                     .refreshSession()
-                    .then((result) => ({ ...result, timedOut: false as const }))
-                    .catch((error) => ({ data: null, error, timedOut: false as const })),
+                    .then((result: any) => ({ ...result, timedOut: false as const }))
+                    .catch((error: any) => ({ data: null, error, timedOut: false as const })),
                 fallbackRefreshTimeout,
             ]);
 
@@ -815,9 +815,9 @@ export default function ProfilePage() {
 
             setCurrentUser({
                 ...previousUser,
-                avatar: uploadedAvatarUrl,
+                avatar: uploadedAvatarUrl ?? undefined,
             });
-            setEditAvatar(uploadedAvatarUrl);
+            setEditAvatar(uploadedAvatarUrl ?? '');
             previewApplied = true;
             setUploadingAvatar(false);
             console.log('[Profile] uploadingAvatar state set -> false (post-preview)');
@@ -934,11 +934,20 @@ export default function ProfilePage() {
 
     const inviteCode = currentUser?.inviteCode || currentUser?.id || '';
     const inviteLink = useMemo(() => {
-        const url = new URL(buildPublicUrl('/'));
-        if (inviteCode) {
-            url.searchParams.set('ref', inviteCode);
+        try {
+            const url = new URL(buildPublicUrl('/'));
+            if (inviteCode) {
+                url.searchParams.set('ref', inviteCode);
+            }
+            return url.toString();
+        } catch (err) {
+            // Fallback for test environments where URL or searchParams may behave oddly
+            const base = buildPublicUrl('/');
+            if (inviteCode) {
+                return `${base.replace(/\/$/, '')}/?ref=${encodeURIComponent(inviteCode)}`;
+            }
+            return base;
         }
-        return url.toString();
     }, [inviteCode]);
 
     const copyTextToClipboard = async (text: string) => {
@@ -1452,7 +1461,7 @@ export default function ProfilePage() {
                                                     </div>
                                                     <span className="text-[11px] uppercase tracking-wide text-gray-300">Waiting for</span>
                                                     <span className="text-sm font-bold text-white truncate max-w-full">
-                                                        {waitingForUser?.name?.split(' ')[0] || 'a collaborator'}
+                                                        {isMyTurn ? 'You' : (waitingForUser?.name?.split(' ')[0] || 'a collaborator')}
                                                     </span>
                                                 </div>
 

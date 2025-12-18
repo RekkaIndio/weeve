@@ -1046,7 +1046,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     return (
         <div
             ref={containerRef}
-            className="relative w-full h-[calc(100vh-64px)] weeve-snap-item snap-start shrink-0 bg-gray-900 overflow-hidden"
+            className="relative w-full h-full weeve-snap-item snap-start shrink-0 bg-gray-900 overflow-hidden"
             onClick={handleContainerClick}
         >
             {/* Media Background */}
@@ -1465,7 +1465,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                     </div>
                 </div>
             )}
-            <div className="absolute bottom-0 left-0 right-0 p-6 pb-4 text-white z-10">
+            <div className="absolute bottom-0 left-0 right-0 p-6 pb-6 text-white z-10">
                 <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md">
                     {story.title}
                 </h2>
@@ -1474,21 +1474,24 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                     {story.description}
                 </p>
 
-                <div className="flex items-center gap-2 mb-3 w-fit">
-                    <div className="flex -space-x-2">
-                        {story.participants.slice(0, 3).map((p) => {
+                <div className="flex items-center mb-3 w-fit">
+                    {/* Show all participants in sequence; allow horizontal swipe if they overflow (touch-friendly).
+                        Slightly overlap subsequent avatars so up to ten can fit; reserve space on the right so they don't hide under the menu. */}
+                    <div className="flex items-center gap-0 pl-2 pr-20 py-1 flex-nowrap max-w-[calc(100%-64px)] overflow-hidden">
+                        {story.participants.map((p, idx) => {
                             const isActive = p.id === activeUserId;
                             return (
                                 <Link
                                     key={`${p.id}-${p.position}`}
                                     href={`/profile/${p.id}`}
                                     onClick={(e) => e.stopPropagation()}
-                                    className={`relative rounded-full ${isActive ? 'z-10 scale-110 transition-transform duration-300' : ''}`}
+                                    title={`${p.position !== undefined ? `${p.position + 1}. ` : ''}${p.name}`}
+                                    className={`relative rounded-full flex-none ${idx !== 0 ? '-ml-4' : ''} ${isActive ? 'z-10 scale-110 transition-transform duration-300' : ''}`}
                                 >
                                     <img
                                         src={p.avatar}
                                         alt={p.name}
-                                        className={`w-10 h-10 rounded-full border-2 ${isActive ? 'border-[#EC1D99] shadow-[0_0_10px_#EC1D99]' : 'border-black'}`}
+                                        className={`w-11 h-11 min-w-[44px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 ${isActive ? 'border-[#EC1D99] shadow-[0_0_10px_#EC1D99]' : 'border-black'}`}
                                     />
                                 </Link>
                             );

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { NATIVE_GOOGLE_REDIRECT_URI_IOS, NATIVE_GOOGLE_REDIRECT_URI_ANDROID } from '@/lib/auth';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 export default function AuthCallbackPage() {
     const router = useRouter();
@@ -45,7 +46,7 @@ export default function AuthCallbackPage() {
             console.warn('[Callback] Failed to attempt native app open:', err);
         }
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
             console.log('[Callback] Auth event:', event);
 
             if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {

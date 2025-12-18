@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { signOut, updateUserProfile } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 
 export default function SettingsPage() {
     const router = useRouter();
@@ -12,11 +13,27 @@ export default function SettingsPage() {
     const [isPrivate, setIsPrivate] = useState(currentUser?.isPrivate || false);
     const [isUpdating, setIsUpdating] = useState(false);
 
+    // Null = loading, true = google-only, false = not google-only
+    const [isGoogleOnly, setIsGoogleOnly] = useState<boolean | null>(null);
+
     useEffect(() => {
         if (currentUser?.isPrivate !== undefined) {
             setIsPrivate(currentUser.isPrivate);
         }
     }, [currentUser?.isPrivate]);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const { data: userData } = await supabase.auth.getUser();
+                const user = (userData as any)?.user;
+                const isGoogle = !!(user?.identities && user.identities.length > 0 && user.identities.every((i: any) => i.provider === 'google'));
+                setIsGoogleOnly(isGoogle);
+            } catch (err) {
+                setIsGoogleOnly(false);
+            }
+        })();
+    }, []);
 
     const handlePrivacyToggle = async () => {
         if (!currentUser || isUpdating) return;
@@ -126,7 +143,7 @@ export default function SettingsPage() {
                             {section.title}
                         </h3>
                         <div className="bg-gray-900 rounded-xl overflow-hidden">
-                            {section.items.map((item, itemIdx) => (
+                            {section.items.filter(item => !(isGoogleOnly && item.label === 'Change Password')).map((item, itemIdx) => (
                                 <div
                                     key={itemIdx}
                                     className={`flex items-center justify-between p-4 ${itemIdx !== section.items.length - 1 ? 'border-b border-gray-800' : ''

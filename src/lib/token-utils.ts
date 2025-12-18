@@ -42,13 +42,16 @@ export function getPricingTier(tokens: number): {
     color: string;
     bgColor: string;
     description: string;
+    priceTokens: number;
 } {
+    // Attach the numeric priceTokens property so callers can inspect the numeric value
     if (tokens === 0) {
         return {
             label: 'Free',
             color: 'text-green-400',
             bgColor: 'bg-green-500/10',
             description: 'Anyone can contribute for free',
+            priceTokens: tokens,
         };
     } else if (tokens <= 10) {
         return {
@@ -56,6 +59,7 @@ export function getPricingTier(tokens: number): {
             color: 'text-green-400',
             bgColor: 'bg-green-500/10',
             description: 'Very affordable for most users',
+            priceTokens: tokens,
         };
     } else if (tokens <= 50) {
         return {
@@ -63,6 +67,7 @@ export function getPricingTier(tokens: number): {
             color: 'text-yellow-400',
             bgColor: 'bg-yellow-500/10',
             description: 'Moderate cost, good for quality control',
+            priceTokens: tokens,
         };
     } else if (tokens <= 100) {
         return {
@@ -70,6 +75,7 @@ export function getPricingTier(tokens: number): {
             color: 'text-orange-400',
             bgColor: 'bg-orange-500/10',
             description: 'Premium pricing for exclusive content',
+            priceTokens: tokens,
         };
     } else {
         return {
@@ -77,6 +83,7 @@ export function getPricingTier(tokens: number): {
             color: 'text-red-400',
             bgColor: 'bg-red-500/10',
             description: 'Very expensive, for special collaborations',
+            priceTokens: tokens,
         };
     }
 }
