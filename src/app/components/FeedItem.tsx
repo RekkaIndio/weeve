@@ -221,6 +221,12 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         return typeof story.likes === "number" ? story.likes : likedBy.length;
     }, [story.likes, likedBy]);
 
+    const isFriendOfCreator = useMemo(() => {
+        if (!currentUser) return false;
+        if (currentUser.id === story.creatorId) return true;
+        return friends.some(f => f.id === story.creatorId);
+    }, [currentUser, friends, story.creatorId]);
+
     // Pre-calculate slot content mapping to handle multi-slot users correctly
     const slotContentMap = useMemo(() => {
         const map = new Map<number, Contribution>();
@@ -1256,7 +1262,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                 </div>
 
                 {/* Weeve Button */}
-                {story.visibility === 'public' && (
+                {(story.visibility === 'public' || (story.visibility === 'private' && isFriendOfCreator)) && (
                     <div className="flex flex-col items-center gap-0.5 relative">
                         <button
                             type="button"
@@ -1479,14 +1485,16 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                         Slightly overlap subsequent avatars so up to ten can fit; reserve space on the right so they don't hide under the menu. */}
                     <div className="flex items-center gap-0 pl-2 pr-20 py-1 flex-nowrap max-w-[calc(100%-64px)] overflow-hidden">
                         {story.participants.map((p, idx) => {
-                            const isActive = p.id === activeUserId;
+                            // Highlights only the circle for the part that is playing
+                            const isActive = idx === currentIndex;
                             return (
                                 <Link
                                     key={`${p.id}-${p.position}`}
                                     href={`/profile/${p.id}`}
                                     onClick={(e) => e.stopPropagation()}
                                     title={`${p.position !== undefined ? `${p.position + 1}. ` : ''}${p.name}`}
-                                    className={`relative rounded-full flex-none ${idx !== 0 ? '-ml-4' : ''} ${isActive ? 'z-10 scale-110 transition-transform duration-300' : ''}`}
+                                    // Make non-active circles more transparent
+                                    className={`relative rounded-full flex-none ${idx !== 0 ? '-ml-4' : ''} ${isActive ? 'z-10 scale-110 transition-transform duration-300 opacity-100' : 'opacity-60 hover:opacity-100 transition-opacity'}`}
                                 >
                                     <img
                                         src={p.avatar}

@@ -161,9 +161,19 @@ video.weeve-inline-video[style*="visibility: hidden"] {
 /* Feed snap improvements */
 .weeve-snap-container {
   scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   overscroll-behavior: contain;
+  /* Smoother deceleration curve */
+  scroll-snap-stop: always;
+}
+
+/* Optional: Custom smooth scroll timing for webkit browsers */
+@supports (scroll-timeline: auto) or (-webkit-overflow-scrolling: touch) {
+  .weeve-snap-container {
+    scroll-behavior: smooth;
+  }
 }
 
 .weeve-snap-item {

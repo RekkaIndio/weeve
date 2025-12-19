@@ -93,7 +93,7 @@ export default function Home() {
     };
 
     checkOnboarding();
-  }, [currentUser?.id]);  useEffect(() => {
+  }, [currentUser?.id]); useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -130,14 +130,50 @@ export default function Home() {
     // Keep activeIndexRef synced
     updateActiveIndexRef();
 
+    // Custom easing function for smooth deceleration (ease-out-cubic)
+    const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
+
+    // Custom smooth scroll using requestAnimationFrame for consistent behavior
+    const smoothScrollTo = (targetY: number, duration: number = 400) => {
+      const startY = container.scrollTop;
+      const distance = targetY - startY;
+      const startTime = performance.now();
+
+      // Temporarily disable scroll-snap to prevent it from interfering
+      const originalSnapType = container.style.scrollSnapType;
+      container.style.scrollSnapType = 'none';
+
+      const animateScroll = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easedProgress = easeOutCubic(progress);
+
+        container.scrollTop = startY + (distance * easedProgress);
+
+        if (progress < 1) {
+          requestAnimationFrame(animateScroll);
+        } else {
+          // Ensure we land exactly on target
+          container.scrollTop = targetY;
+          // Re-enable scroll-snap after animation completes
+          container.style.scrollSnapType = originalSnapType || 'y mandatory';
+          setTimeout(() => {
+            isScrolling = false;
+          }, 50);
+        }
+      };
+
+      requestAnimationFrame(animateScroll);
+    };
+
     const scrollTo = (idx: number) => {
       const el = itemRefs.current.get(idx);
       if (!el || !container) return;
       isScrolling = true;
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setTimeout(() => {
-        isScrolling = false;
-      }, 520);
+
+      // Calculate target scroll position
+      const targetY = el.offsetTop;
+      smoothScrollTo(targetY, 450);
     };
 
     const wheelHandler = (e: WheelEvent) => {
@@ -253,7 +289,7 @@ export default function Home() {
       {/* Onboarding Tutorial Overlay */}
       {showOnboardingOverlay && (
         <FeedOnboardingOverlay onDismiss={() => {
-          try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) {}
+          try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
           setShowOnboardingOverlay(false);
         }} />
       )}

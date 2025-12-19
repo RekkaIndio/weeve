@@ -120,12 +120,20 @@ export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise
 
         const options = isCapacitor ? { redirectTo, skipBrowserRedirect: true } : { redirectTo, skipBrowserRedirect: false };
 
-        const { error } = await supabase.auth.signInWithOAuth({
+        const { data, error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
             options,
         });
 
         if (error) throw error;
+
+        // When skipBrowserRedirect is true, Supabase returns the OAuth URL but doesn't navigate to it.
+        // We need to manually open it using Capacitor's Browser plugin for native platforms.
+        if (isCapacitor && data?.url) {
+            console.log('[Auth] Opening OAuth URL in browser:', data.url);
+            const { Browser } = await import('@capacitor/browser');
+            await Browser.open({ url: data.url });
+        }
 
         return { error: null };
     } catch (error) {
