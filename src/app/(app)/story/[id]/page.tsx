@@ -165,11 +165,10 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const isMyTurn = isExplicitlyMyTurn || canContributeWithWaitingSlot;
     const hasContributions = contributions.length > 0;
 
-    // Debug logging for forked stories
-    useEffect(() => {
-        // Refresh stories on mount to ensure we have the latest state
-        try { fetchStories(); } catch (err) { console.warn('[Story] fetchStories failed on mount:', err); }
-    }, [fetchStories]);
+    // Note: We intentionally do NOT call fetchStories() on mount because:
+    // 1. We fetch the specific story by ID if it's not in the store
+    // 2. fetchStories() filters out private stories with waiting participants (forked stories),
+    //    which would overwrite the story we just added via addStory()
 
     useEffect(() => {
         // If the story isn't available in the store, try fetching it directly by id.
@@ -178,6 +177,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
         const fetchStoryById = async () => {
             try {
+                console.log('[Story] fetchStoryById starting for:', storyId);
                 setIsFetchingStory(true);
                 setHasFetchedOnce(false);
                 const { data: s, error } = await supabase
@@ -198,13 +198,16 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     .eq('id', storyId)
                     .single();
 
+                console.log('[Story] fetchStoryById result:', { hasData: !!s, error: error?.message, participantsCount: s?.story_participants?.length, contributionsCount: s?.contributions?.length });
+
                 if (error || !s) {
                     console.warn('[Story] fetchStoryById: not found or error', { id: storyId, error });
                     setHasFetchedOnce(true);
                     return;
                 }
 
-                if (cancelled) return;
+                // Note: We intentionally don't check "cancelled" here because we want to 
+                // add the story to the store even if the component remounted during navigation
 
                 const participants = (s.story_participants || []).map((sp: any) => {
                     const profile = sp.profiles || { name: 'Unknown', avatar: '' };
@@ -267,7 +270,9 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     turnTimerHours: s.turn_timer_hours ?? undefined,
                 };
 
+                console.log('[Story] About to call addStory with id:', mapped.id);
                 addStory(mapped);
+                console.log('[Story] addStory called, setting hasFetchedOnce to true');
                 setHasFetchedOnce(true);
 
             } catch (err) {
@@ -733,6 +738,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     }, [isStoryComplete]);
 
     if (!story) {
+        console.log('[Story] No story found for id:', storyId, 'isFetchingStory:', isFetchingStory, 'hasFetchedOnce:', hasFetchedOnce, 'storiesCount:', stories.length);
         if (isFetchingStory || !hasFetchedOnce) {
             return (
                 <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -1518,22 +1524,22 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                     key={`pending-${participant.id}-${participant.position ?? idx}`}
                                     type="button"
                                     disabled
-                                    className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
+                                    className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-60 cursor-default"
                                     style={timelineItemSnapStyle}
                                 >
                                     <div
-                                        className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]' : 'border-gray-700'}`}
+                                        className={`w-12 h-12 rounded-full border-2 border-dashed overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99] shadow-[0_0_12px_rgba(236,29,153,0.25)]' : 'border-[#EC1D99]/40'}`}
                                     >
                                         <img
                                             src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
                                             alt={participant.name}
-                                            className="w-full h-full object-cover"
+                                            className="w-full h-full object-cover opacity-70"
                                         />
                                     </div>
-                                    <span className="text-[10px] text-gray-400 font-medium max-w-[64px] truncate" title={participant.name}>
+                                    <span className="text-[10px] text-[#EC1D99]/70 font-medium max-w-[64px] truncate" title={participant.name}>
                                         {participant.name.split(' ').slice(0, 2).join(' ')}
                                     </span>
-                                    <span className="text-[9px] uppercase tracking-wide text-gray-600">No part yet</span>
+                                    <span className="text-[9px] uppercase tracking-wide text-[#EC1D99]/50">No part yet</span>
                                     {isCurrentTurn && (
                                         <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
                                     )}
@@ -1550,7 +1556,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                     setShowStitchMenu(true);
                                     setShowOnboardingTutorial(false);
                                 }}
-                                className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-gray-600 flex items-center justify-center text-gray-400 hover:text-[#EC1D99] hover:border-[#EC1D99] transition-colors"
+                                className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors"
                                 style={timelineItemSnapStyle}
                             >
                                 <Plus className="w-6 h-6" />

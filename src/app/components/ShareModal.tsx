@@ -55,15 +55,84 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const [isSaved, setIsSaved] = useState(false);
     const [lastAction, setLastAction] = useState<'save' | 'share' | null>(null);
 
-    // Debug logging
+    // Automatically save video when stitching completes after a save action
     useEffect(() => {
+        const saveVideoToDevice = async () => {
+            if (!videoUrl || lastAction !== 'save') return;
 
-        if (videoUrl && lastAction === 'save') {
-            setIsSaved(true);
-            setTimeout(() => setIsSaved(false), 3000);
+            try {
+                const { Capacitor } = await import('@capacitor/core');
+                const isNative = Capacitor.isNativePlatform();
+
+                const response = await fetch(videoUrl);
+                const fileBlob = await response.blob();
+                const filename = `${story.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_weeve.mp4`;
+
+                if (isNative) {
+                    // Save to device's media gallery (Photos/Gallery)
+                    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+                    const { Media } = await import('@capacitor-community/media');
+
+                    // Convert blob to base64
+                    const base64Data = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const res = reader.result as string;
+                            resolve(res.split(',')[1]);
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(fileBlob);
+                    });
+
+                    // Save to temporary file first
+                    const tempFile = await Filesystem.writeFile({
+                        path: filename,
+                        data: base64Data,
+                        directory: Directory.Cache,
+                        recursive: true
+                    });
+
+                    // Save to media gallery
+                    await Media.saveVideo({
+                        path: tempFile.uri
+                    });
+
+                    // Clean up temp file
+                    try {
+                        await Filesystem.deleteFile({
+                            path: filename,
+                            directory: Directory.Cache
+                        });
+                    } catch {
+                        // Ignore cleanup errors
+                    }
+
+                    setSavedFilePath(tempFile.uri);
+                    toast.success('Video saved to gallery!');
+                } else {
+                    // Web: trigger download
+                    const downloadUrl = window.URL.createObjectURL(fileBlob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(downloadUrl);
+                    toast.success('Video downloaded!');
+                }
+
+                setIsSaved(true);
+            } catch (error) {
+                console.error('Failed to save video:', error);
+                toast.error('Failed to save video');
+            }
+
             setLastAction(null);
-        }
-    }, [videoUrl, lastAction]);
+        };
+
+        saveVideoToDevice();
+    }, [videoUrl, lastAction, story.title]);
 
     // Reset stitcher state and local state when modal closes
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -605,40 +674,50 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                     </button>
 
                                     {/* Download / Processing State */}
-                                    <button // If downloading, show progress; else show Download/Save button
-                                        onClick={() => {
-                                            if (videoUrl) {
-                                                handleShareFile('other'); // "More"
-                                            } else {
-                                                setLastAction('save');
-                                                stitchStory(story);
-                                            }
-                                        }}
-                                        disabled={stitchingState !== 'idle' && stitchingState !== 'error' && !videoUrl}
-                                        className={`flex items-center justify-center gap-2 p-3 rounded-xl transition-colors disabled:opacity-100 ${isSaved ? 'bg-[#EC1D99] hover:bg-[#D41C84]' : 'bg-gray-800/50 hover:bg-gray-800'}`}
-                                    >
-                                        {stitchingState !== 'idle' && stitchingState !== 'complete' && stitchingState !== 'error' ? (
-                                            <>
-                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                <span className="text-xs font-medium text-white">{Math.round(progress)}%</span>
-                                            </>
-                                        ) : isSaved ? (
-                                            <>
-                                                <Check className="w-4 h-4 text-white" />
-                                                <span className="text-xs font-medium text-white">Saved</span>
-                                            </>
-                                        ) : videoUrl ? (
-                                            <>
-                                                <Share2 className="w-4 h-4 text-white" />
-                                                <span className="text-xs font-medium text-white">More Options</span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Download className="w-4 h-4 text-white" />
-                                                <span className="text-xs font-medium text-white">Save Video</span>
-                                            </>
-                                        )}
-                                    </button>
+                                    {(() => {
+                                        const isProcessing = stitchingState !== 'idle' && stitchingState !== 'complete' && stitchingState !== 'error';
+
+                                        return (
+                                            <div
+                                                className="relative p-[3px] rounded-xl transition-all"
+                                                style={isProcessing ? {
+                                                    background: `conic-gradient(from 0deg, #EC1D99 ${progress * 3.6}deg, rgba(255,255,255,0.15) ${progress * 3.6}deg)`
+                                                } : undefined}
+                                            >
+                                                <button
+                                                    onClick={() => {
+                                                        if (videoUrl) {
+                                                            handleShareFile('other'); // "More"
+                                                        } else {
+                                                            setLastAction('save');
+                                                            stitchStory(story);
+                                                        }
+                                                    }}
+                                                    disabled={isProcessing}
+                                                    className={`flex items-center justify-center gap-2 p-3 rounded-[9px] transition-colors w-full ${isSaved ? 'bg-[#EC1D99] hover:bg-[#D41C84]' : 'bg-gray-800 hover:bg-gray-700'}`}
+                                                >
+                                                    {isProcessing ? (
+                                                        <span className="text-sm font-bold text-[#EC1D99]">{Math.round(progress)}%</span>
+                                                    ) : isSaved ? (
+                                                        <>
+                                                            <Check className="w-4 h-4 text-white" />
+                                                            <span className="text-xs font-medium text-white">Saved</span>
+                                                        </>
+                                                    ) : videoUrl ? (
+                                                        <>
+                                                            <Share2 className="w-4 h-4 text-white" />
+                                                            <span className="text-xs font-medium text-white">More Options</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Download className="w-4 h-4 text-white" />
+                                                            <span className="text-xs font-medium text-white">Save Video</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Report */}
                                     <button

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2 } from "lucide-react";
+import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { signOut, updateUserProfile } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -96,6 +96,7 @@ export default function SettingsPage() {
         {
             title: "Support",
             items: [
+                { label: "How Weeve Works", icon: Sparkles, action: () => router.push('/onboarding/welcome') },
                 { label: "Help Center", icon: HelpCircle, action: () => router.push('/settings/help-center') },
                 { label: "Report a Problem", icon: HelpCircle, action: () => router.push('/settings/report-problem') },
             ]

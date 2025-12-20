@@ -172,25 +172,15 @@ export async function getCurrentUser(): Promise<User | null> {
 
 /**
  * Get user profile from profiles table
+ * Optimized to select only needed columns for faster queries
  */
 export async function getUserProfile(userId: string): Promise<AuthUser | null> {
     try {
-
-        const fetchPromise = supabase
+        const { data, error } = await supabase
             .from('profiles')
-            .select('*')
+            .select('user_id, name, avatar, tagline, tokens, invite_code, is_private, onboarding_step, completed_onboarding, last_name_change_at')
             .eq('user_id', userId)
             .maybeSingle();
-
-        const timeoutMs = 4000;
-        const timeoutPromise = new Promise<{ data: null; error: Error }>((_, reject) => {
-            const id = setTimeout(() => {
-                clearTimeout(id);
-                reject(new Error('getUserProfile timeout'));
-            }, timeoutMs);
-        });
-
-        const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as { data: any; error: any };
 
         if (error) throw error;
 
@@ -225,7 +215,7 @@ export async function fetchProfileWithAccessToken(accessToken: string, userId: s
         if (!accessToken) return null;
         const restUrl = new URL(`${SUPABASE_URL}/rest/v1/profiles`);
         restUrl.searchParams.set('user_id', `eq.${encodeURIComponent(userId)}`);
-        restUrl.searchParams.set('select', '*');
+        restUrl.searchParams.set('select', 'user_id,name,avatar,tagline,tokens,invite_code,is_private,onboarding_step,completed_onboarding,last_name_change_at');
 
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeoutMs);

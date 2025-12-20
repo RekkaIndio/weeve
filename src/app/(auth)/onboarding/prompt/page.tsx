@@ -105,12 +105,12 @@ export default function PromptPage() {
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-[#EC1D99]"></div>
-                        <div className="w-2 h-2 rounded-full bg-gray-600"></div>
+                        <div className="w-2 h-2 rounded-full bg-[#EC1D99]"></div>
                     </div>
-                    <span className="text-sm text-gray-400">Step 1 of 2</span>
+                    <span className="text-sm text-gray-400">Step 2 of 2</span>
                 </div>
-                <h1 className="text-3xl font-bold mb-2">Learn to Stitch Stories</h1>
-                <p className="text-gray-400">Complete your first 3-part story by adding the beginning and end</p>
+                <h1 className="text-3xl font-bold mb-2">Try It Yourself!</h1>
+                <p className="text-gray-400">Complete a 3-part story by adding the beginning and end</p>
             </div>
 
             {/* Tutorial Card */}
@@ -130,26 +130,12 @@ export default function PromptPage() {
                             {ONBOARDING_STORY_TITLE}
                         </h2>
 
-                        {/* Tutorial Explanation */}
+                        {/* Quick Instructions */}
                         <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/10">
-                            <h3 className="text-sm font-semibold text-[#EC1D99] mb-2">📚 How Weeve Works:</h3>
-                            <p className="text-sm text-gray-300 leading-relaxed mb-3">
-                                Weeve is all about <strong>collaborative creation</strong>. You'll add "weeves" (your parts) to create stories together!
+                            <h3 className="text-sm font-semibold text-[#EC1D99] mb-2">🎯 Your Mission:</h3>
+                            <p className="text-sm text-gray-300 leading-relaxed">
+                                We've started a story with the <strong>middle part</strong>. Tap the <strong className="text-white">+ button</strong> to add the beginning and ending!
                             </p>
-                            <div className="mt-3 space-y-2 text-sm text-gray-400">
-                                <div className="flex items-start gap-2">
-                                    <span className="text-[#EC1D99] font-bold">1.</span>
-                                    <span>Tap the <strong className="text-white">+ button</strong> to add your weeve</span>
-                                </div>
-                                <div className="flex items-start gap-2">
-                                    <span className="text-[#EC1D99] font-bold">2.</span>
-                                    <span>Choose <strong className="text-white">photo, video, drawing,</strong> or <strong className="text-white">text</strong></span>
-                                </div>
-                                <div className="flex items-start gap-2">
-                                    <span className="text-[#EC1D99] font-bold">3.</span>
-                                    <span>Create your contribution and watch the story grow!</span>
-                                </div>
-                            </div>
                         </div>
 
                         {/* Prompt */}

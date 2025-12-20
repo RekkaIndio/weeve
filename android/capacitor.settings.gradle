@@ -2,6 +2,9 @@
 include ':capacitor-android'
 project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
 
+include ':capacitor-community-media'
+project(':capacitor-community-media').projectDir = new File('../node_modules/@capacitor-community/media/android')
+
 include ':capacitor-community-video-recorder'
 project(':capacitor-community-video-recorder').projectDir = new File('../node_modules/@capacitor-community/video-recorder/android')
 

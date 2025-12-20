@@ -953,8 +953,9 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
 
 
         try {
+            console.log('[handleForkStory] Calling forkStory...');
             const result = await forkStory(story.id, selectedSlots, participantId, contributionIdsToReplace);
-
+            console.log('[handleForkStory] forkStory returned:', result);
 
             setIsForking(false);
             setSelectedSlots([]);
@@ -965,6 +966,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                 // Check if user selected themselves vs inviting a friend
                 if (participantId === currentUser?.id) {
                     // Navigate to the new forked story for immediate contribution
+                    console.log('[handleForkStory] Navigating to story:', result.storyId);
                     router.push(`/story/${result.storyId}`);
                 } else {
                     // Show success message for friend invitations
@@ -973,6 +975,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                     }, 100);
                 }
             } else {
+                console.log('[handleForkStory] Fork failed:', result.error);
                 setTimeout(() => {
                     alert(`Failed to fork story: ${result.error || "Unknown error"}`);
                 }, 100);
@@ -1414,15 +1417,18 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    if (story.participants.length > 1) {
+                                    // Expand if we have more than 1 contribution slot
+                                    if (effectiveOrderedContributions.length > 1) {
                                         setIsAvatarsExpanded(true);
                                     }
                                 }}
                                 className="flex items-center gap-0 pl-2 py-1 group"
                             >
                                 {(() => {
-                                    const participants = story.participants;
-                                    const total = participants.length;
+                                    // Use contributions for slot-based avatar display
+                                    // This ensures each slot shows an avatar even if same user owns multiple slots
+                                    const slotContributions = effectiveOrderedContributions;
+                                    const total = slotContributions.length;
 
                                     // Determine which avatars to show:
                                     // - Always show the currently playing avatar prominently
@@ -1455,22 +1461,27 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                     return (
                                         <>
                                             {visibleIndices.map((idx, displayIdx) => {
-                                                const p = participants[idx];
+                                                const contribution = slotContributions[idx];
+                                                // Look up participant info for avatar/name
+                                                const p = participantsMap.get(contribution.userId);
+                                                const avatarUrl = p?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(contribution.userName || 'Unknown')}`;
+                                                const name = p?.name || contribution.userName || 'Unknown';
+                                                const userId = contribution.userId;
                                                 const isActive = idx === currentIndex;
                                                 return (
                                                     <Link
-                                                        key={`${p.id}-${p.position}`}
-                                                        href={`/profile/${p.id}`}
+                                                        key={`${contribution.id}-${idx}`}
+                                                        href={`/profile/${userId}`}
                                                         onClick={(e) => e.stopPropagation()}
-                                                        title={`${idx + 1}. ${p.name}${isActive ? ' (playing)' : ''}`}
+                                                        title={`${idx + 1}. ${name}${isActive ? ' (playing)' : ''}`}
                                                         className={`relative rounded-full flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} ${isActive
                                                             ? 'z-20 scale-110 opacity-100'
                                                             : 'z-10 opacity-70 group-hover:opacity-90'
                                                             }`}
                                                     >
                                                         <img
-                                                            src={p.avatar}
-                                                            alt={p.name}
+                                                            src={avatarUrl}
+                                                            alt={name}
                                                             className={`w-11 h-11 min-w-[44px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
                                                                 ? 'border-[#EC1D99] shadow-[0_0_12px_#EC1D99]'
                                                                 : 'border-black/80'
@@ -1487,7 +1498,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                             {hiddenCount > 0 && (
                                                 <div
                                                     className="-ml-2 z-30 flex items-center justify-center w-11 h-11 rounded-full bg-gray-800/90 border-2 border-gray-600 text-white text-xs font-bold backdrop-blur-sm group-hover:bg-gray-700 group-hover:border-[#EC1D99]/50 transition-all"
-                                                    title={`${hiddenCount} more contributor${hiddenCount > 1 ? 's' : ''}`}
+                                                    title={`${hiddenCount} more slot${hiddenCount > 1 ? 's' : ''}`}
                                                 >
                                                     +{hiddenCount}
                                                 </div>

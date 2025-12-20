@@ -164,8 +164,8 @@ export default function SetupPage() {
 
             if (profileError) throw profileError;
 
-            // Redirect to onboarding story tutorial
-            router.push("/onboarding/prompt");
+            // Redirect to onboarding welcome carousel
+            router.push("/onboarding/welcome");
         } catch (err: any) {
             console.error('[Setup] Error:', err);
             setError(err.message || "Failed to complete profile setup");

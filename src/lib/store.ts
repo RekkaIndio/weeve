@@ -893,6 +893,10 @@ export const useStore = create<AppState>()(
                         (a: any, b: any) => a.timestamp - b.timestamp
                     );
                     
+                    console.log('[forkStory] Original contributions:', sortedContributions.length);
+                    console.log('[forkStory] slotIndices (to exclude):', slotIndices);
+                    console.log('[forkStory] contributionIdsToExclude:', contributionIdsToExclude);
+                    
                     // 4. Copy contributions EXCEPT those that should be excluded
                     // If contributionIdsToExclude is provided, use that; otherwise fall back to slotIndices
                     const excludeIds = new Set(contributionIdsToExclude || []);
@@ -904,6 +908,8 @@ export const useStore = create<AppState>()(
                         const shouldExclude = excludeIds.size > 0 
                             ? excludeIds.has(c.id)
                             : slotIndices.includes(originalIndex);
+                        
+                        console.log(`[forkStory] Contribution ${originalIndex}: id=${c.id}, exclude=${shouldExclude}`);
                         
                         if (!shouldExclude) {
                             keptUserIds.add(c.user_id);
@@ -922,15 +928,30 @@ export const useStore = create<AppState>()(
                             });
                         }
                     });
+                    
+                    console.log('[forkStory] Contributions to copy:', contributionsToCopy.length);
 
-                    // 5. Build participant list with strict de-duplication
+                    // 5. Build a map of slot index → user ID from contributions (this is the TRUE slot mapping)
+                    // This tells us which user owns which slot based on contribution order
+                    const slotToUserMap = new Map<number, string>();
+                    sortedContributions.forEach((c: any, idx: number) => {
+                        slotToUserMap.set(idx, c.user_id);
+                    });
+                    
+                    // Determine which user IDs are being replaced based on selected slots
+                    const replacedUserIds = new Set<string>();
+                    slotIndices.forEach(slotIdx => {
+                        const userId = slotToUserMap.get(slotIdx);
+                        if (userId) {
+                            replacedUserIds.add(userId);
+                        }
+                    });
+
+                    // Build participant list with strict de-duplication
                     const participantsMap = new Map<string, any>();
 
-                    // Helper to add participant
+                    // Helper to add participant 
                     const addParticipant = (userId: string, position: number, status: 'accepted' | 'waiting') => {
-                         // If user is already in the map, we generally keep the existing entry intact 
-                         // unless we want to update status. For simplicity, we assume first valid entry wins 
-                         // or we overwrite if needed. Here, we prioritize preserving the specific slot positions.
                         if (!participantsMap.has(userId)) {
                             participantsMap.set(userId, {
                                 story_id: newStoryId,
@@ -938,57 +959,50 @@ export const useStore = create<AppState>()(
                                 position: position,
                                 status: status
                             });
-                        } else {
-                            // If user already exists (e.g. contributing multiple times), check if we need to update anything.
-                            // However, the DB schema usually has (story_id, user_id) unique. 
-                            // So we just keep one entry.
-                            // Ideally, a user can only have ONE 'position' in the participants table? 
-                            // If `position` is important per-contribution, it should be on the contribution. 
-                            // `story_participants.position` might be "initially invited slot".
-                            // We will keep the FIRST encountered position for them.
                         }
+                        // If user already exists, keep their first position (DB unique constraint)
                     };
                     
-                    // Add participants for kept contributions
-                    originalStory.story_participants.forEach((p: any) => {
-                         // Only add if we're keeping at least one of their contributions AND they're not the new participant (yet)
-                         if (keptUserIds.has(p.user_id) && p.user_id !== newParticipantId) {
-                             addParticipant(p.user_id, p.position, 'accepted');
-                         }
+                    // Track which positions are being excluded (for new participant placement)
+                    const excludedPositions: number[] = [];
+                    sortedContributions.forEach((c: any, originalIndex: number) => {
+                        const isExcluded = excludeIds.size > 0 
+                            ? excludeIds.has(c.id)
+                            : slotIndices.includes(originalIndex);
+                        if (isExcluded) {
+                            excludedPositions.push(originalIndex);
+                        }
+                    });
+                    
+                    // Create participants from KEPT CONTRIBUTIONS
+                    contributionsToCopy.forEach((c: any) => {
+                         // Derive position from timestamp (timestamp = (position + 1) * 1000000)
+                         const position = Math.floor(c.timestamp / 1000000) - 1;
+                         addParticipant(c.user_id, position, 'accepted');
                     });
 
-                    // Add the new participant
-                    // They take the position of the FIRST selected slot (usually slotIndices[0])
-                    const firstSelectedSlot = slotIndices[0];
+                    // Add the new participant at the FIRST excluded position (where the first excluded contribution was)
+                    // This ensures they're placed at the correct slot in the timeline
+                    const newParticipantPosition = excludedPositions.length > 0 ? excludedPositions[0] : slotIndices[0];
                     
-                    // If the new participant was already in the story (e.g. forking their own story to add more), 
-                    // we need to make sure their status is updated or they are re-added correctly.
-                    // Since we used a Map, simply setting them again will overwrite or we can check.
-                    // For the "forking" context, they are jumping into a NEW slot, so they are 'waiting' for THAT slot.
-                    // But if they already had 'accepted' content, they are technically 'accepted' in the story overall?
-                    // The schema `status` is per-participant. If they have ANY content, they are 'accepted'.
-                    // But for the purpose of the turn-based flow, if it's their turn, it implies they have work to do.
-                    // However, `current_turn_user_id` on the story controls whose turn it is.
-                    // So we can set them to 'accepted' if they already have content, or 'waiting' if not.
-                    // But usually, if you fork, you are adding NEW content, so you are 'waiting' to add that.
-                    
-                    const isAlreadyContributor = keptUserIds.has(newParticipantId);
-                    const newStatus = isAlreadyContributor ? 'accepted' : 'waiting';
-
-                    // Update or Set the new participant entry
+                    // The new participant is ALWAYS 'waiting' when forking - they need to add their content
+                    // If user already exists from kept contributions, update to 'waiting' status at new position
                     participantsMap.set(newParticipantId, {
                         story_id: newStoryId,
                         user_id: newParticipantId,
-                        position: firstSelectedSlot,
-                        status: newStatus 
+                        position: newParticipantPosition,
+                        status: 'waiting' // Always waiting - they need to add content to this slot
                     });
 
                     const participantsToInsert = Array.from(participantsMap.values());
+                    console.log('[forkStory] About to insert participants:', JSON.stringify(participantsToInsert, null, 2));
 
 
                     const { error: participantsError } = await supabase
                         .from('story_participants')
                         .insert(participantsToInsert);
+
+                    console.log('[forkStory] Participants insert completed, error:', participantsError?.message || 'none');
 
                     if (participantsError) {
                          console.error('[forkStory] Error adding participants:', participantsError);
@@ -998,19 +1012,21 @@ export const useStore = create<AppState>()(
                     }
 
                     // 6. Insert the copied contributions
+                    console.log('[forkStory] About to insert contributions:', contributionsToCopy.length);
                     if (contributionsToCopy.length > 0) {
                         const { error: contributionsError } = await supabase
                             .from('contributions')
                             .insert(contributionsToCopy);
+
+                        console.log('[forkStory] Contributions insert completed, error:', contributionsError?.message || 'none');
 
                         if (contributionsError) {
                             console.error('[forkStory] Error copying contributions:', contributionsError);
                         }
                     }
 
-                    // 7. Update local state
-                    get().fetchStories();
-
+                    // Return success - the story page will fetch the story data when it loads
+                    console.log('[forkStory] Fork completed successfully, storyId:', newStoryId);
                     return { success: true, storyId: newStoryId };
 
                 } catch (err: any) {
