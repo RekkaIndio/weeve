@@ -680,7 +680,7 @@ export const useStore = create<AppState>()(
             },
 
             setCurrentUser: (user) => {
-                console.log('[Store] setCurrentUser called with:', user);
+
                 set({ currentUser: user });
             },
 
@@ -826,14 +826,14 @@ export const useStore = create<AppState>()(
 
             fetchFriends: async () => {
                 const { currentUser } = get();
-                console.log('[Store] fetchFriends called. CurrentUser:', currentUser?.id);
+
                 if (!currentUser) {
-                    console.log('[Store] fetchFriends aborted: No currentUser');
+
                     return;
                 }
                 try {
                     const friends = await getFriends(currentUser.id);
-                    console.log('[Store] fetchFriends success. Found:', friends.length);
+
                     set({ friends });
                 } catch (err) {
                      console.error('[Store] fetchFriends failed:', err);
@@ -845,7 +845,6 @@ export const useStore = create<AppState>()(
                 if (!currentUser) return { success: false, error: "User not logged in" };
 
                 try {
-                    let warningMessage: string | undefined = undefined;
                     // 1. Fetch original story details
                     const { data: originalStory, error: fetchError } = await supabase
                         .from('stories')
@@ -887,16 +886,12 @@ export const useStore = create<AppState>()(
                     }
 
                     const newStoryId = newStoryData.id;
-                    console.log('[forkStory] Created new story:', newStoryId);
-                    console.log('[forkStory] Original contributions count:', originalStory.contributions.length);
-                    console.log('[forkStory] Selected slots to replace:', slotIndices);
-                    console.log('[forkStory] Contribution IDs to exclude:', contributionIdsToExclude);
+
 
                     // 3. Sort contributions by timestamp to determine slot positions
                     const sortedContributions = [...originalStory.contributions].sort(
                         (a: any, b: any) => a.timestamp - b.timestamp
                     );
-                    console.log('[forkStory] Sorted contributions:', sortedContributions.map((c: any, i: number) => ({ index: i, id: c.id, user_id: c.user_id, timestamp: c.timestamp })));
                     
                     // 4. Copy contributions EXCEPT those that should be excluded
                     // If contributionIdsToExclude is provided, use that; otherwise fall back to slotIndices
@@ -925,100 +920,98 @@ export const useStore = create<AppState>()(
                                 timestamp: (originalIndex + 1) * 1000000,
                                 text_style: c.text_style
                             });
-                        } else {
-                            console.log('[forkStory] Excluding contribution:', { id: c.id, index: originalIndex });
                         }
                     });
-                    
-                    console.log('[forkStory] Contributions to copy:', contributionsToCopy.length);
-                    console.log('[forkStory] Kept user IDs:', Array.from(keptUserIds));
 
-                    // 5. Build participant list
-                    // Include: participants whose contributions we're keeping + the new participant
-                    const participants: any[] = [];
-                    
-                    // Add participants for kept contributions (maintain their original positions)
-                    originalStory.story_participants.forEach((p: any) => {
-                        // Only add if we're keeping their contribution AND they're not the new participant
-                        if (keptUserIds.has(p.user_id) && p.user_id !== newParticipantId) {
-                            participants.push({
+                    // 5. Build participant list with strict de-duplication
+                    const participantsMap = new Map<string, any>();
+
+                    // Helper to add participant
+                    const addParticipant = (userId: string, position: number, status: 'accepted' | 'waiting') => {
+                         // If user is already in the map, we generally keep the existing entry intact 
+                         // unless we want to update status. For simplicity, we assume first valid entry wins 
+                         // or we overwrite if needed. Here, we prioritize preserving the specific slot positions.
+                        if (!participantsMap.has(userId)) {
+                            participantsMap.set(userId, {
                                 story_id: newStoryId,
-                                user_id: p.user_id,
-                                position: p.position,
-                                status: 'accepted', // They already have content
+                                user_id: userId,
+                                position: position,
+                                status: status
                             });
+                        } else {
+                            // If user already exists (e.g. contributing multiple times), check if we need to update anything.
+                            // However, the DB schema usually has (story_id, user_id) unique. 
+                            // So we just keep one entry.
+                            // Ideally, a user can only have ONE 'position' in the participants table? 
+                            // If `position` is important per-contribution, it should be on the contribution. 
+                            // `story_participants.position` might be "initially invited slot".
+                            // We will keep the FIRST encountered position for them.
                         }
+                    };
+                    
+                    // Add participants for kept contributions
+                    originalStory.story_participants.forEach((p: any) => {
+                         // Only add if we're keeping at least one of their contributions AND they're not the new participant (yet)
+                         if (keptUserIds.has(p.user_id) && p.user_id !== newParticipantId) {
+                             addParticipant(p.user_id, p.position, 'accepted');
+                         }
                     });
 
-                    // Add the new participant at the first selected slot position
+                    // Add the new participant
+                    // They take the position of the FIRST selected slot (usually slotIndices[0])
                     const firstSelectedSlot = slotIndices[0];
-                    participants.push({
+                    
+                    // If the new participant was already in the story (e.g. forking their own story to add more), 
+                    // we need to make sure their status is updated or they are re-added correctly.
+                    // Since we used a Map, simply setting them again will overwrite or we can check.
+                    // For the "forking" context, they are jumping into a NEW slot, so they are 'waiting' for THAT slot.
+                    // But if they already had 'accepted' content, they are technically 'accepted' in the story overall?
+                    // The schema `status` is per-participant. If they have ANY content, they are 'accepted'.
+                    // But for the purpose of the turn-based flow, if it's their turn, it implies they have work to do.
+                    // However, `current_turn_user_id` on the story controls whose turn it is.
+                    // So we can set them to 'accepted' if they already have content, or 'waiting' if not.
+                    // But usually, if you fork, you are adding NEW content, so you are 'waiting' to add that.
+                    
+                    const isAlreadyContributor = keptUserIds.has(newParticipantId);
+                    const newStatus = isAlreadyContributor ? 'accepted' : 'waiting';
+
+                    // Update or Set the new participant entry
+                    participantsMap.set(newParticipantId, {
                         story_id: newStoryId,
                         user_id: newParticipantId,
                         position: firstSelectedSlot,
-                        status: 'waiting',
+                        status: newStatus 
                     });
-                    console.log('[forkStory] Participants to insert:', participants);
 
-                    let insertResult = await supabase
+                    const participantsToInsert = Array.from(participantsMap.values());
+
+
+                    const { error: participantsError } = await supabase
                         .from('story_participants')
-                        .insert(participants);
+                        .insert(participantsToInsert);
 
-                    if (insertResult.error) {
-                        const err = insertResult.error;
-                        console.error('[forkStory] Error adding participants:', err);
-
-                        // If unique constraint prevents duplicate participants in the DB, try a dedupe fallback
-                        const isDuplicateConstraint = typeof err.message === 'string' && err.message.includes('duplicate key value violates unique constraint');
-                        if (isDuplicateConstraint) {
-                            console.warn('[forkStory] DB uniqueness constraint prevented duplicate participants. Trying to insert deduped participants as a fallback.');
-                            const dedupMap = new Map<string, any>();
-                            participants.forEach((p) => {
-                                if (!dedupMap.has(p.user_id)) dedupMap.set(p.user_id, p);
-                            });
-                            const deduped = Array.from(dedupMap.values());
-                            const { error: dedupError } = await supabase
-                                .from('story_participants')
-                                .insert(deduped);
-
-                            if (dedupError) {
-                                console.error('[forkStory] Fallback dedup insert failed:', dedupError);
-                                // Roll back the created story if we can't add participants
-                                try { await supabase.from('stories').delete().eq('id', newStoryId); } catch (delErr) { console.warn('[forkStory] Failed to rollback story creation:', delErr); }
-                                return { success: false, error: `Failed to add participants: ${dedupError.message}` };
-                            }
-
-                            console.warn('[forkStory] Story created but duplicate participants were removed due to DB constraints. To support duplicates, apply the migration supabase/migration_allow_duplicate_story_participants.sql');
-                            warningMessage = 'Story created, but duplicate participants were removed due to DB constraints. Run supabase/migration_allow_duplicate_story_participants.sql to enable duplicates.';
-                            // Continue - deduped insert succeeded
-                        } else {
-                            return { success: false, error: `Failed to add participants: ${err.message}` };
-                        }
+                    if (participantsError) {
+                         console.error('[forkStory] Error adding participants:', participantsError);
+                         // Rollback story
+                         try { await supabase.from('stories').delete().eq('id', newStoryId); } catch {}
+                         return { success: false, error: `Failed to add participants: ${participantsError.message}` };
                     }
-                    console.log('[forkStory] Participants inserted successfully');
 
                     // 6. Insert the copied contributions
                     if (contributionsToCopy.length > 0) {
-                        console.log('[forkStory] Inserting contributions...');
                         const { error: contributionsError } = await supabase
                             .from('contributions')
                             .insert(contributionsToCopy);
 
                         if (contributionsError) {
                             console.error('[forkStory] Error copying contributions:', contributionsError);
-                            // Not critical enough to fail the whole fork, but worth noting
-                        } else {
-                            console.log('[forkStory] Contributions inserted successfully');
                         }
-                    } else {
-                        console.log('[forkStory] No contributions to copy');
                     }
 
-                    // 7. Update local state (fetch the new story to ensure full data)
-                    // Let's trigger a fetch in the background
+                    // 7. Update local state
                     get().fetchStories();
 
-                    return { success: true, storyId: newStoryId, warning: warningMessage };
+                    return { success: true, storyId: newStoryId };
 
                 } catch (err: any) {
                     console.error('Unexpected error in forkStory:', err);

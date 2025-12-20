@@ -38,7 +38,7 @@ export default function Home() {
             const v = document.createElement('video');
             v.src = url;
             v.preload = 'auto';
-            v.muted = true;
+            v.muted = false;
             v.playsInline = true;
             const handleReady = () => {
               if (globalReady) globalReady.set(url, true);
@@ -208,6 +208,11 @@ export default function Home() {
       }
     };
 
+    // Prevent native scrolling during touch - we handle it ourselves
+    const touchMove = (e: TouchEvent) => {
+      e.preventDefault();
+    };
+
     const touchEnd = (e: TouchEvent) => {
       if (isScrolling) return;
       const touch = e.changedTouches && e.changedTouches[0];
@@ -216,10 +221,9 @@ export default function Home() {
       const dt = Date.now() - touchStartTime;
       const velocity = Math.abs(dy / Math.max(1, dt));
 
-      // Threshold distance of 60px or velocity of 0.35 qualifies as a swipe
-      if (Math.abs(dy) < 60 && velocity < 0.35) {
-        // not a confident swipe — snap back to active index
-        scrollTo(activeIndexRef.current);
+      // Threshold distance of 50px or velocity of 0.3 qualifies as a swipe
+      if (Math.abs(dy) < 50 && velocity < 0.3) {
+        // not a confident swipe — stay on current index (no snap-back animation needed)
         return;
       }
 
@@ -227,20 +231,19 @@ export default function Home() {
       const nextIndex = Math.min(Math.max(activeIndexRef.current + dir, 0), Math.max(0, stories.length - 1));
       if (nextIndex !== activeIndexRef.current) {
         scrollTo(nextIndex);
-      } else {
-        // Snap back to current
-        scrollTo(activeIndexRef.current);
       }
     };
 
-    // Add listeners with passive:false where necessary to allow preventDefault
+    // Add listeners with passive:false to allow preventDefault
     container.addEventListener('wheel', wheelHandler, { passive: false });
     container.addEventListener('touchstart', touchStart, { passive: true });
+    container.addEventListener('touchmove', touchMove, { passive: false });
     container.addEventListener('touchend', touchEnd, { passive: true });
 
     return () => {
       container.removeEventListener('wheel', wheelHandler);
       container.removeEventListener('touchstart', touchStart);
+      container.removeEventListener('touchmove', touchMove);
       container.removeEventListener('touchend', touchEnd);
     };
   }, [stories.length, activeIndex]);
@@ -258,7 +261,7 @@ export default function Home() {
 
   return (
     <>
-      <div ref={containerRef} className="h-full w-full overflow-y-scroll weeve-snap-container snap-y snap-mandatory scrollbar-hide">
+      <div ref={containerRef} className="h-full w-full overflow-hidden scrollbar-hide">
         {stories.map((story, index) => (
           <div
             key={story.id}
@@ -266,7 +269,7 @@ export default function Home() {
               if (el) itemRefs.current.set(index, el);
               else itemRefs.current.delete(index);
             }}
-            className="h-full weeve-snap-item snap-start shrink-0"
+            className="h-full shrink-0"
             data-index={index}
           >
             {Math.abs(index - activeIndex) <= 1 ? (
@@ -278,7 +281,7 @@ export default function Home() {
         ))}
 
         {/* End of Feed Placeholder */}
-        <div className="h-full weeve-snap-item snap-start flex items-center justify-center bg-black text-gray-500">
+        <div className="h-full flex items-center justify-center bg-black text-gray-500">
           <div className="text-center">
             <p className="mb-4">You&apos;re all caught up!</p>
             <button className="text-[#EC1D99] font-bold">Discover more</button>

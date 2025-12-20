@@ -27,10 +27,10 @@ export default function EditProfilePage() {
     const [nameCheckTimeout, setNameCheckTimeout] = useState<NodeJS.Timeout | null>(null);
 
     // Calculate if name can be changed (14 day cooldown)
-    const canChangeName = !currentUser?.lastNameChangeAt || 
+    const canChangeName = !currentUser?.lastNameChangeAt ||
         (new Date().getTime() - new Date(currentUser.lastNameChangeAt).getTime()) >= 14 * 24 * 60 * 60 * 1000;
-    
-    const daysUntilNameChange = currentUser?.lastNameChangeAt 
+
+    const daysUntilNameChange = currentUser?.lastNameChangeAt
         ? Math.ceil((14 * 24 * 60 * 60 * 1000 - (new Date().getTime() - new Date(currentUser.lastNameChangeAt).getTime())) / (24 * 60 * 60 * 1000))
         : 0;
 
@@ -122,7 +122,7 @@ export default function EditProfilePage() {
                 setIsSaving(false);
                 return;
             }
-            
+
             if (nameAvailability.available === false) {
                 setIsSaving(false);
                 return;
@@ -153,28 +153,28 @@ export default function EditProfilePage() {
                 const errorCode = (error as any).code?.toLowerCase() || '';
                 const errorHint = (error as any).hint?.toLowerCase() || '';
                 const errorDetails = (error as any).details?.toLowerCase() || '';
-                
+
                 const allErrorText = `${errorMessage} ${errorCode} ${errorHint} ${errorDetails}`;
-                
+
                 // Check for name-related errors
-                if (allErrorText.includes('display name') || 
-                    allErrorText.includes('unique') || 
+                if (allErrorText.includes('display name') ||
+                    allErrorText.includes('unique') ||
                     allErrorText.includes('duplicate') ||
                     allErrorText.includes('already exists') ||
                     errorCode === '23505') {
                     setIsSaving(false);
                     return;
                 }
-                
+
                 // Check for cooldown errors
                 if (allErrorText.includes('name can only be changed') ||
-                    allErrorText.includes('14 days') || 
-                    allErrorText.includes('cooldown') || 
+                    allErrorText.includes('14 days') ||
+                    allErrorText.includes('cooldown') ||
                     allErrorText.includes('once every')) {
                     setIsSaving(false);
                     return;
                 }
-                
+
                 setIsSaving(false);
                 toast.error('Failed to update profile');
                 return;
@@ -195,33 +195,33 @@ export default function EditProfilePage() {
             console.error('🔴 CAUGHT ERROR IN NEW CODE:', err);
             console.error('Error type:', typeof err);
             console.error('Error keys:', err ? Object.keys(err) : 'null');
-            
+
             // Get all possible error text sources
             const errorMessage = (err?.message || err?.error?.message || String(err)).toLowerCase();
             const errorCode = (err?.code || err?.error?.code || '').toLowerCase();
             const errorHint = (err?.hint || err?.error?.hint || '').toLowerCase();
             const errorDetails = (err?.details || err?.error?.details || '').toLowerCase();
-            
+
             // Log for debugging
             console.log('Checking error text:', { errorMessage, errorCode, errorHint, errorDetails });
-            
+
             const allErrorText = `${errorMessage} ${errorCode} ${errorHint} ${errorDetails}`;
-            
+
             // Check for cooldown errors - more permissive matching
             if (errorMessage.includes('name can only be changed') ||
                 errorMessage.includes('14 days') ||
                 errorMessage.includes('once every 14 days') ||
-                allErrorText.includes('14 days') || 
-                allErrorText.includes('cooldown') || 
+                allErrorText.includes('14 days') ||
+                allErrorText.includes('cooldown') ||
                 allErrorText.includes('once every')) {
                 console.log('Detected cooldown error - silently returning');
                 setIsSaving(false);
                 return;
             }
-            
+
             // Check for name-related errors
             if (errorMessage.includes('display name already exists') ||
-                errorMessage.includes('unique') || 
+                errorMessage.includes('unique') ||
                 errorMessage.includes('duplicate') ||
                 errorMessage.includes('already exists') ||
                 errorCode === '23505' ||
@@ -230,12 +230,14 @@ export default function EditProfilePage() {
                 setIsSaving(false);
                 return;
             }
-            
+
             console.log('Unhandled error - showing toast');
             setIsSaving(false);
             toast.error('Failed to update profile');
         }
     };
+
+
 
     if (!currentUser) {
         return (
@@ -261,11 +263,10 @@ export default function EditProfilePage() {
                 <button
                     onClick={handleSave}
                     disabled={isSaving || isUploading}
-                    className={`${
-                        isSaving || isUploading
-                            ? 'bg-gray-600 cursor-not-allowed'
-                            : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
-                    } text-white font-bold px-6 py-2 rounded-lg transition-colors`}
+                    className={`${isSaving || isUploading
+                        ? 'bg-gray-600 cursor-not-allowed'
+                        : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
+                        } text-white font-bold px-6 py-2 rounded-lg transition-colors`}
                 >
                     {isSaving ? 'Saving...' : 'Save'}
                 </button>

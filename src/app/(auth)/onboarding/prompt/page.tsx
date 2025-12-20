@@ -43,7 +43,7 @@ export default function PromptPage() {
         try {
             // Check if user already has an onboarding story
             let storyId = await getOnboardingStoryId(user.id);
-            
+
             if (storyId) {
                 // Story exists - update it to fix mode and current_turn_user_id
                 await supabase
@@ -53,7 +53,7 @@ export default function PromptPage() {
                         current_turn_user_id: user.id,
                     })
                     .eq('id', storyId);
-                
+
                 // Fetch stories to reload with updated data
                 await fetchStories();
             } else {
@@ -62,7 +62,7 @@ export default function PromptPage() {
                 if (createError) throw createError;
                 if (!newStoryId) throw new Error('Failed to create onboarding story');
                 storyId = newStoryId;
-                
+
                 // Fetch stories to load the new story into the store
                 await fetchStories();
             }
@@ -90,7 +90,7 @@ export default function PromptPage() {
                 .update({ onboarding_step: 2 })
                 .eq('user_id', user.id);
 
-            try { if (typeof window !== 'undefined' && user?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + user.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + user.id, 'true'); } } catch (err) {}
+            try { if (typeof window !== 'undefined' && user?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + user.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + user.id, 'true'); } } catch (err) { }
 
             router.push('/onboarding/follows');
         } catch (err) {
@@ -134,7 +134,7 @@ export default function PromptPage() {
                         <div className="mb-6 p-4 bg-white/5 rounded-lg border border-white/10">
                             <h3 className="text-sm font-semibold text-[#EC1D99] mb-2">📚 How Weeve Works:</h3>
                             <p className="text-sm text-gray-300 leading-relaxed mb-3">
-                                Weeve is all about <strong>collaborative storytelling</strong>. You'll add "weeves" (your parts) to create stories together!
+                                Weeve is all about <strong>collaborative creation</strong>. You'll add "weeves" (your parts) to create stories together!
                             </p>
                             <div className="mt-3 space-y-2 text-sm text-gray-400">
                                 <div className="flex items-start gap-2">

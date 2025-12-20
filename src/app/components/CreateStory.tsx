@@ -2,9 +2,10 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, Loader, Globe, Lock, UserPlus, Check, GripVertical } from "lucide-react";
+import { ChevronLeft, Loader, Globe, Lock, UserPlus, Check, GripVertical } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 import { searchUsers, addFriend, Friend as FriendType, sendFriendRequest } from "@/lib/friends";
+import { searchHashtags } from "@/lib/hashtags";
 import { toast } from "sonner";
 
 export interface Friend {
@@ -43,66 +44,6 @@ interface CreateStoryProps {
   onRefreshFriends?: () => Promise<void>;
 }
 
-// Step indicator component
-const StepIndicator = ({
-  currentStep,
-  totalSteps,
-  onStepClick
-}: {
-  currentStep: number;
-  totalSteps: number;
-  onStepClick?: (step: number) => void;
-}) => {
-  const steps = [
-    { num: 1, label: "Details" },
-    { num: 2, label: "Contributors" },
-    { num: 3, label: "Finish" },
-  ];
-
-  return (
-    <div className="flex items-center justify-center gap-2 mb-6">
-      {steps.map((step, idx) => {
-        // Can click on completed steps or current step
-        const canClick = step.num < currentStep && onStepClick;
-
-        return (
-          <div key={step.num} className="flex items-center">
-            <button
-              type="button"
-              onClick={() => canClick && onStepClick(step.num)}
-              disabled={!canClick}
-              className={`flex flex-col items-center ${canClick ? 'cursor-pointer' : 'cursor-default'}`}
-            >
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${currentStep === step.num
-                  ? "bg-[#EC1D99] text-white scale-110"
-                  : currentStep > step.num
-                    ? "bg-green-500 text-white hover:bg-green-400"
-                    : "bg-gray-800 text-gray-500"
-                  }`}
-              >
-                {currentStep > step.num ? <Check className="w-5 h-5" /> : step.num}
-              </div>
-              <span
-                className={`text-xs mt-1 transition-colors ${currentStep === step.num ? "text-white" : "text-gray-500"
-                  }`}
-              >
-                {step.label}
-              </span>
-            </button>
-            {idx < steps.length - 1 && (
-              <div
-                className={`w-12 h-0.5 mx-2 mb-5 transition-colors ${currentStep > step.num ? "bg-green-500" : "bg-gray-800"
-                  }`}
-              />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
 const CreateStory = ({
   onBack,
   onCreateStory,
@@ -119,10 +60,6 @@ const CreateStory = ({
   const inviteId = searchParams?.get('invite');
 
   const handleBack = onBack ?? (() => router.back());
-
-  // Multi-step wizard state
-  const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 3;
 
   const [formState, setFormState] = useState<CreateStoryFormState>({
     title: "",
@@ -141,9 +78,13 @@ const CreateStory = ({
   });
   const [hashtagInput, setHashtagInput] = useState("");
   const hashtagInputRef = useRef<HTMLInputElement | null>(null);
+  const [hashtagSuggestions, setHashtagSuggestions] = useState<string[]>([]);
+  const [showHashtagDropdown, setShowHashtagDropdown] = useState(false);
+  const [isSearchingHashtags, setIsSearchingHashtags] = useState(false);
   const friendsInputRef = useRef<HTMLInputElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const errorTimeoutRef = useRef<number | null>(null);
+  const topRef = useRef<HTMLDivElement | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -185,13 +126,6 @@ const CreateStory = ({
     };
   }, []);
 
-  // Step validation
-  const canProceedToStep2 = formState.title.trim().length > 0;
-  // Allow proceeding if at least the current user is in the participants (user can create solo story)
-  const hasAnyParticipant = (formState.orderedParticipants || []).some(p => p !== null);
-  const canProceedToStep3 = hasAnyParticipant;
-  const canCreateStory = canProceedToStep2 && canProceedToStep3 && !isLoading;
-
   const [searchResults, setSearchResults] = useState<Friend[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -209,7 +143,7 @@ const CreateStory = ({
 
   // Debug logging
   useEffect(() => {
-    console.log('[CreateStory] availableFriends prop:', availableFriends?.length, availableFriends);
+
   }, [availableFriends]);
 
   // Debounced remote search
@@ -313,7 +247,6 @@ const CreateStory = ({
     setFormState((prev) => {
       const newParticipants = [...(prev.orderedParticipants || [])];
 
-
       let inserted = false;
 
       // If slotToFill is set, place friend into that slot
@@ -330,7 +263,7 @@ const CreateStory = ({
       }
 
       if (!inserted) {
-        setError(`You can only add up to ${prev.inviteCount} people.`);
+        setError(`Story is full. Increase the participant count to add more friends.`);
         if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
         errorTimeoutRef.current = window.setTimeout(() => setError(""), 2000);
         return prev;
@@ -383,16 +316,20 @@ const CreateStory = ({
     // Validation
     if (formState.title.trim().length === 0) {
       setError("Story title is required");
-      setCurrentStep(1);
-      if (titleInputRef.current) titleInputRef.current.focus();
+      if (titleInputRef.current) {
+        titleInputRef.current.focus();
+        titleInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
     const activeParticipants = (formState.orderedParticipants || []).filter(p => p !== null);
 
     if (activeParticipants.length < 1) {
-      setError("No participants found");
-      setCurrentStep(2);
+      setError("Please add at least one participant");
+      if (topRef.current) {
+        topRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
       return;
     }
 
@@ -407,6 +344,9 @@ const CreateStory = ({
           ? err.message
           : "Failed to create story. Please try again.",
       );
+      if (topRef.current) {
+        topRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -451,6 +391,42 @@ const CreateStory = ({
       ...prev,
       hashtags: (prev.hashtags ?? []).filter((t) => t !== tag),
     }));
+  };
+
+  // Debounced hashtag search
+  useEffect(() => {
+    const searchForHashtags = async () => {
+      const normalizedInput = hashtagInput.trim().replace(/^#+/, '').toLowerCase();
+
+      if (!normalizedInput) {
+        setHashtagSuggestions([]);
+        setIsSearchingHashtags(false);
+        return;
+      }
+
+      setIsSearchingHashtags(true);
+      try {
+        const results = await searchHashtags(normalizedInput, 10);
+        // Filter out already selected hashtags
+        const existingTags = formState.hashtags ?? [];
+        const filtered = results.filter(tag => !existingTags.includes(tag));
+        setHashtagSuggestions(filtered);
+      } catch (err) {
+        console.error('Hashtag search failed', err);
+        setHashtagSuggestions([]);
+      } finally {
+        setIsSearchingHashtags(false);
+      }
+    };
+
+    const timeoutId = setTimeout(searchForHashtags, 300);
+    return () => clearTimeout(timeoutId);
+  }, [hashtagInput, formState.hashtags]);
+
+  const handleSelectHashtagSuggestion = (tag: string) => {
+    handleAddHashtag(tag);
+    setShowHashtagDropdown(false);
+    setHashtagSuggestions([]);
   };
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -498,37 +474,12 @@ const CreateStory = ({
     setDraggedIndex(null);
   };
 
-  // Navigate between steps
-  const goToNextStep = () => {
-    if (currentStep === 1 && !canProceedToStep2) {
-      setError("Please enter a story title");
-      return;
-    }
-    if (currentStep === 2 && !canProceedToStep3) {
-      setError("Please ensure you have at least one participant");
-      return;
-    }
-    if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
-      setError("");
-    }
-  };
-
-  const goToPrevStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-      setError("");
-    } else {
-      handleBack();
-    }
-  };
-
-  // Render Step 1: Story Details
-  const renderStep1 = () => (
-    <div className="space-y-6 animate-fadeIn">
-      <div className="text-center mb-8">
-        <h2 className="text-xl font-bold text-white mb-2">What's your story about?</h2>
-        <p className="text-gray-400 text-sm">Give your collaborative story a title and optional description</p>
+  // Render Section 1: Story Details
+  const renderDetailsSection = () => (
+    <div className="space-y-6">
+      <div className="text-left mb-4">
+        <h2 className="text-lg font-bold text-white mb-2">1. Story Details</h2>
+        <p className="text-gray-400 text-sm">Give your story a name and description</p>
       </div>
 
       {/* Story Title Input */}
@@ -548,7 +499,6 @@ const CreateStory = ({
           placeholder="Give your story a name..."
           className="w-full px-4 py-4 bg-gray-900 border border-gray-800 rounded-xl focus:outline-none focus:border-[#EC1D99] focus:ring-2 focus:ring-[#EC1D99]/20 transition-all text-white text-lg font-semibold placeholder-gray-600 font-sans"
           aria-describedby="title-counter"
-          autoFocus
         />
         <p
           className="text-xs text-gray-500 mt-2 font-sans text-right"
@@ -571,7 +521,7 @@ const CreateStory = ({
           value={formState.description}
           onChange={handleDescriptionChange}
           placeholder="What's this story about? Set the scene for your collaborators..."
-          rows={4}
+          rows={3}
           className="w-full px-4 py-4 bg-gray-900 border border-gray-800 rounded-xl focus:outline-none focus:border-[#EC1D99] focus:ring-2 focus:ring-[#EC1D99]/20 transition-all text-white resize-none placeholder-gray-600 font-sans"
           aria-describedby="desc-counter"
         />
@@ -585,12 +535,12 @@ const CreateStory = ({
     </div>
   );
 
-  // Render Step 2: Visibility & Contributors
-  const renderStep2 = () => (
-    <div className="space-y-6 animate-fadeIn">
-      <div className="text-center mb-6">
-        <h2 className="text-xl font-bold text-white mb-2">Who can contribute?</h2>
-        <p className="text-gray-400 text-sm">Set visibility and invite friends to collaborate</p>
+  // Render Section 2: Contributors
+  const renderContributorsSection = () => (
+    <div className="space-y-6">
+      <div className="text-left mb-6">
+        <h2 className="text-lg font-bold text-white mb-2">2. Participants</h2>
+        <p className="text-gray-400 text-sm">Choose who can add to this story</p>
       </div>
 
       {/* Story Visibility Selection - Hidden if groupId is present */}
@@ -651,29 +601,30 @@ const CreateStory = ({
         </fieldset>
       )}
 
-      {/* Number of Contributors */}
+      {/* Number of Participants */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <label
             htmlFor="invite-count"
             className="block text-sm font-medium text-gray-300 font-sans"
           >
-            Number of Contributors
+            Number of Participants
           </label>
-          <span className="text-lg font-bold text-[#EC1D99]">{formState.inviteCount}</span>
+          <span className="text-lg font-bold text-[#EC1D99]">{formState.inviteCount + 1}</span>
         </div>
         <input
           id="invite-count"
           type="range"
-          min={1}
-          max={10}
-          value={formState.inviteCount}
+          min={2}
+          max={11}
+          value={formState.inviteCount + 1}
           onChange={(e) => {
-            const newCount = parseInt(e.target.value);
+            const totalParticipants = parseInt(e.target.value);
+            const newCount = totalParticipants - 1;
             setFormState(prev => {
               const currentParticipants = prev.orderedParticipants || [];
               // We need newCount + 1 slots (1 for user + newCount for friends)
-              const targetLength = newCount + 1;
+              const targetLength = totalParticipants;
 
               let newParticipants;
               if (currentParticipants.length < targetLength) {
@@ -692,9 +643,9 @@ const CreateStory = ({
             });
           }}
           className="w-full accent-[#EC1D99] h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer"
-          aria-label="Number of contributors"
+          aria-label="Number of participants"
         />
-        <p className="text-xs text-gray-500 mt-2">How many people will contribute to this story (excluding you)</p>
+        <p className="text-xs text-gray-500 mt-2">Total number of people in this story (including you)</p>
       </div>
 
       {/* Improved Slots Visualization */}
@@ -954,60 +905,91 @@ const CreateStory = ({
     </div>
   );
 
-  // Render Step 3: Finishing Touches
-  const renderStep3 = () => (
-    <div className="space-y-6 animate-fadeIn">
-      <div className="text-center mb-6">
-        <h2 className="text-xl font-bold text-white mb-2">Finishing Touches</h2>
-        <p className="text-gray-400 text-sm">Add hashtags and configure optional settings</p>
-      </div>
-
-      {/* Story Summary */}
-      <div className="bg-gradient-to-r from-[#EC1D99]/10 to-purple-500/10 rounded-xl p-4 border border-[#EC1D99]/20">
-        <h3 className="text-sm font-semibold text-white mb-3">Story Summary</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-400">Title:</span>
-            <span className="text-white font-medium">{formState.title || "Untitled"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Visibility:</span>
-            <span className="text-white flex items-center gap-1">
-              {formState.visibility === "public" ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
-              {formState.visibility === "public" ? "Public" : "Private"}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Contributors:</span>
-            <span className="text-white">{formState.selectedFriends.length + 1} people</span>
-          </div>
-        </div>
+  // Render Section 3: Finishing Touches (Hashtags, etc)
+  const renderFinishingTouchesSection = () => (
+    <div className="space-y-6">
+      <div className="text-left mb-6">
+        <h2 className="text-lg font-bold text-white mb-2">3. Extras</h2>
+        <p className="text-gray-400 text-sm">Add hashtags and configure settings</p>
       </div>
 
       {/* Hashtags Input */}
-      <div>
+      <div className="relative">
         <label
           htmlFor="hashtag"
           className="block text-sm font-medium text-gray-300 mb-2 font-sans"
         >
           Hashtags <span className="text-gray-500">(optional)</span>
         </label>
-        <div className="flex gap-2 items-center">
-          <input
-            id="hashtag"
-            type="text"
-            value={hashtagInput}
-            onChange={(e) => setHashtagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === "," || e.key === " ") {
-                e.preventDefault();
-                handleAddHashtag();
-              }
-            }}
-            placeholder="#adventure #friends"
-            className="flex-1 px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:outline-none focus:border-[#EC1D99] focus:ring-2 focus:ring-[#EC1D99]/20 transition-all text-white placeholder-gray-600 font-sans"
-            ref={hashtagInputRef}
-          />
+        <div className="flex gap-2 items-center relative">
+          <div className="relative flex-1">
+            <input
+              id="hashtag"
+              type="text"
+              value={hashtagInput}
+              onChange={(e) => setHashtagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === "," || e.key === " ") {
+                  e.preventDefault();
+                  handleAddHashtag();
+                }
+                if (e.key === "Escape") {
+                  setShowHashtagDropdown(false);
+                }
+                if (e.key === "ArrowDown" && hashtagSuggestions.length > 0) {
+                  e.preventDefault();
+                  setShowHashtagDropdown(true);
+                }
+              }}
+              onFocus={() => setShowHashtagDropdown(true)}
+              onBlur={() => {
+                // Delay to allow click on dropdown
+                setTimeout(() => setShowHashtagDropdown(false), 200);
+              }}
+              placeholder="#adventure #friends"
+              className="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:outline-none focus:border-[#EC1D99] focus:ring-2 focus:ring-[#EC1D99]/20 transition-all text-white placeholder-gray-600 font-sans"
+              ref={hashtagInputRef}
+              autoComplete="off"
+            />
+
+            {/* Hashtag Suggestions Dropdown */}
+            {showHashtagDropdown && (hashtagSuggestions.length > 0 || isSearchingHashtags) && (
+              <div className="absolute left-0 right-0 top-full mt-1 bg-gray-900 border border-gray-700 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
+                {isSearchingHashtags && (
+                  <div className="flex items-center justify-center py-3 text-gray-500 text-sm">
+                    <Loader className="w-4 h-4 animate-spin mr-2" />
+                    Searching...
+                  </div>
+                )}
+                {!isSearchingHashtags && hashtagSuggestions.length > 0 && (
+                  <>
+                    <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-800">
+                      Existing hashtags
+                    </div>
+                    {hashtagSuggestions.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleSelectHashtagSuggestion(tag);
+                        }}
+                        className="w-full px-3 py-2.5 text-left text-white hover:bg-gray-800 transition-colors flex items-center gap-2"
+                      >
+                        <span className="text-[#EC1D99]">#</span>
+                        <span>{tag}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+                {!isSearchingHashtags && hashtagSuggestions.length === 0 && hashtagInput.trim() && (
+                  <div className="px-3 py-3 text-gray-500 text-sm text-center">
+                    No matching hashtags found. Press Enter to create a new one.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <button
             onClick={() => handleAddHashtag()}
             className="px-4 py-3 rounded-xl bg-[#EC1D99] text-white font-semibold hover:bg-[#D41C84] transition-colors"
@@ -1037,6 +1019,7 @@ const CreateStory = ({
           </div>
         )}
       </div>
+
 
       {/* Advanced Options */}
       <div>
@@ -1127,14 +1110,14 @@ const CreateStory = ({
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-black text-white">
+    <div className="flex flex-col min-h-screen bg-black text-white" ref={topRef}>
       {/* Header */}
       <header className="sticky top-0 z-20 bg-black/90 backdrop-blur-md border-b border-gray-800 px-4 py-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
-            onClick={goToPrevStep}
+            onClick={handleBack}
             className="p-2 rounded-full border border-[#EC1D99] text-[#EC1D99] bg-black hover:bg-gray-900 transition-colors"
-            aria-label={currentStep === 1 ? "Go back" : "Previous step"}
+            aria-label="Go back"
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
@@ -1163,21 +1146,15 @@ const CreateStory = ({
         )}
       </header>
 
-      <main className="flex-1 px-4 py-6 pb-40">
-        <div className="max-w-md mx-auto md:max-w-lg">
-          {/* Step Indicator */}
-          <StepIndicator
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onStepClick={(step) => setCurrentStep(step)}
-          />
+      <main className="flex-1 px-4 py-6 pb-28 overflow-y-auto hidden-scrollbar">
+        <div className="max-w-md mx-auto md:max-w-lg space-y-8">
 
           {/* Error Message */}
           {error && (
             <div
               role="alert"
               aria-live="assertive"
-              className="mb-6 p-4 bg-red-900/50 border border-red-800 rounded-xl"
+              className="p-4 bg-red-900/50 border border-red-800 rounded-xl animate-fadeIn"
             >
               <p
                 className="text-sm text-red-200 font-sans"
@@ -1187,72 +1164,51 @@ const CreateStory = ({
             </div>
           )}
 
-          {/* Step Content */}
-          {currentStep === 1 && renderStep1()}
-          {currentStep === 2 && renderStep2()}
-          {currentStep === 3 && renderStep3()}
+          {/* Form Sections */}
+          {renderDetailsSection()}
+
+          <div className="h-px bg-gray-800 my-8" />
+
+          {renderContributorsSection()}
+
+          <div className="h-px bg-gray-800 my-8" />
+
+          {renderFinishingTouchesSection()}
+
         </div>
       </main>
 
-      {/* Button Section - Sticky at Bottom */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-md border-t border-gray-800 px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] z-20">
+      {/* Footer Actions */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent z-10 pb-[env(safe-area-inset-bottom,20px)]">
         <div className="max-w-md mx-auto md:max-w-lg flex gap-3">
-          {currentStep === 1 ? (
-            <button
-              onClick={handleBack}
-              className="flex-1 px-6 py-3 border border-gray-700 rounded-xl text-gray-300 font-medium hover:bg-gray-900 transition-colors flex items-center justify-center"
-              disabled={isLoading}
-            >
-              Cancel
-            </button>
-          ) : (
-            <button
-              onClick={goToPrevStep}
-              className="flex-1 px-6 py-3 border border-gray-700 rounded-xl text-gray-300 font-medium hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
-              disabled={isLoading}
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Back
-            </button>
-          )}
+          <button
+            onClick={handleBack}
+            className="flex-1 px-6 py-4 border border-gray-700 rounded-xl text-gray-300 font-medium hover:bg-gray-900 transition-colors flex items-center justify-center"
+            disabled={isLoading}
+          >
+            Cancel
+          </button>
 
-          {currentStep < totalSteps ? (
-            <button
-              onClick={goToNextStep}
-              disabled={
-                (currentStep === 1 && !canProceedToStep2) ||
-                (currentStep === 2 && !canProceedToStep3)
-              }
-              className={`flex-1 px-8 py-4 rounded-xl text-white font-bold flex items-center justify-center gap-2 transition-all ${(currentStep === 1 && !canProceedToStep2) || (currentStep === 2 && !canProceedToStep3)
-                ? "opacity-50 cursor-not-allowed bg-gray-700"
-                : "bg-gradient-to-r from-[#EC1D99] to-[#D41C84] hover:scale-[1.02] shadow-lg"
-                }`}
-            >
-              Next
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          ) : (
-            <button
-              onClick={handleCreateStory}
-              disabled={!canCreateStory}
-              className={`flex-1 px-8 py-4 rounded-xl text-white font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${!canCreateStory
-                ? "opacity-50 cursor-not-allowed bg-[#EC1D99]"
-                : "bg-gradient-to-r from-[#EC1D99] to-[#D41C84] hover:scale-[1.02]"
-                }`}
-            >
-              {isLoading ? (
-                <>
-                  <Loader className="w-5 h-5 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
-                  <Check className="w-5 h-5" />
-                  Create Story
-                </>
-              )}
-            </button>
-          )}
+          <button
+            onClick={handleCreateStory}
+            disabled={isLoading}
+            className={`flex-1 px-8 py-4 rounded-xl text-white font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${isLoading
+              ? "opacity-70 cursor-wait bg-[#EC1D99]"
+              : "bg-gradient-to-r from-[#EC1D99] to-[#D41C84] hover:scale-[1.02]"
+              }`}
+          >
+            {isLoading ? (
+              <>
+                <Loader className="w-5 h-5 animate-spin" />
+                Creating...
+              </>
+            ) : (
+              <>
+                <Check className="w-5 h-5" />
+                Create Story
+              </>
+            )}
+          </button>
         </div>
       </div>
 
@@ -1270,6 +1226,13 @@ const CreateStory = ({
         }
         .animate-fadeIn {
           animation: fadeIn 0.3s ease-out;
+        }
+        .hidden-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .hidden-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}</style>
     </div>

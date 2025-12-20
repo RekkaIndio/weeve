@@ -36,7 +36,7 @@ function capturePhotoViaFileInput({ useCamera }: { useCamera: boolean }): Promis
 
         input.onchange = (event) => {
             const file = (event.target as HTMLInputElement).files?.[0] ?? null;
-            console.log('[Camera] File input returned photo:', file?.name, file?.size);
+
             if (file && file.size > 25 * 1024 * 1024) {
                 console.error('[Camera] Photo file too large:', file.size);
                 alert('Photo is too large. Please use an image under 25MB.');
@@ -48,7 +48,7 @@ function capturePhotoViaFileInput({ useCamera }: { useCamera: boolean }): Promis
         };
 
         input.oncancel = () => {
-            console.log('[Camera] File input cancelled');
+
             document.body.removeChild(input);
             resolve(null);
         };
@@ -67,7 +67,7 @@ export type PhotoCaptureMode = 'auto' | 'camera' | 'gallery';
 
 export async function capturePhoto(mode: PhotoCaptureMode = 'auto'): Promise<File | null> {
     const isNative = Capacitor.isNativePlatform();
-    console.log('[Camera] capturePhoto called', { mode, isNative });
+
 
     const fallbackToInput = (useCamera: boolean) => capturePhotoViaFileInput({ useCamera });
 
@@ -109,7 +109,7 @@ export async function capturePhoto(mode: PhotoCaptureMode = 'auto'): Promise<Fil
 async function capturePhotoWithPlugin(source: CameraSource, useCameraFallback: boolean): Promise<File | null> {
     const isNative = Capacitor.isNativePlatform();
     try {
-        console.log('[Camera] Requesting photo via Capacitor Camera plugin (Base64 mode)', { source });
+
         const image = await Camera.getPhoto({
             quality: 90,
             allowEditing: false,
@@ -123,7 +123,7 @@ async function capturePhotoWithPlugin(source: CameraSource, useCameraFallback: b
             webUseInput: !isNative,
         });
 
-        console.log('[Camera] Photo captured');
+
 
         if (!image.base64String) {
             console.error('[Camera] No Base64 data returned from camera');
@@ -143,7 +143,7 @@ async function capturePhotoWithPlugin(source: CameraSource, useCameraFallback: b
                 type: blob.type || `image/${image.format}`,
                 lastModified: Date.now(),
             });
-            console.log('[Camera] Photo file created:', file.name, file.type, file.size);
+
             return file;
         }
 
@@ -162,7 +162,7 @@ async function capturePhotoWithPlugin(source: CameraSource, useCameraFallback: b
             });
         }
 
-        console.log('[Camera] Photo file created (fallback):', fallbackFile.name, fallbackFile.type, fallbackFile.size);
+
         return fallbackFile;
     } catch (error) {
         console.error('[Camera] Photo capture error:', error);
@@ -194,7 +194,7 @@ export type VideoCaptureMode = 'auto' | 'camera' | 'gallery';
  */
 export async function captureVideo(mode: VideoCaptureMode = 'auto'): Promise<File | null> {
     const isNative = Capacitor.isNativePlatform();
-    console.log('[Camera] captureVideo called', { mode, isNative });
+
 
     if (mode === 'gallery') {
         return captureVideoFromGallery();
@@ -238,12 +238,12 @@ export async function captureVideo(mode: VideoCaptureMode = 'auto'): Promise<Fil
 }
 
 function captureVideoFromCamera(): Promise<File | null> {
-    console.log('[Camera] captureVideoFromCamera called - using file input capture');
+
     return captureVideoViaFileInput({ useCamera: true });
 }
 
 function captureVideoFromGallery(): Promise<File | null> {
-    console.log('[Camera] captureVideoFromGallery called');
+
     return captureVideoViaFileInput({ useCamera: false });
 }
 
@@ -265,7 +265,7 @@ function captureVideoViaFileInput({ useCamera }: { useCamera: boolean }): Promis
 
         input.onchange = (event) => {
             const file = (event.target as HTMLInputElement).files?.[0] ?? null;
-            console.log('[Camera] Video input returned:', file?.name, file?.type, file?.size);
+
             if (file && file.size > 100 * 1024 * 1024) {
                 console.error('[Camera] Video file too large:', file.size);
                 alert('Video file is too large. Please use a video under 100MB.');
@@ -278,7 +278,7 @@ function captureVideoViaFileInput({ useCamera }: { useCamera: boolean }): Promis
         };
 
         input.oncancel = () => {
-            console.log('[Camera] Video input cancelled');
+
             cleanup();
             resolve(null);
         };

@@ -421,6 +421,7 @@ export default function ProfilePage() {
         fetchFriends();
     }, [fetchFriends]);
 
+
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(currentUser?.name || '');
     const [editAvatar, setEditAvatar] = useState(currentUser?.avatar || '');
@@ -476,17 +477,12 @@ export default function ProfilePage() {
 
         // Exclude completed stories from waiting tab — they should appear in main weeves tab
         if (s.status === 'completed') return false;
-        // Exclude stories that have reached their max contributions (full)
-        if (typeof s.maxWeeves === 'number' && s.maxWeeves > 0 && (
-            (s.contributions?.length ?? 0) >= s.maxWeeves ||
-            (s.participants?.length ?? 0) >= s.maxWeeves
-        )) return false;
-
-        // Show if pending invite (any participant entry for user has status 'waiting')
-        if (s.participants.some(p => p.id === currentUser.id && p.status === 'waiting')) return true;
 
         // Show if it's their turn in an active story
         if (s.status === 'active' && s.currentTurnUserId === currentUser.id) return true;
+
+        // Show if pending invite (any participant entry for user has status 'waiting')
+        if (s.participants.some(p => p.id === currentUser.id && p.status === 'waiting')) return true;
 
         return false;
     }) : [];
@@ -1335,8 +1331,8 @@ export default function ProfilePage() {
                                                 </div>
                                             </div>
                                         ) : firstMediaType === 'video' && firstMediaUrl ? (
-                                        
-                                        
+
+
 
                                             <VideoThumbnail
                                                 src={firstMediaUrl}
@@ -1401,11 +1397,11 @@ export default function ProfilePage() {
                     <>
                         {waitingStories.length > 0 ? (
                             waitingStories.map(story => {
-                                    const sortedContributions = (story.contributions || [])
-                                        .slice()
-                                        .sort((a, b) => a.timestamp - b.timestamp);
-                                    
-                                
+                                const sortedContributions = (story.contributions || [])
+                                    .slice()
+                                    .sort((a, b) => a.timestamp - b.timestamp);
+
+
                                 const lastContribution = sortedContributions[sortedContributions.length - 1];
                                 const hasContributions = sortedContributions.length > 0;
                                 const waitingForFirstContribution = !hasContributions;

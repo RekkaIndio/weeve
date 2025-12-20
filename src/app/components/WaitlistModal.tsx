@@ -22,7 +22,7 @@ export default function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         // Here you would normally send to your backend/Supabase
-        console.log("Waitlist email:", email);
+
 
         setSubmitted(true);
         setLoading(false);

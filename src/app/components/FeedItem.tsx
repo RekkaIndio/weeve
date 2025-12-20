@@ -10,7 +10,7 @@ if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoR
 
 import { Story, useStore, Contribution } from "@/lib/store";
 import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
-import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, MoreVertical, Flag } from "lucide-react";
+import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, FormEvent, useCallback } from "react";
@@ -90,9 +90,10 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     const [showFriendPicker, setShowFriendPicker] = useState(false);
     const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+
     const [showTutorialTooltip, setShowTutorialTooltip] = useState(false);
     const [showMonetizationModal, setShowMonetizationModal] = useState<'confirm' | 'insufficient' | null>(null);
+    const [isAvatarsExpanded, setIsAvatarsExpanded] = useState(false);
 
     const deductTokens = useStore((state) => state.deductTokens);
 
@@ -122,7 +123,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             context.drawImage(video, 0, 0, width, height);
             return canvas.toDataURL('image/jpeg', 0.7);
         } catch (error) {
-            console.debug('Unable to capture video frame for placeholder', error);
+
             return null;
         }
     }, []);
@@ -315,7 +316,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         if (hasInteracted) return;
         if (effectiveOrderedContributions.length === 0) return;
 
-        const debug = (msg: string, obj?: unknown) => console.debug('[FeedItem:init]', msg, obj);
+
 
         const applyIndex = (idx: number | null) => {
             if (idx === null || idx < 0 || idx >= effectiveOrderedContributions.length) return false;
@@ -325,37 +326,37 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         };
 
         if (initialContributionId) {
-            debug('initialContributionId provided', { initialContributionId });
+
             // 1) Try direct id match in effectiveOrderedContributions
             const foundIndex = effectiveOrderedContributions.findIndex(c => c.id === initialContributionId);
             if (foundIndex >= 0 && applyIndex(foundIndex)) {
-                debug('Found initial by id in effectiveOrderedContributions', { foundIndex });
+
                 return;
             }
 
             // 2) If not found by id, look up the contribution by id in raw contributions and match by mediaUrl
             const rawContrib = contributions.find(c => c.id === initialContributionId);
             if (rawContrib) {
-                debug('Found raw contribution for id', { rawContrib });
+
                 const mediaUrlToMatch = rawContrib.mediaUrl || rawContrib.content || '';
                 // try exact mediaUrl match first
                 const foundByMedia = effectiveOrderedContributions.findIndex(c => (c.mediaUrl || '').includes(mediaUrlToMatch) || (mediaUrlToMatch || '').includes(c.mediaUrl || ''));
                 if (foundByMedia >= 0 && applyIndex(foundByMedia)) {
-                    debug('Found initial by mediaUrl in effectiveOrderedContributions', { foundByMedia });
+
                     return;
                 }
 
                 // 3) Try matching by userId + content
                 const foundByUserContent = effectiveOrderedContributions.findIndex(c => c.userId === rawContrib.userId && c.content === rawContrib.content);
                 if (foundByUserContent >= 0 && applyIndex(foundByUserContent)) {
-                    debug('Found initial by userId+content', { foundByUserContent });
+
                     return;
                 }
             } else {
-                debug('initialContributionId not found in raw contributions', { initialContributionId, contributions: contributions.map(c => c.id) });
+
             }
 
-            debug('initialContributionId not found in effectiveOrderedContributions, falling back');
+
         }
 
         // If we get here we didn't match initial contribution, try to set to first playable
@@ -366,7 +367,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         });
 
         if (firstPlayable >= 0 && applyIndex(firstPlayable)) {
-            debug('Set initial to firstPlayable', { firstPlayable });
+
         }
 
     }, [initialContributionId, effectiveOrderedContributions, contributions, hasInteracted]);
@@ -398,51 +399,14 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     // DEBUG: Log contribution details to help diagnose video display issue
     useEffect(() => {
         if (hasContributions) {
-            console.log('[FeedItem Debug]', {
-                storyId: story.id,
-                storyTitle: story.title,
-                contributionsCount,
-                currentIndex,
-                safeIndex,
-                currentContribution: currentContribution ? {
-                    id: currentContribution.id,
-                    mediaType: currentContribution.mediaType,
-                    hasMediaUrl: !!currentContribution.mediaUrl,
-                    mediaUrlPreview: currentContribution.mediaUrl?.substring(0, 60) + '...',
-                    mediaUrlLength: currentContribution.mediaUrl?.length,
-                    mediaUrlIsEmpty: !currentContribution.mediaUrl?.trim(),
-                    content: currentContribution.content?.substring(0, 30)
-                } : null,
-                orderedContributions: displayOrderedContributions.map(c => ({
-                    id: c.id,
-                    mediaType: c.mediaType,
-                    hasMediaUrl: !!c.mediaUrl,
-                    mediaUrlIsEmpty: !c.mediaUrl?.trim(),
-                    userId: c.userId
-                })),
-                slotMapEntries: Array.from(slotContentMap.entries()).map(([slot, c]) => ({
-                    slot,
-                    contributionId: c.id,
-                    mediaType: c.mediaType,
-                    hasMediaUrl: !!c.mediaUrl,
-                    mediaUrlIsEmpty: !c.mediaUrl?.trim()
-                })),
-                computedMediaType: mediaType,
-                videoState: mediaType === 'video' ? {
-                    isVideoReady,
-                    isVideoVisible,
-                    mediaUrl: mediaUrl?.substring(0, 100),
-                    mediaUrlFull: mediaUrl,
-                    videoReadyInCache: videoReadyRef.current.get(mediaUrl || '') ?? false
-                } : null
-            });
+
         }
     }, [story.id, contributionsCount, currentIndex, currentContribution, hasContributions, story.coverImage, story.title, displayOrderedContributions, slotContentMap, mediaType, isVideoReady, isVideoVisible, mediaUrl]);
 
     // Log current play item when it changes
     useEffect(() => {
         if (!currentContribution) return;
-        console.debug('[FeedItem] Playing contribution:', { id: currentContribution.id, mediaType: currentContribution.mediaType, mediaUrl: currentContribution.mediaUrl, index: currentIndex });
+
     }, [currentContribution, currentIndex]);
     // We intentionally avoid generating video posters/placeholders for feed items.
     // Keeping a solid black overlay until playback begins ensures no poster or
@@ -483,7 +447,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             setIsVideoVisible(true);
             // If we're visible, try to play right away (muted to satisfy autoplay rules)
             if (isVisible) {
-                video.muted = true;
+                video.muted = false;
                 video.play().catch(() => null);
             }
         } else {
@@ -497,7 +461,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             if (document.visibilityState === 'visible' && isVisible && mediaType === 'video' && videoRef.current) {
                 const video = videoRef.current;
                 if (videoReadyRef.current.get(mediaUrl || '') && video.paused) {
-                    video.muted = true;
+                    video.muted = false;
                     video.play().catch(() => null);
                 }
             }
@@ -549,7 +513,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             const preloadVideo = document.createElement('video');
             preloadVideo.src = mediaUrl;
             preloadVideo.preload = 'auto';
-            preloadVideo.muted = true;
+            preloadVideo.muted = false;
             preloadVideo.playsInline = true;
 
             const handleReady = () => {
@@ -591,9 +555,13 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     }, [contributions, markVideoReady, isVisible]);
 
     useEffect(() => {
+        if (mediaType !== 'video') {
+            return;
+        }
+
         // Instantly skip to next video if not ready or error, no placeholder
-        if (mediaType !== 'video' || !mediaUrl || !mediaUrl.trim()) {
-            if (mediaType === 'video' && !mediaUrl?.trim()) {
+        if (!mediaUrl || !mediaUrl.trim()) {
+            if (!mediaUrl?.trim()) {
                 console.error('[FeedItem] Video mediaType but empty URL detected!', {
                     storyId: story.id,
                     contributionId: currentContribution?.id,
@@ -665,7 +633,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             try {
                 buffer.src = mediaUrl;
                 buffer.preload = 'auto';
-                buffer.muted = true;
+                buffer.muted = false;
                 buffer.playsInline = true;
                 bufferCanPlayHandler = () => {
                     if (currentVideoSrc === mediaUrl) return;
@@ -681,13 +649,13 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                     video.pause();
                                     video.src = buffer.src;
                                     video.load();
-                                    video.muted = true;
+                                    video.muted = false;
                                     video.play().catch(() => null);
                                     setIsVideoReady(true);
                                     setCurrentVideoSrc(mediaUrl);
                                 }
                             } catch (err) {
-                                console.debug('[FeedItem] Error during buffer swap', err);
+
                             }
                             // Fade back in and hide buffer
                             setIsBufferVisible(false);
@@ -699,7 +667,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                 buffer.addEventListener('canplaythrough', bufferCanPlayHandler);
                 buffer.load();
             } catch (err) {
-                console.debug('[FeedItem] buffer preload error', err);
+
             }
         }
 
@@ -836,8 +804,8 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                             setIsVideoReady(true);
                             setIsVideoVisible(true);
                             if (videoRef.current && videoRef.current.paused) {
-                                // Ensure autoplay, prefer muted playback to satisfy browsers
-                                videoRef.current.muted = true;
+                                // Ensure autoplay, PREFER sound enabled
+                                videoRef.current.muted = false;
                                 videoRef.current.play().catch(() => null);
                             }
                         } else if (preloaded && preloaded.readyState >= 2) {
@@ -846,7 +814,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                             setIsVideoReady(true);
                             setIsVideoVisible(true);
                             if (videoRef.current) {
-                                videoRef.current.muted = true;
+                                videoRef.current.muted = false;
                                 videoRef.current.play().catch(() => null);
                             }
                         } else {
@@ -907,20 +875,20 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             if (playPromise !== undefined) {
                 playPromise
                     .then(() => {
-                        console.log('[FeedItem] Video playing with sound:', mediaUrl);
+
                     })
                     .catch(e => {
-                        console.log('[FeedItem] Autoplay with sound blocked, trying muted:', e.name);
+
                         // If autoplay with sound is blocked, play muted and wait for user interaction
                         video.muted = true;
                         video.play().then(() => {
-                            console.log('[FeedItem] Playing muted, tap to enable sound');
+
                             // Automatically unmute on any interaction with the page
                             const unmute = () => {
                                 if (video.muted) {
                                     video.muted = false;
                                     video.volume = 1.0;
-                                    console.log('[FeedItem] Auto-unmuted after user interaction');
+
                                 }
                                 document.removeEventListener('touchstart', unmute, { capture: true });
                                 document.removeEventListener('click', unmute, { capture: true });
@@ -953,11 +921,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         await toggleStoryLike(story.id);
     }, [currentUser, story.id, toggleStoryLike]);
 
-    const handleReport = useCallback(() => {
-        // Placeholder for report functionality
-        alert("Thanks for reporting. We will review this content shortly.");
-        setIsMenuOpen(false);
-    }, []);
+
 
     const handleCommentSubmit = useCallback(async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -974,7 +938,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     }, [participantsMap]);
 
     const handleForkStory = async (participantId: string) => {
-        console.log("handleForkStory called", { participantId, selectedSlots, storyId: story.id });
+
         if (selectedSlots.length === 0) {
             console.error("No slots selected");
             return;
@@ -986,11 +950,11 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             .map(slotIndex => slotContentMap.get(slotIndex)?.id)
             .filter((id): id is string => id !== undefined);
 
-        console.log("Converting slots to contribution IDs:", { selectedSlots, contributionIdsToReplace });
+
 
         try {
             const result = await forkStory(story.id, selectedSlots, participantId, contributionIdsToReplace);
-            console.log("forkStory result:", result);
+
 
             setIsForking(false);
             setSelectedSlots([]);
@@ -998,13 +962,6 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             setShowFriendPicker(false);
 
             if (result.success && result.storyId) {
-                // Show any warnings returned by the server
-                if ((result as any).warning) {
-                    setTimeout(() => {
-                        alert((result as any).warning);
-                    }, 120);
-                }
-
                 // Check if user selected themselves vs inviting a friend
                 if (participantId === currentUser?.id) {
                     // Navigate to the new forked story for immediate contribution
@@ -1027,24 +984,24 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     };
 
     const handleContainerClick = useCallback((e: React.MouseEvent) => {
-        console.log('[FeedItem] Container clicked, mediaType:', mediaType, 'hasVideo:', !!videoRef.current);
+
         // Unmute video on user interaction
         if (mediaType === 'video' && videoRef.current) {
             const video = videoRef.current;
-            console.log('[FeedItem] Video muted state:', video.muted);
+
             if (video.muted) {
-                console.log('[FeedItem] Unmuting video on user tap');
+
                 video.muted = false;
-                console.log('[FeedItem] Video muted after unmute:', video.muted);
+
                 // Ensure video is playing
                 if (video.paused) {
                     video.play().catch((e) => {
-                        console.log('[FeedItem] Could not play video:', e);
+
                     });
                 }
                 setHasInteracted(true);
             } else {
-                console.log('[FeedItem] Video already unmuted');
+
             }
         }
     }, [mediaType]);
@@ -1101,7 +1058,6 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                         poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23000000'/%3E%3C/svg%3E"
                         className="weeve-inline-video absolute inset-0 w-full h-full object-cover"
                         autoPlay
-                        muted
                         playsInline
                         preload="auto"
                         controls={false}
@@ -1111,7 +1067,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                         onEnded={handleVideoEnded}
                         onPlay={(e) => {
                             setIsPlaying(true);
-                            console.log('[FeedItem] Video started playing, muted:', e.currentTarget.muted);
+
                         }}
                         onPause={() => {
                             setIsPlaying(false);
@@ -1119,30 +1075,30 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                         onClick={(e) => {
                             e.stopPropagation();
                             const video = e.currentTarget;
-                            console.log('[FeedItem] Video clicked, muted:', video.muted, 'volume:', video.volume);
+
                             video.muted = false;
                             video.volume = 1.0;
-                            console.log('[FeedItem] After click - muted:', video.muted, 'volume:', video.volume);
+
                             setHasInteracted(true);
                         }}
                         onLoadedMetadata={(e) => {
                             const video = e.currentTarget;
                             // Set volume to maximum
                             video.volume = 1.0;
-                            console.log('[FeedItem] Video metadata loaded, volume set to:', video.volume);
+
                         }}
                         onLoadedData={(e) => {
-                            console.log('[FeedItem] Video data loaded:', mediaUrl?.substring(0, 60));
+
                             // Manually play the video after it's loaded to avoid browser play button
                             const video = e.currentTarget;
                             if (isVisible) {
                                 video.play().catch((err) => {
-                                    console.log('[FeedItem] Manual play failed:', err);
+
                                 });
                             }
                         }}
                         onVolumeChange={(e) => {
-                            console.log('[FeedItem] Volume changed, muted:', e.currentTarget.muted, 'volume:', e.currentTarget.volume);
+
                         }}
                         style={{
                             opacity: isVideoVisible ? 1 : 0,
@@ -1169,7 +1125,6 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                         ref={bufferVideoRef}
                         poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23000000'/%3E%3C/svg%3E"
                         className="weeve-inline-video absolute inset-0 w-full h-full object-cover pointer-events-none"
-                        muted
                         playsInline
                         preload="auto"
                         controls={false}
@@ -1274,7 +1229,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                         setShowMonetizationModal('confirm');
                                     }
                                 } else {
-                                    console.log("Weeve button clicked, toggling isForking", !isForking);
+
                                     setIsForking(!isForking);
                                     if (showTutorialTooltip) {
                                         handleTooltipDismiss();
@@ -1321,49 +1276,19 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                     </div>
                 )}
 
-                {/* More / Share Menu */}
-                <div className="flex flex-col items-center gap-1 relative">
+                {/* Share Button */}
+                <div className="flex flex-col items-center gap-1">
                     <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen); }}
-                        className={`w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-white/20 transition-colors ${isMenuOpen ? "text-[#EC1D99]" : "text-white"}`}
-                        aria-label="More options"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsShareModalOpen(true);
+                        }}
+                        className="w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-white/20 transition-colors text-white hover:scale-110 active:scale-95"
+                        aria-label="Share"
                     >
-                        <MoreVertical className="w-6 h-6" />
+                        <Share2 className="w-5 h-5" />
                     </button>
-                    {/* <span className="text-xs font-bold">More</span> */}
-
-                    {isMenuOpen && (
-                        <>
-                            <div className="fixed inset-0 z-30" onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); }} />
-                            <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 flex flex-col bg-black/90 border border-white/10 rounded-xl overflow-hidden min-w-[140px] z-40 backdrop-blur-md animate-in fade-in slide-in-from-right-4 duration-200 shadow-xl">
-                                <button
-                                    type="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsMenuOpen(false);
-                                        setIsShareModalOpen(true);
-                                    }}
-                                    className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors text-left"
-                                >
-                                    <Share2 className="w-5 h-5" />
-                                    <span className="font-medium text-sm text-white">Share</span>
-                                </button>
-                                <div className="h-[1px] bg-white/10 mx-2" />
-                                <button
-                                    type="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleReport();
-                                    }}
-                                    className="flex items-center gap-3 px-4 py-3 hover:bg-white/10 transition-colors text-left text-red-500"
-                                >
-                                    <Flag className="w-5 h-5" />
-                                    <span className="font-medium text-sm">Report</span>
-                                </button>
-                            </div>
-                        </>
-                    )}
+                    <span className="text-xs font-bold font-poppins drop-shadow-md">Share</span>
                 </div>
             </div>
 
@@ -1480,30 +1405,143 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                     {story.description}
                 </p>
 
+
                 <div className="flex items-center mb-3 w-fit">
-                    {/* Show all participants in sequence; allow horizontal swipe if they overflow (touch-friendly).
-                        Slightly overlap subsequent avatars so up to ten can fit; reserve space on the right so they don't hide under the menu. */}
-                    <div className="flex items-center gap-0 pl-2 pr-20 py-1 flex-nowrap max-w-[calc(100%-64px)] overflow-hidden">
-                        {story.participants.map((p, idx) => {
-                            // Highlights only the circle for the part that is playing
-                            const isActive = idx === currentIndex;
-                            return (
-                                <Link
-                                    key={`${p.id}-${p.position}`}
-                                    href={`/profile/${p.id}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    title={`${p.position !== undefined ? `${p.position + 1}. ` : ''}${p.name}`}
-                                    // Make non-active circles more transparent
-                                    className={`relative rounded-full flex-none ${idx !== 0 ? '-ml-4' : ''} ${isActive ? 'z-10 scale-110 transition-transform duration-300 opacity-100' : 'opacity-60 hover:opacity-100 transition-opacity'}`}
+                    {/* Stacked/Collapsed Avatar Display - shows current + context avatars with expand option */}
+                    <div className="relative">
+                        {/* Collapsed View */}
+                        {!isAvatarsExpanded ? (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (story.participants.length > 1) {
+                                        setIsAvatarsExpanded(true);
+                                    }
+                                }}
+                                className="flex items-center gap-0 pl-2 py-1 group"
+                            >
+                                {(() => {
+                                    const participants = story.participants;
+                                    const total = participants.length;
+
+                                    // Determine which avatars to show:
+                                    // - Always show the currently playing avatar prominently
+                                    // - Show 1 before and 1 after for context (if available)
+                                    // - Show +X if there are more
+
+                                    const visibleIndices: number[] = [];
+
+                                    if (total <= 3) {
+                                        // Show all if 3 or fewer
+                                        for (let i = 0; i < total; i++) visibleIndices.push(i);
+                                    } else {
+                                        // Show context: previous, current, next
+                                        if (currentIndex > 0) visibleIndices.push(currentIndex - 1);
+                                        visibleIndices.push(currentIndex);
+                                        if (currentIndex < total - 1) visibleIndices.push(currentIndex + 1);
+
+                                        // If current is first, show 3 from start
+                                        if (currentIndex === 0 && total > 2) {
+                                            visibleIndices.push(currentIndex + 2);
+                                        }
+                                        // If current is last, show 3 from end
+                                        if (currentIndex === total - 1 && total > 2 && !visibleIndices.includes(currentIndex - 2)) {
+                                            visibleIndices.unshift(currentIndex - 2);
+                                        }
+                                    }
+
+                                    const hiddenCount = total - visibleIndices.length;
+
+                                    return (
+                                        <>
+                                            {visibleIndices.map((idx, displayIdx) => {
+                                                const p = participants[idx];
+                                                const isActive = idx === currentIndex;
+                                                return (
+                                                    <Link
+                                                        key={`${p.id}-${p.position}`}
+                                                        href={`/profile/${p.id}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        title={`${idx + 1}. ${p.name}${isActive ? ' (playing)' : ''}`}
+                                                        className={`relative rounded-full flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} ${isActive
+                                                            ? 'z-20 scale-110 opacity-100'
+                                                            : 'z-10 opacity-70 group-hover:opacity-90'
+                                                            }`}
+                                                    >
+                                                        <img
+                                                            src={p.avatar}
+                                                            alt={p.name}
+                                                            className={`w-11 h-11 min-w-[44px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
+                                                                ? 'border-[#EC1D99] shadow-[0_0_12px_#EC1D99]'
+                                                                : 'border-black/80'
+                                                                }`}
+                                                        />
+                                                        {isActive && (
+                                                            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#EC1D99] rounded-full animate-pulse" />
+                                                        )}
+                                                    </Link>
+                                                );
+                                            })}
+
+                                            {/* +X More Badge */}
+                                            {hiddenCount > 0 && (
+                                                <div
+                                                    className="-ml-2 z-30 flex items-center justify-center w-11 h-11 rounded-full bg-gray-800/90 border-2 border-gray-600 text-white text-xs font-bold backdrop-blur-sm group-hover:bg-gray-700 group-hover:border-[#EC1D99]/50 transition-all"
+                                                    title={`${hiddenCount} more contributor${hiddenCount > 1 ? 's' : ''}`}
+                                                >
+                                                    +{hiddenCount}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+                            </button>
+                        ) : (
+                            /* Expanded View - All participants visible */
+                            <div className="flex items-center gap-0 pl-2 py-1 animate-in slide-in-from-left-2 duration-300">
+                                {story.participants.map((p, idx) => {
+                                    const isActive = idx === currentIndex;
+                                    return (
+                                        <Link
+                                            key={`${p.id}-${p.position}`}
+                                            href={`/profile/${p.id}`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            title={`${idx + 1}. ${p.name}${isActive ? ' (playing)' : ''}`}
+                                            className={`relative rounded-full flex-none transition-all duration-300 ${idx !== 0 ? '-ml-3' : ''} ${isActive
+                                                ? 'z-20 scale-110 opacity-100'
+                                                : 'z-10 opacity-70 hover:opacity-100'
+                                                }`}
+                                        >
+                                            <img
+                                                src={p.avatar}
+                                                alt={p.name}
+                                                className={`w-10 h-10 min-w-[40px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
+                                                    ? 'border-[#EC1D99] shadow-[0_0_10px_#EC1D99]'
+                                                    : 'border-black/80'
+                                                    }`}
+                                            />
+                                            {isActive && (
+                                                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#EC1D99] rounded-full animate-pulse" />
+                                            )}
+                                        </Link>
+                                    );
+                                })}
+
+                                {/* Collapse button */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsAvatarsExpanded(false);
+                                    }}
+                                    className="-ml-1 z-30 flex items-center justify-center w-8 h-8 rounded-full bg-gray-800/80 border border-gray-600 text-gray-300 hover:text-white hover:bg-gray-700 transition-all"
+                                    title="Collapse"
                                 >
-                                    <img
-                                        src={p.avatar}
-                                        alt={p.name}
-                                        className={`w-11 h-11 min-w-[44px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 ${isActive ? 'border-[#EC1D99] shadow-[0_0_10px_#EC1D99]' : 'border-black'}`}
-                                    />
-                                </Link>
-                            );
-                        })}
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -1699,7 +1737,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                                         type="button"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            console.log("Slot clicked:", index, "isActive:", isActive);
+
                                                             if (isActive) {
                                                                 // Toggle slot selection
                                                                 setSelectedSlots(prev => {

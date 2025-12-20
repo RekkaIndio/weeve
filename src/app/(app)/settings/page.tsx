@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight } from "lucide-react";
+import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { signOut, updateUserProfile } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -185,6 +185,14 @@ export default function SettingsPage() {
                 <button onClick={handleLogout} className="w-full p-4 bg-gray-900 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold hover:bg-gray-800 transition-colors mt-8">
                     <LogOut className="w-5 h-5" />
                     Log Out
+                </button>
+
+                <button
+                    onClick={() => router.push('/settings/delete-account')}
+                    className="w-full p-4 bg-transparent border border-red-900/30 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold hover:bg-red-900/10 transition-colors mt-4"
+                >
+                    <Trash2 className="w-5 h-5" />
+                    Delete Account
                 </button>
 
                 <div className="text-center text-xs text-gray-600 mt-8 pb-8">

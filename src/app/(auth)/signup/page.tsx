@@ -81,7 +81,7 @@ export default function SignUpPage() {
             if (!user) throw new Error('Signup failed');
 
             // AuthProvider will redirect to /setup for new users
-            console.log('[Signup] Successfully signed up, redirecting to setup');
+
         } catch (error) {
             console.error('[Signup] Error:', error);
             const message = error instanceof Error ? error.message : null;

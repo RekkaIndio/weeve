@@ -34,7 +34,7 @@ export function useTimerCheck(
 
     // Check if expired
     if (now >= expiryTime) {
-      console.log('[Timer Check] Turn has expired, automatically skipping...');
+
       
       try {
         const result = await skipTurn(storyId, currentUserId, 'timer_expired');

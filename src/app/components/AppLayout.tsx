@@ -32,7 +32,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const isHome = pathname === "/feed";
 
     // Hide bottom nav on pages with their own sticky footer
-    const hideBottomNav = pathname === "/create-story" || pathname?.startsWith("/story/");
+    const hideBottomNav = pathname?.startsWith("/story/") || pathname === "/create-story";
     const showNavigation = !!user && !hideBottomNav;
 
     return (

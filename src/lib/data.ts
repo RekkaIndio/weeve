@@ -53,11 +53,11 @@ async function uploadFileToStorage(params: {
 
     const responseText = await response.text();
 
-    console.log('[Upload] Storage REST response status:', response.status);
+
     try {
-        console.log('[Upload] Storage REST response body:', responseText ? JSON.parse(responseText) : null);
+
     } catch {
-        console.log('[Upload] Storage REST response (text):', responseText);
+
     }
 
     if (!response.ok) {
@@ -303,7 +303,7 @@ async function compressImage(file: File): Promise<Blob> {
             // Compress to JPEG 0.8
             canvas.toBlob((blob) => {
                 if (blob) {
-                    console.log(`[Upload] Compressed image: ${file.size} -> ${blob.size} bytes`);
+
                     resolve(blob);
                 } else {
                     reject(new Error('Canvas toBlob failed'));
@@ -333,11 +333,7 @@ async function compressImage(file: File): Promise<Blob> {
 }
 
 export async function createStoryContribution(options: CreateStoryContributionOptions): Promise<{ contribution: Contribution }> {
-    console.log('[Upload] Starting contribution creation', {
-        storyId: options.storyId,
-        mediaType: options.mediaType,
-        hasFile: !!options.file,
-    });
+
 
     let session: Session | null = getLatestSession();
     let sessionTimedOut = false;
@@ -372,11 +368,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
             session = null;
         }
     }
-    console.log('[Upload] Session fetch result', {
-        hasSession: !!session,
-        timedOut: sessionTimedOut,
-        fromCache: sessionFetchedFromCache,
-    });
+
 
     // Proactive token refresh if expiring soon (within 5 minutes)
     if (session?.expires_at) {
@@ -461,7 +453,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
     let publicUrl: string | undefined;
 
     if (options.file && typeof options.file.size === 'number') {
-        console.log('[Upload] File detected, starting upload process');
+
 
         // Check file size (limit to 100MB)
         const maxSize = 100 * 1024 * 1024; // 100MB
@@ -558,7 +550,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                             if (refreshError) {
                                 console.error('[Upload] Session refresh failed:', refreshError);
                             } else if (refreshData.session) {
-                                console.log('[Upload] Session refreshed successfully (retrying upload)');
+
                                 // Update session variable for next loop if needed (though SDK handles it internally usually)
                                 session = refreshData.session;
                             }
@@ -609,7 +601,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
             .getPublicUrl(objectPath);
 
         publicUrl = urlData.publicUrl;
-        console.log('[Upload] Generated public URL:', publicUrl);
+
     } else if (options.file) {
         console.warn('[Upload] File provided but lacks size metadata, skipping upload and keeping media_url undefined');
     }
@@ -758,19 +750,16 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                 .select('id', { count: 'exact', head: true })
                 .eq('story_id', options.storyId);
             
-            console.log('[Upload] Checking if forked story is complete:', { 
-                contributionCount, 
-                maxWeeves: storyCheck.max_weeves 
-            });
+
             
             // If all slots are filled, make the story public
             if (contributionCount && contributionCount >= storyCheck.max_weeves) {
-                console.log('[Upload] Forked story complete! Making it public...');
+
                 await supabase
                     .from('stories')
                     .update({ visibility: 'public' })
                     .eq('id', options.storyId);
-                console.log('[Upload] Story is now public and visible on the main feed');
+
             }
         }
     } catch (visibilityCheckError) {

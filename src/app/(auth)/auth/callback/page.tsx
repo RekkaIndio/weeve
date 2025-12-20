@@ -47,13 +47,13 @@ export default function AuthCallbackPage() {
         }
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
-            console.log('[Callback] Auth event:', event);
+
 
             if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
                 // Successful sign in
                 // We let AuthProvider handle the redirect to /feed or /setup
                 // based on whether the user has a profile or not.
-                console.log('[Callback] Session established, waiting for AuthProvider to redirect...');
+
             } else if (event === "SIGNED_OUT") {
                 // Handle sign out during callback (edge case)
                 router.replace("/login");

@@ -95,13 +95,13 @@ export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise
         const isCapacitor = Capacitor.isNativePlatform();
         const platform = Capacitor.getPlatform();
 
-        console.log('[Auth] Platform detection:', { isCapacitor, platform, userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'server' });
+
 
         // Determine redirect URL based on platform
         let redirectTo: string | undefined;
 
         if (isCapacitor) {
-            console.log('[Auth] Detected native Capacitor platform, using deep link redirect');
+
             redirectTo = getNativeRedirectUri(platform);
         } else {
             // Web Flow (including mobile browsers)
@@ -111,12 +111,12 @@ export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise
                 return buildPublicUrl(redirectPath);
             };
             redirectTo = buildRedirect();
-            console.log('[Auth] Detected web platform (or mobile browser), using standard redirect:', redirectTo);
+
         }
 
         // ... inside function
 
-        console.log('[Auth] Initiating OAuth with redirect:', redirectTo, { isCapacitor, platform });
+
 
         const options = isCapacitor ? { redirectTo, skipBrowserRedirect: true } : { redirectTo, skipBrowserRedirect: false };
 
@@ -130,7 +130,7 @@ export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise
         // When skipBrowserRedirect is true, Supabase returns the OAuth URL but doesn't navigate to it.
         // We need to manually open it using Capacitor's Browser plugin for native platforms.
         if (isCapacitor && data?.url) {
-            console.log('[Auth] Opening OAuth URL in browser:', data.url);
+
             const { Browser } = await import('@capacitor/browser');
             await Browser.open({ url: data.url });
         }
@@ -175,7 +175,7 @@ export async function getCurrentUser(): Promise<User | null> {
  */
 export async function getUserProfile(userId: string): Promise<AuthUser | null> {
     try {
-        console.log('[Auth] getUserProfile requested for user:', userId);
+
         const fetchPromise = supabase
             .from('profiles')
             .select('*')
@@ -193,7 +193,7 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
         const { data, error } = await Promise.race([fetchPromise, timeoutPromise]) as { data: any; error: any };
 
         if (error) throw error;
-        console.log('[Auth] getUserProfile result:', { userId, data });
+
         if (!data) return null;
 
         return {
@@ -313,7 +313,7 @@ export async function createUserProfile(
 
             if (referrer) {
                 await addFriend(userId, referrer.user_id);
-                console.log(`[Auth] Added friend connection with referrer ${referrer.user_id}`);
+
             }
         }
 
@@ -329,7 +329,7 @@ export async function createUserProfile(
  */
 export async function profileExists(userId: string): Promise<boolean> {
     try {
-        console.log('[Auth] profileExists check for user:', userId);
+
         const { data, error } = await supabase
             .from('profiles')
             .select('user_id')
@@ -337,7 +337,7 @@ export async function profileExists(userId: string): Promise<boolean> {
             .maybeSingle();
 
         if (error) throw error;
-        console.log('[Auth] profileExists result:', { userId, hasProfile: !!data });
+
 
         return !!data;
     } catch (error) {
@@ -422,5 +422,42 @@ export async function updateUserProfile(
     } catch (error) {
         console.error('[Auth] Update profile error:', error);
         return { data: null, error: error as Error };
+    }
+}
+
+/**
+ * Delete user account permanently
+ * This calls the server-side API which uses the service role key to delete the user
+ */
+export async function deleteUserAccount(reason: string, feedback?: string): Promise<{ success: boolean; error: Error | null }> {
+    try {
+        // Get the current session to get the access token
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError || !session) {
+            throw new Error('Not authenticated');
+        }
+
+        const response = await fetch('/api/delete-account', {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ reason, feedback }),
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || 'Failed to delete account');
+        }
+
+        // Sign out locally after successful deletion
+        await supabase.auth.signOut();
+
+        return { success: true, error: null };
+    } catch (error) {
+        console.error('[Auth] Delete account error:', error);
+        return { success: false, error: error as Error };
     }
 }

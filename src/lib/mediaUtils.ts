@@ -88,3 +88,81 @@ export async function createImageFromText(content: string, style: TextStyle): Pr
         }, 'image/png');
     });
 }
+
+/**
+ * Creates a watermark image containing the text "@[username]" followed by the Weeve logo.
+ * Returns a Blob of the PNG image.
+ */
+export async function createWatermarkImage(username: string): Promise<Blob> {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not get canvas context');
+
+    // 1. Load Logo
+    const logoImg = new Image();
+    // Wrap image loading in a promise
+    await new Promise((resolve, reject) => {
+        logoImg.onload = resolve;
+        logoImg.onerror = reject;
+        logoImg.crossOrigin = 'anonymous'; // Important for canvas export
+        logoImg.src = '/weeve-logo.png';
+    });
+
+    // 2. Measure Text
+    // Increase resolution for sharpness (will appear smaller if video is large, but 720p width is standard)
+    // 40px font size is sharper than 24px
+    const fontSize = 42; 
+    ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+    const text = `@${username}`;
+    const textMetrics = ctx.measureText(text);
+    
+    // 3. Layout Dimensions
+    const padding = 24; // Padding between text and logo
+    const logoHeight = 64; // Target logo height (increased for sharpness/size)
+    const logoWidth = (logoImg.width / logoImg.height) * logoHeight; // Maintain aspect ratio
+    
+    // Ensure height accommodates both text and logo comfortably
+    const totalHeight = Math.max(logoHeight, fontSize * 1.5); 
+    const totalWidth = textMetrics.width + padding + logoWidth;
+
+    // Set canvas size (with some buffer for shadows)
+    canvas.width = totalWidth + 24; 
+    canvas.height = totalHeight + 12;
+
+    // Clear context after resize
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 4. Draw Text
+    // Re-set font after resize as it might reset context state
+    ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFFFFF';
+    
+    // Add shadow/outline for readability on any background
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 3;
+
+    const textX = 12; // Left margin
+    const centerY = canvas.height / 2;
+
+    ctx.fillText(text, textX, centerY);
+
+    // 5. Draw Logo
+    const logoX = textX + textMetrics.width + padding;
+    const logoY = centerY - (logoHeight / 2);
+    
+    // Enable high quality image smoothing
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    
+    ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
+
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+            if (blob) resolve(blob);
+            else reject(new Error('Canvas to Blob failed for watermark'));
+        }, 'image/png');
+    });
+}

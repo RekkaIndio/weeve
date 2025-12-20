@@ -63,7 +63,7 @@ export default function LoginPage() {
             if (authError) throw authError;
             if (!user) throw new Error('Login failed');
 
-            console.log('[Login] Successfully signed in, user:', user.id);
+
 
             // Manually set the session if needed, though supabase client usually handles this
             if (session) {

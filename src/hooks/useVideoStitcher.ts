@@ -3,7 +3,7 @@ import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { Story, Contribution } from '@/lib/store';
 import { toast } from 'sonner';
-import { createImageFromText } from '@/lib/mediaUtils';
+import { createImageFromText, createWatermarkImage } from '@/lib/mediaUtils';
 
 export type StitchingState = 'idle' | 'loading-ffmpeg' | 'downloading-assets' | 'stitching' | 'complete' | 'error';
 
@@ -29,7 +29,7 @@ export function useVideoStitcher() {
         // Attach lightweight handlers — these will be duplicated if called multiple times but it's safe
         ffmpeg.on('log', ({ message }) => {
             // keep log for debugging, but silence in production later
-            console.debug('[FFmpeg log]', message);
+
         });
 
         // Attach a simple on('progress') handler so we show some feedback during load
@@ -108,7 +108,7 @@ export function useVideoStitcher() {
 
             ffmpeg.on('log', ({ message }) => {
                 // Debug logs can be noisy; keep for now
-                console.log('[FFmpeg]', message);
+
             });
 
             // Start a watchdog to detect stalls in stitching
@@ -120,8 +120,8 @@ export function useVideoStitcher() {
                 const now = Date.now();
                 const elapsed = lastTS ? (now - lastTS) : Number.POSITIVE_INFINITY;
 
-                // If we're in the middle of processing (some steps remain) and no progress has been made in 30s, mark as error and attempt to recover
-                if (stepRef.current < totalStepsRef.current && elapsed > 30000) {
+                // If we're in the middle of processing (some steps remain) and no progress has been made in 60s, mark as error and attempt to recover
+                if (stepRef.current < totalStepsRef.current && elapsed > 60000) {
                     console.error('FFmpeg seems stalled; last progress at', lastProgressValueRef.current, '%', 'elapsed ms=', elapsed);
                     toast.error('Stitching stalled. Attempting to abort and clean up.');
                     try {
@@ -154,17 +154,17 @@ export function useVideoStitcher() {
             // Steps: 1 for each contribution + concat audio + concat video + final merge step
             totalStepsRef.current = sorted.length + 3;
 
-            // PERFORMANCE OPTIMIZATION: Use smaller intermediate resolution (540x960) to reduce WASM memory
-            const INTERMEDIATE_WIDTH = 540;
-            const INTERMEDIATE_HEIGHT = 960;
+            // PERFORMANCE: 720p (720x1280) strikes balance between quality and mobile WASM stability
+            const INTERMEDIATE_WIDTH = 720;
+            const INTERMEDIATE_HEIGHT = 1280;
             const INTERMEDIATE_VIDEO_FILTER = `scale=${INTERMEDIATE_WIDTH}:${INTERMEDIATE_HEIGHT}:force_original_aspect_ratio=decrease,pad=${INTERMEDIATE_WIDTH}:${INTERMEDIATE_HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1`;
-            // Final target: 1080x1920 for downloaded videos
-            const FINAL_TARGET_WIDTH = 1080;
-            const FINAL_TARGET_HEIGHT = 1920;
+            // Final target same as intermediate to allow copy-concat
+            const FINAL_TARGET_WIDTH = 720;
+            const FINAL_TARGET_HEIGHT = 1280;
             const FINAL_SCALE_FILTER = `scale=${FINAL_TARGET_WIDTH}:${FINAL_TARGET_HEIGHT}:force_original_aspect_ratio=decrease,pad=${FINAL_TARGET_WIDTH}:${FINAL_TARGET_HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1`;
 
             
-            console.log('Stitching started (Split A/V Pipeline). Inputs:', sorted.length);
+
 
             const intermediateVideoFiles: string[] = [];
             const intermediateAudioFiles: string[] = [];
@@ -204,7 +204,7 @@ export function useVideoStitcher() {
 
             for (let i = 0; i < sorted.length; i++) {
                 const c = sorted[i];
-                console.log(`Processing clip ${i}/${sorted.length}:`, c.mediaType);
+
                 const inputFilename = `raw_input_${i}`;
                 const outputVideoName = `part_${i}_v.mp4`;
                 const outputAudioName = `part_${i}_a.m4a`;
@@ -268,12 +268,12 @@ export function useVideoStitcher() {
 
                     if (isVideoInput) {
                         // For videos, preserve full duration but use INTERMEDIATE filter to reduce memory
-                        console.log(`Processing video contribution ${i}: preserving full duration (intermediate scale)`);
+
                         await execWithRetry(['-i', rawFile, '-vf', INTERMEDIATE_VIDEO_FILTER, '-pix_fmt', 'yuv420p', ...videoFlags], 1);
                     } else {
                         // For images/text, use 4 seconds to match FeedItem timing
                         const ext = c.mediaType === 'text' ? 'png' : 'jpg';
-                        console.log(`Processing ${c.mediaType} contribution ${i}: creating 4-second segment`);
+
                         await execWithRetry(['-loop', '1', '-i', rawFile, '-vf', INTERMEDIATE_VIDEO_FILTER, '-t', '4', '-pix_fmt', 'yuv420p', ...videoFlags], 1);
                     }
 
@@ -281,7 +281,7 @@ export function useVideoStitcher() {
                     try {
                         const files = await ffmpeg.listDir('/');
                         const exists = files.some((f: any) => f.name === outputVideoName);
-                        console.log(`Intermediate file ${outputVideoName} exists in FS:`, exists);
+
                         if (!exists) {
                             console.warn(`Processing succeeded but output ${outputVideoName} not found; listing FS:`, files);
                         }
@@ -336,7 +336,7 @@ export function useVideoStitcher() {
                         intermediateVideoFiles.push('part_0_v.mp4');
                         intermediateAudioFiles.push('fallback_a.m4a');
                         cleanupFiles.push('part_0_v.mp4', 'fallback_a.m4a', 'fallback_cover.jpg');
-                        console.log('Fallback video generated from story.coverImage');
+
                     } catch (e) {
                         console.error('Failed to generate fallback video from coverImage:', e);
                         toast.error('No valid clips generated');
@@ -352,7 +352,7 @@ export function useVideoStitcher() {
 
             // 3. Concat AUDIO (First)
             // We do audio first so it's ready for the merge
-            console.log('Concatenating Audio...');
+
             const concatListA = intermediateAudioFiles.map(f => `file '${f}'`).join('\n');
             await ffmpeg.writeFile('concat_a.txt', concatListA);
             cleanupFiles.push('concat_a.txt');
@@ -365,42 +365,60 @@ export function useVideoStitcher() {
             stepRef.current += 1;
 
             // 4. Concat VIDEO
-            // Try to inject watermark logo asset into the FFmpeg virtual FS
+            // Generate watermark with creator's username
             try {
-                const logoBlob = await fetchFile('/weeve-logo.png');
-                await ffmpeg.writeFile('logo.png', logoBlob);
-                cleanupFiles.push('logo.png');
+                const creator = story.participants.find(p => p.id === story.creatorId);
+                const creatorName = creator ? (creator.name || creator.inviteCode || 'Weeve') : 'Weeve';
+
+                
+                // fallback to simpler name if too long?
+                // For now, trust the helper
+                const watermarkBlob = await createWatermarkImage(creatorName);
+                await ffmpeg.writeFile('watermark.png', new Uint8Array(await watermarkBlob.arrayBuffer()));
+                cleanupFiles.push('watermark.png');
             } catch (e) {
-                console.warn('Unable to fetch or write logo.png to ffmpeg FS:', e);
+                console.warn('Unable to create or write watermark.png:', e);
+                // Fallback: try to just use logo if watermark generation failed
+                 try {
+                    const logoBlob = await fetchFile('/weeve-logo.png');
+                    await ffmpeg.writeFile('watermark.png', logoBlob);
+                    cleanupFiles.push('watermark.png');
+                } catch (e2) {
+                     console.warn('Fallback logo also failed:', e2);
+                }
             }
-            console.log('Concatenating Video...');
+
             const concatListV = intermediateVideoFiles.map(f => `file '${f}'`).join('\n');
             await ffmpeg.writeFile('concat_v.txt', concatListV);
             cleanupFiles.push('concat_v.txt');
             try {
-                // Concat video files and re-encode (safer than copy) into intermediate final_v
-                await execWithRetry(['-f', 'concat', '-safe', '0', '-i', 'concat_v.txt', '-c:v', 'libx264', '-preset', 'ultrafast', '-r', '30', '-pix_fmt', 'yuv420p', '-threads', '1', 'final_v.mp4'], 1);
+                // Concat video files using COPY (fastest) since all parts are already normalized to 540x960 baseline profile
+                await execWithRetry(['-f', 'concat', '-safe', '0', '-i', 'concat_v.txt', '-c', 'copy', '-threads', '1', 'final_v.mp4'], 1);
             } catch (e) { console.error('Video concat failed and could not be recovered:', e); throw e; }
             cleanupFiles.push('final_v.mp4');
             stepRef.current += 1;
             
             try {
                 // Re-encoding audio here (-c:a aac) and overlaying logo if available
-                // Create 1080x1920 final output with watermark and mapped audio
-                // Prepare filter to scale/pad (should already be scaled from parts) and overlay
-                const filter = `[0:v]${FINAL_SCALE_FILTER}[scaled];[scaled][2:v]overlay=main_w-overlay_w-16:main_h-overlay_h-16[vout]`;
+                // Create 720p final output with watermark and mapped audio
+                // Overlay Logic:
+                // Use 'watermark.png' which is already sized by canvas
+                // Overlay bottom-right with 20px padding (main_w-overlay_w-20:main_h-overlay_h-20)
+                // We typically don't need to scale the canvas generated image, but let's ensure it's not huge.
+                // It shouldn't be given the font size of 24px (~40px height).
+                const filter = `[0:v][2:v]overlay=main_w-overlay_w-20:main_h-overlay_h-20[vout]`;
                 try {
                     await execWithRetry([
                         '-loglevel', 'error',
                         '-i', 'final_v.mp4',
                         '-i', 'final_a.m4a',
-                        '-i', 'logo.png',
+                        '-i', 'watermark.png',
                         '-filter_complex', filter,
                         '-map', '[vout]',
                         '-map', '1:a',
                         '-movflags', '+faststart',
                         '-c:v', 'libx264',
-                        '-preset', 'fast',
+                        '-preset', 'ultrafast',
                         '-crf', '23',
                         '-c:a', 'aac',
                         '-b:a', '128k',
@@ -418,7 +436,7 @@ export function useVideoStitcher() {
                             '-i', 'final_a.m4a',
                             '-movflags', '+faststart',
                             '-c:v', 'libx264',
-                            '-preset', 'fast',
+                            '-preset', 'ultrafast',
                             '-crf', '23',
                             '-c:a', 'aac', 
                             '-b:a', '128k',
@@ -441,11 +459,11 @@ export function useVideoStitcher() {
             // Final merge step is complete
             stepRef.current += 1;
             
-            console.log('Concatenation flow finished. Checking File System...');
-            console.log('--- Virtual FS files (post-concat):');
+
+
             try {
                 const files = await ffmpeg.listDir('/');
-                console.log(files);
+
             } catch (e) {
                 console.error('Failed to list FS after concat:', e);
             }
@@ -454,13 +472,12 @@ export function useVideoStitcher() {
             try {
                 // listDir returns generic object depending on implementation, usually an array of items
                 const files = await ffmpeg.listDir('/');
-                console.log('Virtual FS Root:', files);
+
                 
                 // Check if output.mp4 is in the list
                 // @ts-ignore
                 const exists = files.some(f => f.name === 'output.mp4');
-                if (exists) console.log('CONFIRMED: output.mp4 exists in FS');
-                else console.error('CRITICAL: output.mp4 MISSING from FS');
+                if (!exists) console.error('CRITICAL: output.mp4 MISSING from FS');
 
             } catch (e) {
                 console.error('FS Check Failed - WASM Instance likely crashed/dead:', e);
@@ -469,7 +486,7 @@ export function useVideoStitcher() {
             let data;
             try {
                  data = await ffmpeg.readFile('output.mp4');
-                 console.log('ReadFile success, bytes:', data.length);
+
             } catch (e) {
                 console.error('ReadFile FAILED:', e);
                 // Try reading the video-only file as fallback
@@ -477,7 +494,7 @@ export function useVideoStitcher() {
                 try {
                     const fallback = await ffmpeg.readFile('final_v.mp4');
                     if (fallback && (fallback as any).length) {
-                        console.log('Fallback read final_v.mp4 success, bytes:', (fallback as any).length);
+
                         data = fallback;
                         toast.warning('Output video was read without audio (fallback).');
                     } else {
@@ -504,9 +521,9 @@ export function useVideoStitcher() {
             const blob = new Blob([data as any], { type: 'video/mp4' });
             const url = URL.createObjectURL(blob);
             
-            console.log('📹 Setting videoUrl:', url);
+
             setVideoUrl(url);
-            console.log('✅ VideoUrl state updated');
+
 
             // Show success message with clear instructions
             toast.success(`Video ready (${sizeMb} MB)! Tap the PINK SAVE button below.`, {

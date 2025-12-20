@@ -166,9 +166,9 @@ export const getFriends = async (userId: string): Promise<User[]> => {
         return [];
     }
 
-    console.log('[Friends] getFriends raw data count:', data?.length);
+
     if (data?.length > 0) {
-         console.log('[Friends] First raw item:', data[0]);
+
     }
 
     return data
@@ -238,7 +238,7 @@ export const sendFriendRequest = async (senderId: string, receiverId: string): P
             .single();
 
         if (existingFriendship) {
-            console.log('Already friends');
+
             return false;
         }
 
@@ -251,7 +251,7 @@ export const sendFriendRequest = async (senderId: string, receiverId: string): P
             .single();
 
         if (existingRequest) {
-            console.log('Request already exists');
+
             return false;
         }
 

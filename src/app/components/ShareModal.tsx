@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { X, Share2, MessageCircle, Send, Check, Copy, Search as SearchIcon, Download } from 'lucide-react';
+import { X, Share2, MessageCircle, Send, Check, Copy, Search as SearchIcon, Download, Instagram, Facebook, Flag, Ban } from 'lucide-react';
 import { Story, useStore } from '@/lib/store';
 import { searchUsers } from '@/lib/friends';
 import { notifyStoryShared } from '@/lib/notifications';
@@ -38,7 +38,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
         try { window.open(url, '_blank'); } catch (e) { /* ignore */ }
     };
     // Feature flag to temporarily disable client-side download until bug is resolved
-    const ENABLE_DOWNLOAD_FEATURE = false;
+    const ENABLE_DOWNLOAD_FEATURE = true;
 
     const friends = useStore((state) => state.friends);
     const currentUser = useStore((state) => state.currentUser);
@@ -50,19 +50,37 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const [searching, setSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<Recipient[]>([]);
     const { stitchStory, stitchingState, progress, videoUrl, reset } = useVideoStitcher();
+    const [downloadComplete, setDownloadComplete] = useState(false);
+    const [savedFilePath, setSavedFilePath] = useState<string | null>(null);
+    const [isSaved, setIsSaved] = useState(false);
+    const [lastAction, setLastAction] = useState<'save' | 'share' | null>(null);
 
     // Debug logging
     useEffect(() => {
-        console.log('🎬 ShareModal videoUrl changed:', videoUrl);
-    }, [videoUrl]);
 
-    // Reset stitcher state when modal closes
+        if (videoUrl && lastAction === 'save') {
+            setIsSaved(true);
+            setTimeout(() => setIsSaved(false), 3000);
+            setLastAction(null);
+        }
+    }, [videoUrl, lastAction]);
+
+    // Reset stitcher state and local state when modal closes
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    const handleClose = () => {
+        reset();
+        setDownloadComplete(false); // Retain for safety if I missed removal, or just remove if I remove the state definition.
+        setIsSaved(false);
+        setSavedFilePath(null);
+        onClose();
+    };
+
+    // Empty deps - only run on mount/unmount, not when reset changes
     useEffect(() => {
         return () => {
             reset();
         };
-    }, []); // Empty deps - only run on mount/unmount, not when reset changes
+    }, []);
 
     useEffect(() => {
         // Load friends when modal mounts or user changes so the list shows immediately
@@ -127,7 +145,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                     url: storyUrl,
                 });
                 toast.success('Shared successfully!');
-                onClose();
+                handleClose();
                 return shareResult;
             } catch (error) {
                 // User cancelled or share failed
@@ -190,12 +208,110 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
 
             await Promise.all(promises);
             toast.success(`Shared with ${recipients.length} user${recipients.length > 1 ? 's' : ''}!`);
-            onClose();
+            handleClose();
         } catch (error) {
             console.error('Failed to send notifications:', error);
             toast.error('Failed to share with friends');
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleShareFile = async (platform: 'whatsapp' | 'other' = 'other') => {
+        if (!videoUrl) return;
+
+        const toastId = toast.loading('Preparing to share...');
+        let fileBlob: Blob | null = null;
+        let isNative = false;
+
+        try {
+            const { Capacitor } = await import('@capacitor/core');
+            isNative = Capacitor.isNativePlatform();
+
+            let fileUri = savedFilePath;
+
+            // If we don't have a URI (native) or just need the blob (web), fetch it
+            if (!fileUri || !isNative) {
+                const response = await fetch(videoUrl);
+                fileBlob = await response.blob();
+            }
+
+            if (isNative) {
+                if (!fileUri) {
+                    // Save to FS
+                    const { Filesystem, Directory } = await import('@capacitor/filesystem');
+                    const filename = `${story.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_weeve.mp4`;
+
+                    const base64Data = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const res = reader.result as string;
+                            resolve(res.split(',')[1]);
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(fileBlob!);
+                    });
+
+                    const savedFile = await Filesystem.writeFile({
+                        path: filename,
+                        data: base64Data,
+                        directory: Directory.Documents,
+                        recursive: true
+                    });
+                    fileUri = savedFile.uri;
+                    setSavedFilePath(fileUri);
+                    // Don't set downloadComplete here to avoid changing UI state abruptly during share
+                }
+
+                // Share via Capacitor
+                const { Share } = await import('@capacitor/share');
+                await Share.share({
+                    title: story.title,
+                    text: `Check out "${story.title}" on Weeve! #weeve ${storyUrl}`,
+                    url: fileUri,
+                    dialogTitle: 'Share Video'
+                });
+            } else {
+                // Web Share
+                if (navigator.share && navigator.canShare) {
+                    const filename = `${story.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_weeve.mp4`;
+                    const file = new File([fileBlob!], filename, { type: 'video/mp4' });
+                    if (navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: story.title,
+                            text: `Check out "${story.title}" on Weeve! ${storyUrl}`
+                        });
+                    } else {
+                        // Fallback to simpler download
+                        throw new Error('Web Share API does not support files');
+                    }
+                } else {
+                    throw new Error('Web Share API not supported');
+                }
+            }
+            toast.success('Shared!', { id: toastId });
+
+        } catch (e: any) {
+            console.error('Share failed', e);
+            if (e.name !== 'AbortError') {
+                toast.dismiss(toastId);
+                // Fallback: If share fails (especially on web), trigger download
+                if (!isNative && fileBlob) {
+                    toast.success('Share not supported, downloading instead.');
+                    const downloadUrl = window.URL.createObjectURL(fileBlob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = `${story.title.replace(/[^a-z0-9]/gi, '_')}.mp4`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    return;
+                }
+                toast.error('Could not share video');
+            } else {
+                toast.dismiss(toastId);
+            }
         }
     };
 
@@ -255,9 +371,9 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     return (
         <div
             className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm pb-6 sm:pb-0"
-            onClick={onClose}
+            onClick={handleClose}
             role="presentation"
-            onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
+            onKeyDown={(e) => { if (e.key === 'Escape') handleClose(); }}
         >
             <div
                 className="bg-gray-900 border border-gray-800 rounded-t-3xl sm:rounded-2xl w-full sm:max-w-md overflow-hidden flex flex-col max-h-[calc(100vh-88px)] sm:max-h-[80vh]"
@@ -270,312 +386,288 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
             >
                 {/* Header */}
                 <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-                    <h2 className="text-lg font-bold text-white">Share Story</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+                    <h2 className="text-lg font-bold text-white">
+                        {downloadComplete ? 'Video Saved!' : 'Share Story'}
+                    </h2>
+                    <button onClick={handleClose} className="text-gray-400 hover:text-white transition-colors">
                         <X className="w-6 h-6" />
                     </button>
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 120px)' }}>
-                    {/* Quick Share options are now in footer (mobile-friendly) */}
+                {false ? ( // Removing downloadComplete overlay
+                    <div className="hidden" />
+                ) : (
+                    <>
+                        {/* Content */}
+                        <div className="shrink-0 overflow-y-auto max-h-[40vh]"> {/* Changed from flex-1 to shrink-0 and added max-h */}
+                            {/* Send to Friends */}
+                            <div className="p-4">
+                                <h3 className="text-sm font-medium text-gray-400 mb-3">Send to Friends</h3>
 
-                    {/* Send to Friends */}
-                    <div className="p-4">
-                        <h3 className="text-sm font-medium text-gray-400 mb-3">Send to Friends</h3>
-
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="relative flex-1">
-                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(event) => setSearchQuery(event.target.value)}
-                                    placeholder="Search for people (min 2 characters)"
-                                    className="w-full rounded-xl bg-gray-800/70 border border-gray-700 pl-10 pr-10 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]"
-                                />
-                                {searchQuery && (
+                                <div className="flex items-center gap-3 mb-2"> {/* Reduced mb-4 to mb-2 */}
+                                    <div className="relative flex-1">
+                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={(event) => setSearchQuery(event.target.value)}
+                                            placeholder="Search people..."
+                                            className="w-full rounded-xl bg-gray-800/70 border border-gray-700 pl-10 pr-10 py-3 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]"
+                                        />
+                                        {searchQuery && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSearchQuery("")}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                                                aria-label="Clear search"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                    </div>
                                     <button
-                                        type="button"
-                                        onClick={() => setSearchQuery("")}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                                        aria-label="Clear search"
+                                        onClick={handleSendToFriends}
+                                        disabled={sending || selectedCount === 0}
+                                        aria-label={selectedCount > 0 ? `Send to ${selectedCount} selected recipient${selectedCount === 1 ? '' : 's'}` : 'Select recipients to send'}
+                                        className="shrink-0 w-11 h-11 rounded-xl bg-[#EC1D99] hover:bg-[#D41C84] disabled:bg-gray-700 disabled:text-gray-500 flex items-center justify-center transition-colors"
                                     >
-                                        <X className="w-4 h-4" />
+                                        {sending ? (
+                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        ) : (
+                                            <Send className="w-5 h-5 text-white" />
+                                        )}
                                     </button>
+                                </div>
+
+                                {searchQuery.trim().length >= 2 && !searching && recipientList.length === 0 && (
+                                    <div className="text-center py-4 text-gray-500 text-sm"> {/* Reduced py-6 to py-4 */}
+                                        No users found.
+                                    </div>
                                 )}
-                            </div>
-                            <button
-                                onClick={handleSendToFriends}
-                                disabled={sending || selectedCount === 0}
-                                aria-label={selectedCount > 0 ? `Send to ${selectedCount} selected recipient${selectedCount === 1 ? '' : 's'}` : 'Select recipients to send'}
-                                className="shrink-0 w-12 h-12 rounded-xl bg-[#EC1D99] hover:bg-[#D41C84] disabled:bg-gray-700 disabled:text-gray-500 flex items-center justify-center transition-colors"
-                            >
-                                {sending ? (
-                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+
+                                {recipientList.length === 0 && searchQuery.trim().length < 2 ? (
+                                    <div className="text-center py-2 text-gray-500"> {/* Reduced py-8 to py-2 */}
+                                        <p className="text-xs">No friends yet</p>
+                                    </div>
                                 ) : (
-                                    <Send className="w-5 h-5 text-white" />
-                                )}
-                            </button>
-                        </div>
-
-                        {searchQuery.trim().length >= 2 && !searching && recipientList.length === 0 && (
-                            <div className="text-center py-6 text-gray-500 text-sm">
-                                No users found. Try a different name or invite code.
-                            </div>
-                        )}
-
-                        {recipientList.length === 0 && searchQuery.trim().length < 2 ? (
-                            <div className="text-center py-8 text-gray-500">
-                                <p className="text-sm">No friends yet</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-2 pr-2 pb-1">
-                                {recipientList.map(recipient => {
-                                    const isSelected = selectedRecipients.has(recipient.id);
-                                    return (
-                                        <button
-                                            key={recipient.id}
-                                            onClick={() => toggleRecipientSelection(recipient)}
-                                            className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${isSelected
-                                                ? 'bg-[#EC1D99]/20 border-2 border-[#EC1D99]'
-                                                : 'bg-gray-800/50 border-2 border-transparent hover:bg-gray-800'
-                                                }`}
-                                        >
-                                            <img
-                                                src={recipient.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${recipient.name}`}
-                                                alt={recipient.name}
-                                                className="w-10 h-10 rounded-full border border-gray-700"
-                                            />
-                                            <span className="text-white font-medium flex-1 text-left">{recipient.name}</span>
-                                            {recipient.isFriend === false && (
-                                                <span className="text-xs text-gray-400">Not friends</span>
-                                            )}
-                                            {isSelected && (
-                                                <div className="w-6 h-6 rounded-full bg-[#EC1D99] flex items-center justify-center">
-                                                    <Check className="w-4 h-4 text-white" />
-                                                </div>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                                {searching && (
-                                    <div className="py-4 text-center text-gray-400 text-sm">Searching...</div>
-                                )}
-                            </div>
-                        )}
-                        <div className="flex items-center justify-between text-xs text-gray-400 mt-3 mb-2">
-                            <span>{selectedCount > 0 ? `${selectedCount} recipient${selectedCount === 1 ? '' : 's'} selected` : ''}</span>
-                            {sending && <span>Sending…</span>}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div
-                    className="p-4 pt-5 border-t border-gray-800 bg-gray-900"
-                    style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 28px) + 16px)' }}
-                >
-                    {/* Quick Share - moved to footer */}
-                    <div className="pb-3">
-                        <div className={`grid ${story.status === 'completed' ? (ENABLE_DOWNLOAD_FEATURE ? 'grid-cols-4' : 'grid-cols-3') : 'grid-cols-3'} gap-3`}>
-                            <button
-                                onClick={handleDeviceShare}
-                                className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
-                            >
-                                <div className="w-10 h-10 rounded-full bg-[#EC1D99]/20 flex items-center justify-center">
-                                    <Share2 className="w-5 h-5 text-[#EC1D99]" />
-                                </div>
-                                <span className="text-xs text-white">Device</span>
-                            </button>
-
-                            <button
-                                onClick={handleWhatsAppShare}
-                                className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
-                            >
-                                <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                                    <MessageCircle className="w-5 h-5 text-green-500" />
-                                </div>
-                                <span className="text-xs text-white">WhatsApp</span>
-                            </button>
-
-                            <button
-                                onClick={handleCopyLink}
-                                className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
-                            >
-                                <div className={`w-10 h-10 rounded-full ${copied ? 'bg-green-500/20' : 'bg-white/10'} flex items-center justify-center`}>
-                                    {copied ? (
-                                        <Check className="w-5 h-5 text-green-500" />
-                                    ) : (
-                                        <Copy className="w-5 h-5 text-white" />
-                                    )}
-                                </div>
-                                <span className={`text-xs ${copied ? 'text-green-500' : 'text-white'}`}>
-                                    {copied ? 'Copied' : 'Copy'}
-                                </span>
-                            </button>
-
-                            {story.status === 'completed' && ENABLE_DOWNLOAD_FEATURE && (
-                                <>
-                                    {console.log('🔍 Render check - videoUrl:', videoUrl, '| stitchingState:', stitchingState)}
-                                    {!videoUrl ? (
-                                        <button
-                                            onClick={() => stitchStory(story)}
-                                            disabled={stitchingState !== 'idle' && stitchingState !== 'error'}
-                                            className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors disabled:opacity-100"
-                                        >
-                                            <div className="relative w-10 h-10 flex items-center justify-center">
-                                                {/* Background Circle */}
-                                                <div className="absolute inset-0 rounded-full bg-[#EC1D99]/20" />
-
-                                                {stitchingState === 'loading-ffmpeg' || stitchingState === 'downloading-assets' || stitchingState === 'stitching' ? (
-                                                    <div className="relative w-10 h-10">
-                                                        <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                                                            {/* Track */}
-                                                            <path
-                                                                className="text-[#EC1D99]/30"
-                                                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                                                fill="none"
-                                                                stroke="currentColor"
-                                                                strokeWidth="3"
-                                                            />
-                                                            {/* Progress */}
-                                                            <path
-                                                                className="text-[#EC1D99] transition-all duration-300 ease-out"
-                                                                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                                                fill="none"
-                                                                stroke="currentColor"
-                                                                strokeWidth="3"
-                                                                strokeDasharray="100, 100"
-                                                                strokeDashoffset={100 - progress}
-                                                            />
-                                                        </svg>
-                                                        <div className="absolute inset-0 flex items-center justify-center">
-                                                            <span className="text-[9px] font-bold text-[#EC1D99]">{Math.round(progress)}%</span>
+                                    <div className="space-y-2 pr-2 pb-1 mt-2">
+                                        {recipientList.map(recipient => {
+                                            const isSelected = selectedRecipients.has(recipient.id);
+                                            return (
+                                                <button
+                                                    key={recipient.id}
+                                                    onClick={() => toggleRecipientSelection(recipient)}
+                                                    className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all ${isSelected
+                                                        ? 'bg-[#EC1D99]/20 border-2 border-[#EC1D99]'
+                                                        : 'bg-gray-800/50 border-2 border-transparent hover:bg-gray-800'
+                                                        }`}
+                                                >
+                                                    <img
+                                                        src={recipient.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${recipient.name}`}
+                                                        alt={recipient.name}
+                                                        className="w-8 h-8 rounded-full border border-gray-700"
+                                                    />
+                                                    <span className="text-white font-medium flex-1 text-left text-sm">{recipient.name}</span>
+                                                    {recipient.isFriend === false && (
+                                                        <span className="text-[10px] text-gray-400">Not friends</span>
+                                                    )}
+                                                    {isSelected && (
+                                                        <div className="w-5 h-5 rounded-full bg-[#EC1D99] flex items-center justify-center">
+                                                            <Check className="w-3 h-3 text-white" />
                                                         </div>
-                                                    </div>
-                                                ) : (
-                                                    <Download className="w-5 h-5 text-[#EC1D99]" />
-                                                )}
-                                            </div>
-                                            <span className="text-xs text-white">
-                                                {stitchingState === 'idle' ? 'Download' :
-                                                    stitchingState === 'loading-ffmpeg' ? 'Loading' :
-                                                        stitchingState === 'downloading-assets' ? 'Saving' :
-                                                            stitchingState === 'stitching' ? 'Processing' :
-                                                                stitchingState === 'error' ? 'Retry' : 'Download'}
-                                            </span>
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={async () => {
-                                                const filename = `${story.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_weeve.mp4`;
-
-                                                if (!videoUrl) return;
-
-                                                // If the stitch result is an object URL blob, prefer direct anchor download (user gesture preservation)
-                                                if (videoUrl.startsWith('blob:')) {
-                                                    try {
-                                                        // Direct anchor download using existing blob: URL — synchronous click preserves user gesture
-                                                        const a = document.createElement('a');
-                                                        a.href = videoUrl;
-                                                        a.download = filename;
-                                                        a.target = '_blank';
-                                                        a.rel = 'noopener noreferrer';
-                                                        a.style.display = 'none';
-                                                        document.body.appendChild(a);
-                                                        a.click();
-                                                        document.body.removeChild(a);
-                                                        // Delay revocation slightly to ensure browser processes the download
-                                                        setTimeout(() => {
-                                                            try { URL.revokeObjectURL(videoUrl); } catch (err) { }
-                                                        }, 5000);
-
-                                                        console.log('Direct anchor download clicked for blob', { filename, userAgent: navigator.userAgent });
-                                                        toast.success('Download started!');
-                                                        return;
-                                                    } catch (err) {
-                                                        console.warn('Direct blob anchor download failed - falling back to fetch flow:', err);
-                                                        // continue to fetch approach below
-                                                    }
-                                                }
-
-                                                // Otherwise, fetch remote URL or HTTP URL and download
-                                                try {
-                                                    const response = await fetch(videoUrl);
-                                                    const blob = await response.blob();
-                                                    const file = new File([blob], filename, { type: 'video/mp4' });
-
-                                                    // Try Web Share API first (works on mobile with user gesture)
-                                                    try {
-                                                        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                                                            await navigator.share({ files: [file], title: story.title });
-                                                            toast.success('Video saved/shared!');
-                                                            return;
-                                                        }
-                                                    } catch (e: any) {
-                                                        if (e.name === 'AbortError') return; // User cancelled
-                                                        console.warn('Share failed, falling back to download:', e);
-                                                    }
-
-                                                    // Use File System Access API if available (native save dialog)
-                                                    // @ts-ignore - showSaveFilePicker is an experimental API
-                                                    if (typeof (window as any).showSaveFilePicker === 'function') {
-                                                        try {
-                                                            // @ts-ignore
-                                                            const handle = await (window as any).showSaveFilePicker({
-                                                                suggestedName: filename,
-                                                                types: [{ description: 'Video', accept: { 'video/mp4': ['.mp4'] } }],
-                                                            });
-                                                            // @ts-ignore
-                                                            const writable = await handle.createWritable();
-                                                            await writable.write(blob);
-                                                            await writable.close();
-                                                            toast.success('Saved to device');
-                                                            return;
-                                                        } catch (saveErr) {
-                                                            console.warn('showSaveFilePicker failed:', saveErr);
-                                                            // Fall through to anchor download
-                                                        }
-                                                    }
-
-                                                    // Fallback: anchor download using a Blob URL (works on Android + desktop)
-                                                    const downloadUrl = window.URL.createObjectURL(blob);
-                                                    const a = document.createElement('a');
-                                                    a.href = downloadUrl;
-                                                    a.download = filename;
-                                                    a.target = '_blank';
-                                                    a.rel = 'noopener noreferrer';
-                                                    a.style.display = 'none';
-                                                    document.body.appendChild(a);
-                                                    a.click();
-                                                    document.body.removeChild(a);
-                                                    setTimeout(() => { try { window.URL.revokeObjectURL(downloadUrl); } catch (err) { } }, 5000);
-                                                    console.log('Download anchor clicked:', { filename, downloadUrl, userAgent: navigator.userAgent });
-                                                    toast.success('Download started!');
-                                                } catch (e) {
-                                                    console.warn('Fallback download failed, opening in new tab:', e);
-                                                        try {
-                                                            await openUrl(videoUrl);
-                                                        } catch (openErr) {
-                                                            // fallback: already handled in openUrl
-                                                        }
-                                                    toast.success('Video opened! Use browser menu to save.');
-                                                }
-                                            }}
-                                            className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
-                                        >
-                                            <div className="w-10 h-10 rounded-full bg-[#EC1D99] flex items-center justify-center animate-pulse shadow-lg shadow-[#EC1D99]/50">
-                                                <Download className="w-5 h-5 text-white" />
-                                            </div>
-                                            <span className="text-xs text-[#EC1D99] font-bold">Save Video</span>
-                                        </button>
-                                    )}
-                                </>
-                            )}
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                        {searching && (
+                                            <div className="py-2 text-center text-gray-400 text-sm">Searching...</div>
+                                        )}
+                                    </div>
+                                )}
+                                <div className={`flex items-center justify-between text-xs text-gray-400 mt-1 mb-0 ${selectedCount > 0 || sending ? 'h-4' : 'h-0 overflow-hidden'} transition-all`}>
+                                    <span>{selectedCount > 0 ? `${selectedCount} selected` : ''}</span>
+                                    {sending && <span>Sending…</span>}
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
+
+                        {/* Footer */}
+                        <div
+                            className="p-4 pt-5 border-t border-gray-800 bg-gray-900"
+                            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 28px) + 16px)' }}
+                        >
+                            <div className="pb-3 flex flex-col gap-4">
+                                <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider text-center">
+                                    Share to
+                                </h3>
+                                {/* Social Grid */}
+                                <div className="grid grid-cols-4 gap-3">
+                                    {/* WhatsApp */}
+                                    <button
+                                        onClick={async () => {
+                                            if (videoUrl) {
+                                                await handleShareFile('whatsapp');
+                                            } else if (story.status === 'completed' && !downloadComplete) {
+                                                // If video not ready but possible, maybe suggest downloading? 
+                                                // For WA, links work well too.
+                                                handleWhatsAppShare();
+                                            } else {
+                                                handleWhatsAppShare();
+                                            }
+                                        }}
+                                        className="flex flex-col items-center gap-2 group"
+                                    >
+                                        <div className="w-14 h-14 rounded-2xl bg-[#25D366] flex items-center justify-center shadow-lg group-active:scale-95 transition-transform">
+                                            <MessageCircle className="w-7 h-7 text-white fill-current" />
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 font-medium">WhatsApp</span>
+                                    </button>
+
+                                    {/* Instagram */}
+                                    <button
+                                        onClick={() => {
+                                            if (videoUrl) {
+                                                handleShareFile('other');
+                                            } else {
+                                                // Trigger Stitch if not ready
+                                                if (stitchingState === 'idle' || stitchingState === 'error') {
+                                                    stitchStory(story);
+                                                    toast.loading('Preparing video for Instagram...');
+                                                } else {
+                                                    toast.info('Video is processing...');
+                                                }
+                                            }
+                                        }}
+                                        className="flex flex-col items-center gap-2 group"
+                                    >
+                                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-bl from-purple-600 via-pink-600 to-orange-500 flex items-center justify-center shadow-lg group-active:scale-95 transition-transform">
+                                            <Instagram className="w-7 h-7 text-white" />
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 font-medium">Stories</span>
+                                    </button>
+
+                                    {/* TikTok */}
+                                    <button
+                                        onClick={() => {
+                                            if (videoUrl) {
+                                                handleShareFile('other');
+                                            } else {
+                                                if (stitchingState === 'idle' || stitchingState === 'error') {
+                                                    stitchStory(story);
+                                                    toast.loading('Preparing video for TikTok...');
+                                                } else {
+                                                    toast.info('Video is processing...');
+                                                }
+                                            }
+                                        }}
+                                        className="flex flex-col items-center gap-2 group"
+                                    >
+                                        <div className="w-14 h-14 rounded-2xl bg-black border border-gray-800 flex items-center justify-center shadow-lg group-active:scale-95 transition-transform relative overflow-hidden">
+                                            {/* TikTok-ish aesthetic effect */}
+                                            <div className="absolute inset-0 bg-gradient-to-tr from-[#69C9D0]/20 to-[#EE1D52]/20 opacity-50"></div>
+                                            <svg viewBox="0 0 24 24" className="w-7 h-7 text-white relative z-10" fill="currentColor">
+                                                <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
+                                            </svg>
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 font-medium">TikTok</span>
+                                    </button>
+
+                                    {/* Facebook */}
+                                    <button
+                                        onClick={() => {
+                                            if (videoUrl) {
+                                                handleShareFile('other');
+                                            } else {
+                                                // Facebook Link Share
+                                                const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(storyUrl)}`;
+                                                openUrl(url);
+                                            }
+                                        }}
+                                        className="flex flex-col items-center gap-2 group"
+                                    >
+                                        <div className="w-14 h-14 rounded-2xl bg-[#1877F2] flex items-center justify-center shadow-lg group-active:scale-95 transition-transform">
+                                            <Facebook className="w-7 h-7 text-white fill-current" />
+                                        </div>
+                                        <span className="text-[10px] text-gray-400 font-medium">Facebook</span>
+                                    </button>
+                                </div>
+
+                                {/* Secondary Actions */}
+                                <div className="grid grid-cols-2 gap-3 mt-2">
+                                    <button
+                                        onClick={handleCopyLink}
+                                        className="flex items-center justify-center gap-2 p-3 bg-gray-800/50 hover:bg-gray-800 rounded-xl transition-colors"
+                                    >
+                                        {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-white" />}
+                                        <span className={`text-xs font-medium ${copied ? 'text-green-500' : 'text-white'}`}>
+                                            {copied ? 'Copied' : 'Copy Link'}
+                                        </span>
+                                    </button>
+
+                                    {/* Download / Processing State */}
+                                    <button // If downloading, show progress; else show Download/Save button
+                                        onClick={() => {
+                                            if (videoUrl) {
+                                                handleShareFile('other'); // "More"
+                                            } else {
+                                                setLastAction('save');
+                                                stitchStory(story);
+                                            }
+                                        }}
+                                        disabled={stitchingState !== 'idle' && stitchingState !== 'error' && !videoUrl}
+                                        className={`flex items-center justify-center gap-2 p-3 rounded-xl transition-colors disabled:opacity-100 ${isSaved ? 'bg-[#EC1D99] hover:bg-[#D41C84]' : 'bg-gray-800/50 hover:bg-gray-800'}`}
+                                    >
+                                        {stitchingState !== 'idle' && stitchingState !== 'complete' && stitchingState !== 'error' ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                <span className="text-xs font-medium text-white">{Math.round(progress)}%</span>
+                                            </>
+                                        ) : isSaved ? (
+                                            <>
+                                                <Check className="w-4 h-4 text-white" />
+                                                <span className="text-xs font-medium text-white">Saved</span>
+                                            </>
+                                        ) : videoUrl ? (
+                                            <>
+                                                <Share2 className="w-4 h-4 text-white" />
+                                                <span className="text-xs font-medium text-white">More Options</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Download className="w-4 h-4 text-white" />
+                                                <span className="text-xs font-medium text-white">Save Video</span>
+                                            </>
+                                        )}
+                                    </button>
+
+                                    {/* Report */}
+                                    <button
+                                        onClick={() => {
+                                            toast.success("Thanks for reporting. We will review this content shortly.");
+                                            handleClose();
+                                        }}
+                                        className="flex items-center justify-center gap-2 p-3 bg-gray-800/50 hover:bg-gray-800 rounded-xl transition-colors"
+                                    >
+                                        <Flag className="w-4 h-4 text-white" />
+                                        <span className="text-xs font-medium text-white">Report</span>
+                                    </button>
+
+                                    {/* Not Interested */}
+                                    <button
+                                        onClick={() => {
+                                            toast.success("We'll show you less content like this.");
+                                            handleClose();
+                                        }}
+                                        className="flex items-center justify-center gap-2 p-3 bg-gray-800/50 hover:bg-gray-800 rounded-xl transition-colors"
+                                    >
+                                        <Ban className="w-4 h-4 text-white" />
+                                        <span className="text-xs font-medium text-white">Not Interested</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
         </div>
     );
