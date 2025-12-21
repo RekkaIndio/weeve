@@ -9,5 +9,7 @@
 		<string>applinks:tryweeve.com</string>
 		<string>applinks:www.tryweeve.com</string>
 	</array>
+	<key>aps-environment</key>
+	<string>development</string>
 </dict>
 </plist>
