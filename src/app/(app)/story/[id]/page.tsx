@@ -11,6 +11,7 @@ import { capturePhoto, captureVideo } from "@/lib/camera";
 import { Capacitor } from "@capacitor/core";
 import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, Pencil, X, Loader2, Edit2, LogOut, Trash, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp, FileVideo, Image as ImageIcon } from "lucide-react";
 import EditStoryModal from "@/app/components/EditStoryModal";
+import ImageCropper from "@/app/components/ImageCropper";
 import { DrawingCanvas, type DrawingCanvasRef } from "@/app/components/DrawingCanvas";
 import OnboardingTutorialOverlay from "@/app/components/OnboardingTutorialOverlay";
 import { toast } from "sonner";
@@ -103,7 +104,14 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const [textElements, setTextElements] = useState<TextElement[]>([]);
     const [activeElementId, setActiveElementId] = useState<string | null>(null);
     const [mediaDraft, setMediaDraft] = useState<{ type: 'video' | 'image'; file?: File; previewUrl?: string } | null>(null);
+    const [imageToCrop, setImageToCrop] = useState<string | null>(null);
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
+    const [hasMovedInCurrentEdit, setHasMovedInCurrentEdit] = useState(false);
+
+    // Reset move tracking when entering edit mode
+    useEffect(() => {
+        setHasMovedInCurrentEdit(false);
+    }, [activeElementId]);
     const dragStateRef = useRef<{
         offsetX: number;
         offsetY: number;
@@ -526,12 +534,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     };
 
     // Helper to update style of active element
-    const updateTextStyle = <K extends keyof TextStyle>(key: K, value: TextStyle[K]) => {
-        if (!activeElementId) return;
-        updateElement(activeElementId, (el) => ({
-            style: { ...el.style, [key]: value }
-        }));
-    };
+
 
     const clampPosition = useCallback((left: number, top: number, width: number, height: number) => {
         if (!stageRef.current) return { left, top };
@@ -559,26 +562,47 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         // Instead, let's just rely on the initial position being set correctly when adding.
     }, [isComposerOpen]);
 
+    const isClickRef = useRef(false);
+
     const handleDragStart = (event: React.PointerEvent<HTMLDivElement>, id: string) => {
         event.preventDefault();
         event.stopPropagation();
         const elementRef = draggableRefs.current.get(id);
         if (!elementRef) return;
 
-        // Set as active
-        setActiveElementId(id);
+        // Removed the check that prevented dragging active elements.
+        // Now rely on stopPropagation in the textarea/input to prevent unwanted drags.
+
+        // If we are dragging the currently active/editing element, flag it as manually moved
+        if (id === activeElementId) {
+            // Prevent jump: If this is the first move in this session and we were auto-centered,
+            // we need to sync the state position to the current visual position immediately.
+            if (!hasMovedInCurrentEdit && stageRef.current) {
+                const stageRect = stageRef.current.getBoundingClientRect();
+                const elementRect = elementRef.getBoundingClientRect();
+
+                updateElement(id, {
+                    position: {
+                        left: elementRect.left - stageRect.left,
+                        top: elementRect.top - stageRect.top
+                    }
+                });
+            }
+            setHasMovedInCurrentEdit(true);
+        }
+
+        isClickRef.current = true; // Assume click until moved
 
         const rect = elementRef.getBoundingClientRect();
 
-        // Use window dimensions for viewport
+        // Use window dimensions instead of viewport for simplified calculation
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
 
-        // Pre-calculate constraints
-        const minLeft = 16;
-        const maxLeft = Math.max(minLeft, viewportWidth - rect.width - 16);
-        const minTop = 16;
-        const maxTop = Math.max(minTop, viewportHeight - rect.height - 80 - 16);
+        const minLeft = -rect.width / 2; // Allow pushing partially off-screen
+        const maxLeft = viewportWidth - rect.width / 2;
+        const minTop = 0;
+        const maxTop = viewportHeight - rect.height;
 
         dragStateRef.current = {
             offsetX: event.clientX - rect.left,
@@ -593,30 +617,42 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         };
         isDragging.current = id;
 
-        // Set pointer capture on the drag handle itself (event.currentTarget)
         (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
         elementRef.style.transition = 'none';
-
+        elementRef.style.cursor = 'grabbing';
     };
+
+    // ... (skipping handleDragMove, handleDragEnd)
+
+
+
+    // ... 
 
     const handleDragMove = (event: React.PointerEvent<HTMLDivElement>, id: string) => {
         event.preventDefault();
         event.stopPropagation();
+
         const dragState = dragStateRef.current;
         const elementRef = draggableRefs.current.get(id);
 
-        // Only process if this element is actively being dragged
         if (!dragState || !elementRef || isDragging.current !== id) return;
 
-        // Use cached constraints
+        // Use a threshold to detect drag vs click
+        if (isClickRef.current) {
+            const moveDistance = Math.hypot(
+                event.movementX,
+                event.movementY
+            );
+            if (moveDistance > 2) {
+                isClickRef.current = false;
+            }
+        }
+
         const rawLeft = event.clientX - dragState.viewportLeft - dragState.offsetX;
         const rawTop = event.clientY - dragState.viewportTop - dragState.offsetY;
 
-        const left = Math.min(Math.max(rawLeft, dragState.minLeft), dragState.maxLeft);
-        const top = Math.min(Math.max(rawTop, dragState.minTop), dragState.maxTop);
-
-        // Direct DOM update
-        elementRef.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+        // No strict clamping during drag for smoother feel, clamp on end
+        elementRef.style.transform = `translate3d(${rawLeft}px, ${rawTop}px, 0) scale(1.05)`;
     };
 
     const handleDragEnd = (event: React.PointerEvent<HTMLDivElement>, id: string) => {
@@ -628,22 +664,39 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         if (dragState && elementRef) {
             try {
                 (event.currentTarget as HTMLElement).releasePointerCapture(dragState.pointerId);
-            } catch (err) {
-                // ignore
+            } catch (err) { }
+
+            elementRef.style.cursor = 'grab';
+            elementRef.style.transform = elementRef.style.transform.replace(' scale(1.05)', '');
+
+            if (isClickRef.current) {
+                // It was a click/tap
+                setActiveElementId(id);
+                // Ensure the menu for font is reset or set to default? 
+                // Maybe open font menu by default on tap?
+                if (!activeMenu) setActiveMenu('font');
+            } else {
+                // It was a drag, commit position
+                let rawLeft = event.clientX - dragState.viewportLeft - dragState.offsetX;
+                let rawTop = event.clientY - dragState.viewportTop - dragState.offsetY;
+
+                // Soft clamping
+                const width = elementRef.getBoundingClientRect().width;
+                const height = elementRef.getBoundingClientRect().height;
+                const viewportWidth = window.innerWidth;
+                const viewportHeight = window.innerHeight;
+
+                // Keep mainly on screen
+                if (rawLeft + width < 20) rawLeft = 20 - width;
+                if (rawLeft > viewportWidth - 20) rawLeft = viewportWidth - 20;
+                if (rawTop < 60) rawTop = 60; // Top header safe area
+                if (rawTop + height > viewportHeight - 100) rawTop = viewportHeight - 100 - height; // Bottom controls safe area
+
+                updateElement(id, { position: { left: rawLeft, top: rawTop } });
             }
-
-            const rawLeft = event.clientX - dragState.viewportLeft - dragState.offsetX;
-            const rawTop = event.clientY - dragState.viewportTop - dragState.offsetY;
-
-            const left = Math.min(Math.max(rawLeft, dragState.minLeft), dragState.maxLeft);
-            const top = Math.min(Math.max(rawTop, dragState.minTop), dragState.maxTop);
-
-            // Sync to React state
-            updateElement(id, { position: { left, top } });
         }
         isDragging.current = null;
         dragStateRef.current = null;
-
     };
 
     const resetComposer = () => {
@@ -655,6 +708,23 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         dragStateRef.current = null;
     };
 
+    const updateTextStyle = (key: keyof TextStyle, value: string | number) => {
+        if (!activeElementId) return;
+
+        setTextElements(prev => prev.map(el => {
+            if (el.id === activeElementId) {
+                return {
+                    ...el,
+                    style: {
+                        ...el.style,
+                        [key]: value
+                    }
+                };
+            }
+            return el;
+        }));
+    };
+
     const addTextElement = useCallback(() => {
         if (textElements.length >= 5) {
             toast.error("Maximum 5 text boxes allowed");
@@ -663,28 +733,21 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
         const id = Math.random().toString(36).substr(2, 9);
 
-        // Calculate position with offset for each new box
-        let left = 100;
-        let top = 100;
-        if (stageRef.current) {
-            const viewport = stageRef.current.getBoundingClientRect();
-            // Start from center and offset each new box
-            const baseLeft = (viewport.width - 200) / 2;
-            const baseTop = (viewport.height - 200) / 2;
-            // Offset by 40px for each existing element to create a cascade effect
-            left = baseLeft + (textElements.length * 40);
-            top = baseTop + (textElements.length * 40);
-        }
+        // Initial centering strategy:
+        // Set position to -1, -1 to indicate "use CSS centering".
+        // The render loop will handle this by applying translate(-50%, -50%) and left: 50%, top: 50%.
+        // Once dragged, these values will be replaced by absolute pixels.
 
         const newElement: TextElement = {
             id,
             content: "",
             style: { ...DEFAULT_TEXT_STYLE },
-            position: { left, top }
+            position: { left: -1, top: -1 }
         };
 
         setTextElements(prev => [...prev, newElement]);
         setActiveElementId(id);
+        setHasMovedInCurrentEdit(false);
     }, [textElements.length]);
 
     const handleComposerCancel = () => {
@@ -703,6 +766,14 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         try {
             const file = type === 'video' ? await captureVideo(source) : await capturePhoto(source);
             if (file) {
+                if (type === 'image') {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        setImageToCrop(reader.result as string);
+                    };
+                    reader.readAsDataURL(file);
+                    return;
+                }
 
                 const previewUrl = URL.createObjectURL(file);
                 setMediaDraft({ type, file, previewUrl });
@@ -721,6 +792,15 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             setShowStitchMenu(true);
         }
     }, [setMediaDraft, setShowStitchMenu, addTextElement]);
+
+    const handleCroppedImage = useCallback((blob: Blob) => {
+        setImageToCrop(null);
+        const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        const previewUrl = URL.createObjectURL(file);
+        setMediaDraft({ type: 'image', file, previewUrl });
+        setTextElements([]);
+        setStitchMode('image');
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -1232,7 +1312,14 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         </div>
                     </div>
                 )}
-                {activeSegment ? (
+                {/* Content Area - Playback vs Creation Mode */}
+                {stitchMode ? (
+                    // Creation Mode: Solid background for text/drawing canvas
+                    <div className="absolute inset-0 bg-[#111] flex items-center justify-center">
+                        {/* Optional: Add a subtle pattern or gradient to make it look less dead? */}
+                        {/* For now, just a clean dark background as requested */}
+                    </div>
+                ) : activeSegment ? (
                     <>
                         {activeSegment.mediaType === 'video' ? (
                             <VideoPlayer
@@ -1389,575 +1476,677 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     ) : (
                         <div className="text-gray-500">No segments yet. Be the first!</div>
                     )
-                )}
+                )
+                }
 
                 {/* Uploading Overlay */}
-                {isUploading && (
-                    <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center">
-                        <Loader2 className="w-12 h-12 text-[#EC1D99] animate-spin mb-4" />
-                        <p className="font-bold">Uploading...</p>
-                    </div>
-                )}
+                {
+                    isUploading && (
+                        <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center">
+                            <Loader2 className="w-12 h-12 text-[#EC1D99] animate-spin mb-4" />
+                            <p className="font-bold">Uploading...</p>
+                        </div>
+                    )
+                }
 
                 {/* Onboarding Tutorial Overlay */}
-                {showOnboardingTutorial && (
-                    <OnboardingTutorialOverlay
-                        onDismiss={() => {
-                            try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
-                            setShowOnboardingTutorial(false);
-                        }}
-                        targetElementId="add-weeve-button"
-                    />
-                )}
-            </div>
+                {
+                    showOnboardingTutorial && (
+                        <OnboardingTutorialOverlay
+                            onDismiss={() => {
+                                try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
+                                setShowOnboardingTutorial(false);
+                            }}
+                            targetElementId="add-weeve-button"
+                        />
+                    )
+                }
+            </div >
 
             {/* Timeline Controls */}
-            {!isComposerOpen && (
-                <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-30 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
-                    <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', scrollSnapType: 'x mandatory' }}>
-                        {timelineEntries.map((entry, entryIndex) => {
-                            // Handle empty slot entries (waiting participants)
-                            if (entry.type === 'empty') {
-                                const participant = entry.participant;
-                                const isCurrentUser = currentUser?.id === participant.id;
-                                const isCurrentTurn = story.currentTurnUserId === participant.id;
+            {
+                !isComposerOpen && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-30 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
+                        <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', scrollSnapType: 'x mandatory' }}>
+                            {timelineEntries.map((entry, entryIndex) => {
+                                // Handle empty slot entries (waiting participants)
+                                if (entry.type === 'empty') {
+                                    const participant = entry.participant;
+                                    const isCurrentUser = currentUser?.id === participant.id;
+                                    const isCurrentTurn = story.currentTurnUserId === participant.id;
 
 
 
-                                // Show clickable + button for current user's empty slot
-                                if (isCurrentUser && isMyTurn && !isStoryComplete) {
+                                    // Show clickable + button for current user's empty slot
+                                    if (isCurrentUser && isMyTurn && !isStoryComplete) {
+                                        return (
+                                            <button
+                                                key={`empty-${participant.id}-${entry.position}`}
+                                                id="add-weeve-button"
+                                                onClick={() => {
+                                                    setShowStitchMenu(true);
+                                                    setShowOnboardingTutorial(false);
+                                                }}
+                                                className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
+                                                style={timelineItemSnapStyle}
+                                            >
+                                                <div className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors">
+                                                    <Plus className="w-6 h-6" />
+                                                </div>
+                                                <span className="text-[10px] text-[#EC1D99] font-medium max-w-[64px] truncate">
+                                                    Your turn
+                                                </span>
+                                                <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
+                                            </button>
+                                        );
+                                    }
+
+                                    // Show disabled placeholder for other users' empty slots
                                     return (
                                         <button
                                             key={`empty-${participant.id}-${entry.position}`}
-                                            id="add-weeve-button"
-                                            onClick={() => {
-                                                setShowStitchMenu(true);
-                                                setShowOnboardingTutorial(false);
-                                            }}
-                                            className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
+                                            type="button"
+                                            disabled
+                                            className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
                                             style={timelineItemSnapStyle}
                                         >
-                                            <div className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors">
-                                                <Plus className="w-6 h-6" />
+                                            <div
+                                                className={`w-12 h-12 rounded-full border-2 border-dashed overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99]/70' : 'border-gray-600'}`}
+                                            >
+                                                <img
+                                                    src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
+                                                    alt={participant.name}
+                                                    className="w-full h-full object-cover opacity-50"
+                                                />
                                             </div>
-                                            <span className="text-[10px] text-[#EC1D99] font-medium max-w-[64px] truncate">
-                                                Your turn
+                                            <span className="text-[10px] text-gray-400 font-medium max-w-[64px] truncate" title={participant.name}>
+                                                {participant.name.split(' ').slice(0, 2).join(' ')}
                                             </span>
                                             <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
+                                            {isCurrentTurn && (
+                                                <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
+                                            )}
                                         </button>
                                     );
                                 }
 
-                                // Show disabled placeholder for other users' empty slots
+                                // Handle contribution entries
+                                const { contribution, index, occurrence, isLatestForUser } = entry;
+                                const participant = participantMap.get(contribution.userId);
+                                const displayName = participant?.name ?? contribution.userName;
+                                const avatar = participant?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`;
+                                const isActive = index === activeIndex;
+                                const isCurrentTurn = isLatestForUser && story.currentTurnUserId === contribution.userId;
+
                                 return (
                                     <button
-                                        key={`empty-${participant.id}-${entry.position}`}
+                                        key={`${contribution.id}-${index}`}
                                         type="button"
-                                        disabled
-                                        className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
+                                        onClick={() => handleContributionSelect(index)}
+                                        className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none text-white"
                                         style={timelineItemSnapStyle}
                                     >
                                         <div
-                                            className={`w-12 h-12 rounded-full border-2 border-dashed overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99]/70' : 'border-gray-600'}`}
+                                            className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isActive
+                                                ? 'border-[#EC1D99] shadow-[0_0_15px_rgba(236,29,153,0.35)]'
+                                                : isCurrentTurn
+                                                    ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]'
+                                                    : 'border-gray-700'}`}
                                         >
                                             <img
-                                                src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
-                                                alt={participant.name}
-                                                className="w-full h-full object-cover opacity-50"
+                                                src={avatar}
+                                                alt={displayName}
+                                                className="w-full h-full object-cover"
                                             />
                                         </div>
-                                        <span className="text-[10px] text-gray-400 font-medium max-w-[64px] truncate" title={participant.name}>
-                                            {participant.name.split(' ').slice(0, 2).join(' ')}
+                                        <span className="text-[10px] text-gray-300 font-medium max-w-[64px] truncate" title={displayName}>
+                                            {displayName.split(' ').slice(0, 2).join(' ')}
                                         </span>
-                                        <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
+                                        <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {occurrence}</span>
                                         {isCurrentTurn && (
                                             <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
                                         )}
                                     </button>
                                 );
-                            }
+                            })}
 
-                            // Handle contribution entries
-                            const { contribution, index, occurrence, isLatestForUser } = entry;
-                            const participant = participantMap.get(contribution.userId);
-                            const displayName = participant?.name ?? contribution.userName;
-                            const avatar = participant?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`;
-                            const isActive = index === activeIndex;
-                            const isCurrentTurn = isLatestForUser && story.currentTurnUserId === contribution.userId;
-
-                            return (
-                                <button
-                                    key={`${contribution.id}-${index}`}
-                                    type="button"
-                                    onClick={() => handleContributionSelect(index)}
-                                    className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none text-white"
-                                    style={timelineItemSnapStyle}
-                                >
-                                    <div
-                                        className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isActive
-                                            ? 'border-[#EC1D99] shadow-[0_0_15px_rgba(236,29,153,0.35)]'
-                                            : isCurrentTurn
-                                                ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]'
-                                                : 'border-gray-700'}`}
+                            {participantsWithoutContributions.map((participant, idx) => {
+                                const isCurrentTurn = story.currentTurnUserId === participant.id;
+                                return (
+                                    <button
+                                        key={`pending-${participant.id}-${participant.position ?? idx}`}
+                                        type="button"
+                                        disabled
+                                        className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-60 cursor-default"
+                                        style={timelineItemSnapStyle}
                                     >
-                                        <img
-                                            src={avatar}
-                                            alt={displayName}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-                                    <span className="text-[10px] text-gray-300 font-medium max-w-[64px] truncate" title={displayName}>
-                                        {displayName.split(' ').slice(0, 2).join(' ')}
-                                    </span>
-                                    <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {occurrence}</span>
-                                    {isCurrentTurn && (
-                                        <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
-                                    )}
-                                </button>
-                            );
-                        })}
-
-                        {participantsWithoutContributions.map((participant, idx) => {
-                            const isCurrentTurn = story.currentTurnUserId === participant.id;
-                            return (
-                                <button
-                                    key={`pending-${participant.id}-${participant.position ?? idx}`}
-                                    type="button"
-                                    disabled
-                                    className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-60 cursor-default"
-                                    style={timelineItemSnapStyle}
-                                >
-                                    <div
-                                        className={`w-12 h-12 rounded-full border-2 border-dashed overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99] shadow-[0_0_12px_rgba(236,29,153,0.25)]' : 'border-[#EC1D99]/40'}`}
-                                    >
-                                        <img
-                                            src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
-                                            alt={participant.name}
-                                            className="w-full h-full object-cover opacity-70"
-                                        />
-                                    </div>
-                                    <span className="text-[10px] text-[#EC1D99]/70 font-medium max-w-[64px] truncate" title={participant.name}>
-                                        {participant.name.split(' ').slice(0, 2).join(' ')}
-                                    </span>
-                                    <span className="text-[9px] uppercase tracking-wide text-[#EC1D99]/50">No part yet</span>
-                                    {isCurrentTurn && (
-                                        <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
-                                    )}
-                                </button>
-                            );
-                        })}
-
-                        {/* Show + button only if it's user's turn AND they don't have a specific waiting slot */}
-                        {isMyTurn && !userHasWaitingSlot && !isStoryComplete && (
-                            <button
-                                id="add-weeve-button"
-                                onClick={() => {
-                                    try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
-                                    setShowStitchMenu(true);
-                                    setShowOnboardingTutorial(false);
-                                }}
-                                className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors"
-                                style={timelineItemSnapStyle}
-                            >
-                                <Plus className="w-6 h-6" />
-                            </button>
-                        )}
-                    </div>
-
-                    {!hasContributions && (
-                        <div className="text-xs text-gray-500 px-2 pb-2">
-                            No stitches yet. Be the first to add one!
-                        </div>
-                    )}
-
-
-
-                    {isStoryComplete ? (
-                        <div className="text-center text-xs text-gray-500 py-2">
-                            Story complete — stitch limit reached.
-                        </div>
-                    ) : null}
-                </div>
-            )}
-
-            {/* Stitch Menu Modal */}
-            {showStitchMenu && (
-                <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-40 flex flex-col items-center justify-end pb-12 animate-in slide-in-from-bottom duration-300">
-                    <button
-                        onClick={() => setShowStitchMenu(false)}
-                        className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white"
-                    >
-                        <X className="w-8 h-8" />
-                    </button>
-
-                    <h2 className="text-xl font-bold mb-8">How do you want to stitch?</h2>
-
-                    <div className="flex gap-6 mb-8">
-                        <button
-                            onClick={() => handleStitchOption('video')}
-                            className="flex flex-col items-center gap-2 group"
-                        >
-                            <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                <Video className="w-8 h-8" />
-                            </div>
-                            <span className="text-sm font-medium">Video</span>
-                        </button>
-
-                        <button
-                            onClick={() => handleStitchOption('image')}
-                            className="flex flex-col items-center gap-2 group"
-                        >
-                            <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                <Camera className="w-8 h-8" />
-                            </div>
-                            <span className="text-sm font-medium">Photo</span>
-                        </button>
-
-                        <button
-                            onClick={() => handleStitchOption('text')}
-                            className="flex flex-col items-center gap-2 group"
-                        >
-                            <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                <Type className="w-8 h-8" />
-                            </div>
-                            <span className="text-sm font-medium">Text</span>
-                        </button>
-
-                        <button
-                            onClick={() => handleStitchOption('drawing')}
-                            className="flex flex-col items-center gap-2 group"
-                        >
-                            <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                <Pencil className="w-8 h-8" />
-                            </div>
-                            <span className="text-sm font-medium">Draw</span>
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {mediaPickerConfig && (
-                <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex flex-col items-center justify-end pb-12 animate-in slide-in-from-bottom duration-300">
-                    <button
-                        onClick={handleMediaPickerCancel}
-                        className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white"
-                    >
-                        <X className="w-8 h-8" />
-                    </button>
-
-                    <h2 className="text-xl font-bold mb-8">{mediaPickerConfig.heading}</h2>
-
-                    <div className="flex gap-6 mb-8">
-                        <button
-                            onClick={() => handleMediaSourceSelection(mediaPickerConfig.type, 'camera')}
-                            className="flex flex-col items-center gap-2 group"
-                        >
-                            <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                <mediaPickerConfig.TakeIcon className="w-8 h-8" />
-                            </div>
-                            <span className="text-sm font-medium">{mediaPickerConfig.takeLabel}</span>
-                        </button>
-
-                        <button
-                            onClick={() => handleMediaSourceSelection(mediaPickerConfig.type, 'gallery')}
-                            className="flex flex-col items-center gap-2 group"
-                        >
-                            <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                <mediaPickerConfig.UploadIcon className="w-8 h-8" />
-                            </div>
-                            <span className="text-sm font-medium">{mediaPickerConfig.uploadLabel}</span>
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Composer Overlay */}
-            {isComposerOpen && (
-                <>
-                    <div className="absolute inset-0 z-40 pointer-events-none overflow-hidden">
-                        {(stitchMode === 'video' || stitchMode === 'image') && mediaDraft?.previewUrl && (
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-8 pt-12 pb-32">
-                                {stitchMode === 'video' ? (
-                                    <video
-                                        src={mediaDraft.previewUrl}
-                                        className="max-h-[70vh] w-auto rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
-                                        controls
-                                    />
-                                ) : (
-                                    <img
-                                        src={mediaDraft.previewUrl}
-                                        alt="Selected media preview"
-                                        className="max-h-[70vh] w-auto rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] object-contain"
-                                    />
-                                )}
-                            </div>
-                        )}
-
-                        {/* Drawing Canvas */}
-                        {stitchMode === 'drawing' && (
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-auto px-4 pt-20 pb-32">
-                                <DrawingCanvas ref={drawingCanvasRef} className="w-full max-w-md" />
-                            </div>
-                        )}
-
-                        {(stitchMode === 'text' || stitchMode === 'drawing') && textElements.map((element) => (
-                            <div
-                                key={element.id}
-                                ref={(el) => {
-                                    if (el) draggableRefs.current.set(element.id, el);
-                                    else draggableRefs.current.delete(element.id);
-                                }}
-                                className="pointer-events-auto select-none"
-                                style={{
-                                    position: 'absolute',
-                                    left: 0,
-                                    top: 0,
-                                    transform: `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
-                                    touchAction: 'none',
-                                    zIndex: activeElementId === element.id ? 20 : 10,
-                                }}
-                                onClick={() => setActiveElementId(element.id)}
-                            >
-                                <div className="relative group">
-                                    {/* Drag Handle - NOW INTERACTIVE */}
-                                    <div
-                                        className={`absolute -top-10 left-1/2 -translate-x-1/2 p-2 cursor-grab active:cursor-grabbing transition-opacity ${activeElementId === element.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                                        onPointerDown={(e) => handleDragStart(e, element.id)}
-                                        onPointerMove={(e) => handleDragMove(e, element.id)}
-                                        onPointerUp={(e) => handleDragEnd(e, element.id)}
-                                        onPointerCancel={(e) => handleDragEnd(e, element.id)}
-                                    >
-                                        <div className="w-12 h-1.5 bg-white/30 rounded-full backdrop-blur-sm" />
-                                    </div>
-
-                                    {/* Delete Button (only if more than 1) */}
-                                    {textElements.length > 1 && activeElementId === element.id && (
-                                        <button
-                                            className="absolute -top-10 -right-8 p-1.5 bg-red-500/80 rounded-full text-white hover:bg-red-600 transition-colors"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setTextElements(prev => prev.filter(el => el.id !== element.id));
-                                                if (activeElementId === element.id) {
-                                                    setActiveElementId(null);
-                                                }
-                                            }}
+                                        <div
+                                            className={`w-12 h-12 rounded-full border-2 border-dashed overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99] shadow-[0_0_12px_rgba(236,29,153,0.25)]' : 'border-[#EC1D99]/40'}`}
                                         >
-                                            <X className="w-3 h-3" />
-                                        </button>
-                                    )}
+                                            <img
+                                                src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
+                                                alt={participant.name}
+                                                className="w-full h-full object-cover opacity-70"
+                                            />
+                                        </div>
+                                        <span className="text-[10px] text-[#EC1D99]/70 font-medium max-w-[64px] truncate" title={participant.name}>
+                                            {participant.name.split(' ').slice(0, 2).join(' ')}
+                                        </span>
+                                        <span className="text-[9px] uppercase tracking-wide text-[#EC1D99]/50">No part yet</span>
+                                        {isCurrentTurn && (
+                                            <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
+                                        )}
+                                    </button>
+                                );
+                            })}
 
-                                    <textarea
-                                        value={element.content}
-                                        onChange={(e) => {
-                                            updateElement(element.id, { content: e.target.value });
-                                            // Auto-resize
-                                            e.target.style.height = 'auto';
-                                            e.target.style.height = e.target.scrollHeight + 'px';
-                                        }}
-                                        onPointerDown={(e) => {
-                                            // Stop propagation when clicking on textarea to allow typing
-                                            e.stopPropagation();
-                                        }}
-                                        placeholder={stitchMode === 'drawing' || stitchMode === 'text' ? "Type something..." : ''}
-                                        className="min-w-[200px] max-w-[80vw] overflow-hidden bg-transparent resize-none focus:outline-none text-center placeholder:text-white/50"
-                                        style={{
-                                            fontFamily: element.style.fontFamily,
-                                            fontSize: element.style.fontSize,
-                                            color: element.style.textColor,
-                                            textAlign: element.style.textAlign,
-                                            backgroundColor: element.style.backgroundColor === 'transparent'
-                                                ? 'rgba(0,0,0,0.45)'
-                                                : element.style.backgroundColor,
-                                            padding: '1rem 1.25rem',
-                                            borderRadius: '1.5rem',
-                                            border: activeElementId === element.id ? '1px solid rgba(236,29,153,0.5)' : '1px solid rgba(255,255,255,0.1)',
-                                            backdropFilter: 'blur(4px)',
-                                            boxShadow: activeElementId === element.id ? '0 0 15px rgba(236,29,153,0.2)' : 'none',
-                                        }}
-                                        autoFocus={activeElementId === element.id}
-                                        rows={1}
-                                        onFocus={() => setActiveElementId(element.id)}
-                                    />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Side Menu & Controls */}
-                    <div className="absolute inset-0 z-50 pointer-events-none">
-                        {/* Top Controls */}
-                        <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-auto">
-                            <button
-                                onClick={handleComposerCancel}
-                                className="px-4 py-2 rounded-full bg-black/40 backdrop-blur-md text-white font-medium hover:bg-black/60 transition-colors"
-                            >
-                                Cancel
-                            </button>
-
-                            {/* Add Text Button */}
-                            {((stitchMode === 'text' || stitchMode === 'drawing') && textElements.length < 5) && (
+                            {/* Show + button only if it's user's turn AND they don't have a specific waiting slot */}
+                            {isMyTurn && !userHasWaitingSlot && !isStoryComplete && (
                                 <button
-                                    onClick={addTextElement}
-                                    className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md text-white font-medium hover:bg-white/20 transition-colors flex items-center gap-2"
+                                    id="add-weeve-button"
+                                    onClick={() => {
+                                        try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
+                                        setShowStitchMenu(true);
+                                        setShowOnboardingTutorial(false);
+                                    }}
+                                    className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors"
+                                    style={timelineItemSnapStyle}
                                 >
-                                    <Plus className="w-4 h-4" />
-                                    Add Text
+                                    <Plus className="w-6 h-6" />
                                 </button>
                             )}
-
-                            <button
-                                onClick={() => handleComposerSubmit()}
-                                disabled={isPostDisabled || isUploading}
-                                className={`px-6 py-2 rounded-full font-bold transition-colors ${isPostDisabled || isUploading ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-[#EC1D99] text-white hover:bg-[#D41C84]'}`}
-                            >
-                                {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Post'}
-                            </button>
                         </div>
 
-                        {/* Right Side Menu */}
-                        {stitchMode === 'text' && (
-                            <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-4 pointer-events-auto">
-                                {/* Font Family */}
-                                <div className="relative">
-                                    <button
-                                        onClick={() => setActiveMenu(activeMenu === 'font' ? null : 'font')}
-                                        className={`w-10 h-10 rounded-full backdrop-blur-md border flex items-center justify-center transition-colors ${activeMenu === 'font' ? 'bg-[#EC1D99] border-[#EC1D99] text-white' : 'bg-black/40 border-white/10 text-white hover:bg-[#EC1D99]'}`}
-                                    >
-                                        <Type className="w-5 h-5" />
-                                    </button>
-                                    {activeMenu === 'font' && (
-                                        <div className="absolute right-full top-0 mr-4 bg-black/90 border border-white/10 rounded-xl p-2 flex flex-col gap-2 w-32 animate-in slide-in-from-right-2 duration-200">
-                                            {FONT_OPTIONS.map((font) => (
-                                                <button
-                                                    key={font.value}
-                                                    onClick={() => {
-                                                        updateTextStyle('fontFamily', font.value);
-                                                        setActiveMenu(null);
-                                                    }}
-                                                    className={`text-sm py-1 px-2 rounded text-left truncate ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.fontFamily === font.value ? 'text-[#EC1D99]' : 'text-white hover:bg-white/10'}`}
-                                                    style={{ fontFamily: font.value }}
-                                                >
-                                                    {font.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Font Size */}
-                                <div className="relative">
-                                    <button
-                                        onClick={() => setActiveMenu(activeMenu === 'size' ? null : 'size')}
-                                        className={`w-10 h-10 rounded-full backdrop-blur-md border flex items-center justify-center transition-colors ${activeMenu === 'size' ? 'bg-[#EC1D99] border-[#EC1D99] text-white' : 'bg-black/40 border-white/10 text-white hover:bg-[#EC1D99]'}`}
-                                    >
-                                        <span className="text-xs font-bold">Aa</span>
-                                    </button>
-                                    {activeMenu === 'size' && (
-                                        <div className="absolute right-full top-1/2 -translate-y-1/2 mr-4 bg-black/90 border border-white/10 rounded-xl p-2 flex gap-2 animate-in slide-in-from-right-2 duration-200">
-                                            {FONT_SIZE_OPTIONS.map((size) => (
-                                                <button
-                                                    key={size}
-                                                    onClick={() => {
-                                                        updateTextStyle('fontSize', size);
-                                                        setActiveMenu(null);
-                                                    }}
-                                                    className={`w-8 h-8 rounded flex items-center justify-center text-xs ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.fontSize === size ? 'bg-[#EC1D99] text-white' : 'text-gray-300 hover:bg-white/10'}`}
-                                                >
-                                                    {size}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Alignment */}
-                                <div className="relative">
-                                    <button
-                                        onClick={() => setActiveMenu(activeMenu === 'align' ? null : 'align')}
-                                        className={`w-10 h-10 rounded-full backdrop-blur-md border flex items-center justify-center transition-colors ${activeMenu === 'align' ? 'bg-[#EC1D99] border-[#EC1D99] text-white' : 'bg-black/40 border-white/10 text-white hover:bg-[#EC1D99]'}`}
-                                    >
-                                        {(!activeElementId || textElements.find(el => el.id === activeElementId)?.style.textAlign === 'left') && <AlignLeft className="w-5 h-5" />}
-                                        {activeElementId && textElements.find(el => el.id === activeElementId)?.style.textAlign === 'center' && <AlignCenter className="w-5 h-5" />}
-                                        {activeElementId && textElements.find(el => el.id === activeElementId)?.style.textAlign === 'right' && <AlignRight className="w-5 h-5" />}
-                                    </button>
-                                    {activeMenu === 'align' && (
-                                        <div className="absolute right-full top-1/2 -translate-y-1/2 mr-4 bg-black/90 border border-white/10 rounded-xl p-2 flex gap-2 animate-in slide-in-from-right-2 duration-200">
-                                            {ALIGN_OPTIONS.map(({ value, icon: Icon }) => (
-                                                <button
-                                                    key={value}
-                                                    onClick={() => {
-                                                        updateTextStyle('textAlign', value);
-                                                        setActiveMenu(null);
-                                                    }}
-                                                    className={`p-2 rounded ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.textAlign === value ? 'bg-[#EC1D99] text-white' : 'text-gray-300 hover:bg-white/10'}`}
-                                                >
-                                                    <Icon className="w-4 h-4" />
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Text Color */}
-                                <div className="relative">
-                                    <button
-                                        onClick={() => setActiveMenu(activeMenu === 'color' ? null : 'color')}
-                                        className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-colors ${activeMenu === 'color' ? 'border-white scale-110' : 'border-white/20'}`}
-                                        style={{ backgroundColor: activeElementId ? textElements.find(el => el.id === activeElementId)?.style.textColor : '#FFFFFF' }}
-                                    />
-                                    {activeMenu === 'color' && (
-                                        <div className="absolute right-full top-1/2 -translate-y-1/2 mr-4 bg-black/90 border border-white/10 rounded-xl p-2 grid grid-cols-4 gap-2 w-48 animate-in slide-in-from-right-2 duration-200">
-                                            {TEXT_COLOR_OPTIONS.map((color) => (
-                                                <button
-                                                    key={color}
-                                                    onClick={() => {
-                                                        updateTextStyle('textColor', color);
-                                                        setActiveMenu(null);
-                                                    }}
-                                                    className={`w-8 h-8 rounded-full border-2 ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.textColor === color ? 'border-white' : 'border-transparent'}`}
-                                                    style={{ backgroundColor: color }}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Background Color */}
-                                <div className="relative">
-                                    <button
-                                        onClick={() => setActiveMenu(activeMenu === 'bg' ? null : 'bg')}
-                                        className={`w-10 h-10 rounded-lg border-2 flex items-center justify-center transition-colors ${activeMenu === 'bg' ? 'border-white scale-110' : 'border-white/20'}`}
-                                        style={{
-                                            background: (activeElementId ? textElements.find(el => el.id === activeElementId)?.style.backgroundColor : 'transparent') === 'transparent'
-                                                ? 'linear-gradient(135deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)'
-                                                : (activeElementId ? textElements.find(el => el.id === activeElementId)?.style.backgroundColor : 'transparent')
-                                        }}
-                                    />
-                                    {activeMenu === 'bg' && (
-                                        <div className="absolute right-full top-1/2 -translate-y-1/2 mr-4 bg-black/90 border border-white/10 rounded-xl p-2 grid grid-cols-3 gap-2 w-40 animate-in slide-in-from-right-2 duration-200">
-                                            {BACKGROUND_OPTIONS.map((color) => (
-                                                <button
-                                                    key={color}
-                                                    onClick={() => {
-                                                        updateTextStyle('backgroundColor', color);
-                                                        setActiveMenu(null);
-                                                    }}
-                                                    className={`w-10 h-8 rounded border ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.backgroundColor === color ? 'border-white' : 'border-transparent'}`}
-                                                    style={{
-                                                        background: color === 'transparent'
-                                                            ? 'linear-gradient(135deg, rgba(255,255,255,0.2) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.2) 75%, transparent 75%, transparent)'
-                                                            : color
-                                                    }}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
+                        {!hasContributions && (
+                            <div className="text-xs text-gray-500 px-2 pb-2">
+                                No stitches yet. Be the first to add one!
                             </div>
                         )}
+
+
+
+                        {isStoryComplete ? (
+                            <div className="text-center text-xs text-gray-500 py-2">
+                                Story complete — stitch limit reached.
+                            </div>
+                        ) : null}
                     </div>
-                </>
-            )}
+                )
+            }
+
+            {/* Stitch Menu Modal */}
+            {
+                showStitchMenu && (
+                    <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-40 flex flex-col items-center justify-end pb-12 animate-in slide-in-from-bottom duration-300">
+                        <button
+                            onClick={() => setShowStitchMenu(false)}
+                            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white"
+                        >
+                            <X className="w-8 h-8" />
+                        </button>
+
+                        <h2 className="text-xl font-bold mb-8">How do you want to stitch?</h2>
+
+                        <div className="flex gap-6 mb-8">
+                            <button
+                                onClick={() => handleStitchOption('video')}
+                                className="flex flex-col items-center gap-2 group"
+                            >
+                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                                    <Video className="w-8 h-8" />
+                                </div>
+                                <span className="text-sm font-medium">Video</span>
+                            </button>
+
+                            <button
+                                onClick={() => handleStitchOption('image')}
+                                className="flex flex-col items-center gap-2 group"
+                            >
+                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                                    <Camera className="w-8 h-8" />
+                                </div>
+                                <span className="text-sm font-medium">Photo</span>
+                            </button>
+
+                            <button
+                                onClick={() => handleStitchOption('text')}
+                                className="flex flex-col items-center gap-2 group"
+                            >
+                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                                    <Type className="w-8 h-8" />
+                                </div>
+                                <span className="text-sm font-medium">Text</span>
+                            </button>
+
+                            <button
+                                onClick={() => handleStitchOption('drawing')}
+                                className="flex flex-col items-center gap-2 group"
+                            >
+                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                                    <Pencil className="w-8 h-8" />
+                                </div>
+                                <span className="text-sm font-medium">Draw</span>
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
+
+            {
+                mediaPickerConfig && (
+                    <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex flex-col items-center justify-end pb-12 animate-in slide-in-from-bottom duration-300">
+                        <button
+                            onClick={handleMediaPickerCancel}
+                            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white"
+                        >
+                            <X className="w-8 h-8" />
+                        </button>
+
+                        <h2 className="text-xl font-bold mb-8">{mediaPickerConfig.heading}</h2>
+
+                        <div className="flex gap-6 mb-8">
+                            <button
+                                onClick={() => handleMediaSourceSelection(mediaPickerConfig.type, 'camera')}
+                                className="flex flex-col items-center gap-2 group"
+                            >
+                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                                    <mediaPickerConfig.TakeIcon className="w-8 h-8" />
+                                </div>
+                                <span className="text-sm font-medium">{mediaPickerConfig.takeLabel}</span>
+                            </button>
+
+                            <button
+                                onClick={() => handleMediaSourceSelection(mediaPickerConfig.type, 'gallery')}
+                                className="flex flex-col items-center gap-2 group"
+                            >
+                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                                    <mediaPickerConfig.UploadIcon className="w-8 h-8" />
+                                </div>
+                                <span className="text-sm font-medium">{mediaPickerConfig.uploadLabel}</span>
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Composer Overlay */}
+            {
+                isComposerOpen && (
+                    <>
+                        <div
+                            className="absolute inset-0 z-40 pointer-events-auto overflow-hidden"
+                            onClick={(e) => {
+                                if (activeElementId) {
+                                    // Only deselect if clicking the background directly (not intercepted by child)
+                                    setActiveElementId(null);
+                                    setActiveMenu(null);
+                                    setHasMovedInCurrentEdit(false);
+                                }
+                            }}
+                        >
+                            {(stitchMode === 'video' || stitchMode === 'image') && mediaDraft?.previewUrl && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-8 pt-12 pb-32">
+                                    {stitchMode === 'video' ? (
+                                        <video
+                                            src={mediaDraft.previewUrl}
+                                            className="max-h-[70vh] w-auto rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] pointer-events-auto"
+                                            autoPlay
+                                            playsInline
+                                            loop
+                                            onClick={(e) => {
+                                                if (e.currentTarget.paused) e.currentTarget.play();
+                                                else e.currentTarget.pause();
+                                            }}
+                                        />
+                                    ) : (
+                                        <img
+                                            src={mediaDraft.previewUrl}
+                                            alt="Selected media preview"
+                                            className="max-h-[70vh] w-auto rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] object-contain pointer-events-auto"
+                                        />
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Drawing Canvas */}
+                            {stitchMode === 'drawing' && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-auto px-4 pt-20 pb-32">
+                                    <DrawingCanvas ref={drawingCanvasRef} className="w-full max-w-md" />
+                                </div>
+                            )}
+
+
+
+                            {(stitchMode === 'text' || stitchMode === 'drawing') && textElements.map((element) => {
+                                const isEditing = activeElementId === element.id;
+                                const isInitialCenter = element.position.left === -1 && element.position.top === -1;
+
+                                // Focus Mode: If editing and haven't manually moved it, force it to center (above keyboard)
+                                const showCentered = (isEditing && !hasMovedInCurrentEdit) || isInitialCenter;
+
+                                return (
+                                    <div
+                                        key={element.id}
+                                        ref={(el) => {
+                                            if (el) draggableRefs.current.set(element.id, el);
+                                            else draggableRefs.current.delete(element.id);
+                                        }}
+                                        className={`pointer-events-auto select-none absolute touch-none ${isEditing ? 'z-[60]' : 'z-30 hover:z-40'}`}
+                                        style={{
+                                            left: showCentered ? '50%' : 0,
+                                            top: showCentered ? '20%' : 0, // 30% down is a good "above keyboard" spot usually
+                                            transform: showCentered
+                                                ? 'translate3d(-50%, 0, 0)'
+                                                : `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
+                                        }}
+                                        onPointerDown={(e) => {
+                                            if (!isEditing) handleDragStart(e, element.id);
+                                        }}
+                                        onPointerMove={(e) => {
+                                            handleDragMove(e, element.id);
+                                        }}
+                                        onPointerUp={(e) => {
+                                            handleDragEnd(e, element.id);
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="relative group flex flex-col items-center">
+                                            {/* Drag Handle (Visible in Edit Mode + View Mode?) */}
+                                            {/* User asked for handle on top. Useful for Edit Mode. */}
+                                            {isEditing && (
+                                                <div
+                                                    className="mb-2 px-3 py-1 bg-white/20 rounded-full backdrop-blur-md cursor-grab active:cursor-grabbing hover:bg-white/30 transition-colors pointer-events-auto"
+                                                    onPointerDown={(e) => handleDragStart(e, element.id)}
+                                                >
+                                                    <div className="w-8 h-1 bg-white rounded-full shadow-sm" />
+                                                </div>
+                                            )}
+
+                                            {/* Delete Button (Visible if Editing OR very prominent interaction needed) */}
+                                            {isEditing && (
+                                                <button
+                                                    className="absolute -top-4 -right-4 p-2 bg-[#EC1D99] rounded-full text-white shadow-lg z-50 animate-in zoom-in duration-200"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setTextElements(prev => prev.filter(el => el.id !== element.id));
+                                                        setActiveElementId(null);
+                                                    }}
+                                                    onPointerDown={(e) => e.stopPropagation()}
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            )}
+
+                                            {isEditing ? (
+                                                <textarea
+                                                    value={element.content}
+                                                    onChange={(e) => {
+                                                        updateElement(element.id, { content: e.target.value });
+                                                        // Auto-resize
+                                                        e.target.style.height = 'auto';
+                                                        e.target.style.height = e.target.scrollHeight + 'px';
+                                                    }}
+                                                    placeholder="Type something..."
+                                                    className="min-w-[200px] max-w-[80vw] overflow-hidden bg-transparent resize-none focus:outline-none text-center placeholder:text-white/50"
+                                                    style={{
+                                                        fontFamily: element.style.fontFamily,
+                                                        fontSize: element.style.fontSize,
+                                                        color: element.style.textColor,
+                                                        textAlign: element.style.textAlign,
+                                                        backgroundColor: element.style.backgroundColor === 'transparent'
+                                                            ? 'rgba(0,0,0,0.45)'
+                                                            : element.style.backgroundColor,
+                                                        padding: '1rem 1.25rem',
+                                                        borderRadius: '1.5rem',
+                                                        border: '2px solid #EC1D99',
+                                                        backdropFilter: 'blur(8px)',
+                                                        boxShadow: '0 0 30px rgba(236,29,153,0.3)',
+                                                    }}
+                                                    autoFocus
+                                                    rows={1}
+                                                    // STOP PROPAGATION on textarea so dragging doesn't break typing
+                                                    onPointerDown={(e) => e.stopPropagation()}
+                                                />
+                                            ) : (
+                                                <div
+                                                    className="min-w-[200px] max-w-[80vw] text-center"
+                                                    style={{
+                                                        fontFamily: element.style.fontFamily,
+                                                        fontSize: element.style.fontSize,
+                                                        color: element.style.textColor,
+                                                        textAlign: element.style.textAlign,
+                                                        backgroundColor: element.style.backgroundColor === 'transparent'
+                                                            ? 'rgba(0,0,0,0.45)'
+                                                            : element.style.backgroundColor,
+                                                        padding: '1rem 1.25rem',
+                                                        borderRadius: '1.5rem',
+                                                        backdropFilter: 'blur(4px)',
+                                                        cursor: 'grab',
+                                                        whiteSpace: 'pre-wrap',
+                                                        userSelect: 'none',
+                                                    }}
+                                                >
+                                                    {element.content || <span className="opacity-50 italic">Tap to edit</span>}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+
+                        {/* Side Menu & Controls */}
+                        <div className="absolute inset-0 z-50 pointer-events-none">
+                            {/* Top Controls */}
+                            <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-auto">
+                                <button
+                                    onClick={handleComposerCancel}
+                                    className="px-4 py-2 rounded-full bg-black/40 backdrop-blur-md text-white font-medium hover:bg-black/60 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+
+                                <div className="flex items-center gap-2">
+
+
+                                    <button
+                                        onClick={() => handleComposerSubmit()}
+                                        disabled={isPostDisabled || isUploading}
+                                        className={`px-6 py-2 rounded-full font-bold transition-colors ${isPostDisabled || isUploading ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-[#EC1D99] text-white hover:bg-[#D41C84]'}`}
+                                    >
+                                        {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Post'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Improved Bottom Toolbar for Text Styling */}
+                            {(stitchMode === 'text' || stitchMode === 'drawing') && (
+                                <>
+                                    {/* Right Side Vertical Menu (Triggers) */}
+                                    <div
+                                        className="absolute top-24 right-4 flex flex-col gap-6 z-50 pointer-events-auto"
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        {/* Add Text Button - Always visible if limit not reached */}
+                                        {textElements.length < 5 && (
+                                            <button
+                                                onClick={addTextElement}
+                                                className="flex flex-col items-center gap-1 drop-shadow-md text-white hover:text-gray-200"
+                                            >
+                                                <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
+                                                    <Plus className="w-5 h-5" />
+                                                </div>
+                                                <span className="text-[10px] font-bold shadow-black text-shadow">Add</span>
+                                            </button>
+                                        )}
+
+                                        {/* Styling Tools - Only visible when editing */}
+                                        {activeElementId && (
+                                            <>
+                                                <button
+                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenu(activeMenu === 'font' ? null : 'font'); }}
+                                                    className={`flex flex-col items-center gap-1 drop-shadow-md ${activeMenu === 'font' ? 'text-[#EC1D99]' : 'text-white'}`}
+                                                >
+                                                    <Type className="w-6 h-6" />
+                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Font</span>
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenu(activeMenu === 'color' ? null : 'color'); }}
+                                                    className={`flex flex-col items-center gap-1 drop-shadow-md ${activeMenu === 'color' ? 'text-[#EC1D99]' : 'text-white'}`}
+                                                >
+                                                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 border border-white" />
+                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Color</span>
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenu(activeMenu === 'bg' ? null : 'bg'); }}
+                                                    className={`flex flex-col items-center gap-1 drop-shadow-md ${activeMenu === 'bg' ? 'text-[#EC1D99]' : 'text-white'}`}
+                                                >
+                                                    <div className="w-6 h-6 border-2 border-white border-dashed rounded" />
+                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Fill</span>
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenu(activeMenu === 'align' ? null : 'align'); }}
+                                                    className={`flex flex-col items-center gap-1 drop-shadow-md ${activeMenu === 'align' ? 'text-[#EC1D99]' : 'text-white'}`}
+                                                >
+                                                    <AlignLeft className="w-6 h-6" />
+                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Align</span>
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenu(activeMenu === 'size' ? null : 'size'); }}
+                                                    className={`flex flex-col items-center gap-1 drop-shadow-md ${activeMenu === 'size' ? 'text-[#EC1D99]' : 'text-white'}`}
+                                                >
+                                                    <span className="text-xl font-bold leading-none">Aa</span>
+                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Size</span>
+                                                </button>
+
+                                                {/* Done Button moved here for easy access */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setActiveElementId(null);
+                                                        setActiveMenu(null);
+                                                        setHasMovedInCurrentEdit(false);
+                                                    }}
+                                                    className="mt-4 w-8 h-8 flex items-center justify-center bg-white rounded-full text-black shadow-lg hover:bg-gray-200"
+                                                >
+                                                    <X className="w-5 h-5" />
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {/* Bottom Options Bar (Only visible when a menu is active) */}
+                                    {activeMenu && (
+                                        <div
+                                            className="absolute bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-md z-[70] pointer-events-auto animate-in slide-in-from-bottom border-t border-white/10"
+                                            onPointerDown={(e) => e.stopPropagation()}
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <div className="flex items-center justify-center overflow-x-auto no-scrollbar py-2">
+                                                {activeMenu === 'font' && (
+                                                    <div className="flex items-center gap-2 px-4">
+                                                        {FONT_OPTIONS.map((font) => (
+                                                            <button
+                                                                key={font.value}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    updateTextStyle('fontFamily', font.value);
+                                                                }}
+                                                                className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-all ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.fontFamily === font.value ? 'bg-white text-black font-bold' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                                                                style={{ fontFamily: font.value }}
+                                                                onPointerDown={(e) => e.stopPropagation()}
+                                                            >
+                                                                {font.label}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {activeMenu === 'color' && (
+                                                    <div className="flex items-center gap-3 px-4">
+                                                        {TEXT_COLOR_OPTIONS.map((color) => (
+                                                            <button
+                                                                key={color}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    updateTextStyle('textColor', color);
+                                                                }}
+                                                                className={`w-8 h-8 rounded-full border-2 transition-all ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.textColor === color ? 'border-white scale-110 shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'border-transparent hover:scale-105'}`}
+                                                                style={{ backgroundColor: color }}
+                                                                onPointerDown={(e) => e.stopPropagation()}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {activeMenu === 'bg' && (
+                                                    <div className="flex items-center gap-3 px-4">
+                                                        {BACKGROUND_OPTIONS.map((color) => (
+                                                            <button
+                                                                key={color}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    updateTextStyle('backgroundColor', color);
+                                                                }}
+                                                                className={`w-10 h-8 rounded border-2 transition-all ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.backgroundColor === color ? 'border-white scale-105 shadow-[0_0_10px_rgba(255,255,255,0.3)]' : 'border-transparent hover:border-white/30'}`}
+                                                                style={{
+                                                                    background: color === 'transparent'
+                                                                        ? 'linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%)'
+                                                                        : color,
+                                                                    backgroundSize: '8px 8px',
+                                                                    backgroundColor: color === 'transparent' ? '#222' : color
+                                                                }}
+                                                                onPointerDown={(e) => e.stopPropagation()}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {activeMenu === 'align' && (
+                                                    <div className="flex items-center gap-4 bg-white/10 rounded-full px-2 py-1">
+                                                        {ALIGN_OPTIONS.map(({ value, icon: Icon }) => (
+                                                            <button
+                                                                key={value}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    updateTextStyle('textAlign', value);
+                                                                }}
+                                                                className={`p-2 rounded-full transition-all ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.textAlign === value ? 'bg-white text-black' : 'text-gray-300 hover:text-white'}`}
+                                                                onPointerDown={(e) => e.stopPropagation()}
+                                                            >
+                                                                <Icon className="w-5 h-5" />
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {activeMenu === 'size' && (
+                                                    <div className="flex items-center gap-2 px-4 w-full max-w-sm">
+                                                        <span className="text-xs font-bold text-gray-400">A</span>
+                                                        <input
+                                                            type="range"
+                                                            min={16}
+                                                            max={60}
+                                                            step={2}
+                                                            value={activeElementId ? (textElements.find(el => el.id === activeElementId)?.style.fontSize || 28) : 28}
+                                                            onChange={(e) => updateTextStyle('fontSize', parseInt(e.target.value))}
+                                                            className="flex-1 h-2 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#EC1D99] [&::-webkit-slider-thumb]:cursor-pointer"
+                                                            onPointerDown={(e) => e.stopPropagation()}
+                                                        />
+                                                        <span className="text-xl font-bold text-white">A</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </>
+                )
+            }
             {/* Edit Story Modal */}
             {
                 showEditModal && (
@@ -2021,6 +2210,19 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                             </div>
                         </div>
                     </div>
+                )
+            }
+            {
+                imageToCrop && (
+                    <ImageCropper
+                        imageSrc={imageToCrop}
+                        onCropComplete={handleCroppedImage}
+                        onCancel={() => {
+                            setImageToCrop(null);
+                            setShowStitchMenu(true);
+                        }}
+                        aspect={4 / 5}
+                    />
                 )
             }
         </div >

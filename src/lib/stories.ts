@@ -46,9 +46,34 @@ export async function skipTurn(
         }
 
         const nextIndex = (currentIndex + 1) % participants.length;
-        const nextUserId = participants[nextIndex].user_id;
+        // If we are strictly removing, we want the person who was *after* the removed user. 
+        // In the current list, that is at nextIndex (even if it wraps around to 0, which would be the first person).
+        // If there's only 1 participant (the one to be removed), nextUserId will be themselves, 
+        // but we'll handle the empty case below.
+        let nextUserId = participants[nextIndex].user_id;
 
-        // 4. Update story to next user's turn
+        // 4. If timer expired, remove the user
+        if (reason === 'timer_expired') {
+            const { error: deleteError } = await supabase
+                .from('story_participants')
+                .delete()
+                .match({ story_id: storyId, user_id: skippedUserId });
+
+            if (deleteError) {
+                console.error('Error removing participant on timer expiry:', deleteError);
+                return { success: false, error: 'Failed to remove participant' };
+            }
+
+            // If there was only 1 participant, now there are 0.
+            if (participants.length === 1) {
+                nextUserId = null; // No one left
+            } else if (nextUserId === skippedUserId) {
+                // Should be covered by length === 1 check, but just in case logic is weird
+                nextUserId = null;
+            }
+        }
+
+        // 5. Update story to next user's turn
         const { error: updateError } = await supabase
             .from('stories')
             .update({ 
@@ -62,30 +87,60 @@ export async function skipTurn(
             return { success: false, error: 'Failed to update turn' };
         }
 
-        // 5. Send notifications
-        const notificationMessage = reason === 'timer_expired'
-            ? `Your turn in "${story.title}" expired and has been passed to the next person.`
-            : `Your turn in "${story.title}" was skipped by the creator.`;
+        // 6. Send notifications
+        if (reason === 'timer_expired') {
+            // Notify the removed user
+            await supabase.from('notifications').insert({
+                user_id: skippedUserId,
+                type: 'timer_expired',
+                title: 'You were removed from the story',
+                message: `Your turn in "${story.title}" expired and you have been removed.`,
+                data: { story_id: storyId },
+                action_url: `/story/${storyId}`, // Maybe nowhere? Or to the story to see it gone/readonly?
+                created_at: new Date().toISOString(),
+            });
 
-        await supabase.from('notifications').insert({
-            user_id: skippedUserId,
-            type: reason === 'timer_expired' ? 'timer_expired' : 'turn_skipped',
-            title: reason === 'timer_expired' ? 'Your turn expired' : 'Turn skipped',
-            message: notificationMessage,
-            story_id: storyId,
-            created_at: new Date().toISOString(),
-        });
+            // Notify the Creator (if they aren't the one who was removed, mostly)
+            // Even if creator was removed (timer on creator?), they get the generic "removed" msg above.
+            // But we specifically need to sure the Creator knows to "choose someone".
+            if (story.creator_id !== skippedUserId) {
+                await supabase.from('notifications').insert({
+                    user_id: story.creator_id,
+                    type: 'story_participant_left', // Reusing this generic type or could make a custom one
+                    title: 'Timer Expired',
+                    message: `A user's timer expired in "${story.title}". Please choose a new participant.`,
+                    data: { story_id: storyId },
+                    action_url: `/story/${storyId}`,
+                    created_at: new Date().toISOString(),
+                });
+            }
+        } else {
+             // Manual skip
+            await supabase.from('notifications').insert({
+                user_id: skippedUserId,
+                type: 'turn_skipped',
+                title: 'Turn skipped',
+                message: `Your turn in "${story.title}" was skipped by the creator.`,
+                data: { story_id: storyId },
+                action_url: `/story/${storyId}`,
+                created_at: new Date().toISOString(),
+            });
+        }
 
-        await supabase.from('notifications').insert({
-            user_id: nextUserId,
-            type: 'your_turn',
-            title: "It's your turn!",
-            message: `It's now your turn in "${story.title}"`,
-            story_id: storyId,
-            created_at: new Date().toISOString(),
-        });
+        // Notify next user if there is one
+        if (nextUserId) {
+            await supabase.from('notifications').insert({
+                user_id: nextUserId,
+                type: 'your_turn',
+                title: "It's your turn!",
+                message: `It's now your turn in "${story.title}"`,
+                data: { story_id: storyId },
+                action_url: `/story/${storyId}`,
+                created_at: new Date().toISOString(),
+            });
+        }
 
-        return { success: true, nextUserId };
+        return { success: true, nextUserId: nextUserId || undefined };
     } catch (error) {
         console.error('Unexpected error skipping turn:', error);
         return { success: false, error: 'An unexpected error occurred' };

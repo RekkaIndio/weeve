@@ -19,6 +19,12 @@ export interface User {
     lastNameChangeAt?: string;
     status?: 'accepted' | 'waiting' | 'declined'; // For story participants
     position?: number; // Slot position in the story
+    website?: string;
+    createdAt?: string;
+    preferences?: {
+        website?: string;
+        [key: string]: any;
+    };
 }
 
 export interface Group {

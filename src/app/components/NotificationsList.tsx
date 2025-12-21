@@ -88,6 +88,20 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
         }
         if (notification.action_url) {
             router.push(notification.action_url);
+        } else if (notification.data) {
+            // Fallback navigation logic
+            const { type, data } = notification;
+
+            if (type === 'friend_accepted' || type === 'friend_request') {
+                const profileId = data.sender_id || data.user_id || data.friend_id;
+                if (profileId) router.push(`/user/${profileId}`);
+            }
+            else if (type.startsWith('group_')) {
+                if (data.group_id) router.push(`/groups/${data.group_id}`);
+            }
+            else if (type === 'mention' || type === 'your_turn' || type === 'turn_skipped' || type === 'timer_expired') {
+                if (data.story_id) router.push(`/story/${data.story_id}`);
+            }
         }
     };
 
@@ -254,7 +268,7 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
             {/* Notifications List */}
             {filteredNotifications.length > 0 ? (
                 <div className="space-y-2">
-                            <AnimatePresence>
+                    <AnimatePresence>
                         {filteredNotifications.map(notification => (
                             <motion.div
                                 key={notification.id}

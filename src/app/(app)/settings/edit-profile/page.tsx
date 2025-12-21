@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { updateUserProfile, checkDisplayNameAvailability } from "@/lib/auth";
 import { uploadMedia } from "@/lib/camera";
 import { toast } from "sonner";
+import ImageCropper from "@/app/components/ImageCropper";
 
 export default function EditProfilePage() {
     const router = useRouter();
@@ -18,6 +19,7 @@ export default function EditProfilePage() {
     const [avatar, setAvatar] = useState(currentUser?.avatar || "");
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [tempImageSrc, setTempImageSrc] = useState<string | null>(null);
 
     // Name availability checking
     const [nameAvailability, setNameAvailability] = useState<{
@@ -88,8 +90,22 @@ export default function EditProfilePage() {
             return;
         }
 
+        const reader = new FileReader();
+        reader.addEventListener('load', () => {
+            setTempImageSrc(reader.result as string);
+        });
+        reader.readAsDataURL(file);
+
+        // Reset input so the same file can be selected again
+        e.target.value = '';
+    };
+
+    const handleCropComplete = async (croppedBlob: Blob) => {
+        setTempImageSrc(null);
         setIsUploading(true);
+
         try {
+            const file = new File([croppedBlob], `avatar_${Date.now()}.jpg`, { type: 'image/jpeg' });
             const result = await uploadMedia(file, 'image');
             if (result.url) {
                 setAvatar(result.url);
@@ -403,6 +419,15 @@ export default function EditProfilePage() {
                     </div>
                 </div>
             </div>
+
+            {tempImageSrc && (
+                <ImageCropper
+                    imageSrc={tempImageSrc}
+                    onCropComplete={handleCropComplete}
+                    onCancel={() => setTempImageSrc(null)}
+                    aspect={1}
+                />
+            )}
         </div>
     );
 }

@@ -17,11 +17,39 @@ export default function Home() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
+  // Tab state for feed organization
+  const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
+
+  // Filter stories based on active tab
+  const filteredStories = stories.filter(story => {
+    if (activeTab === 'foryou') {
+      // For You: Show all public stories, plus private ones I'm involved in
+      // For this MVP, we show everything in "For You" to maximize discovery, 
+      // but ideally this would be algorithmically sorted.
+      return true;
+    } else {
+      // Following: Only show stories from friends
+      if (!currentUser) return false;
+      // Include my own stories
+      if (story.creatorId === currentUser.id) return true;
+      // Include stories from friends
+      // We need to check if we follow the creator. 
+      // Assuming 'friends' in store are people I follow/am friends with.
+      const friendIds = useStore.getState().friends.map(f => f.id);
+      return friendIds.includes(story.creatorId);
+    }
+  });
+
+  // Re-calculate active index when changing tabs to prevent index out of bounds
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [activeTab]);
+
   // Preload adjacent stories' videos to speed up transitions (uses global cache)
   useEffect(() => {
     const toPrefetch = [activeIndex + 1, activeIndex + 2];
     for (const idx of toPrefetch) {
-      const s = stories[idx];
+      const s = filteredStories[idx];
       if (!s) continue;
       for (const c of s.contributions || []) {
         const url = c.mediaUrl;
@@ -53,7 +81,7 @@ export default function Home() {
         })();
       }
     }
-  }, [activeIndex, stories]);
+  }, [activeIndex, filteredStories]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -112,7 +140,7 @@ export default function Home() {
     }
 
     return () => observer.disconnect();
-  }, [stories.length]);
+  }, [filteredStories.length]); // Updated dependency
 
   // Enforce single-step snapping per wheel/touch gesture
   useEffect(() => {
@@ -195,7 +223,7 @@ export default function Home() {
 
       e.preventDefault();
       const dir = delta > 0 ? 1 : -1;
-      const nextIndex = Math.min(Math.max(activeIndexRef.current + dir, 0), Math.max(0, stories.length - 1));
+      const nextIndex = Math.min(Math.max(activeIndexRef.current + dir, 0), Math.max(0, filteredStories.length - 1));
       if (nextIndex !== activeIndexRef.current) {
         scrollTo(nextIndex);
       }
@@ -228,7 +256,7 @@ export default function Home() {
       }
 
       const dir = dy > 0 ? 1 : -1;
-      const nextIndex = Math.min(Math.max(activeIndexRef.current + dir, 0), Math.max(0, stories.length - 1));
+      const nextIndex = Math.min(Math.max(activeIndexRef.current + dir, 0), Math.max(0, filteredStories.length - 1));
       if (nextIndex !== activeIndexRef.current) {
         scrollTo(nextIndex);
       }
@@ -246,7 +274,7 @@ export default function Home() {
       container.removeEventListener('touchmove', touchMove);
       container.removeEventListener('touchend', touchEnd);
     };
-  }, [stories.length, activeIndex]);
+  }, [filteredStories.length, activeIndex]); // Updated dependency
 
   if (loading || !user) {
     return (
@@ -261,8 +289,27 @@ export default function Home() {
 
   return (
     <>
+      {/* Floating Tab Switcher */}
+      <div className="absolute top-0 left-0 right-0 z-50 flex justify-center items-center pt-8 pb-4 pointer-events-none">
+        <div className="flex gap-4 pointer-events-auto drop-shadow-md">
+          <button
+            onClick={() => setActiveTab('following')}
+            className={`text-base font-bold transition-colors ${activeTab === 'following' ? 'text-white' : 'text-white/50 hover:text-white/80'}`}
+          >
+            Following
+          </button>
+          <div className="w-[1px] h-5 bg-white/20 self-center"></div>
+          <button
+            onClick={() => setActiveTab('foryou')}
+            className={`text-base font-bold transition-colors ${activeTab === 'foryou' ? 'text-white' : 'text-white/50 hover:text-white/80'}`}
+          >
+            For You
+          </button>
+        </div>
+      </div>
+
       <div ref={containerRef} className="h-full w-full overflow-hidden scrollbar-hide">
-        {stories.map((story, index) => (
+        {filteredStories.map((story, index) => (
           <div
             key={story.id}
             ref={(el) => {

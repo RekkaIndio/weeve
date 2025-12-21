@@ -6,11 +6,15 @@ import { Home, PlusSquare, User, Users, Compass } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAuth } from "./AuthProvider";
 import NotificationBell from "./NotificationBell";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const { currentUser, stories } = useStore();
     const { user } = useAuth();
+    usePushNotifications();
+
 
     // Calculate if it's user's turn in any story
     const myTurnCount = currentUser ? stories.filter(

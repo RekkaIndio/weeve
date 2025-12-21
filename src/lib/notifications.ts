@@ -18,7 +18,11 @@ export type NotificationType =
     | 'group_invite'
     | 'group_update'
     | 'group_joined'
-    | 'mention';
+    | 'mention'
+    | 'your_turn'
+    | 'turn_skipped'
+    | 'timer_warning'
+    | 'timer_expired';
 
 export interface Notification {
     id: string;
@@ -384,4 +388,24 @@ export const deleteNotification = async (notificationId: string): Promise<boolea
     }
 
     return true;
+};
+
+/**
+ * Notify user that their time is running out
+ */
+export const notifyTimerWarning = async (
+    storyId: string,
+    storyTitle: string,
+    userId: string,
+    timeRemainingString: string
+) => {
+    await createNotification({
+        user_id: userId,
+        type: 'timer_warning' as NotificationType,
+        title: 'Time Running Out ⏳',
+        message: `You have ${timeRemainingString} left to contribute to "${storyTitle}"`,
+        data: { story_id: storyId },
+        action_url: `/story/${storyId}`,
+        read: false,
+    });
 };

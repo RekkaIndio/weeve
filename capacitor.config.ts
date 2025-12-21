@@ -39,6 +39,9 @@ const config: CapacitorConfig = {
       iosClientId: '127490580268-Inhvj7dh3pou1phmnv1gdvri85i9rrcs.apps.googleusercontent.com',
       forceCodeForRefreshToken: true,
     },
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"],
+    },
   },
 };
 

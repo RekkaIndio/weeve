@@ -426,6 +426,7 @@ export default function ProfilePage() {
     const [editName, setEditName] = useState(currentUser?.name || '');
     const [editAvatar, setEditAvatar] = useState(currentUser?.avatar || '');
     const [editTagline, setEditTagline] = useState(currentUser?.tagline || '');
+    const [editWebsite, setEditWebsite] = useState(currentUser?.website || '');
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -435,6 +436,46 @@ export default function ProfilePage() {
     const [copied, setCopied] = useState(false);
 
     const [nowMs, setNowMs] = useState(() => Date.now());
+
+    // Basic stats
+    const [followerCount, setFollowerCount] = useState(0);
+    const [followingCount, setFollowingCount] = useState(0);
+
+    // Fetch real follower/following counts
+    useEffect(() => {
+        if (!currentUser) return;
+
+        async function fetchStats() {
+            // "Followers" = people who friended me (or I accepted) - simplified to bidirectional count for now to match friends, 
+            // OR strict directional:
+            // Followers: rows in friendships where friend_id = me
+            // Following: rows in friendships where user_id = me
+
+            // Getting accurate counts from DB
+            const { count: followers } = await supabase
+                .from('friendships')
+                .select('*', { count: 'exact', head: true })
+                .eq('friend_id', currentUser!.id);
+
+            const { count: following } = await supabase
+                .from('friendships')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', currentUser!.id);
+
+            setFollowerCount(followers || 0);
+            setFollowingCount(following || 0);
+
+            // Also check for website in preferences if not set in main part (backwards compatibility or if not migrated)
+            if (!currentUser!.website && currentUser?.preferences) {
+                const prefs = currentUser!.preferences as any;
+                if (prefs?.website) {
+                    setEditWebsite(prefs.website);
+                }
+            }
+        }
+
+        fetchStats();
+    }, [currentUser]);
 
     useEffect(() => {
         if (typeof window === 'undefined') {
@@ -469,6 +510,9 @@ export default function ProfilePage() {
 
     // Count contributions across all stories by the current user
     const contributionsCount = stories.reduce((acc, s) => acc + (s.contributions ? s.contributions.filter(c => c.userId === currentUser?.id).length : 0), 0);
+
+    // Calculate total likes from user's stories
+    const totalLikes = myStories.reduce((acc, story) => acc + (story.likes || 0), 0);
 
     // Timer tab: Stories that need user action - pending invites OR active stories where it's the user's turn
     const waitingStories = currentUser ? stories.filter(s => {
@@ -533,12 +577,15 @@ export default function ProfilePage() {
         }
 
         const trimmedTagline = editTagline.trim();
+        const trimmedWebsite = editWebsite.trim();
         const normalizedCurrentTagline = currentUser.tagline?.trim() || '';
+        const normalizedCurrentWebsite = currentUser.website?.trim() || (currentUser.preferences as any)?.website || '';
 
         const hasNameChange = trimmedName !== currentUser.name;
         const hasTaglineChange = trimmedTagline !== normalizedCurrentTagline;
+        const hasWebsiteChange = trimmedWebsite !== normalizedCurrentWebsite;
 
-        if (!hasNameChange && !hasTaglineChange) {
+        if (!hasNameChange && !hasTaglineChange && !hasWebsiteChange) {
             console.log('[Profile] No changes detected, closing editor');
             toast.info('No changes to save');
             setIsEditing(false);
@@ -577,12 +624,21 @@ export default function ProfilePage() {
                 console.log('[Profile] Name unchanged, skipping uniqueness check');
             }
 
-            const updates: Partial<{ name: string; avatar: string | null; tagline: string | null }> = {};
+            const updates: Partial<{ name: string; avatar: string | null; tagline: string | null; preferences: any }> = {};
             if (hasNameChange) {
                 updates.name = trimmedName;
             }
             if (hasTaglineChange) {
                 updates.tagline = trimmedTagline.length > 0 ? trimmedTagline : null;
+            }
+
+            // Handle website update via preferences JSONB to avoid schema migration requirement
+            if (hasWebsiteChange) {
+                const currentPrefs = (currentUser.preferences as any) || {};
+                updates.preferences = {
+                    ...currentPrefs,
+                    website: trimmedWebsite.length > 0 ? trimmedWebsite : undefined
+                };
             }
 
             console.log('[Profile] Calling updateUserProfile with updates:', updates);
@@ -605,17 +661,21 @@ export default function ProfilePage() {
             const nextName = updatedProfile?.name ?? (hasNameChange ? trimmedName : currentUser.name);
             const nextTaglineRaw = updatedProfile?.tagline ?? (hasTaglineChange ? (updates.tagline ?? null) : currentUser.tagline ?? null);
             const resolvedTagline = typeof nextTaglineRaw === 'string' && nextTaglineRaw.length > 0 ? nextTaglineRaw : undefined;
+            const updatedPrefs = updatedProfile?.preferences as any;
 
             setCurrentUser({
                 ...currentUser,
                 name: nextName,
                 tagline: resolvedTagline,
+                website: updatedPrefs?.website,
+                preferences: updatedPrefs || currentUser.preferences,
                 tokens: typeof updatedProfile?.tokens === 'number' ? updatedProfile.tokens : currentUser.tokens,
                 inviteCode: updatedProfile?.invite_code ?? currentUser.inviteCode,
                 isPrivate: typeof updatedProfile?.is_private === 'boolean' ? updatedProfile.is_private : currentUser.isPrivate,
             });
             setEditName(nextName);
             setEditTagline(resolvedTagline ?? '');
+            setEditWebsite(updatedPrefs?.website || '');
 
             toast.success('Profile updated!');
             setIsEditing(false);
@@ -632,6 +692,7 @@ export default function ProfilePage() {
         setEditName(currentUser.name);
         setEditAvatar(currentUser.avatar || '');
         setEditTagline(currentUser.tagline || '');
+        setEditWebsite(currentUser.website || (currentUser.preferences as any)?.website || '');
         setIsEditing(false);
     };
 
@@ -1120,7 +1181,16 @@ export default function ProfilePage() {
                                 rows={2}
                                 maxLength={100}
                             />
-                            <p className="text-[10px] text-gray-600 mt-1 ml-1">A short bio that appears on your profile</p>
+                        </div>
+                        <div>
+                            <label className="text-xs text-gray-500 ml-1">Website</label>
+                            <input
+                                type="url"
+                                value={editWebsite}
+                                onChange={(e) => setEditWebsite(e.target.value)}
+                                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#EC1D99]"
+                                placeholder="https://example.com"
+                            />
                         </div>
                         <div className="flex gap-2 pt-2">
                             <button
@@ -1141,12 +1211,27 @@ export default function ProfilePage() {
                 ) : (
                     <>
                         <h2 className="text-xl font-bold mb-1">@{currentUser.name.toLowerCase().replace(/\s+/g, '_')}</h2>
-                        <p className="text-sm text-gray-400 text-center max-w-xs mb-6">
+                        <p className="text-sm text-gray-400 text-center max-w-xs mb-2">
                             {currentUser.tagline || 'Storyteller, dreamer, and weaver of tales. 🌌'}
                         </p>
 
+                        {(currentUser.website || (currentUser.preferences as any)?.website) && (
+                            <a
+                                href={currentUser.website || (currentUser.preferences as any)?.website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-[#EC1D99] hover:underline mb-4 flex items-center gap-1"
+                            >
+                                {new URL(currentUser.website || (currentUser.preferences as any)?.website).hostname}
+                            </a>
+                        )}
+
+                        <div className="flex items-center gap-4 text-xs text-gray-500 mb-6">
+                            <span>Joined {new Date(currentUser.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
+                        </div>
+
                         {/* Stats */}
-                        <div className="flex items-center gap-8 mb-6">
+                        <div className="flex items-center gap-6 mb-8 w-full max-w-sm justify-between px-4">
                             <div className="text-center">
                                 <div className="font-bold text-lg">{myStories.length}</div>
                                 <div className="text-xs text-gray-500">Weeves</div>
@@ -1156,8 +1241,16 @@ export default function ProfilePage() {
                                 <div className="text-xs text-gray-500">Contributions</div>
                             </div>
                             <div className="text-center">
-                                <div className="font-bold text-lg">{friends.length}</div>
-                                <div className="text-xs text-gray-500">Friends</div>
+                                <div className="font-bold text-lg">{totalLikes}</div>
+                                <div className="text-xs text-gray-500">Likes</div>
+                            </div>
+                            <div className="text-center">
+                                <div className="font-bold text-lg">{followerCount}</div>
+                                <div className="text-xs text-gray-500">Followers</div>
+                            </div>
+                            <div className="text-center">
+                                <div className="font-bold text-lg">{followingCount}</div>
+                                <div className="text-xs text-gray-500">Following</div>
                             </div>
                         </div>
 

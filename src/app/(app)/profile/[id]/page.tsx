@@ -53,6 +53,10 @@ export default function UserProfilePage() {
     const [friendRequestSent, setFriendRequestSent] = useState(false);
     const [processingFriendAction, setProcessingFriendAction] = useState(false);
 
+    // Basic stats
+    const [followerCount, setFollowerCount] = useState(0);
+    const [followingCount, setFollowingCount] = useState(0);
+
     useEffect(() => {
         async function fetchProfile() {
             if (user || userId === currentUser?.id) return;
@@ -70,11 +74,15 @@ export default function UserProfilePage() {
                         id: data.user_id,
                         name: data.name,
                         avatar: data.avatar || undefined,
+                        tagline: data.tagline || undefined,
                         tokens: data.tokens,
+                        website: (data.preferences as any)?.website,
+                        preferences: data.preferences as any,
+                        createdAt: data.created_at,
                         isInfluencer: data.is_influencer || undefined,
                         interactionCost: data.interaction_cost || undefined,
                         inviteCode: data.invite_code || undefined,
-                        isPrivate: false // Assuming default for now, or fetch from DB if column exists
+                        isPrivate: false // Assuming default for now
                     });
                 }
             } catch (err) {
@@ -86,6 +94,27 @@ export default function UserProfilePage() {
 
         fetchProfile();
     }, [userId, user, currentUser]);
+
+    // Fetch stats for this user
+    useEffect(() => {
+        if (!userId) return;
+
+        async function fetchStats() {
+            const { count: followers } = await supabase
+                .from('friendships')
+                .select('*', { count: 'exact', head: true })
+                .eq('friend_id', userId);
+
+            const { count: following } = await supabase
+                .from('friendships')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', userId);
+
+            setFollowerCount(followers || 0);
+            setFollowingCount(following || 0);
+        }
+        fetchStats();
+    }, [userId, isFollowing]); // Re-fetch if I follow/unfollow
 
     // Fetch friends once when the current user is available
     useEffect(() => {
@@ -223,10 +252,13 @@ export default function UserProfilePage() {
         }
     };
 
-    const userStories = stories.filter(s => s.participants.some(p => p.id === user.id));
+    const userStories = stories.filter(s => s.participants.some(p => p.id === user?.id));
 
     // Count contributions across all stories by this user
-    const contributionsCount = stories.reduce((acc, s) => acc + (s.contributions ? s.contributions.filter(c => c.userId === user.id).length : 0), 0);
+    const contributionsCount = stories.reduce((acc, s) => acc + (s.contributions ? s.contributions.filter(c => c.userId === user?.id).length : 0), 0);
+
+    // Calculate total likes from user's stories
+    const totalLikes = userStories.reduce((acc, story) => acc + (story.likes || 0), 0);
 
     return (
         <div className="min-h-screen bg-black text-white pb-24 relative">
@@ -255,14 +287,23 @@ export default function UserProfilePage() {
                         </div>
                     )}
                 </div>
+                {(user.website || (user.preferences as any)?.website) && (
+                    <a
+                        href={user.website || (user.preferences as any)?.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-[#EC1D99] hover:underline mb-4 flex items-center gap-1"
+                    >
+                        {new URL(user.website || (user.preferences as any)?.website).hostname}
+                    </a>
+                )}
 
-                <h2 className="text-xl font-bold mb-1">@{user.name.toLowerCase().replace(/\s+/g, '_')}</h2>
-                <p className="text-sm text-gray-400 text-center max-w-xs mb-6">
-                    Storyteller, dreamer, and weaver of tales. 🌌
-                </p>
+                <div className="flex items-center gap-4 text-xs text-gray-500 mb-6">
+                    <span>Joined {new Date(user.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
+                </div>
 
                 {/* Stats */}
-                <div className="flex items-center gap-8 mb-6">
+                <div className="flex items-center gap-6 mb-8 w-full max-w-sm justify-between px-4">
                     <div className="text-center">
                         <div className="font-bold text-lg">{userStories.length}</div>
                         <div className="text-xs text-gray-500">Weeves</div>
@@ -272,8 +313,16 @@ export default function UserProfilePage() {
                         <div className="text-xs text-gray-500">Contributions</div>
                     </div>
                     <div className="text-center">
-                        <div className="font-bold text-lg">850</div>
+                        <div className="font-bold text-lg">{totalLikes}</div>
+                        <div className="text-xs text-gray-500">Likes</div>
+                    </div>
+                    <div className="text-center">
+                        <div className="font-bold text-lg">{followerCount}</div>
                         <div className="text-xs text-gray-500">Followers</div>
+                    </div>
+                    <div className="text-center">
+                        <div className="font-bold text-lg">{followingCount}</div>
+                        <div className="text-xs text-gray-500">Following</div>
                     </div>
                 </div>
 
@@ -313,51 +362,55 @@ export default function UserProfilePage() {
             </div>
 
             {/* Grid */}
-            <div className="grid grid-cols-3 gap-0.5">
-                {userStories.length > 0 ? (
-                    userStories.map(story => {
-                        const sortedContributions = (story.contributions || []).slice().sort((a, b) => a.timestamp - b.timestamp);
-                        const firstContribution = sortedContributions[0];
-                        const firstMediaType = firstContribution?.mediaType;
-                        const firstMediaUrl = firstContribution?.mediaUrl;
+            < div className="grid grid-cols-3 gap-0.5" >
+                {
+                    userStories.length > 0 ? (
+                        userStories.map(story => {
+                            const sortedContributions = (story.contributions || []).slice().sort((a, b) => a.timestamp - b.timestamp);
+                            const firstContribution = sortedContributions[0];
+                            const firstMediaType = firstContribution?.mediaType;
+                            const firstMediaUrl = firstContribution?.mediaUrl;
 
-                        return (
-                            <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden">
-                                {/* Prefer contribution media for preview, fall back to coverImage */}
-                                {firstMediaType === 'video' && firstMediaUrl ? (
-                                    <VideoThumbnail src={firstMediaUrl} poster={story.coverImage} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                ) : firstMediaType === 'image' && firstMediaUrl ? (
-                                    <MediaWithFallback src={firstMediaUrl} alt={story.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                ) : story.coverImage ? (
-                                    <MediaWithFallback src={story.coverImage} alt={story.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                ) : (
-                                    <img
-                                        src="https://via.placeholder.com/300"
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                        alt={story.title}
-                                    />
-                                )}
+                            return (
+                                <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden">
+                                    {/* Prefer contribution media for preview, fall back to coverImage */}
+                                    {firstMediaType === 'video' && firstMediaUrl ? (
+                                        <VideoThumbnail src={firstMediaUrl} poster={story.coverImage} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                    ) : firstMediaType === 'image' && firstMediaUrl ? (
+                                        <MediaWithFallback src={firstMediaUrl} alt={story.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                    ) : story.coverImage ? (
+                                        <MediaWithFallback src={story.coverImage} alt={story.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                    ) : (
+                                        <img
+                                            src="https://via.placeholder.com/300"
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                            alt={story.title}
+                                        />
+                                    )}
 
-                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <div className="absolute bottom-1 left-1 flex items-center gap-1 text-[10px] font-bold drop-shadow-md text-white">
-                                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                                    {story.contributions.length}
-                                </div>
-                            </Link>
-                        );
-                    })
-                ) : (
-                    <div className="col-span-3 flex flex-col items-center justify-center py-16 text-gray-500">
-                        <Grid className="w-12 h-12 mb-3 opacity-50" />
-                        <p className="text-sm">No weeves yet</p>
-                    </div>
-                )}
+                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <div className="absolute bottom-1 left-1 flex items-center gap-1 text-[10px] font-bold drop-shadow-md text-white">
+                                        <div className="w-2 h-2 bg-white rounded-full"></div>
+                                        {story.contributions.length}
+                                    </div>
+                                </Link>
+                            );
+                        })
+                    ) : (
+                        <div className="col-span-3 flex flex-col items-center justify-center py-16 text-gray-500">
+                            <Grid className="w-12 h-12 mb-3 opacity-50" />
+                            <p className="text-sm">No weeves yet</p>
+                        </div>
+                    )
+                }
 
                 {/* Fillers for visual balance if few stories */}
-                {userStories.length > 0 && userStories.length < 3 && [1, 2].map(i => (
-                    <div key={i} className="aspect-[3/4] bg-gray-900/50"></div>
-                ))}
-            </div>
-        </div>
+                {
+                    userStories.length > 0 && userStories.length < 3 && [1, 2].map(i => (
+                        <div key={i} className="aspect-[3/4] bg-gray-900/50"></div>
+                    ))
+                }
+            </div >
+        </div >
     );
 }
