@@ -5,7 +5,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 // Make the dev server opt-in via env var so production builds use bundled assets
 // Make the dev server opt-in via env var so production builds use bundled assets
 // Default to production URL if not specified
-const serverUrl = process.env.CAPACITOR_SERVER_URL || 'https://tryweeve.com';
+const serverUrl = process.env.CAPACITOR_SERVER_URL || 'https://www.tryweeve.com';
 const server = {
   url: serverUrl,
   cleartext: process.env.CAPACITOR_SERVER_CLEARTEXT === 'true',
