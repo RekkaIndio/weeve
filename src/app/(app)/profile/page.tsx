@@ -1092,15 +1092,7 @@ export default function ProfilePage() {
     return (
         <div className="min-h-screen bg-black text-white pb-24 relative">
             {/* Header */}
-            <div className="p-4 flex justify-between items-center">
-                <h1 className="font-bold text-lg flex items-center gap-1.5">
-                    {currentUser.name}
-                    <VerificationBadge
-                        isVerified={currentUser.isVerified || false}
-                        tier={currentUser.verificationTier}
-                        size="md"
-                    />
-                </h1>
+            <div className="p-4 flex justify-end items-center">
                 <div className="flex items-center gap-4">
                     {/* Wallet Link - HIDDEN
                     <Link href="/wallet" className="flex items-center gap-1 bg-gray-800 px-3 py-1.5 rounded-full">
@@ -1210,7 +1202,14 @@ export default function ProfilePage() {
                     </div>
                 ) : (
                     <>
-                        <h2 className="text-xl font-bold mb-1">@{currentUser.name.toLowerCase().replace(/\s+/g, '_')}</h2>
+                        <h2 className="text-xl font-bold mb-1 flex items-center gap-1.5">
+                            @{currentUser.name.toLowerCase().replace(/\s+/g, '_')}
+                            <VerificationBadge
+                                isVerified={currentUser.isVerified || false}
+                                tier={currentUser.verificationTier}
+                                size="md"
+                            />
+                        </h2>
                         <p className="text-sm text-gray-400 text-center max-w-xs mb-2">
                             {currentUser.tagline || 'Storyteller, dreamer, and weaver of tales. 🌌'}
                         </p>
