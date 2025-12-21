@@ -9,7 +9,7 @@ import { createStoryContribution } from "@/lib/data";
 import { leaveStory, deleteStory } from "@/lib/stories";
 import { capturePhoto, captureVideo } from "@/lib/camera";
 import { Capacitor } from "@capacitor/core";
-import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, Pencil, X, Loader2, Edit2, LogOut, Trash, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp, FileVideo, Image as ImageIcon } from "lucide-react";
+import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, Pencil, X, Loader2, Edit2, LogOut, Trash, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp, FileVideo, Image as ImageIcon, GitBranch } from "lucide-react";
 import EditStoryModal from "@/app/components/EditStoryModal";
 import ImageCropper from "@/app/components/ImageCropper";
 import { DrawingCanvas, type DrawingCanvasRef } from "@/app/components/DrawingCanvas";
@@ -276,6 +276,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     allowComments: (s as any).allow_comments ?? undefined,
                     allowReuse: (s as any).allow_reuse ?? undefined,
                     turnTimerHours: s.turn_timer_hours ?? undefined,
+                    forkedFromStoryId: (s as any).forked_from_story_id ?? undefined,
                 };
 
                 console.log('[Story] About to call addStory with id:', mapped.id);
@@ -912,6 +913,18 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                         <span className="text-sm font-medium text-red-400">Leave Story</span>
                                     </button>
                                 )}
+                                {story.forkedFromStoryId && (
+                                    <button
+                                        onClick={() => {
+                                            router.push(`/story/${story.forkedFromStoryId}`);
+                                            setShowMenu(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-t border-gray-800"
+                                    >
+                                        <GitBranch className="w-4 h-4 text-[#EC1D99]" />
+                                        <span className="text-sm font-medium text-white">View Original Weeve</span>
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1292,6 +1305,18 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                 >
                                     <LogOut className="w-4 h-4 text-red-400" />
                                     <span className="text-sm font-medium text-red-400">Leave Story</span>
+                                </button>
+                            )}
+                            {story.forkedFromStoryId && (
+                                <button
+                                    onClick={() => {
+                                        router.push(`/story/${story.forkedFromStoryId}`);
+                                        setShowMenu(false);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-t border-gray-800"
+                                >
+                                    <GitBranch className="w-4 h-4 text-[#EC1D99]" />
+                                    <span className="text-sm font-medium text-white">View Original Weeve</span>
                                 </button>
                             )}
                         </div>

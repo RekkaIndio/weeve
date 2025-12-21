@@ -98,6 +98,7 @@ export interface Story {
     allowReuse?: boolean;
     turnTimerHours?: number;
     monetizationCost?: number;
+    forkedFromStoryId?: string; // Reference to original story if this is a fork
     created_at?: string;
     updated_at?: string;
 }
@@ -881,7 +882,8 @@ export const useStore = create<AppState>()(
                             cover_image: originalStory.cover_image,
                             theme: originalStory.theme,
                             group_id: originalStory.group_id,
-                            current_turn_user_id: newParticipantId // Set turn to the new participant
+                            current_turn_user_id: newParticipantId, // Set turn to the new participant
+                            forked_from_story_id: originalStoryId // Reference to original story
                         })
                         .select()
                         .single();
@@ -1169,7 +1171,8 @@ export const useStore = create<AppState>()(
                             monetizationCost: s.monetization_cost,
                             allowComments: s.allow_comments,
                             allowReuse: s.allow_reuse,
-                            turnTimerHours: s.turn_timer_hours
+                            turnTimerHours: s.turn_timer_hours,
+                            forkedFromStoryId: s.forked_from_story_id ?? undefined
                         };
                     });
 

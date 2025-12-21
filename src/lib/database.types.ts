@@ -88,6 +88,7 @@ export interface Database {
                     group_id: string | null
                     hashtags: string[] | null
                     turn_timer_hours: number | null
+                    forked_from_story_id: string | null
                     created_at: string
                     updated_at: string
                 }
@@ -105,6 +106,7 @@ export interface Database {
                     theme?: string | null
                     group_id?: string | null
                     turn_timer_hours?: number | null
+                    forked_from_story_id?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -122,6 +124,7 @@ export interface Database {
                     theme?: string | null
                     group_id?: string | null
                     turn_timer_hours?: number | null
+                    forked_from_story_id?: string | null
                     created_at?: string
                     updated_at?: string
                 }
