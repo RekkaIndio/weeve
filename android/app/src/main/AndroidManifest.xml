@@ -51,16 +51,13 @@
                 <data android:scheme="com.weeve.app" />
             </intent-filter>
 
-            <!-- Universal Links (https://tryweeve.com) -->
+            <!-- Universal Links (https://www.tryweeve.com) -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 
-                <data
-                    android:scheme="https"
-                    android:host="tryweeve.com" />
                 <data
                     android:scheme="https"
                     android:host="www.tryweeve.com" />
