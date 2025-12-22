@@ -10,7 +10,8 @@ if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoR
 
 import { Story, useStore, Contribution } from "@/lib/store";
 import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
-import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark } from "lucide-react";
+import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search } from "lucide-react";
+import { searchUsers } from "@/lib/friends";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, FormEvent, useCallback } from "react";
@@ -89,6 +90,9 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     const [selectedSlots, setSelectedSlots] = useState<number[]>([]);
     const [showParticipantPicker, setShowParticipantPicker] = useState(false);
     const [showFriendPicker, setShowFriendPicker] = useState(false);
+    const [friendSearchQuery, setFriendSearchQuery] = useState('');
+    const [friendSearchResults, setFriendSearchResults] = useState<Array<{ id: string; name: string; avatar?: string }>>([]);
+    const [isSearchingFriends, setIsSearchingFriends] = useState(false);
     const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
@@ -195,7 +199,34 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         if (showFriendPicker && friends.length === 0) {
             fetchFriends();
         }
-    }, [showFriendPicker, friends.length, fetchFriends]);
+    }, [showFriendPicker, friends.length, fetchFriends, isVisible]);
+
+    // Debounced search for friend picker
+    useEffect(() => {
+        if (!friendSearchQuery.trim() || friendSearchQuery.length < 2) {
+            setFriendSearchResults([]);
+            setIsSearchingFriends(false);
+            return;
+        }
+
+        setIsSearchingFriends(true);
+        const timeoutId = setTimeout(async () => {
+            if (!currentUser) {
+                setIsSearchingFriends(false);
+                return;
+            }
+            try {
+                const results = await searchUsers(friendSearchQuery, currentUser.id);
+                setFriendSearchResults(results.map(r => ({ id: r.id, name: r.name, avatar: r.avatar })));
+            } catch (err) {
+                console.error('Friend search failed:', err);
+            } finally {
+                setIsSearchingFriends(false);
+            }
+        }, 400);
+
+        return () => clearTimeout(timeoutId);
+    }, [friendSearchQuery, currentUser]);
 
     const likedBy = useMemo(() => story.likedBy ?? [], [story.likedBy]);
     const comments = useMemo(() => story.comments ?? [], [story.comments]);
@@ -1948,23 +1979,61 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                             ) : (
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-2 mb-2">
-                                        <button onClick={() => setShowFriendPicker(false)} className="text-sm text-gray-400 hover:text-white">
+                                        <button onClick={() => { setShowFriendPicker(false); setFriendSearchQuery(''); setFriendSearchResults([]); }} className="text-sm text-gray-400 hover:text-white">
                                             &larr; Back
                                         </button>
                                     </div>
+
+                                    {/* Search Input */}
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            value={friendSearchQuery}
+                                            onChange={(e) => setFriendSearchQuery(e.target.value)}
+                                            placeholder="Search by name..."
+                                            className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-colors"
+                                        />
+                                        {isSearchingFriends && (
+                                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                <div className="w-4 h-4 border-2 border-[#EC1D99] border-t-transparent rounded-full animate-spin" />
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
-                                        {friends.map((friend) => (
-                                            <button
-                                                key={friend.id}
-                                                onClick={() => handleForkStory(friend.id)}
-                                                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors"
-                                            >
-                                                <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
-                                                <span className="font-medium text-white">{friend.name}</span>
-                                            </button>
-                                        ))}
-                                        {friends.length === 0 && (
-                                            <p className="text-center text-gray-500 py-4">No friends found.</p>
+                                        {/* Show search results if searching, otherwise show friends */}
+                                        {friendSearchQuery.trim().length >= 2 ? (
+                                            friendSearchResults.length > 0 ? (
+                                                friendSearchResults.map((user) => (
+                                                    <button
+                                                        key={user.id}
+                                                        onClick={() => handleForkStory(user.id)}
+                                                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors"
+                                                    >
+                                                        <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
+                                                        <span className="font-medium text-white">{user.name}</span>
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                !isSearchingFriends && <p className="text-center text-gray-500 py-4">No users found.</p>
+                                            )
+                                        ) : (
+                                            <>
+                                                {friends.map((friend) => (
+                                                    <button
+                                                        key={friend.id}
+                                                        onClick={() => handleForkStory(friend.id)}
+                                                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors"
+                                                    >
+                                                        <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
+                                                        <span className="font-medium text-white">{friend.name}</span>
+                                                    </button>
+                                                ))}
+                                                {friends.length === 0 && (
+                                                    <p className="text-center text-gray-500 py-4">No friends yet. Search for users above!</p>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </div>

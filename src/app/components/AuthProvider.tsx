@@ -144,6 +144,24 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
             const profile = await fetchProfileWithRetries(supabaseUser.id);
 
+            // Define story fetcher to be used in both paths
+            const fetchStoriesWithRetry = async (maxAttempts = 3) => {
+                const storeState = useStore.getState();
+                for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                    try {
+                        await storeState.fetchStories();
+                        console.info(`[AuthProvider] fetchStories succeeded on attempt ${attempt}`);
+                        return true;
+                    } catch (err) {
+                        console.warn(`[AuthProvider] fetchStories attempt ${attempt} failed:`, err);
+                        if (attempt < maxAttempts) {
+                            await new Promise(r => setTimeout(r, attempt * 500));
+                        }
+                    }
+                }
+                return false;
+            };
+
             if (profile) {
                 profileFound = true;
                 clearTimeout(setupRedirectTimer);
@@ -160,21 +178,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 if (!storeState.profileUpdateInProgress) {
                     setCurrentUser(appUser);
                     // Trigger a fetch of stories with retry logic to handle timing issues
-                    const fetchStoriesWithRetry = async (maxAttempts = 3) => {
-                        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-                            try {
-                                await storeState.fetchStories();
-                                console.info(`[AuthProvider] fetchStories succeeded on attempt ${attempt}`);
-                                return true;
-                            } catch (err) {
-                                console.warn(`[AuthProvider] fetchStories attempt ${attempt} failed:`, err);
-                                if (attempt < maxAttempts) {
-                                    await new Promise(r => setTimeout(r, attempt * 500));
-                                }
-                            }
-                        }
-                        return false;
-                    };
                     fetchStoriesWithRetry().catch(err => console.warn('[AuthProvider] fetchStories retry failed', err));
                 }
 
@@ -204,6 +207,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 // the default placeholder and continue background polling; if profile remains
                 // missing after some time, we can guide the user to set up their profile.
                 console.warn('[AuthProvider] No profile found after retries; continuing with placeholder user and background poll');
+
+                // CRITICAL FIX: Still fetch stories using the ID we have! 
+                // We likely have a valid session, just the profile row fell behind or failed to load.
+                // The default user was already set at the start of handleUserLogin.
+                fetchStoriesWithRetry().catch(err => console.warn('[AuthProvider] fetchStories retry failed (fallback path)', err));
+
                 const currentPath = window.location.pathname;
                 if (isPublicRoute(currentPath)) {
                     try { router.replace('/feed'); } catch { window.location.replace('/feed'); }
