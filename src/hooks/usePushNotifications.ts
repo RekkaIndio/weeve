@@ -3,9 +3,13 @@ import { useEffect } from 'react';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { useRouter } from 'next/navigation';
+import { useStore } from '@/lib/store';
+import { supabase } from '@/lib/supabase';
 
 export const usePushNotifications = () => {
   const router = useRouter();
+  const { currentUser } = useStore();
+  // const supabase = createClientComponentClient(); -> using imported client instead
 
   useEffect(() => {
     // Only run on native platforms
@@ -33,9 +37,20 @@ export const usePushNotifications = () => {
     // Listeners
     const registrationListener = PushNotifications.addListener(
       'registration',
-      (token) => {
+      async (token) => {
         console.log('Push registration success, token: ' + token.value);
-        // TODO: Send token to backend to save in user profile
+        if (currentUser?.id) {
+          const { error } = await supabase
+            .from('profiles')
+            .update({ push_token: token.value })
+            .eq('user_id', currentUser.id);
+            
+          if (error) {
+            console.error('Error saving push token:', error);
+          } else {
+             console.log('Push token saved to profile');
+          }
+        }
       }
     );
 
