@@ -55,7 +55,7 @@ export default function LandingPage() {
             <MarketingNavbar onWaitlistClick={() => setWaitlistOpen(true)} />
 
             {/* Hero Section */}
-            <section className="relative pt-24 pb-12 sm:pt-32 sm:pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
+            <section className="relative pt-32 pb-12 sm:pt-36 sm:pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
                 {/* Background Gradients */}
                 <motion.div
                     animate={{
@@ -265,7 +265,7 @@ export default function LandingPage() {
                     <div className="grid md:grid-cols-3 gap-8 relative">
                         {/* Connection line */}
                         <div className="hidden md:block absolute top-16 left-[20%] right-[20%] h-0.5 bg-gradient-to-r from-[#EC1D99] via-purple-600 to-[#EC1D99]" />
-                        
+
                         {[
                             {
                                 step: "01",

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles } from "lucide-react";
+import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { signOut, updateUserProfile } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -77,6 +77,7 @@ export default function SettingsPage() {
             title: "Account",
             items: [
                 { label: "Edit Profile", icon: User, action: () => router.push('/settings/edit-profile') },
+                { label: "Analytics", icon: BarChart3, action: () => router.push('/settings/analytics') },
                 { label: "Change Password", icon: Lock, action: () => router.push('/settings/change-password') },
             ]
         },

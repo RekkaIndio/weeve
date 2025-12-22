@@ -67,8 +67,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
             setLoading(false);
 
-            setLoading(false);
-
             // Always try to fetch latest profile data to ensure sync
             // Use a robust polling strategy to handle transient RLS/replication delays and session propagation
             const fetchProfileWithRetries = async (userId: string, maxAttempts = 6, initialDelayMs = 150) => {
@@ -161,8 +159,23 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 const storeState = useStore.getState();
                 if (!storeState.profileUpdateInProgress) {
                     setCurrentUser(appUser);
-                    // Trigger a fetch of stories now that we have a proper profile
-                    try { storeState.fetchStories(); } catch (err) { console.warn('[AuthProvider] fetchStories error after setting profile', err); }
+                    // Trigger a fetch of stories with retry logic to handle timing issues
+                    const fetchStoriesWithRetry = async (maxAttempts = 3) => {
+                        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                            try {
+                                await storeState.fetchStories();
+                                console.info(`[AuthProvider] fetchStories succeeded on attempt ${attempt}`);
+                                return true;
+                            } catch (err) {
+                                console.warn(`[AuthProvider] fetchStories attempt ${attempt} failed:`, err);
+                                if (attempt < maxAttempts) {
+                                    await new Promise(r => setTimeout(r, attempt * 500));
+                                }
+                            }
+                        }
+                        return false;
+                    };
+                    fetchStoriesWithRetry().catch(err => console.warn('[AuthProvider] fetchStories retry failed', err));
                 }
 
                 // Check if user needs to complete onboarding
@@ -495,16 +508,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 console.info('[AuthProvider] Session initialized:', session?.user?.id ? 'User found' : 'No user');
 
                 if (session?.user) {
-                    const existing = await attemptFastProfileLoad(session.access_token ?? undefined, session.user.id);
-                    if (!existing && session?.user) {
-                        try {
-                            const candidateName = session.user.user_metadata?.name ?? session.user.email?.split('@')[0] ?? 'User';
-                            const createdProfile4 = await attemptCreateProfileAndSet(session.user.id, candidateName, session.user.user_metadata?.picture);
-                            await attemptFastProfileLoad(session.access_token ?? undefined, session.user.id);
-                        } catch (createErr) {
-                            console.warn('[AuthProvider] createUserProfile fallback in onAuthStateChange failed:', createErr);
-                        }
-                    }
+                    // Profile already loaded in block above, just handle login
                     await handleUserLogin(session.user);
                 } else {
                     setLoading(false);

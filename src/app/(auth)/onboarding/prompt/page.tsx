@@ -85,9 +85,13 @@ export default function PromptPage() {
         if (!user) return;
 
         try {
+            // Mark onboarding as complete so tutorial never reappears
             await supabase
                 .from('profiles')
-                .update({ onboarding_step: 2 })
+                .update({
+                    onboarding_step: null,
+                    completed_onboarding: true
+                })
                 .eq('user_id', user.id);
 
             try { if (typeof window !== 'undefined' && user?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + user.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + user.id, 'true'); } } catch (err) { }

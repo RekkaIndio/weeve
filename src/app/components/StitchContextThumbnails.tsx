@@ -1,0 +1,167 @@
+"use client";
+
+import { useState } from "react";
+import { Contribution } from "@/lib/store";
+import { Video, Type, Pencil, Camera, Play, X } from "lucide-react";
+
+interface StitchContextThumbnailsProps {
+    contributions: Contribution[];
+    onThumbnailClick?: (index: number) => void;
+    className?: string;
+}
+
+/**
+ * Horizontal thumbnail strip at the bottom showing existing story contributions.
+ * Displayed during stitch composition to give users context about what's already in the story.
+ * Click on a thumbnail to see a larger preview.
+ */
+export default function StitchContextThumbnails({ contributions, onThumbnailClick, className }: StitchContextThumbnailsProps) {
+    const [previewContribution, setPreviewContribution] = useState<Contribution | null>(null);
+
+    if (contributions.length === 0) return null;
+
+    const getMediaTypeIcon = (mediaType: string) => {
+        switch (mediaType) {
+            case 'video':
+                return <Video className="w-4 h-4 text-white" />;
+            case 'image':
+                return <Camera className="w-4 h-4 text-white" />;
+            case 'drawing':
+                return <Pencil className="w-4 h-4 text-white" />;
+            case 'text':
+                return <Type className="w-4 h-4 text-white" />;
+            default:
+                return null;
+        }
+    };
+
+    const handleClick = (contribution: Contribution, index: number) => {
+        // Open preview
+        setPreviewContribution(contribution);
+        // Also call the optional callback if provided
+        onThumbnailClick?.(index);
+    };
+
+    const closePreview = () => {
+        setPreviewContribution(null);
+    };
+
+    return (
+        <>
+            <div className={`fixed left-0 right-0 z-[100] pointer-events-auto ${className || 'bottom-16'}`}>
+                {/* Label */}
+                <div className="px-4 pb-2">
+                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+                        Story so far ({contributions.length} {contributions.length === 1 ? 'part' : 'parts'})
+                    </span>
+                </div>
+
+                {/* Thumbnail strip - horizontal scrolling */}
+                <div
+                    className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-hide"
+                    style={{ WebkitOverflowScrolling: 'touch' }}
+                >
+                    {contributions.map((contribution, index) => (
+                        <button
+                            key={contribution.id}
+                            onClick={() => handleClick(contribution, index)}
+                            className="shrink-0 relative w-14 h-14 rounded-xl overflow-hidden border-2 border-white/20 hover:border-[#EC1D99]/60 active:scale-95 transition-all bg-gray-800 group"
+                        >
+                            {/* Thumbnail content */}
+                            {contribution.mediaUrl && (contribution.mediaType === 'image' || contribution.mediaType === 'drawing') ? (
+                                <img
+                                    src={contribution.mediaUrl}
+                                    alt={`Part ${index + 1}`}
+                                    className="w-full h-full object-cover pointer-events-none"
+                                    draggable={false}
+                                />
+                            ) : contribution.mediaUrl && contribution.mediaType === 'video' ? (
+                                <>
+                                    <video
+                                        src={contribution.mediaUrl}
+                                        className="w-full h-full object-cover pointer-events-none"
+                                        muted
+                                        preload="metadata"
+                                    />
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                        <Play className="w-4 h-4 text-white fill-white" />
+                                    </div>
+                                </>
+                            ) : (
+                                /* Text-only or fallback */
+                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800">
+                                    {getMediaTypeIcon(contribution.mediaType)}
+                                </div>
+                            )}
+
+                            {/* Part number badge */}
+                            <div className="absolute bottom-0.5 right-0.5 bg-black/70 rounded-md px-1 py-0.5">
+                                <span className="text-[9px] font-bold text-white">{index + 1}</span>
+                            </div>
+
+                            {/* Media type indicator (top-left) */}
+                            <div className="absolute top-0.5 left-0.5 bg-black/50 rounded-md p-0.5">
+                                {getMediaTypeIcon(contribution.mediaType)}
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Preview Modal */}
+            {previewContribution && (
+                <div
+                    className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 animate-in fade-in duration-200"
+                    onClick={closePreview}
+                >
+                    {/* Close button */}
+                    <button
+                        onClick={closePreview}
+                        className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                    >
+                        <X className="w-6 h-6 text-white" />
+                    </button>
+
+                    {/* Part indicator */}
+                    <div className="absolute top-4 left-4 bg-black/70 rounded-lg px-3 py-1.5">
+                        <span className="text-sm font-bold text-white">
+                            Part {contributions.findIndex(c => c.id === previewContribution.id) + 1}
+                        </span>
+                    </div>
+
+                    {/* Preview content */}
+                    <div className="max-w-full max-h-[80vh] rounded-2xl overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                        {previewContribution.mediaUrl && (previewContribution.mediaType === 'image' || previewContribution.mediaType === 'drawing') ? (
+                            <img
+                                src={previewContribution.mediaUrl}
+                                alt="Preview"
+                                className="max-w-full max-h-[80vh] object-contain rounded-2xl"
+                            />
+                        ) : previewContribution.mediaUrl && previewContribution.mediaType === 'video' ? (
+                            <video
+                                src={previewContribution.mediaUrl}
+                                className="max-w-full max-h-[80vh] object-contain rounded-2xl"
+                                controls
+                                autoPlay
+                                playsInline
+                            />
+                        ) : (
+                            /* Text-only preview */
+                            <div className="w-80 h-80 flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800 rounded-2xl">
+                                <div className="text-center p-6">
+                                    {getMediaTypeIcon(previewContribution.mediaType)}
+                                    <p className="mt-4 text-white text-lg">{previewContribution.content || 'Text stitch'}</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Tap anywhere to close hint */}
+                    <div className="absolute bottom-6 left-0 right-0 text-center">
+                        <span className="text-xs text-gray-400">Tap anywhere to close</span>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}

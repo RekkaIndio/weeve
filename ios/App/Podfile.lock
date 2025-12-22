@@ -26,6 +26,8 @@ PODS:
   - CapacitorFilesystem (7.1.4):
     - Capacitor
     - IONFilesystemLib (~> 1.0.1)
+  - CapacitorPushNotifications (8.0.0):
+    - Capacitor
   - CapacitorShare (7.0.3):
     - Capacitor
   - CodetrixStudioCapacitorGoogleAuth (0.0.1):
@@ -55,6 +57,7 @@ DEPENDENCIES:
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorDialog (from `../../node_modules/@capacitor/dialog`)"
   - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
+  - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
   - "CapacitorShare (from `../../node_modules/@capacitor/share`)"
   - "CodetrixStudioCapacitorGoogleAuth (from `../../node_modules/@codetrix-studio/capacitor-google-auth`)"
 
@@ -88,6 +91,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/dialog"
   CapacitorFilesystem:
     :path: "../../node_modules/@capacitor/filesystem"
+  CapacitorPushNotifications:
+    :path: "../../node_modules/@capacitor/push-notifications"
   CapacitorShare:
     :path: "../../node_modules/@capacitor/share"
   CodetrixStudioCapacitorGoogleAuth:
@@ -105,6 +110,7 @@ SPEC CHECKSUMS:
   CapacitorCordova: bf648a636f3c153f652d312ae145fb508b6ffced
   CapacitorDialog: 5bf72a94b747fb339df6f64ef60812e5e4630ad2
   CapacitorFilesystem: f9bd850c41e048180e5dc0cbb90f2033ede9d2cc
+  CapacitorPushNotifications: 722c1528eabbefd355f47e373a4c6235d01e85e9
   CapacitorShare: a4f4f86eabd4b3ff52ba6a11b754713c6926a8d1
   CodetrixStudioCapacitorGoogleAuth: 9dcfabfb7dd804ad6231a1513bc6e81e620cbec6
   GoogleSignIn: 5651ce3a61e56ca864160e79b484cd9ed3f49b7a
@@ -113,6 +119,6 @@ SPEC CHECKSUMS:
   IONFilesystemLib: 89258b8e3e85465da93127d25d7ce37f977e8a6f
   SDWebImage: e9c98383c7572d713c1a0d7dd2783b10599b9838
 
-PODFILE CHECKSUM: 0cdd95d0f99bd301e3fdb23b388257d634e4a312
+PODFILE CHECKSUM: 2072c4e3ed717111a81a4e871d0d6d6aa26313e5
 
 COCOAPODS: 1.16.2

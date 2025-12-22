@@ -9,11 +9,12 @@ import { createStoryContribution } from "@/lib/data";
 import { leaveStory, deleteStory } from "@/lib/stories";
 import { capturePhoto, captureVideo } from "@/lib/camera";
 import { Capacitor } from "@capacitor/core";
-import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, Pencil, X, Loader2, Edit2, LogOut, Trash, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp, FileVideo, Image as ImageIcon, GitBranch } from "lucide-react";
+import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, Pencil, X, Loader2, Edit2, LogOut, Trash, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp, FileVideo, Image as ImageIcon, GitBranch, Sparkles, Crop, Smile } from "lucide-react";
 import EditStoryModal from "@/app/components/EditStoryModal";
 import ImageCropper from "@/app/components/ImageCropper";
 import { DrawingCanvas, type DrawingCanvasRef } from "@/app/components/DrawingCanvas";
 import OnboardingTutorialOverlay from "@/app/components/OnboardingTutorialOverlay";
+import StitchContextThumbnails from "@/app/components/StitchContextThumbnails";
 import { toast } from "sonner";
 import { useTimerCheck } from "@/lib/useTimerCheck";
 import { supabase } from "@/lib/supabase";
@@ -72,9 +73,98 @@ const DEFAULT_TEXT_STYLE: TextStyle = {
     fontFamily: "'Inter', 'Helvetica Neue', sans-serif",
     fontSize: 28,
     textColor: "#FFFFFF",
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "transparent",
     textAlign: "center",
 };
+
+// Photo filter presets using CSS filters
+const PHOTO_FILTERS = [
+    // Basic
+    { id: 'normal', label: 'Normal', filter: 'none' },
+
+    // Classic
+    { id: 'vintage', label: 'Vintage', filter: 'sepia(0.4) contrast(1.1) brightness(0.9)' },
+    { id: 'retro', label: 'Retro', filter: 'sepia(0.25) contrast(1.15) saturate(1.2) brightness(0.95)' },
+    { id: 'film', label: 'Film', filter: 'contrast(1.1) saturate(0.9) brightness(1.05) sepia(0.1)' },
+    { id: 'polaroid', label: 'Polaroid', filter: 'contrast(0.9) brightness(1.1) saturate(0.85) sepia(0.15)' },
+
+    // Black & White
+    { id: 'bw', label: 'B&W', filter: 'grayscale(1) contrast(1.1)' },
+    { id: 'noir', label: 'Noir', filter: 'grayscale(1) contrast(1.4) brightness(0.9)' },
+    { id: 'silver', label: 'Silver', filter: 'grayscale(0.8) contrast(1.05) brightness(1.1)' },
+
+    // Warm Tones
+    { id: 'warm', label: 'Warm', filter: 'sepia(0.2) saturate(1.3) brightness(1.05)' },
+    { id: 'golden', label: 'Golden', filter: 'sepia(0.3) saturate(1.2) brightness(1.05) hue-rotate(-10deg)' },
+    { id: 'sunset', label: 'Sunset', filter: 'sepia(0.35) saturate(1.4) brightness(1.0) hue-rotate(-15deg)' },
+    { id: 'amber', label: 'Amber', filter: 'sepia(0.5) saturate(1.1) brightness(0.95)' },
+
+    // Cool Tones
+    { id: 'cool', label: 'Cool', filter: 'saturate(0.9) brightness(1.05) hue-rotate(10deg)' },
+    { id: 'arctic', label: 'Arctic', filter: 'saturate(0.8) brightness(1.1) hue-rotate(20deg) contrast(1.05)' },
+    { id: 'ocean', label: 'Ocean', filter: 'saturate(1.1) brightness(1.0) hue-rotate(30deg)' },
+    { id: 'moonlight', label: 'Moon', filter: 'saturate(0.7) brightness(1.15) hue-rotate(15deg) contrast(0.95)' },
+
+    // Vibrant
+    { id: 'vivid', label: 'Vivid', filter: 'saturate(1.5) contrast(1.1)' },
+    { id: 'pop', label: 'Pop', filter: 'saturate(1.7) contrast(1.15) brightness(1.05)' },
+    { id: 'neon', label: 'Neon', filter: 'saturate(2.0) contrast(1.2) brightness(1.1)' },
+    { id: 'electric', label: 'Electric', filter: 'saturate(1.8) contrast(1.25) hue-rotate(5deg)' },
+
+    // Moody
+    { id: 'fade', label: 'Fade', filter: 'contrast(0.9) brightness(1.1) saturate(0.8)' },
+    { id: 'dramatic', label: 'Drama', filter: 'contrast(1.3) brightness(0.95) saturate(1.1)' },
+    { id: 'moody', label: 'Moody', filter: 'contrast(1.2) brightness(0.85) saturate(0.9)' },
+    { id: 'shadow', label: 'Shadow', filter: 'contrast(1.35) brightness(0.8) saturate(0.85)' },
+
+    // Soft & Dreamy
+    { id: 'soft', label: 'Soft', filter: 'contrast(0.85) brightness(1.1) saturate(0.9)' },
+    { id: 'dreamy', label: 'Dreamy', filter: 'contrast(0.8) brightness(1.15) saturate(0.85) blur(0.5px)' },
+    { id: 'haze', label: 'Haze', filter: 'contrast(0.9) brightness(1.2) saturate(0.75)' },
+
+    // Artistic
+    { id: 'invert', label: 'Invert', filter: 'invert(1)' },
+    { id: 'sepia', label: 'Sepia', filter: 'sepia(1)' },
+    { id: 'chrome', label: 'Chrome', filter: 'saturate(0) contrast(1.3) brightness(1.1)' },
+
+    // Instagram-style
+    { id: 'clarendon', label: 'Claren', filter: 'contrast(1.2) saturate(1.35)' },
+    { id: 'gingham', label: 'Gingham', filter: 'brightness(1.05) hue-rotate(-10deg) saturate(0.9)' },
+    { id: 'juno', label: 'Juno', filter: 'sepia(0.1) saturate(1.5) contrast(1.15) brightness(1.05)' },
+    { id: 'lark', label: 'Lark', filter: 'contrast(0.9) saturate(1.1) brightness(1.1)' },
+    { id: 'reyes', label: 'Reyes', filter: 'sepia(0.22) brightness(1.1) contrast(0.85) saturate(0.75)' },
+] as const;
+
+// Sticker emoji library organized by category
+const STICKER_EMOJIS = [
+    // Love & Hearts
+    '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💕', '💖', '💗', '💘', '💝', '😍', '🥰', '😘',
+    // Fire & Stars
+    '🔥', '✨', '⭐', '🌟', '💫', '⚡', '💥', '🎇', '🎆', '🌈',
+    // Faces
+    '😂', '🤣', '😊', '😎', '🥳', '🤩', '😇', '🥺', '😭', '🤯', '😱', '🙄', '😏', '🤔', '🤗',
+    // Gestures
+    '👍', '👏', '🙌', '🤝', '✌️', '🤞', '🤟', '🤙', '👋', '💪', '🙏',
+    // Animals
+    '🦋', '🐶', '🐱', '🦊', '🐻', '🐼', '🐨', '🦁', '🐯', '🦄',
+    // Nature
+    '🌸', '🌺', '🌻', '🌹', '🌷', '🍀', '🌴', '🌊', '☀️', '🌙', '⛅', '❄️',
+    // Food & Drink
+    '🍕', '🍔', '🍟', '🌮', '🍦', '🍩', '🎂', '🍷', '🍾', '☕',
+    // Celebration
+    '🎉', '🎊', '🎈', '🎁', '🏆', '🥇', '👑', '💎', '🎵', '🎶',
+    // Objects
+    '📸', '🎬', '🎤', '🎸', '💌', '✈️', '🚀', '💡', '🔮', '🎭',
+];
+
+// Sticker type definition
+interface PhotoSticker {
+    id: string;
+    emoji: string;
+    x: number; // percentage 0-100
+    y: number; // percentage 0-100
+    scale: number;
+}
 
 export default function StoryPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -105,6 +195,12 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const [activeElementId, setActiveElementId] = useState<string | null>(null);
     const [mediaDraft, setMediaDraft] = useState<{ type: 'video' | 'image'; file?: File; previewUrl?: string } | null>(null);
     const [imageToCrop, setImageToCrop] = useState<string | null>(null);
+    const [photoFilter, setPhotoFilter] = useState<string>('normal');
+    const [showPhotoFilterPanel, setShowPhotoFilterPanel] = useState(false);
+    const [showStickerPanel, setShowStickerPanel] = useState(false);
+    const [photoStickers, setPhotoStickers] = useState<PhotoSticker[]>([]);
+    const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null);
+    const stickerLastTapRef = useRef<{ id: string; time: number } | null>(null);
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const [hasMovedInCurrentEdit, setHasMovedInCurrentEdit] = useState(false);
 
@@ -156,7 +252,15 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
     // Story is at capacity ONLY if contributions >= maxWeeves AND user can't contribute
     const isAtCapacity = maxWeeves !== null && contributionsCount >= maxWeeves && !canContributeDespiteCapacity;
-    const isStoryComplete = story?.status === 'completed' || isAtCapacity;
+
+    // Check if current user is involved in this story (creator or participant)
+    // If not, treat the story as "complete" for display purposes so they see the normal post view
+    const isUserInvolvedInStory = currentUser && story && (
+        story.creatorId === currentUser.id ||
+        story.participants.some(p => p.id === currentUser.id)
+    );
+
+    const isStoryComplete = story?.status === 'completed' || isAtCapacity || !isUserInvolvedInStory;
     // Final user waiting slot considers story completeness
     const userHasWaitingSlot = userHasWaitingSlotRaw && !isStoryComplete;
     const remainingSlots = maxWeeves !== null ? Math.max(maxWeeves - contributionsCount, 0) : null;
@@ -564,6 +668,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     }, [isComposerOpen]);
 
     const isClickRef = useRef(false);
+    const justSelectedRef = useRef(false);
 
     const handleDragStart = (event: React.PointerEvent<HTMLDivElement>, id: string) => {
         event.preventDefault();
@@ -672,10 +777,13 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
             if (isClickRef.current) {
                 // It was a click/tap
+                justSelectedRef.current = true;
                 setActiveElementId(id);
                 // Ensure the menu for font is reset or set to default? 
                 // Maybe open font menu by default on tap?
                 if (!activeMenu) setActiveMenu('font');
+                // Reset justSelectedRef after a brief delay to allow onClick to check it
+                setTimeout(() => { justSelectedRef.current = false; }, 100);
             } else {
                 // It was a drag, commit position
                 let rawLeft = event.clientX - dragState.viewportLeft - dragState.offsetX;
@@ -706,6 +814,10 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         setMediaDraft(null);
         setStitchMode(null);
         setActiveMenu(null);
+        setPhotoFilter('normal');
+        setShowPhotoFilterPanel(false);
+        setShowStickerPanel(false);
+        setPhotoStickers([]);
         dragStateRef.current = null;
     };
 
@@ -767,15 +879,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         try {
             const file = type === 'video' ? await captureVideo(source) : await capturePhoto(source);
             if (file) {
-                if (type === 'image') {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        setImageToCrop(reader.result as string);
-                    };
-                    reader.readAsDataURL(file);
-                    return;
-                }
-
+                // Go directly to preview for both image and video (skip auto-crop)
                 const previewUrl = URL.createObjectURL(file);
                 setMediaDraft({ type, file, previewUrl });
                 setTextElements([]); // Clear any existing text
@@ -1064,6 +1168,53 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             }
         }
 
+        // Handle image filter + stickers export - bake into the image
+        let filteredImageFile: File | undefined;
+        if (stitchMode === 'image' && mediaDraft?.file && (photoFilter !== 'normal' || photoStickers.length > 0)) {
+            try {
+                const filterValue = PHOTO_FILTERS.find(f => f.id === photoFilter)?.filter || 'none';
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+
+                await new Promise<void>((resolve, reject) => {
+                    img.onload = () => resolve();
+                    img.onerror = () => reject(new Error('Failed to load image'));
+                    img.src = mediaDraft.previewUrl!;
+                });
+
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    // Apply filter to image
+                    ctx.filter = filterValue;
+                    ctx.drawImage(img, 0, 0);
+                    ctx.filter = 'none'; // Reset filter for stickers
+
+                    // Draw stickers
+                    for (const sticker of photoStickers) {
+                        const stickerX = (sticker.x / 100) * canvas.width;
+                        const stickerY = (sticker.y / 100) * canvas.height;
+                        const fontSize = Math.min(canvas.width, canvas.height) * 0.1 * sticker.scale; // ~10% of image size
+
+                        ctx.font = `${fontSize}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(sticker.emoji, stickerX, stickerY);
+                    }
+
+                    const blob = await new Promise<Blob>((resolve, reject) => {
+                        canvas.toBlob(b => b ? resolve(b) : reject(new Error('Failed to export')), 'image/jpeg', 0.9);
+                    });
+                    filteredImageFile = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                }
+            } catch (error) {
+                console.error('Failed to apply filter/stickers:', error);
+                // Fall back to original file
+            }
+        }
+
         const requiresFile = stitchMode === 'video' || stitchMode === 'image';
         if (requiresFile && !mediaDraft?.file) {
             toast.error(`Please select a ${stitchMode === 'video' ? 'video' : 'photo'} to upload.`);
@@ -1153,7 +1304,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 userName: currentUser.name,
                 mediaType: stitchMode,
                 content: caption,
-                file: stitchMode === 'drawing' ? drawingFile : mediaDraft?.file,
+                file: stitchMode === 'drawing' ? drawingFile : (filteredImageFile || mediaDraft?.file),
                 textStyle: textStylePayload,
                 timestamp: contributionTimestamp,
                 nextTurnUserId: nextTurnUpdate,
@@ -1329,8 +1480,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 className="flex-1 relative flex items-center justify-center bg-gray-900 overflow-hidden cursor-pointer"
                 onClick={() => setIsPlaying(!isPlaying)}
             >
-                {/* Play/Pause Indicator */}
-                {!isPlaying && (
+                {/* Play/Pause Indicator - hide in text/drawing creation mode */}
+                {!isPlaying && !stitchMode && (
                     <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
                         <div className="p-4 rounded-full glass animate-in zoom-in duration-200">
                             <Play className="w-8 h-8 fill-white" />
@@ -1733,15 +1884,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                 <span className="text-sm font-medium">Photo</span>
                             </button>
 
-                            <button
-                                onClick={() => handleStitchOption('text')}
-                                className="flex flex-col items-center gap-2 group"
-                            >
-                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                    <Type className="w-8 h-8" />
-                                </div>
-                                <span className="text-sm font-medium">Text</span>
-                            </button>
+
 
                             <button
                                 onClick={() => handleStitchOption('drawing')}
@@ -1801,6 +1944,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         <div
                             className="absolute inset-0 z-40 pointer-events-auto overflow-hidden"
                             onClick={(e) => {
+                                // Skip if we just selected an element via tap (prevents flashing deselection)
+                                if (justSelectedRef.current) return;
                                 if (activeElementId) {
                                     // Only deselect if clicking the background directly (not intercepted by child)
                                     setActiveElementId(null);
@@ -1824,11 +1969,87 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                             }}
                                         />
                                     ) : (
-                                        <img
-                                            src={mediaDraft.previewUrl}
-                                            alt="Selected media preview"
-                                            className="max-h-[70vh] w-auto rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] object-contain pointer-events-auto"
-                                        />
+                                        <div className="relative max-h-[70vh]">
+                                            <img
+                                                src={mediaDraft.previewUrl}
+                                                alt="Selected media preview"
+                                                className="max-h-[70vh] w-auto rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] object-contain pointer-events-auto transition-all duration-300"
+                                                style={{ filter: PHOTO_FILTERS.find(f => f.id === photoFilter)?.filter || 'none' }}
+                                            />
+                                            {/* Stickers Overlay */}
+                                            {photoStickers.map((sticker) => (
+                                                <div
+                                                    key={sticker.id}
+                                                    className="absolute cursor-move select-none pointer-events-auto touch-none"
+                                                    style={{
+                                                        left: `${sticker.x}%`,
+                                                        top: `${sticker.y}%`,
+                                                        transform: `translate(-50%, -50%) scale(${sticker.scale})`,
+                                                        fontSize: '3rem',
+                                                        zIndex: draggingStickerId === sticker.id ? 100 : 10,
+                                                    }}
+                                                    onPointerDown={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+
+                                                        const rect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+                                                        const startClientX = e.clientX;
+                                                        const startClientY = e.clientY;
+                                                        let hasMoved = false;
+                                                        const MOVE_THRESHOLD = 10; // pixels before counting as drag
+
+                                                        setDraggingStickerId(sticker.id);
+
+                                                        const handleMove = (moveEvent: PointerEvent) => {
+                                                            // Check if moved beyond threshold
+                                                            const dx = Math.abs(moveEvent.clientX - startClientX);
+                                                            const dy = Math.abs(moveEvent.clientY - startClientY);
+
+                                                            if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
+                                                                hasMoved = true;
+                                                                // Calculate position as percentage of container
+                                                                const newX = ((moveEvent.clientX - rect.left) / rect.width) * 100;
+                                                                const newY = ((moveEvent.clientY - rect.top) / rect.height) * 100;
+                                                                const clampedX = Math.max(5, Math.min(95, newX));
+                                                                const clampedY = Math.max(5, Math.min(95, newY));
+
+                                                                setPhotoStickers(prev => prev.map(s =>
+                                                                    s.id === sticker.id
+                                                                        ? { ...s, x: clampedX, y: clampedY }
+                                                                        : s
+                                                                ));
+                                                            }
+                                                        };
+
+                                                        const handleUp = () => {
+                                                            setDraggingStickerId(null);
+                                                            document.removeEventListener('pointermove', handleMove);
+                                                            document.removeEventListener('pointerup', handleUp);
+
+                                                            // Double-tap to remove
+                                                            if (!hasMoved) {
+                                                                const now = Date.now();
+                                                                const lastTap = stickerLastTapRef.current;
+
+                                                                if (lastTap && lastTap.id === sticker.id && now - lastTap.time < 400) {
+                                                                    // Double tap detected - remove sticker
+                                                                    setPhotoStickers(prev => prev.filter(s => s.id !== sticker.id));
+                                                                    stickerLastTapRef.current = null;
+                                                                } else {
+                                                                    // First tap - record it
+                                                                    stickerLastTapRef.current = { id: sticker.id, time: now };
+                                                                }
+                                                            }
+                                                        };
+
+                                                        document.addEventListener('pointermove', handleMove);
+                                                        document.addEventListener('pointerup', handleUp);
+                                                    }}
+                                                >
+                                                    {sticker.emoji}
+                                                </div>
+                                            ))}
+                                        </div>
                                     )}
                                 </div>
                             )}
@@ -1836,7 +2057,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                             {/* Drawing Canvas */}
                             {stitchMode === 'drawing' && (
                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto px-4 pt-20 pb-32">
-                                    <DrawingCanvas ref={drawingCanvasRef} className="w-full max-w-md" />
+                                    <DrawingCanvas ref={drawingCanvasRef} className="w-full max-w-md" onAddText={addTextElement} />
                                 </div>
                             )}
 
@@ -1887,21 +2108,6 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                                 </div>
                                             )}
 
-                                            {/* Delete Button (Visible if Editing OR very prominent interaction needed) */}
-                                            {isEditing && (
-                                                <button
-                                                    className="absolute -top-4 -right-4 p-2 bg-[#EC1D99] rounded-full text-white shadow-lg z-50 animate-in zoom-in duration-200"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setTextElements(prev => prev.filter(el => el.id !== element.id));
-                                                        setActiveElementId(null);
-                                                    }}
-                                                    onPointerDown={(e) => e.stopPropagation()}
-                                                >
-                                                    <X className="w-4 h-4" />
-                                                </button>
-                                            )}
-
                                             {isEditing ? (
                                                 <textarea
                                                     value={element.content}
@@ -1918,14 +2124,10 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                                         fontSize: element.style.fontSize,
                                                         color: element.style.textColor,
                                                         textAlign: element.style.textAlign,
-                                                        backgroundColor: element.style.backgroundColor === 'transparent'
-                                                            ? 'rgba(0,0,0,0.45)'
-                                                            : element.style.backgroundColor,
-                                                        padding: '1rem 1.25rem',
-                                                        borderRadius: '1.5rem',
-                                                        border: '2px solid #EC1D99',
-                                                        backdropFilter: 'blur(8px)',
-                                                        boxShadow: '0 0 30px rgba(236,29,153,0.3)',
+                                                        backgroundColor: element.style.backgroundColor,
+                                                        padding: element.style.backgroundColor === 'transparent' ? '0.5rem' : '1rem 1.25rem',
+                                                        borderRadius: element.style.backgroundColor === 'transparent' ? '0' : '1.5rem',
+                                                        backdropFilter: element.style.backgroundColor === 'transparent' ? 'none' : 'blur(8px)',
                                                     }}
                                                     autoFocus
                                                     rows={1}
@@ -1940,12 +2142,10 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                                         fontSize: element.style.fontSize,
                                                         color: element.style.textColor,
                                                         textAlign: element.style.textAlign,
-                                                        backgroundColor: element.style.backgroundColor === 'transparent'
-                                                            ? 'rgba(0,0,0,0.45)'
-                                                            : element.style.backgroundColor,
-                                                        padding: '1rem 1.25rem',
-                                                        borderRadius: '1.5rem',
-                                                        backdropFilter: 'blur(4px)',
+                                                        backgroundColor: element.style.backgroundColor,
+                                                        padding: element.style.backgroundColor === 'transparent' ? '0' : '1rem 1.25rem',
+                                                        borderRadius: element.style.backgroundColor === 'transparent' ? '0' : '1.5rem',
+                                                        backdropFilter: element.style.backgroundColor === 'transparent' ? 'none' : 'blur(4px)',
                                                         cursor: 'grab',
                                                         whiteSpace: 'pre-wrap',
                                                         userSelect: 'none',
@@ -1984,6 +2184,61 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                 </div>
                             </div>
 
+                            {/* Photo Tools Menu - Right Side (toggle buttons only) */}
+                            {stitchMode === 'image' && mediaDraft?.previewUrl && (
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 pointer-events-auto">
+                                    {/* Filter Button */}
+                                    <button
+                                        onClick={() => {
+                                            setShowPhotoFilterPanel(!showPhotoFilterPanel);
+                                            setShowStickerPanel(false);
+                                        }}
+                                        className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${showPhotoFilterPanel ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                                        aria-label="Filters"
+                                    >
+                                        <Sparkles className="w-5 h-5 text-white" />
+                                    </button>
+
+                                    {/* Sticker Button */}
+                                    <button
+                                        onClick={() => {
+                                            setShowStickerPanel(!showStickerPanel);
+                                            setShowPhotoFilterPanel(false);
+                                        }}
+                                        className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${showStickerPanel ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                                        aria-label="Stickers"
+                                    >
+                                        <Smile className="w-5 h-5 text-white" />
+                                    </button>
+
+                                    {/* Crop Button */}
+                                    <button
+                                        onClick={() => {
+                                            // Close panels before opening cropper
+                                            setShowStickerPanel(false);
+                                            setShowPhotoFilterPanel(false);
+                                            // Open cropper with current image
+                                            setImageToCrop(mediaDraft.previewUrl!);
+                                        }}
+                                        className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
+                                        aria-label="Crop"
+                                    >
+                                        <Crop className="w-5 h-5 text-white" />
+                                    </button>
+
+                                    {/* Clear Stickers Button - visible when stickers exist */}
+                                    {photoStickers.length > 0 && (
+                                        <button
+                                            onClick={() => setPhotoStickers([])}
+                                            className="w-10 h-10 rounded-full bg-red-500/30 backdrop-blur-sm border-2 border-red-500/50 flex items-center justify-center shadow-lg transition-all hover:bg-red-500/50"
+                                            aria-label="Clear stickers"
+                                        >
+                                            <Trash className="w-5 h-5 text-red-400" />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Improved Bottom Toolbar for Text Styling */}
                             {(stitchMode === 'text' || stitchMode === 'drawing') && (
                                 <>
@@ -1994,7 +2249,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                         onClick={(e) => e.stopPropagation()}
                                     >
                                         {/* Add Text Button - Always visible if limit not reached */}
-                                        {textElements.length < 5 && (
+                                        {textElements.length < 5 && stitchMode !== 'drawing' && (
                                             <button
                                                 onClick={addTextElement}
                                                 className="flex flex-col items-center gap-1 drop-shadow-md text-white hover:text-gray-200"
@@ -2045,7 +2300,24 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                                     <span className="text-[10px] font-bold shadow-black text-shadow">Size</span>
                                                 </button>
 
-                                                {/* Done Button moved here for easy access */}
+                                                {/* Delete Button */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        if (activeElementId) {
+                                                            setTextElements(prev => prev.filter(el => el.id !== activeElementId));
+                                                            setActiveElementId(null);
+                                                            setActiveMenu(null);
+                                                        }
+                                                    }}
+                                                    className="flex flex-col items-center gap-1 drop-shadow-md text-red-400 hover:text-red-300"
+                                                >
+                                                    <Trash className="w-6 h-6" />
+                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Delete</span>
+                                                </button>
+
+                                                {/* Done Button */}
                                                 <button
                                                     onClick={(e) => {
                                                         e.preventDefault();
@@ -2244,12 +2516,104 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         onCropComplete={handleCroppedImage}
                         onCancel={() => {
                             setImageToCrop(null);
-                            setShowStitchMenu(true);
+                            // If we have a media draft (came from preview), stay in preview mode
+                            // Otherwise show the stitch menu
+                            if (!mediaDraft) {
+                                setShowStitchMenu(true);
+                            }
                         }}
-                        aspect={4 / 5}
                     />
                 )
             }
+
+            {/* Photo Filter Bar - Horizontal scrollable at bottom */}
+            {stitchMode === 'image' && showPhotoFilterPanel && mediaDraft?.previewUrl && (
+                <div className="fixed bottom-36 left-0 right-0 z-[110] pointer-events-auto animate-in slide-in-from-bottom duration-200">
+                    <div
+                        className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide bg-gradient-to-t from-black/80 to-transparent"
+                        style={{ WebkitOverflowScrolling: 'touch' }}
+                    >
+                        {PHOTO_FILTERS.map((filter) => (
+                            <button
+                                key={filter.id}
+                                onClick={() => setPhotoFilter(filter.id)}
+                                className={`shrink-0 flex flex-col items-center gap-1.5 transition-all ${photoFilter === filter.id ? 'scale-105' : 'opacity-80 hover:opacity-100'}`}
+                            >
+                                {/* Filter preview thumbnail */}
+                                <div
+                                    className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-colors ${photoFilter === filter.id ? 'border-[#EC1D99]' : 'border-white/20'}`}
+                                    style={{ filter: filter.filter }}
+                                >
+                                    <img
+                                        src={mediaDraft.previewUrl}
+                                        alt=""
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                                <span className={`text-xs font-medium ${photoFilter === filter.id ? 'text-[#EC1D99]' : 'text-white/70'}`}>
+                                    {filter.label}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Sticker Picker - Horizontal scrollable at bottom */}
+            {stitchMode === 'image' && showStickerPanel && mediaDraft?.previewUrl && (
+                <div className="fixed bottom-36 left-0 right-0 z-[110] pointer-events-auto animate-in slide-in-from-bottom duration-200">
+                    {/* Instructions - above carousel */}
+                    <div className="text-center pt-2 pb-1 px-4">
+                        <span className="text-xs text-gray-400">
+                            {photoStickers.length > 0
+                                ? 'Drag to move • Double-tap to remove'
+                                : 'Tap emoji to add sticker'}
+                        </span>
+                    </div>
+                    <div
+                        className="flex gap-2 px-4 py-2 overflow-x-auto scrollbar-hide bg-gradient-to-t from-black/80 to-transparent"
+                        style={{ WebkitOverflowScrolling: 'touch' }}
+                    >
+                        {STICKER_EMOJIS.map((emoji, index) => (
+                            <button
+                                key={index}
+                                onClick={() => {
+                                    // Add sticker at center of image
+                                    const newSticker: PhotoSticker = {
+                                        id: `sticker-${Date.now()}-${index}`,
+                                        emoji,
+                                        x: 50, // center
+                                        y: 50, // center  
+                                        scale: 1,
+                                    };
+                                    setPhotoStickers(prev => [...prev, newSticker]);
+                                }}
+                                className="shrink-0 w-12 h-12 flex items-center justify-center text-3xl bg-white/10 rounded-xl hover:bg-white/20 hover:scale-110 transition-all active:scale-95"
+                            >
+                                {emoji}
+                            </button>
+                        ))}
+                        {/* Clear All button */}
+                        {photoStickers.length > 0 && (
+                            <button
+                                onClick={() => setPhotoStickers([])}
+                                className="shrink-0 w-12 h-12 flex items-center justify-center bg-red-500/20 border border-red-500/50 rounded-xl hover:bg-red-500/40 transition-all"
+                                aria-label="Clear all stickers"
+                            >
+                                <Trash className="w-5 h-5 text-red-400" />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Context Thumbnails - Visible when composing OR cropping */}
+            {contributions.length > 0 && ((stitchMode !== null && !showStitchMenu) || imageToCrop) && (
+                <StitchContextThumbnails
+                    contributions={contributions}
+                    className={imageToCrop ? 'bottom-36' : 'bottom-4'}
+                />
+            )}
         </div >
     );
 }

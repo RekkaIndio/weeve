@@ -1230,15 +1230,7 @@ export default function ProfilePage() {
                         </div>
 
                         {/* Stats */}
-                        <div className="flex items-center gap-6 mb-8 w-full max-w-sm justify-between px-4">
-                            <div className="text-center">
-                                <div className="font-bold text-lg">{myStories.length}</div>
-                                <div className="text-xs text-gray-500">Weeves</div>
-                            </div>
-                            <div className="text-center">
-                                <div className="font-bold text-lg">{contributionsCount}</div>
-                                <div className="text-xs text-gray-500">Contributions</div>
-                            </div>
+                        <div className="flex items-center gap-8 mb-8 w-full max-w-xs justify-center">
                             <div className="text-center">
                                 <div className="font-bold text-lg">{totalLikes}</div>
                                 <div className="text-xs text-gray-500">Likes</div>

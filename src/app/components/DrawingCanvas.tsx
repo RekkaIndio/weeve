@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import * as fabric from 'fabric';
-import { Pencil, Eraser, Undo2, Redo2, Trash2 } from 'lucide-react';
+import { Eraser, Undo2, Redo2, Palette, Circle, X, Type } from 'lucide-react';
 
 const TARGET_WIDTH = 1080;
 const TARGET_HEIGHT = 1920;
@@ -35,10 +35,11 @@ export interface DrawingCanvasRef {
 
 interface DrawingCanvasProps {
     className?: string;
+    onAddText?: () => void;
 }
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-    ({ className = '' }, ref) => {
+    ({ className = '', onAddText }, ref) => {
         const containerRef = useRef<HTMLDivElement>(null);
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
@@ -47,6 +48,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         const [isErasing, setIsErasing] = useState(false);
         const [canUndo, setCanUndo] = useState(false);
         const [canRedo, setCanRedo] = useState(false);
+        const [activePanel, setActivePanel] = useState<'color' | 'size' | null>(null);
         const historyRef = useRef<string[]>([]);
         const historyStepRef = useRef(0);
 
@@ -127,30 +129,36 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             setCanRedo(historyStepRef.current < historyRef.current.length - 1);
         };
 
-        const handleUndo = () => {
+        const handleUndo = async () => {
             const canvas = fabricCanvasRef.current;
             if (!canvas || historyStepRef.current <= 0) return;
 
             historyStepRef.current--;
             const state = historyRef.current[historyStepRef.current];
 
-            canvas.loadFromJSON(state, () => {
-                canvas.renderAll();
+            try {
+                await canvas.loadFromJSON(state);
+                canvas.requestRenderAll();
                 updateUndoRedoState();
-            });
+            } catch (err) {
+                console.error('Undo failed:', err);
+            }
         };
 
-        const handleRedo = () => {
+        const handleRedo = async () => {
             const canvas = fabricCanvasRef.current;
             if (!canvas || historyStepRef.current >= historyRef.current.length - 1) return;
 
             historyStepRef.current++;
             const state = historyRef.current[historyStepRef.current];
 
-            canvas.loadFromJSON(state, () => {
-                canvas.renderAll();
+            try {
+                await canvas.loadFromJSON(state);
+                canvas.requestRenderAll();
                 updateUndoRedoState();
-            });
+            } catch (err) {
+                console.error('Redo failed:', err);
+            }
         };
 
         const handleClear = () => {
@@ -166,10 +174,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         const handleColorSelect = (color: string) => {
             setCurrentColor(color);
             if (isErasing) setIsErasing(false);
+            setActivePanel(null);
         };
 
         const toggleEraser = () => {
             setIsErasing(!isErasing);
+            setActivePanel(null);
+        };
+
+        const handleSizeSelect = (size: number) => {
+            setCurrentBrushSize(size);
+            setActivePanel(null);
         };
 
         // Expose methods to parent via ref
@@ -225,80 +240,105 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                     <canvas ref={canvasRef} className="w-full h-full" />
                 </div>
 
-                {/* Drawing Tools */}
-                <div className="mt-4 space-y-4">
-                    {/* Color Palette */}
-                    <div className="flex flex-wrap gap-2 justify-center">
-                        {COLOR_OPTIONS.map((color) => (
-                            <button
-                                key={color}
-                                onClick={() => handleColorSelect(color)}
-                                className={`w-10 h-10 rounded-full border-2 transition-all ${currentColor === color && !isErasing
-                                    ? 'border-white scale-110'
-                                    : 'border-transparent'
-                                    }`}
-                                style={{ backgroundColor: color }}
-                                aria-label={`Select color ${color}`}
-                            />
-                        ))}
-                    </div>
-
-                    {/* Brush Size */}
-                    <div className="flex gap-2 justify-center">
-                        {BRUSH_SIZE_OPTIONS.map((size) => (
-                            <button
-                                key={size.value}
-                                onClick={() => setCurrentBrushSize(size.value)}
-                                className={`px-4 py-2 rounded-lg font-bold transition-colors ${currentBrushSize === size.value
-                                    ? 'bg-[#EC1D99] text-white'
-                                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                                    }`}
-                            >
-                                {size.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Tool Actions */}
-                    <div className="flex gap-2 justify-center flex-wrap">
+                {/* Right Side Tool Menu */}
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-[70]">
+                    {/* Add Text Button */}
+                    {onAddText && (
                         <button
-                            onClick={toggleEraser}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${isErasing
-                                ? 'bg-[#EC1D99] text-white'
-                                : 'bg-gray-800 text-white hover:bg-gray-700'
-                                }`}
+                            onClick={onAddText}
+                            className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
+                            aria-label="Add Text"
                         >
-                            <Eraser className="w-4 h-4" />
-                            Eraser
+                            <Type className="w-5 h-5 text-white" />
                         </button>
+                    )}
 
-                        <button
-                            onClick={handleUndo}
-                            disabled={!canUndo}
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            <Undo2 className="w-4 h-4" />
-                            Undo
-                        </button>
+                    {/* Color Tool */}
+                    <button
+                        onClick={() => setActivePanel(activePanel === 'color' ? null : 'color')}
+                        className={`w-10 h-10 rounded-full border-2 shadow-lg transition-all ${activePanel === 'color' ? 'border-white scale-110' : 'border-white/30'}`}
+                        style={{ backgroundColor: currentColor }}
+                        aria-label="Select color"
+                    />
 
-                        <button
-                            onClick={handleRedo}
-                            disabled={!canRedo}
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium bg-gray-800 text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            <Redo2 className="w-4 h-4" />
-                            Redo
-                        </button>
+                    {/* Size Tool */}
+                    <button
+                        onClick={() => setActivePanel(activePanel === 'size' ? null : 'size')}
+                        className={`w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 flex items-center justify-center shadow-lg transition-all ${activePanel === 'size' ? 'border-white' : 'border-white/30'}`}
+                        aria-label="Brush size"
+                    >
+                        <Circle className="text-white" style={{ width: currentBrushSize + 8, height: currentBrushSize + 8 }} fill="currentColor" />
+                    </button>
 
-                        <button
-                            onClick={handleClear}
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium bg-red-600 text-white hover:bg-red-700 transition-colors"
-                        >
-                            <Trash2 className="w-4 h-4" />
-                            Clear
-                        </button>
-                    </div>
+                    {/* Eraser */}
+                    <button
+                        onClick={toggleEraser}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${isErasing ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                        aria-label="Eraser"
+                    >
+                        <Eraser className="w-5 h-5 text-white" />
+                    </button>
+
+                    {/* Undo */}
+                    <button
+                        onClick={handleUndo}
+                        disabled={!canUndo}
+                        className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg disabled:opacity-40 transition-all"
+                        aria-label="Undo"
+                    >
+                        <Undo2 className="w-5 h-5 text-white" />
+                    </button>
+
+                    {/* Redo */}
+                    <button
+                        onClick={handleRedo}
+                        disabled={!canRedo}
+                        className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg disabled:opacity-40 transition-all"
+                        aria-label="Redo"
+                    >
+                        <Redo2 className="w-5 h-5 text-white" />
+                    </button>
                 </div>
+
+                {/* Pop-out Color Panel */}
+                {activePanel === 'color' && (
+                    <div className="absolute right-14 top-1/2 -translate-y-1/2 bg-black/90 backdrop-blur-md rounded-2xl p-3 shadow-xl border border-white/10 z-[71] animate-in slide-in-from-right-2">
+                        <div className="grid grid-cols-2 gap-2">
+                            {COLOR_OPTIONS.map((color) => (
+                                <button
+                                    key={color}
+                                    onClick={() => handleColorSelect(color)}
+                                    className={`w-10 h-10 rounded-full border-2 transition-all ${currentColor === color && !isErasing
+                                        ? 'border-white scale-110'
+                                        : 'border-transparent hover:scale-105'
+                                        }`}
+                                    style={{ backgroundColor: color }}
+                                    aria-label={`Select color ${color}`}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Pop-out Size Panel */}
+                {activePanel === 'size' && (
+                    <div className="absolute right-14 top-1/2 -translate-y-1/2 bg-black/90 backdrop-blur-md rounded-2xl p-3 shadow-xl border border-white/10 z-[71] animate-in slide-in-from-right-2">
+                        <div className="flex flex-col gap-2">
+                            {BRUSH_SIZE_OPTIONS.map((size) => (
+                                <button
+                                    key={size.value}
+                                    onClick={() => handleSizeSelect(size.value)}
+                                    className={`px-4 py-2 rounded-lg font-bold transition-colors ${currentBrushSize === size.value
+                                        ? 'bg-[#EC1D99] text-white'
+                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                        }`}
+                                >
+                                    {size.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }

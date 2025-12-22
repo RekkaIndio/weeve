@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useCallback } from 'react'
-import Cropper from 'react-easy-crop'
-import { Area } from 'react-easy-crop'
-import getCroppedImg from '@/lib/cropImage'
-import { X, Check, ZoomIn, ZoomOut } from 'lucide-react'
+import React, { useState, useRef, useEffect } from 'react';
+import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
+import { X, Check } from 'lucide-react';
 
 interface ImageCropperProps {
     imageSrc: string;
@@ -13,71 +12,126 @@ interface ImageCropperProps {
     aspect?: number;
 }
 
-const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect = 1 }: ImageCropperProps) => {
-    const [crop, setCrop] = useState({ x: 0, y: 0 })
-    const [zoom, setZoom] = useState(1)
-    const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
-    const [isProcessing, setIsProcessing] = useState(false)
+function centerAspectCrop(
+    mediaWidth: number,
+    mediaHeight: number,
+    aspect?: number,
+) {
+    if (aspect) {
+        return centerCrop(
+            makeAspectCrop(
+                {
+                    unit: '%',
+                    width: 90,
+                },
+                aspect,
+                mediaWidth,
+                mediaHeight,
+            ),
+            mediaWidth,
+            mediaHeight,
+        );
+    }
+    // Free aspect - default to 90% of the image
+    return {
+        unit: '%' as const,
+        x: 5,
+        y: 5,
+        width: 90,
+        height: 90,
+    };
+}
 
-    const onCropChange = (crop: { x: number; y: number }) => {
-        setCrop(crop)
+const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect }: ImageCropperProps) => {
+    const [crop, setCrop] = useState<Crop>();
+    const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+    const [isProcessing, setIsProcessing] = useState(false);
+    const imgRef = useRef<HTMLImageElement>(null);
+
+    function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+        const { width, height } = e.currentTarget;
+        setCrop(centerAspectCrop(width, height, aspect));
     }
 
-    const onZoomChange = (zoom: number) => {
-        setZoom(zoom)
-    }
+    async function handleSave() {
+        if (!completedCrop || !imgRef.current) return;
 
-    const onCropCompleteHandler = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
-        setCroppedAreaPixels(croppedAreaPixels)
-    }, [])
-
-    const handleSave = async () => {
-        if (!croppedAreaPixels) return;
         setIsProcessing(true);
         try {
-            const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels)
-            if (croppedImage) {
-                onCropComplete(croppedImage)
+            const image = imgRef.current;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            if (!ctx) {
+                throw new Error('No 2d context');
             }
+
+            // Calculate the scale between natural size and displayed size
+            const scaleX = image.naturalWidth / image.width;
+            const scaleY = image.naturalHeight / image.height;
+
+            // Set canvas size to the cropped area size
+            canvas.width = completedCrop.width * scaleX;
+            canvas.height = completedCrop.height * scaleY;
+
+            ctx.drawImage(
+                image,
+                completedCrop.x * scaleX,
+                completedCrop.y * scaleY,
+                completedCrop.width * scaleX,
+                completedCrop.height * scaleY,
+                0,
+                0,
+                canvas.width,
+                canvas.height,
+            );
+
+            // Convert canvas to blob
+            canvas.toBlob(
+                (blob) => {
+                    if (blob) {
+                        onCropComplete(blob);
+                    }
+                    setIsProcessing(false);
+                },
+                'image/jpeg',
+                0.9
+            );
         } catch (e) {
-            console.error(e)
-        } finally {
-            setIsProcessing(false)
+            console.error('Error cropping image:', e);
+            setIsProcessing(false);
         }
     }
 
     return (
         <div className="fixed inset-0 z-50 bg-black flex flex-col">
-            <div className="relative flex-1 bg-black">
-                <Cropper
-                    image={imageSrc}
+            {/* Crop Area */}
+            <div className="flex-1 flex items-center justify-center overflow-hidden p-4">
+                <ReactCrop
                     crop={crop}
-                    zoom={zoom}
+                    onChange={(_, percentCrop) => setCrop(percentCrop)}
+                    onComplete={(c) => setCompletedCrop(c)}
                     aspect={aspect}
-                    onCropChange={onCropChange}
-                    onCropComplete={onCropCompleteHandler}
-                    onZoomChange={onZoomChange}
-                />
+                    className="max-h-full"
+                >
+                    <img
+                        ref={imgRef}
+                        src={imageSrc}
+                        alt="Crop"
+                        onLoad={onImageLoad}
+                        className="max-h-[70vh] max-w-full object-contain"
+                        crossOrigin="anonymous"
+                    />
+                </ReactCrop>
             </div>
 
-            <div className="bg-gray-900 p-6 space-y-6 pb-12">
-                <div className="flex items-center gap-4">
-                    <ZoomOut className="w-5 h-5 text-gray-400" />
-                    <input
-                        type="range"
-                        value={zoom}
-                        min={1}
-                        max={3}
-                        step={0.1}
-                        aria-labelledby="Zoom"
-                        onChange={(e) => {
-                            setZoom(Number(e.target.value))
-                        }}
-                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#EC1D99]"
-                    />
-                    <ZoomIn className="w-5 h-5 text-gray-400" />
-                </div>
+            {/* Instructions */}
+            <div className="text-center py-2 text-gray-400 text-sm">
+                Drag the corners to adjust the crop area
+            </div>
 
+            {/* Controls */}
+            <div className="bg-gray-900 p-6 pb-12">
                 <div className="flex justify-between gap-4">
                     <button
                         onClick={onCancel}
@@ -88,7 +142,7 @@ const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect = 1 }: ImageC
                     </button>
                     <button
                         onClick={handleSave}
-                        disabled={isProcessing}
+                        disabled={isProcessing || !completedCrop}
                         className="flex-1 flex items-center justify-center gap-2 py-3 bg-[#EC1D99] text-white font-bold rounded-xl hover:bg-[#D41C84] transition-colors disabled:opacity-50 font-sans"
                     >
                         {isProcessing ? (
@@ -103,7 +157,7 @@ const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect = 1 }: ImageC
                 </div>
             </div>
         </div>
-    )
-}
+    );
+};
 
-export default ImageCropper
+export default ImageCropper;

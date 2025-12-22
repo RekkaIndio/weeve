@@ -16,7 +16,7 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     return (
-        <nav className="fixed top-0 w-full z-50 border-b border-white/10 bg-black/50 backdrop-blur-xl">
+        <nav className="fixed top-0 w-full z-50 border-b border-white/10 bg-black/50 backdrop-blur-xl" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
             <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
@@ -53,14 +53,14 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                 >
                     <Link
                         href="/login"
-                        className="text-sm font-bold text-white hover:text-gray-300 transition-colors"
+                        className="hidden md:block text-sm font-bold text-white hover:text-gray-300 transition-colors"
                     >
                         Log In
                     </Link>
 
                     <button
                         onClick={onWaitlistClick}
-                        className="px-5 py-2.5 bg-white text-black text-sm font-bold rounded-full hover:bg-gray-200 transition-colors"
+                        className="hidden md:block px-5 py-2.5 bg-white text-black text-sm font-bold rounded-full hover:bg-gray-200 transition-colors"
                     >
                         Join Waitlist
                     </button>
