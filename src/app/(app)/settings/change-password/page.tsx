@@ -96,12 +96,12 @@ export default function ChangePasswordPage() {
             if (updateError) throw updateError;
 
             toast.success("Password updated successfully");
-            
+
             // Clear form
             setCurrentPassword("");
             setNewPassword("");
             setConfirmPassword("");
-            
+
             // Navigate back after a short delay
             setTimeout(() => {
                 router.back();
@@ -116,7 +116,7 @@ export default function ChangePasswordPage() {
 
     const getPasswordStrength = (password: string): { strength: string; color: string; width: string } => {
         if (!password) return { strength: "", color: "", width: "0%" };
-        
+
         let score = 0;
         if (password.length >= 8) score++;
         if (password.length >= 12) score++;
@@ -135,7 +135,7 @@ export default function ChangePasswordPage() {
     return (
         <div className="min-h-screen bg-black text-white pb-8">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 flex items-center gap-4 border-b border-gray-800">
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-4 border-b border-gray-800">
                 <button
                     onClick={() => router.back()}
                     className="p-2 rounded-full hover:bg-gray-800 transition-colors"
@@ -289,11 +289,10 @@ export default function ChangePasswordPage() {
                                     <button
                                         type="submit"
                                         disabled={isUpdating || !currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword}
-                                        className={`w-full ${
-                                            isUpdating || !currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword
+                                        className={`w-full ${isUpdating || !currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword
                                                 ? 'bg-gray-600 cursor-not-allowed'
                                                 : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
-                                        } text-white font-bold py-3 rounded-lg transition-colors`}
+                                            } text-white font-bold py-3 rounded-lg transition-colors`}
                                     >
                                         {isUpdating ? 'Updating Password...' : 'Update Password'}
                                     </button>

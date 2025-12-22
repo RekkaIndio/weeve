@@ -126,7 +126,7 @@ export default function FollowsPage() {
                 .eq('user_id', user.id);
 
             // Respect local dismissal flags so tutorials don't reappear
-            try { if (typeof window !== 'undefined' && user?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + user.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + user.id, 'true'); } } catch (err) {}
+            try { if (typeof window !== 'undefined' && user?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + user.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + user.id, 'true'); } } catch (err) { }
             // Navigate to feed
             router.push('/feed');
         } catch (err) {
@@ -139,7 +139,7 @@ export default function FollowsPage() {
     return (
         <div className="min-h-screen bg-black text-white pb-32">
             {/* Header */}
-            <div className="p-6 border-b border-gray-800">
+            <div className="p-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] border-b border-gray-800">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-gray-600"></div>
@@ -210,7 +210,7 @@ export default function FollowsPage() {
             </div>
 
             {/* Bottom Actions */}
-            <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 p-6">
+            <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 p-6 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]">
                 <button
                     onClick={handleComplete}
                     disabled={completing}

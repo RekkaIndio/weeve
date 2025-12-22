@@ -103,14 +103,12 @@ export default function NotificationsPage() {
             type="button"
             onClick={onChange}
             disabled={disabled}
-            className={`relative w-12 h-6 transition duration-200 ease-in-out rounded-full overflow-hidden ${
-                enabled ? 'bg-[#EC1D99]' : 'bg-gray-700'
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            className={`relative w-12 h-6 transition duration-200 ease-in-out rounded-full overflow-hidden ${enabled ? 'bg-[#EC1D99]' : 'bg-gray-700'
+                } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         >
             <span
-                className={`absolute top-1 ${
-                    enabled ? 'left-7' : 'left-1'
-                } bg-white w-4 h-4 rounded-full transition-all duration-200`}
+                className={`absolute top-1 ${enabled ? 'left-7' : 'left-1'
+                    } bg-white w-4 h-4 rounded-full transition-all duration-200`}
             />
         </button>
     );
@@ -126,7 +124,7 @@ export default function NotificationsPage() {
     if (isLoading) {
         return (
             <div className="min-h-screen bg-black text-white">
-                <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 flex items-center gap-4 border-b border-gray-800">
+                <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-4 border-b border-gray-800">
                     <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-800 transition-colors">
                         <ChevronLeft className="w-6 h-6" />
                     </button>
@@ -142,7 +140,7 @@ export default function NotificationsPage() {
     return (
         <div className="min-h-screen bg-black text-white pb-8">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 flex items-center gap-4 border-b border-gray-800">
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-4 border-b border-gray-800">
                 <button
                     onClick={() => router.back()}
                     className="p-2 rounded-full hover:bg-gray-800 transition-colors"

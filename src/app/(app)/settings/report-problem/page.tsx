@@ -102,19 +102,19 @@ export default function ReportProblemPage() {
             }
 
             toast.success("Your report has been submitted. We'll get back to you soon!");
-            
+
             // Clear form
             setSelectedCategory(null);
             setSubject("");
             setDescription("");
-            
+
             // Navigate back after a short delay
             setTimeout(() => {
                 router.back();
             }, 2000);
         } catch (error: any) {
             console.error("Error submitting report:", error);
-            
+
             // Fallback: Try to send via email directly
             console.log("Support Ticket:", {
                 user: currentUser.name,
@@ -123,7 +123,7 @@ export default function ReportProblemPage() {
                 subject,
                 description,
             });
-            
+
             toast.success("Your report has been logged. Our team will review it soon.");
             setTimeout(() => router.back(), 2000);
         } finally {
@@ -142,7 +142,7 @@ export default function ReportProblemPage() {
     return (
         <div className="min-h-screen bg-black text-white pb-8">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 flex items-center gap-4 border-b border-gray-800">
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-4 border-b border-gray-800">
                 <button
                     onClick={() => router.back()}
                     className="p-2 rounded-full hover:bg-gray-800 transition-colors"
@@ -182,19 +182,16 @@ export default function ReportProblemPage() {
                                             key={category.id}
                                             type="button"
                                             onClick={() => setSelectedCategory(category.id)}
-                                            className={`w-full p-4 rounded-lg border-2 transition-all text-left ${
-                                                isSelected
+                                            className={`w-full p-4 rounded-lg border-2 transition-all text-left ${isSelected
                                                     ? 'bg-[#EC1D99]/10 border-[#EC1D99]'
                                                     : 'bg-gray-900 border-gray-800 hover:border-gray-700'
-                                            }`}
+                                                }`}
                                         >
                                             <div className="flex items-center gap-3">
-                                                <div className={`p-2 rounded-full ${
-                                                    isSelected ? 'bg-[#EC1D99]/20' : 'bg-gray-800'
-                                                }`}>
-                                                    <Icon className={`w-5 h-5 ${
-                                                        isSelected ? 'text-[#EC1D99]' : 'text-gray-400'
-                                                    }`} />
+                                                <div className={`p-2 rounded-full ${isSelected ? 'bg-[#EC1D99]/20' : 'bg-gray-800'
+                                                    }`}>
+                                                    <Icon className={`w-5 h-5 ${isSelected ? 'text-[#EC1D99]' : 'text-gray-400'
+                                                        }`} />
                                                 </div>
                                                 <div className="flex-1">
                                                     <h3 className="font-semibold text-sm">{category.label}</h3>
@@ -248,11 +245,10 @@ export default function ReportProblemPage() {
                             <button
                                 type="submit"
                                 disabled={isSubmitting || !selectedCategory || !subject.trim() || !description.trim()}
-                                className={`w-full ${
-                                    isSubmitting || !selectedCategory || !subject.trim() || !description.trim()
+                                className={`w-full ${isSubmitting || !selectedCategory || !subject.trim() || !description.trim()
                                         ? 'bg-gray-600 cursor-not-allowed'
                                         : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
-                                } text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2`}
+                                    } text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2`}
                             >
                                 {isSubmitting ? (
                                     <>

@@ -99,7 +99,7 @@ export default function BlockedUsersPage() {
     return (
         <div className="min-h-screen bg-black text-white pb-8">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 flex items-center gap-4 border-b border-gray-800">
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-4 border-b border-gray-800">
                 <button
                     onClick={() => router.back()}
                     className="p-2 rounded-full hover:bg-gray-800 transition-colors"
@@ -129,7 +129,7 @@ export default function BlockedUsersPage() {
                         <div>
                             <h3 className="font-semibold text-sm mb-1">About Blocked Users</h3>
                             <p className="text-xs text-gray-400">
-                                Blocked users cannot see your profile, send you messages, or invite you to stories. 
+                                Blocked users cannot see your profile, send you messages, or invite you to stories.
                                 They won't be notified that you've blocked them.
                             </p>
                         </div>
@@ -180,11 +180,10 @@ export default function BlockedUsersPage() {
                                 <button
                                     onClick={() => handleUnblock(blockedUser.blocked_user_id)}
                                     disabled={unblockingId === blockedUser.blocked_user_id}
-                                    className={`${
-                                        unblockingId === blockedUser.blocked_user_id
+                                    className={`${unblockingId === blockedUser.blocked_user_id
                                             ? 'bg-gray-700 cursor-not-allowed'
                                             : 'bg-gray-800 hover:bg-gray-700'
-                                    } text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors`}
+                                        } text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors`}
                                 >
                                     {unblockingId === blockedUser.blocked_user_id ? 'Unblocking...' : 'Unblock'}
                                 </button>

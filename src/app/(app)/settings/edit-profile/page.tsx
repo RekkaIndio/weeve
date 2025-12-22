@@ -266,7 +266,7 @@ export default function EditProfilePage() {
     return (
         <div className="min-h-screen bg-black text-white pb-8">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 flex items-center justify-between border-b border-gray-800">
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center justify-between border-b border-gray-800">
                 <div className="flex items-center gap-4">
                     <button
                         onClick={() => router.back()}

@@ -105,7 +105,7 @@ export default function PromptPage() {
     return (
         <div className="min-h-screen bg-black text-white pb-20">
             {/* Header */}
-            <div className="p-6 border-b border-gray-800">
+            <div className="p-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] border-b border-gray-800">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-[#EC1D99]"></div>
@@ -177,7 +177,7 @@ export default function PromptPage() {
             </div>
 
             {/* Bottom Actions */}
-            <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 p-6">
+            <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 p-6 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)]">
                 <button
                     onClick={handleSkip}
                     className="w-full text-gray-400 hover:text-white transition-colors text-sm"

@@ -127,7 +127,7 @@ export default function HelpCenterPage() {
     return (
         <div className="min-h-screen bg-black text-white pb-8">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 flex items-center gap-4 border-b border-gray-800">
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-4 border-b border-gray-800">
                 <button
                     onClick={() => {
                         if (selectedTopic) {
@@ -141,7 +141,7 @@ export default function HelpCenterPage() {
                     <ChevronLeft className="w-6 h-6" />
                 </button>
                 <h1 className="font-bold text-lg">
-                    {selectedTopic 
+                    {selectedTopic
                         ? helpTopics.find(t => t.id === selectedTopic)?.title
                         : "Help Center"}
                 </h1>
@@ -201,8 +201,8 @@ export default function HelpCenterPage() {
                                 </button>
                                 <p className="text-xs text-gray-500">
                                     Or email us at{' '}
-                                    <a 
-                                        href="mailto:hello@tryweeve.com" 
+                                    <a
+                                        href="mailto:hello@tryweeve.com"
                                         className="text-[#EC1D99] hover:underline"
                                     >
                                         hello@tryweeve.com
@@ -225,9 +225,8 @@ export default function HelpCenterPage() {
                                 >
                                     <h3 className="font-semibold pr-4">{faq.question}</h3>
                                     <ChevronRight
-                                        className={`w-5 h-5 text-gray-500 flex-shrink-0 transition-transform ${
-                                            expandedFAQ === faq.question ? 'rotate-90' : ''
-                                        }`}
+                                        className={`w-5 h-5 text-gray-500 flex-shrink-0 transition-transform ${expandedFAQ === faq.question ? 'rotate-90' : ''
+                                            }`}
                                     />
                                 </button>
                                 {expandedFAQ === faq.question && (

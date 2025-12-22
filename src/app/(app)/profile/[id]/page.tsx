@@ -263,7 +263,7 @@ export default function UserProfilePage() {
     return (
         <div className="min-h-screen bg-black text-white pb-24 relative">
             {/* Header */}
-            <div className="p-4 flex items-center gap-3 sticky top-0 z-10 bg-black/80 backdrop-blur-md">
+            <div className="p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-3 sticky top-0 z-10 bg-black/80 backdrop-blur-md">
                 <button
                     onClick={() => router.back()}
                     className="p-2 rounded-full hover:bg-gray-800 transition-colors"

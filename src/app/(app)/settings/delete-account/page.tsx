@@ -45,7 +45,7 @@ export default function DeleteAccountPage() {
     return (
         <div className="min-h-screen bg-black text-white pb-8">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 flex items-center gap-4 border-b border-gray-800">
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-4 border-b border-gray-800">
                 <button
                     onClick={() => router.back()}
                     className="p-2 rounded-full hover:bg-gray-800 transition-colors"
@@ -72,8 +72,8 @@ export default function DeleteAccountPage() {
                                     key={reason}
                                     onClick={() => setSelectedReason(reason)}
                                     className={`w-full p-4 rounded-xl border text-left transition-all ${selectedReason === reason
-                                            ? "border-[#EC1D99] bg-[#EC1D99]/10 text-white"
-                                            : "border-gray-800 bg-gray-900/50 text-gray-400 hover:border-gray-700 hover:bg-gray-900"
+                                        ? "border-[#EC1D99] bg-[#EC1D99]/10 text-white"
+                                        : "border-gray-800 bg-gray-900/50 text-gray-400 hover:border-gray-700 hover:bg-gray-900"
                                         }`}
                                 >
                                     <div className="flex items-center justify-between">
