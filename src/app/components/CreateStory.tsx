@@ -3,8 +3,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, Loader, Globe, Lock, UserPlus, Check, GripVertical } from "lucide-react";
+import { Reorder } from "framer-motion";
 import NotificationBell from "./NotificationBell";
-import { searchUsers, addFriend, Friend as FriendType, sendFriendRequest } from "@/lib/friends";
+import { searchUsers, addFriend, sendFriendRequest } from "@/lib/friends";
 import { searchHashtags } from "@/lib/hashtags";
 import { toast } from "sonner";
 
@@ -17,6 +18,13 @@ export interface Friend {
   isFriend?: boolean;
   friendRequestStatus?: 'none' | 'pending_sent' | 'pending_received' | 'accepted';
 }
+
+interface StorySlot {
+  id: string; // Unique stable ID for Framer Motion key
+  friend: Friend | null;
+}
+
+const generateId = () => Math.random().toString(36).substr(2, 9);
 
 export interface CreateStoryFormState {
   title: string;
@@ -61,14 +69,27 @@ const CreateStory = ({
 
   const handleBack = onBack ?? (() => router.back());
 
+  // Initialize slots
+  const [slots, setSlots] = useState<StorySlot[]>(() => {
+    // Determine initial length (default 2 based on default inviteCount=1 -> 2 slots)
+    const initialParticipants = currentUser
+      ? [{ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }, ...Array(1).fill(null)]
+      : Array(2).fill(null);
+
+    return initialParticipants.map(friend => ({
+      id: generateId(),
+      friend: friend
+    }));
+  });
+
   const [formState, setFormState] = useState<CreateStoryFormState>({
     title: "",
     description: "",
     visibility: "private",
     selectedFriends: [],
-    orderedParticipants: currentUser
-      ? [{ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }, ...Array(1).fill(null)]
-      : Array(2).fill(null),
+    // orderedParticipants will be derived from slots on submit, but we keep it here for compatibility if needed or ignore it.
+    // We'll update it inside the component just in case other logic depends on it (though we plan to refactor).
+    orderedParticipants: slots.map(s => s.friend),
 
     inviteCount: 1,
     hashtags: [],
@@ -76,6 +97,15 @@ const CreateStory = ({
     turnTimerHours: undefined,
     monetizationCost: undefined,
   });
+
+  // Sync slots to orderedParticipants in formState whenever slots change (optional but good for consistency)
+  useEffect(() => {
+    setFormState(prev => ({
+      ...prev,
+      orderedParticipants: slots.map(s => s.friend)
+    }));
+  }, [slots]);
+
   const [hashtagInput, setHashtagInput] = useState("");
   const hashtagInputRef = useRef<HTMLInputElement | null>(null);
   const [hashtagSuggestions, setHashtagSuggestions] = useState<string[]>([]);
@@ -91,7 +121,6 @@ const CreateStory = ({
   const [friendSearchInput, setFriendSearchInput] = useState("");
   const [showFriendDropdown, setShowFriendDropdown] = useState(false);
   const [slotToFill, setSlotToFill] = useState<number | null>(null);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
   // Handle invite query param
@@ -100,19 +129,29 @@ const CreateStory = ({
       const friendToInvite = availableFriends.find(f => f.id === inviteId);
       if (friendToInvite) {
         // Add to first available slot
-        setFormState(prev => {
-          const newParticipants = [...(prev.orderedParticipants || [])];
-          const emptyIndex = newParticipants.findIndex(p => p === null);
+        setSlots(prevSlots => {
+          const newSlots = [...prevSlots];
+          const emptyIndex = newSlots.findIndex(s => s.friend === null);
           if (emptyIndex !== -1) {
-            newParticipants[emptyIndex] = friendToInvite;
+            newSlots[emptyIndex] = { ...newSlots[emptyIndex], friend: friendToInvite };
+          } else {
+            // If full, do we expand? The original code didn't explicitly expand here unless inviteCount was handling it, 
+            // but here we just fill if empty.
+          }
+          return newSlots;
+        });
+
+        // Also update selectedFriends in formState
+        setFormState(prev => {
+          const isAlreadySelected = prev.selectedFriends.some(f => f.id === friendToInvite.id);
+          if (!isAlreadySelected) {
             return {
               ...prev,
-              selectedFriends: [...prev.selectedFriends, friendToInvite],
-              orderedParticipants: newParticipants
-            };
+              selectedFriends: [...prev.selectedFriends, friendToInvite]
+            }
           }
           return prev;
-        });
+        })
       }
     }
   }, [inviteId, availableFriends]);
@@ -231,53 +270,52 @@ const CreateStory = ({
       }
     }
 
+
     // If not a friend yet, add them
     if (friend.isFriend === false && currentUser) {
       try {
         await addFriend(currentUser.id, friend.id);
         toast.success(`Added ${friend.name} as a friend!`);
-        // Update local state to reflect friendship? 
-        // Ideally we should refetch friends but for now we just proceed
       } catch (err) {
         console.error("Failed to add friend", err);
         toast.error("Failed to add friend connection");
       }
     }
 
-    setFormState((prev) => {
-      const newParticipants = [...(prev.orderedParticipants || [])];
+    let inserted = false;
+    const newSlots = [...slots];
 
-      let inserted = false;
-
-      // If slotToFill is set, place friend into that slot
-      if (slotToFill !== null && slotToFill < newParticipants.length) {
-        newParticipants[slotToFill] = friend;
+    // If slotToFill is set, place friend into that slot
+    if (slotToFill !== null && slotToFill < newSlots.length) {
+      newSlots[slotToFill] = { ...newSlots[slotToFill], friend };
+      inserted = true;
+    } else {
+      // Find first empty slot
+      const emptyIndex = newSlots.findIndex(s => s.friend === null);
+      if (emptyIndex !== -1) {
+        newSlots[emptyIndex] = { ...newSlots[emptyIndex], friend };
         inserted = true;
-      } else {
-        // Find first empty slot
-        const emptyIndex = newParticipants.findIndex(p => p === null);
-        if (emptyIndex !== -1) {
-          newParticipants[emptyIndex] = friend;
-          inserted = true;
-        }
       }
+    }
 
-      if (!inserted) {
-        setError(`Story is full. Increase the participant count to add more friends.`);
-        if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
-        errorTimeoutRef.current = window.setTimeout(() => setError(""), 2000);
-        return prev;
-      }
+    if (!inserted) {
+      setError(`Story is full. Increase the participant count to add more friends.`);
+      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+      errorTimeoutRef.current = window.setTimeout(() => setError(""), 2000);
+      return;
+    }
 
-      // Rebuild selectedFriends from orderedParticipants
-      const newSelectedFriends = newParticipants.filter((p): p is Friend => p !== null && p.id !== currentUser?.id);
+    setSlots(newSlots);
 
-      return {
-        ...prev,
-        selectedFriends: newSelectedFriends,
-        orderedParticipants: newParticipants
-      };
-    });
+    // Rebuild selectedFriends
+    const newSelectedFriends = newSlots
+      .map(s => s.friend)
+      .filter((p): p is Friend => p !== null && p.id !== currentUser?.id);
+
+    setFormState(prev => ({
+      ...prev,
+      selectedFriends: newSelectedFriends
+    }));
 
     setSlotToFill(null);
     setFriendSearchInput("");
@@ -286,28 +324,28 @@ const CreateStory = ({
 
   // Handle removing a friend
   const handleRemoveFriend = (friendId: string, slotIndex?: number) => {
-    setFormState((prev) => {
-      const newParticipants = [...(prev.orderedParticipants || [])];
+
+    setSlots(currentSlots => {
+      const newSlots = [...currentSlots];
 
       // If slotIndex is provided, remove from that specific slot
-      // Otherwise, remove the first occurrence
-      if (slotIndex !== undefined) {
-        newParticipants[slotIndex] = null;
+      if (slotIndex !== undefined && slotIndex < newSlots.length) {
+        newSlots[slotIndex] = { ...newSlots[slotIndex], friend: null };
       } else {
-        const index = newParticipants.findIndex(p => p && p.id === friendId);
+        const index = newSlots.findIndex(s => s.friend && s.friend.id === friendId);
         if (index !== -1) {
-          newParticipants[index] = null;
+          newSlots[index] = { ...newSlots[index], friend: null };
         }
       }
 
-      // Rebuild selectedFriends from orderedParticipants
-      const newSelectedFriends = newParticipants.filter((p): p is Friend => p !== null && p.id !== currentUser?.id);
+      // Sync selectedFriends in formState
+      const newSelectedFriends = newSlots
+        .map(s => s.friend)
+        .filter((p): p is Friend => p !== null && p.id !== currentUser?.id);
 
-      return {
-        ...prev,
-        selectedFriends: newSelectedFriends,
-        orderedParticipants: newParticipants
-      };
+      setFormState(prev => ({ ...prev, selectedFriends: newSelectedFriends }));
+
+      return newSlots;
     });
   };
 
@@ -323,7 +361,7 @@ const CreateStory = ({
       return;
     }
 
-    const activeParticipants = (formState.orderedParticipants || []).filter(p => p !== null);
+    const activeParticipants = slots.map(s => s.friend).filter(p => p !== null);
 
     if (activeParticipants.length < 1) {
       setError("Please add at least one participant");
@@ -337,7 +375,12 @@ const CreateStory = ({
     setError("");
 
     try {
-      await onCreateStory(formState);
+      // Construct the data expected by parent from our slots
+      const submissionData: CreateStoryFormState = {
+        ...formState,
+        orderedParticipants: slots.map(s => s.friend)
+      };
+      await onCreateStory(submissionData);
     } catch (err) {
       setError(
         err instanceof Error
@@ -429,50 +472,7 @@ const CreateStory = ({
     setHashtagSuggestions([]);
   };
 
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", index.toString());
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    const sourceIndexStr = e.dataTransfer.getData("text/plain");
-    let sourceIndex = parseInt(sourceIndexStr);
-
-    if (isNaN(sourceIndex)) {
-      // Fallback to state if dataTransfer failed
-      if (draggedIndex !== null) {
-        sourceIndex = draggedIndex;
-      } else {
-        return;
-      }
-    }
-
-    if (sourceIndex === dropIndex) return;
-
-    setFormState((prev) => {
-      const newParticipants = [...(prev.orderedParticipants || [])];
-      // Ensure indices are valid
-      if (sourceIndex >= newParticipants.length || dropIndex >= newParticipants.length) return prev;
-
-      // Swap logic
-      const temp = newParticipants[sourceIndex];
-      newParticipants[sourceIndex] = newParticipants[dropIndex];
-      newParticipants[dropIndex] = temp;
-
-      return {
-        ...prev,
-        orderedParticipants: newParticipants
-      };
-    });
-    setDraggedIndex(null);
-  };
+  // Removed HTML5 drag handlers as we switched to Reorder
 
   // Render Section 1: Story Details
   const renderDetailsSection = () => (
@@ -621,26 +621,26 @@ const CreateStory = ({
           onChange={(e) => {
             const totalParticipants = parseInt(e.target.value);
             const newCount = totalParticipants - 1;
-            setFormState(prev => {
-              const currentParticipants = prev.orderedParticipants || [];
-              // We need newCount + 1 slots (1 for user + newCount for friends)
-              const targetLength = totalParticipants;
 
-              let newParticipants;
-              if (currentParticipants.length < targetLength) {
-                // Add empty slots
-                newParticipants = [...currentParticipants, ...Array(targetLength - currentParticipants.length).fill(null)];
-              } else {
-                // Remove slots from the end
-                newParticipants = currentParticipants.slice(0, targetLength);
+            // Update slots state
+            setSlots(prev => {
+              const current = prev || [];
+              // We need totalParticipants slots
+              if (current.length < totalParticipants) {
+                // Add new slots with generated IDs
+                const needed = totalParticipants - current.length;
+                const newItems = Array.from({ length: needed }).map(() => ({ id: generateId(), friend: null }));
+                return [...current, ...newItems];
+              } else if (current.length > totalParticipants) {
+                return current.slice(0, totalParticipants);
               }
-
-              return {
-                ...prev,
-                inviteCount: newCount,
-                orderedParticipants: newParticipants
-              };
+              return current;
             });
+
+            setFormState(prev => ({
+              ...prev,
+              inviteCount: newCount
+            }));
           }}
           className="w-full accent-[#EC1D99] h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer"
           aria-label="Number of participants"
@@ -658,25 +658,27 @@ const CreateStory = ({
           </span>
         </div>
 
-        <div className="flex items-center flex-wrap gap-4 py-2">
-          {Array.from({ length: formState.inviteCount + 1 }).map((_, idx) => {
-            const participant = formState.orderedParticipants?.[idx];
+        {/* Reorder.Group for Drag and Drop */}
+        <Reorder.Group
+          axis="x"
+          values={slots}
+          onReorder={setSlots}
+          className="flex items-start py-2 overflow-x-auto pb-4 no-scrollbar px-5"
+        >
+          {slots.map((slot, idx) => {
+            const participant = slot.friend;
             const isCurrentUser = participant?.id === currentUser?.id;
             const isEmpty = !participant;
-            const isFirstEmpty = isEmpty && formState.orderedParticipants?.findIndex(p => p === null) === idx;
+            const isFirstEmpty = isEmpty && slots.findIndex(s => s.friend === null) === idx;
 
             return (
-              <div key={`slot-${idx}`} className="flex items-center">
+              <Reorder.Item
+                key={slot.id}
+                value={slot}
+                dragListener={!!participant && !isCurrentUser} // Only drag if populated and not current user
+                className="flex items-start"
+              >
                 <div
-                  draggable={!!participant && !isCurrentUser}
-                  onDragStart={(e) => {
-                    if (participant && !isCurrentUser) {
-                      handleDragStart(e, idx);
-                    }
-                  }}
-                  onDragEnd={() => setDraggedIndex(null)}
-                  onDragOver={(e) => handleDragOver(e, idx)}
-                  onDrop={(e) => handleDrop(e, idx)}
                   onClick={() => {
                     if (participant && !isCurrentUser) {
                       handleRemoveFriend(participant.id, idx);
@@ -685,8 +687,8 @@ const CreateStory = ({
                       setShowFriendDropdown(true);
                     }
                   }}
-                  className={`flex flex-col items-center transition-all duration-200 ${draggedIndex === idx ? "opacity-50 scale-95" : ""
-                    } ${participant && !isCurrentUser ? "cursor-grab active:cursor-grabbing" : isEmpty ? "cursor-pointer" : ""}`}
+                  className={`flex flex-col items-center transition-all duration-200 
+                    ${participant && !isCurrentUser ? "cursor-grab active:cursor-grabbing" : isEmpty ? "cursor-pointer" : ""}`}
                 >
                   {/* Avatar/Slot Circle */}
                   <div
@@ -710,11 +712,11 @@ const CreateStory = ({
                   </div>
 
                   {/* Label with turn number */}
-                  <div className="flex flex-col items-center mt-1 pointer-events-none">
-                    <span className={`text-[10px] font-medium ${participant ? "text-[#EC1D99]" : "text-gray-600"}`}>
+                  <div className="flex flex-col items-center mt-2 pointer-events-none">
+                    <span className={`text-[10px] uppercase font-bold tracking-wider ${participant ? "text-[#EC1D99]" : "text-gray-600"}`}>
                       #{idx + 1}
                     </span>
-                    <span className={`text-xs text-center max-w-[56px] truncate ${participant ? "text-white" : "text-gray-500"
+                    <span className={`text-xs text-center font-medium max-w-[64px] truncate mt-0.5 ${participant ? "text-white" : "text-gray-500"
                       }`}>
                       {participant
                         ? (isCurrentUser ? "You" : participant.name.split(" ")[0])
@@ -724,14 +726,16 @@ const CreateStory = ({
                   </div>
                 </div>
 
-                {/* Connector line */}
-                {idx < formState.inviteCount && (
-                  <div className="w-3 h-0.5 bg-gray-700 mx-0.5" />
+                {/* Connector line - Aligned with Avatar */}
+                {idx < slots.length - 1 && (
+                  <div className="h-14 w-8 flex items-center justify-center flex-shrink-0">
+                    <div className="w-full h-0.5 bg-gray-700 rounded-full" />
+                  </div>
                 )}
-              </div>
+              </Reorder.Item>
             );
           })}
-        </div>
+        </Reorder.Group>
       </div>
 
       {/* Friend Picker */}
@@ -784,7 +788,7 @@ const CreateStory = ({
             }}
             placeholder="Type a name to search..."
             disabled={
-              !formState.orderedParticipants?.some(p => p === null)
+              !slots.some(s => s.friend === null)
             }
             className="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:outline-none focus:border-[#EC1D99] focus:ring-2 focus:ring-[#EC1D99]/20 transition-all text-white placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed font-sans"
           />
