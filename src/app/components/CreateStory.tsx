@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, Loader, Globe, Lock, UserPlus, Check, GripVertical, X } from "lucide-react";
+import { ChevronLeft, Loader, Globe, Lock, UserPlus, Check, X } from "lucide-react";
 import { Reorder, useDragControls } from "framer-motion";
 import NotificationBell from "./NotificationBell";
 import { searchUsers, addFriend, sendFriendRequest } from "@/lib/friends";
@@ -33,7 +33,8 @@ const StorySlotItem = ({
   isCurrentUser,
   onRemove,
   onFill,
-  isLast
+  isLast,
+  isReordering
 }: {
   slot: StorySlot;
   index: number;
@@ -41,6 +42,7 @@ const StorySlotItem = ({
   onRemove: (id: string, idx: number) => void;
   onFill: (idx: number) => void;
   isLast: boolean;
+  isReordering: boolean;
 }) => {
   const controls = useDragControls();
   const participant = slot.friend;
@@ -49,24 +51,24 @@ const StorySlotItem = ({
   return (
     <Reorder.Item
       value={slot}
-      dragListener={false} // Disable default drag listener to rely on controls
+      dragListener={isReordering} // Only drag when Reorder Mode is active
       dragControls={controls}
       className="flex items-start relative group"
+      style={{ touchAction: isReordering ? "none" : "pan-x" }}
     >
       <div
-        className={`flex flex-col items-center transition-all duration-200 relative`}
+        className={`flex flex-col items-center transition-all duration-200 relative ${isReordering ? "animate-pulse" : ""}`}
       >
         {/* Avatar/Slot Circle */}
         <div
           onClick={() => {
-            // If clicking the avatar, we might want to perform actions
-            // If empty, fill. If occupied, maybe show profile? 
-            // Current logic: click empty -> fill.
-            if (isEmpty) onFill(index);
+            if (isEmpty && !isReordering) onFill(index);
           }}
-          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all select-none relative ${participant
-            ? "ring-2 ring-[#EC1D99] ring-offset-2 ring-offset-black"
-            : "bg-gray-800 border-2 border-dashed border-gray-600 hover:border-gray-500 cursor-pointer"
+          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all select-none relative ${isReordering && participant
+            ? "ring-2 ring-yellow-400 cursor-grab active:cursor-grabbing transform scale-105"
+            : participant
+              ? "ring-2 ring-[#EC1D99] ring-offset-2 ring-offset-black"
+              : "bg-gray-800 border-2 border-dashed border-gray-600 hover:border-gray-500 cursor-pointer"
             }`}
         >
           {participant ? (
@@ -80,22 +82,8 @@ const StorySlotItem = ({
             <div className="text-gray-500 text-2xl pointer-events-none">+</div>
           )}
 
-          {/* Drag Handle - Only show if draggable (participant exists & not current user) */}
-          {participant && !isCurrentUser && (
-            <div
-              className="absolute -top-2 -right-2 w-6 h-6 bg-gray-700/80 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-sm z-10 touch-none"
-              onPointerDown={(e) => controls.start(e)}
-            >
-              <GripVertical className="w-3 h-3 text-white" />
-            </div>
-          )}
-
-          {/* Remove Button - Show on top left if draggable? Or click avatar to remove? 
-               User logic was: click avatar to remove.
-               Let's keep click-to-remove for now but restrict it to avoid accidental removes during drag?
-               Actually, with a drag handle, click is safer.
-           */}
-          {participant && !isCurrentUser && (
+          {/* Remove Button (Hide during reorder) */}
+          {participant && !isReordering && (
             <div
               className="absolute -bottom-1 -right-1 w-5 h-5 bg-red-500/80 rounded-full flex items-center justify-center cursor-pointer z-10 hidden group-hover:flex"
               onClick={(e) => {
@@ -109,8 +97,8 @@ const StorySlotItem = ({
 
         </div>
 
-        {/* Remove via main click (legacy behavior support) */}
-        {participant && !isCurrentUser && (
+        {/* Remove via main click */}
+        {participant && !isReordering && (
           <button
             className="absolute inset-0 w-full h-full opacity-0 z-0"
             onClick={() => onRemove(participant.id, index)}
@@ -233,13 +221,22 @@ const CreateStory = ({
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const errorTimeoutRef = useRef<number | null>(null);
   const topRef = useRef<HTMLDivElement | null>(null);
+  const participantsRef = useRef<HTMLDivElement | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
+  // const [isIOS, setIsIOS] = useState(false); // Removed as per request to unify behavior
+
+  useEffect(() => {
+    // Check if running on iOS client-side -- NO LONGER USED FOR DRAG but maybe keep for other logic? 
+    // User requested removing grip meaning we treat iOS same as Android regarding drag.
+    // Keeping this commented out or removing if only used for that.
+  }, []);
   const [error, setError] = useState("");
   const [friendSearchInput, setFriendSearchInput] = useState("");
   const [showFriendDropdown, setShowFriendDropdown] = useState(false);
   const [slotToFill, setSlotToFill] = useState<number | null>(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
 
   // Handle invite query param
   useEffect(() => {
@@ -481,10 +478,10 @@ const CreateStory = ({
 
     const activeParticipants = slots.map(s => s.friend).filter(p => p !== null);
 
-    if (activeParticipants.length < 1) {
-      setError("Please add at least one participant");
-      if (topRef.current) {
-        topRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (activeParticipants.length !== slots.length) {
+      setError("Please fill all empty slots before creating the story");
+      if (participantsRef.current) {
+        participantsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
       return;
     }
@@ -655,7 +652,7 @@ const CreateStory = ({
 
   // Render Section 2: Contributors
   const renderContributorsSection = () => (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={participantsRef}>
       <div className="text-left mb-6">
         <h2 className="text-lg font-bold text-white mb-2">2. Participants</h2>
         <p className="text-gray-400 text-sm">Choose who can add to this story</p>
@@ -770,15 +767,23 @@ const CreateStory = ({
       <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-medium text-gray-300">Story Turn Order</span>
-          <span className="text-xs text-gray-500 flex items-center gap-1">
-            <GripVertical className="w-3 h-3" />
-            Drag to reorder
-          </span>
+
+          {/* Reorder Toggle */}
+          <button
+            onClick={() => setIsReordering(!isReordering)}
+            className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${isReordering
+              ? "bg-[#EC1D99] text-white"
+              : "bg-gray-800 text-gray-400 hover:text-white"
+              }`}
+          >
+            {isReordering ? "Done" : "Reorder"}
+          </button>
         </div>
 
         {/* Reorder.Group for Drag and Drop */}
         <Reorder.Group
           axis="x"
+          layoutScroll
           values={slots}
           onReorder={setSlots}
           className="flex items-start py-2 overflow-x-auto pb-4 no-scrollbar px-5"
@@ -799,6 +804,7 @@ const CreateStory = ({
                   setShowFriendDropdown(true);
                 }}
                 isLast={idx === slots.length - 1}
+                isReordering={isReordering}
               />
             );
           })}
