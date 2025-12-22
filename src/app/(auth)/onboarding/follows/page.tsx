@@ -127,14 +127,27 @@ export default function FollowsPage() {
 
             // Respect local dismissal flags so tutorials don't reappear
             try { if (typeof window !== 'undefined' && user?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + user.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + user.id, 'true'); } } catch (err) { }
-            // Navigate to feed
-            router.push('/feed');
+
+            // Navigate to feed with fallback to ensure we navigate
+            try {
+                router.push('/feed');
+                // Fallback after short delay
+                setTimeout(() => {
+                    window.location.replace('/feed');
+                }, 500);
+            } catch (navErr) {
+                console.warn('[Follows] router.push failed, using fallback:', navErr);
+                window.location.replace('/feed');
+            }
         } catch (err) {
             console.error('[Follows] Error completing onboarding:', err);
+            // Even on error, try to navigate to feed
+            window.location.replace('/feed');
         } finally {
             setCompleting(false);
         }
     };
+
 
     return (
         <div className="min-h-screen bg-black text-white pb-32">

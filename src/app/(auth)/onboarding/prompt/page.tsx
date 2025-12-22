@@ -40,6 +40,13 @@ export default function PromptPage() {
         if (!user) return;
 
         setLoading(true);
+
+        // Safety timeout: if navigation doesn't happen within 10s, force redirect
+        const safetyTimeout = setTimeout(() => {
+            console.warn('[Prompt] Safety timeout triggered - forcing navigation to feed');
+            window.location.replace('/feed');
+        }, 10000);
+
         try {
             // Check if user already has an onboarding story
             let storyId = await getOnboardingStoryId(user.id);
@@ -73,10 +80,23 @@ export default function PromptPage() {
                 .update({ onboarding_step: 2 })
                 .eq('user_id', user.id);
 
+            clearTimeout(safetyTimeout);
+
             // Redirect to feed where they'll see the story and tutorial overlay
-            router.push(`/feed`);
+            // Use hard navigation to ensure proper state refresh
+            try {
+                router.push('/feed');
+                // Fallback after short delay if router.push doesn't trigger navigation
+                setTimeout(() => {
+                    window.location.replace('/feed');
+                }, 500);
+            } catch (navErr) {
+                console.warn('[Prompt] router.push failed, using fallback:', navErr);
+                window.location.replace('/feed');
+            }
         } catch (err) {
             console.error('[Prompt] Error creating onboarding story:', err);
+            clearTimeout(safetyTimeout);
             setLoading(false);
         }
     };
@@ -96,9 +116,21 @@ export default function PromptPage() {
 
             try { if (typeof window !== 'undefined' && user?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + user.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + user.id, 'true'); } } catch (err) { }
 
-            router.push('/onboarding/follows');
+            // Use hard navigation with fallback to ensure we navigate
+            try {
+                router.push('/onboarding/follows');
+                // Fallback after short delay
+                setTimeout(() => {
+                    window.location.replace('/onboarding/follows');
+                }, 500);
+            } catch (navErr) {
+                console.warn('[Prompt] router.push failed, using fallback:', navErr);
+                window.location.replace('/onboarding/follows');
+            }
         } catch (err) {
             console.error('[Prompt] Error skipping:', err);
+            // Even on error, try to navigate away
+            window.location.replace('/onboarding/follows');
         }
     };
 

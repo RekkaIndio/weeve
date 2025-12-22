@@ -177,7 +177,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 const storeState = useStore.getState();
                 if (!storeState.profileUpdateInProgress) {
                     setCurrentUser(appUser);
-                    // Trigger a fetch of stories with retry logic to handle timing issues
+                    // Wait for next microtask to ensure Zustand store state has propagated
+                    // before fetching stories which depends on currentUser
+                    await Promise.resolve();
+                    await new Promise(r => setTimeout(r, 50)); // Extra safety delay
                     fetchStoriesWithRetry().catch(err => console.warn('[AuthProvider] fetchStories retry failed', err));
                 }
 
@@ -211,6 +214,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 // CRITICAL FIX: Still fetch stories using the ID we have! 
                 // We likely have a valid session, just the profile row fell behind or failed to load.
                 // The default user was already set at the start of handleUserLogin.
+                // Wait for store state to propagate before fetching
+                await Promise.resolve();
+                await new Promise(r => setTimeout(r, 50));
                 fetchStoriesWithRetry().catch(err => console.warn('[AuthProvider] fetchStories retry failed (fallback path)', err));
 
                 const currentPath = window.location.pathname;
