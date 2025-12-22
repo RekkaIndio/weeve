@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useMemo, FormEvent, useCallback } from "react";
 import ShareModal from "./ShareModal";
 import VerificationBadge from "./VerificationBadge";
+import VideoThumbnail from "./VideoThumbnail";
 
 interface FeedItemProps {
     story: Story;
@@ -1769,34 +1770,9 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                                                 contribution ? (
                                                                     <>
                                                                         {contribution.mediaType === 'video' ? (
-                                                                            <video
-                                                                                src={contribution.mediaUrl}
-                                                                                className="weeve-inline-video w-full h-full object-cover"
-                                                                                muted
-                                                                                playsInline
-                                                                                loop
-                                                                                preload="metadata"
-                                                                                controls={false}
-                                                                                controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
-                                                                                disablePictureInPicture
-                                                                                disableRemotePlayback
-                                                                                onCanPlay={(event) => {
-                                                                                    const element = event.currentTarget;
-                                                                                    element.style.opacity = '1';
-                                                                                    element.style.visibility = 'visible';
-                                                                                    element.style.transform = 'translate3d(0,0,0)';
-                                                                                    element.play().catch(() => null);
-                                                                                }}
-                                                                                style={{
-                                                                                    opacity: 0,
-                                                                                    visibility: 'hidden',
-                                                                                    transform: 'translate3d(-9999px,-9999px,0)',
-                                                                                    transition: 'none',
-                                                                                    backgroundColor: '#000000',
-                                                                                    WebkitAppearance: 'none',
-                                                                                    appearance: 'none',
-                                                                                    backgroundImage: 'none'
-                                                                                }}
+                                                                            <VideoThumbnail
+                                                                                src={contribution.mediaUrl || ''}
+                                                                                className="w-full h-full object-cover"
                                                                             />
                                                                         ) : contribution.mediaType === 'image' ? (
                                                                             <img

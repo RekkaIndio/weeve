@@ -1740,7 +1740,9 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                             </span>
                                             <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
                                             {isCurrentTurn && (
-                                                <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
+                                                <span className="text-[10px] text-[#EC1D99] font-semibold">
+                                                    {participant.id === currentUser?.id ? 'Your turn' : 'Their turn'}
+                                                </span>
                                             )}
                                         </button>
                                     );
@@ -1779,8 +1781,11 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                             {displayName.split(' ').slice(0, 2).join(' ')}
                                         </span>
                                         <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {occurrence}</span>
-                                        {isCurrentTurn && (
-                                            <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
+                                        {/* Only show "Their turn" for other users - current user sees the + button with "Your turn" */}
+                                        {isCurrentTurn && contribution.userId !== currentUser?.id && (
+                                            <span className="text-[10px] text-[#EC1D99] font-semibold">
+                                                Their turn
+                                            </span>
                                         )}
                                     </button>
                                 );
@@ -1788,6 +1793,33 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
                             {participantsWithoutContributions.map((participant, idx) => {
                                 const isCurrentTurn = story.currentTurnUserId === participant.id;
+                                const isCurrentUserSlot = participant.id === currentUser?.id;
+
+                                // If it's the current user's turn and this is their slot, show the + button
+                                if (isCurrentUserSlot && isMyTurn && !isStoryComplete) {
+                                    return (
+                                        <button
+                                            key={`pending-${participant.id}-${participant.position ?? idx}`}
+                                            id="add-weeve-button"
+                                            onClick={() => {
+                                                try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
+                                                setShowStitchMenu(true);
+                                                setShowOnboardingTutorial(false);
+                                            }}
+                                            className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
+                                            style={timelineItemSnapStyle}
+                                        >
+                                            <div className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors">
+                                                <Plus className="w-6 h-6" />
+                                            </div>
+                                            <span className="text-[10px] text-[#EC1D99] font-medium max-w-[64px] truncate">
+                                                Your turn
+                                            </span>
+                                        </button>
+                                    );
+                                }
+
+                                // Otherwise show the disabled avatar for other participants
                                 return (
                                     <button
                                         key={`pending-${participant.id}-${participant.position ?? idx}`}
@@ -1810,14 +1842,16 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                         </span>
                                         <span className="text-[9px] uppercase tracking-wide text-[#EC1D99]/50">No part yet</span>
                                         {isCurrentTurn && (
-                                            <span className="text-[10px] text-[#EC1D99] font-semibold">Their turn</span>
+                                            <span className="text-[10px] text-[#EC1D99] font-semibold">
+                                                Their turn
+                                            </span>
                                         )}
                                     </button>
                                 );
                             })}
 
-                            {/* Show + button only if it's user's turn AND they don't have a specific waiting slot */}
-                            {isMyTurn && !userHasWaitingSlot && !isStoryComplete && (
+                            {/* Show + button only if it's user's turn AND they don't have a specific waiting slot AND they're not already shown in participantsWithoutContributions */}
+                            {isMyTurn && !userHasWaitingSlot && !isStoryComplete && !participantsWithoutContributions.some(p => p.id === currentUser?.id) && (
                                 <button
                                     id="add-weeve-button"
                                     onClick={() => {
@@ -1825,10 +1859,15 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                         setShowStitchMenu(true);
                                         setShowOnboardingTutorial(false);
                                     }}
-                                    className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors"
+                                    className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
                                     style={timelineItemSnapStyle}
                                 >
-                                    <Plus className="w-6 h-6" />
+                                    <div className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors">
+                                        <Plus className="w-6 h-6" />
+                                    </div>
+                                    <span className="text-[10px] text-[#EC1D99] font-medium">
+                                        Your turn
+                                    </span>
                                 </button>
                             )}
                         </div>
