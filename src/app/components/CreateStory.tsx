@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, Loader, Globe, Lock, UserPlus, Check, GripVertical } from "lucide-react";
-import { Reorder } from "framer-motion";
+import { ChevronLeft, Loader, Globe, Lock, UserPlus, Check, GripVertical, X } from "lucide-react";
+import { Reorder, useDragControls } from "framer-motion";
 import NotificationBell from "./NotificationBell";
 import { searchUsers, addFriend, sendFriendRequest } from "@/lib/friends";
 import { searchHashtags } from "@/lib/hashtags";
@@ -25,6 +25,124 @@ interface StorySlot {
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
+// Extracted Slot Component for DragControls
+const StorySlotItem = ({
+  slot,
+  index,
+  isCurrentUser,
+  onRemove,
+  onFill,
+  isLast
+}: {
+  slot: StorySlot;
+  index: number;
+  isCurrentUser: boolean;
+  onRemove: (id: string, idx: number) => void;
+  onFill: (idx: number) => void;
+  isLast: boolean;
+}) => {
+  const controls = useDragControls();
+  const participant = slot.friend;
+  const isEmpty = !participant;
+
+  return (
+    <Reorder.Item
+      value={slot}
+      dragListener={false} // Disable default drag listener to rely on controls
+      dragControls={controls}
+      className="flex items-start relative group"
+    >
+      <div
+        className={`flex flex-col items-center transition-all duration-200 relative`}
+      >
+        {/* Avatar/Slot Circle */}
+        <div
+          onClick={() => {
+            // If clicking the avatar, we might want to perform actions
+            // If empty, fill. If occupied, maybe show profile? 
+            // Current logic: click empty -> fill.
+            if (isEmpty) onFill(index);
+          }}
+          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all select-none relative ${participant
+            ? "ring-2 ring-[#EC1D99] ring-offset-2 ring-offset-black"
+            : "bg-gray-800 border-2 border-dashed border-gray-600 hover:border-gray-500 cursor-pointer"
+            }`}
+        >
+          {participant ? (
+            <img
+              src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
+              alt={participant.name}
+              className="w-full h-full object-cover rounded-full pointer-events-none select-none"
+              draggable={false}
+            />
+          ) : (
+            <div className="text-gray-500 text-2xl pointer-events-none">+</div>
+          )}
+
+          {/* Drag Handle - Only show if draggable (participant exists & not current user) */}
+          {participant && !isCurrentUser && (
+            <div
+              className="absolute -top-2 -right-2 w-6 h-6 bg-gray-700/80 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing backdrop-blur-sm z-10 touch-none"
+              onPointerDown={(e) => controls.start(e)}
+            >
+              <GripVertical className="w-3 h-3 text-white" />
+            </div>
+          )}
+
+          {/* Remove Button - Show on top left if draggable? Or click avatar to remove? 
+               User logic was: click avatar to remove.
+               Let's keep click-to-remove for now but restrict it to avoid accidental removes during drag?
+               Actually, with a drag handle, click is safer.
+           */}
+          {participant && !isCurrentUser && (
+            <div
+              className="absolute -bottom-1 -right-1 w-5 h-5 bg-red-500/80 rounded-full flex items-center justify-center cursor-pointer z-10 hidden group-hover:flex"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(participant.id, index);
+              }}
+            >
+              <X className="w-3 h-3 text-white" />
+            </div>
+          )}
+
+        </div>
+
+        {/* Remove via main click (legacy behavior support) */}
+        {participant && !isCurrentUser && (
+          <button
+            className="absolute inset-0 w-full h-full opacity-0 z-0"
+            onClick={() => onRemove(participant.id, index)}
+            aria-label="Remove participant"
+          />
+        )}
+
+
+        {/* Label with turn number */}
+        <div className="flex flex-col items-center mt-2 pointer-events-none">
+          <span className={`text-[10px] uppercase font-bold tracking-wider ${participant ? "text-[#EC1D99]" : "text-gray-600"}`}>
+            #{index + 1}
+          </span>
+          <span className={`text-xs text-center font-medium max-w-[64px] truncate mt-0.5 ${participant ? "text-white" : "text-gray-500"
+            }`}>
+            {participant
+              ? (isCurrentUser ? "You" : participant.name.split(" ")[0])
+              : "Empty"
+            }
+          </span>
+        </div>
+      </div>
+
+      {/* Connector line */}
+      {!isLast && (
+        <div className="h-14 w-8 flex items-center justify-center flex-shrink-0">
+          <div className="w-full h-0.5 bg-gray-700 rounded-full" />
+        </div>
+      )}
+    </Reorder.Item>
+  );
+};
 
 export interface CreateStoryFormState {
   title: string;
@@ -642,7 +760,7 @@ const CreateStory = ({
               inviteCount: newCount
             }));
           }}
-          className="w-full accent-[#EC1D99] h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer"
+          className="w-full accent-[#EC1D99] h-2 cursor-pointer"
           aria-label="Number of participants"
         />
         <p className="text-xs text-gray-500 mt-2">Total number of people in this story (including you)</p>
@@ -668,71 +786,20 @@ const CreateStory = ({
           {slots.map((slot, idx) => {
             const participant = slot.friend;
             const isCurrentUser = participant?.id === currentUser?.id;
-            const isEmpty = !participant;
-            const isFirstEmpty = isEmpty && slots.findIndex(s => s.friend === null) === idx;
 
             return (
-              <Reorder.Item
+              <StorySlotItem
                 key={slot.id}
-                value={slot}
-                dragListener={!!participant && !isCurrentUser} // Only drag if populated and not current user
-                className="flex items-start"
-              >
-                <div
-                  onClick={() => {
-                    if (participant && !isCurrentUser) {
-                      handleRemoveFriend(participant.id, idx);
-                    } else if (isEmpty) {
-                      setSlotToFill(idx);
-                      setShowFriendDropdown(true);
-                    }
-                  }}
-                  className={`flex flex-col items-center transition-all duration-200 
-                    ${participant && !isCurrentUser ? "cursor-grab active:cursor-grabbing" : isEmpty ? "cursor-pointer" : ""}`}
-                >
-                  {/* Avatar/Slot Circle */}
-                  <div
-                    className={`w-14 h-14 rounded-full flex items-center justify-center transition-all select-none ${participant
-                      ? "ring-2 ring-[#EC1D99] ring-offset-2 ring-offset-black"
-                      : slotToFill === idx
-                        ? "ring-2 ring-[#EC1D99] ring-offset-2 ring-offset-black bg-gray-800 border-2 border-dashed border-[#EC1D99]"
-                        : "bg-gray-800 border-2 border-dashed border-gray-600 hover:border-gray-500"
-                      }`}
-                  >
-                    {participant ? (
-                      <img
-                        src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
-                        alt={participant.name}
-                        className="w-full h-full object-cover rounded-full pointer-events-none select-none"
-                        draggable={false}
-                      />
-                    ) : (
-                      <div className="text-gray-500 text-2xl pointer-events-none">+</div>
-                    )}
-                  </div>
-
-                  {/* Label with turn number */}
-                  <div className="flex flex-col items-center mt-2 pointer-events-none">
-                    <span className={`text-[10px] uppercase font-bold tracking-wider ${participant ? "text-[#EC1D99]" : "text-gray-600"}`}>
-                      #{idx + 1}
-                    </span>
-                    <span className={`text-xs text-center font-medium max-w-[64px] truncate mt-0.5 ${participant ? "text-white" : "text-gray-500"
-                      }`}>
-                      {participant
-                        ? (isCurrentUser ? "You" : participant.name.split(" ")[0])
-                        : (isFirstEmpty ? "Add" : "Empty")
-                      }
-                    </span>
-                  </div>
-                </div>
-
-                {/* Connector line - Aligned with Avatar */}
-                {idx < slots.length - 1 && (
-                  <div className="h-14 w-8 flex items-center justify-center flex-shrink-0">
-                    <div className="w-full h-0.5 bg-gray-700 rounded-full" />
-                  </div>
-                )}
-              </Reorder.Item>
+                slot={slot}
+                index={idx}
+                isCurrentUser={isCurrentUser}
+                onRemove={handleRemoveFriend}
+                onFill={(i) => {
+                  setSlotToFill(i);
+                  setShowFriendDropdown(true);
+                }}
+                isLast={idx === slots.length - 1}
+              />
             );
           })}
         </Reorder.Group>
