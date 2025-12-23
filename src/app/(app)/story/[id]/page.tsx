@@ -13,6 +13,7 @@ import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, Pencil, X, 
 import EditStoryModal from "@/app/components/EditStoryModal";
 import ImageCropper from "@/app/components/ImageCropper";
 import { DrawingCanvas, type DrawingCanvasRef } from "@/app/components/DrawingCanvas";
+import { DraggableSticker } from "@/app/components/DraggableSticker";
 import OnboardingTutorialOverlay from "@/app/components/OnboardingTutorialOverlay";
 import StitchContextThumbnails from "@/app/components/StitchContextThumbnails";
 import { toast } from "sonner";
@@ -191,6 +192,48 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const [mediaSourcePicker, setMediaSourcePicker] = useState<{ type: 'video' | 'image' } | null>(null);
     const [stitchMode, setStitchMode] = useState<'video' | 'image' | 'text' | 'drawing' | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const uploadStartTimeRef = useRef<number | null>(null);
+
+    // Safety mechanism: Reset stuck upload state when app resumes from background
+    // This handles the case where upload completes while app is backgrounded but UI doesn't update
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && isUploading) {
+                // App just became visible and we were supposedly uploading
+                // Check if the user has already contributed (upload completed in background)
+                const userAlreadyContributed = currentUser?.id && story?.contributions?.some(c => c.userId === currentUser.id);
+
+                if (userAlreadyContributed) {
+                    console.log('[Story] Upload appears to have completed while app was backgrounded. Resetting state.');
+                    setIsUploading(false);
+                    setStitchMode(null);
+                    setMediaDraft(null);
+                    setTextElements([]);
+                    setShowStitchMenu(false);
+                    toast.success('Your contribution was posted!');
+                }
+
+                // Also check for timeout - if uploading for more than 2 minutes, assume something went wrong
+                const UPLOAD_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+                if (uploadStartTimeRef.current && Date.now() - uploadStartTimeRef.current > UPLOAD_TIMEOUT_MS) {
+                    console.warn('[Story] Upload has been stuck for over 2 minutes. Resetting state.');
+                    setIsUploading(false);
+                    toast.error('Upload timed out. Please try again.');
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        // Also handle focus events for additional coverage
+        window.addEventListener('focus', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleVisibilityChange);
+        };
+    }, [isUploading, currentUser?.id, story?.contributions]);
+
     const [textElements, setTextElements] = useState<TextElement[]>([]);
     const [activeElementId, setActiveElementId] = useState<string | null>(null);
     const [mediaDraft, setMediaDraft] = useState<{ type: 'video' | 'image'; file?: File; previewUrl?: string } | null>(null);
@@ -274,7 +317,13 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     // Check if it's the user's turn - either explicitly their turn OR they have a waiting slot they haven't filled
     const isExplicitlyMyTurn = !isStoryComplete && story?.currentTurnUserId === currentUser?.id;
     const canContributeWithWaitingSlot = !isStoryComplete && userHasWaitingSlot && !userHasContributed;
-    const isMyTurn = isExplicitlyMyTurn || canContributeWithWaitingSlot;
+
+    // Sequential check: A user at position N can only contribute if there are at least N contributions
+    // This ensures all previous parts are completed before the next person can add theirs
+    const userPosition = currentUserParticipant?.position;
+    const canContributeSequentially = userPosition === undefined || userPosition === null || contributionsCount >= userPosition;
+
+    const isMyTurn = (isExplicitlyMyTurn || canContributeWithWaitingSlot) && canContributeSequentially;
     const hasContributions = contributions.length > 0;
 
     // Note: We intentionally do NOT call fetchStories() on mount because:
@@ -1281,6 +1330,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         }
 
         setIsUploading(true);
+        uploadStartTimeRef.current = Date.now();
 
         try {
             const willComplete = maxWeeves !== null && story.contributions.length + 1 >= maxWeeves;
@@ -1321,6 +1371,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             toast.error('Failed to post contribution. Please try again.');
         } finally {
             setIsUploading(false);
+            uploadStartTimeRef.current = null;
         }
     };
 
@@ -1717,17 +1768,20 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                         );
                                     }
 
+                                    // Check if this is the current user waiting for previous parts to complete
+                                    const isWaitingForPreviousParts = isCurrentUser && !isStoryComplete && entry.position > contributionsCount;
+
                                     // Show disabled placeholder for other users' empty slots
                                     return (
                                         <button
                                             key={`empty-${participant.id}-${entry.position}`}
                                             type="button"
                                             disabled
-                                            className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-40 cursor-default"
+                                            className={`flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none cursor-default ${isCurrentUser ? 'opacity-60' : 'opacity-40'}`}
                                             style={timelineItemSnapStyle}
                                         >
                                             <div
-                                                className={`w-12 h-12 rounded-full border-2 border-dashed overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99]/70' : 'border-gray-600'}`}
+                                                className={`w-12 h-12 rounded-full border-2 border-dashed overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentUser ? 'border-[#EC1D99]/50' : isCurrentTurn ? 'border-[#EC1D99]/70' : 'border-gray-600'}`}
                                             >
                                                 <img
                                                     src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
@@ -1739,7 +1793,11 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                                 {participant.name.split(' ').slice(0, 2).join(' ')}
                                             </span>
                                             <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
-                                            {isCurrentTurn && (
+                                            {isWaitingForPreviousParts ? (
+                                                <span className="text-[9px] text-yellow-500 font-medium">
+                                                    Waiting for Part {contributionsCount + 1}
+                                                </span>
+                                            ) : isCurrentTurn && (
                                                 <span className="text-[10px] text-[#EC1D99] font-semibold">
                                                     {participant.id === currentUser?.id ? 'Your turn' : 'Their turn'}
                                                 </span>
@@ -2017,76 +2075,25 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                             />
                                             {/* Stickers Overlay */}
                                             {photoStickers.map((sticker) => (
-                                                <div
+                                                <DraggableSticker
                                                     key={sticker.id}
-                                                    className="absolute cursor-move select-none pointer-events-auto touch-none"
-                                                    style={{
-                                                        left: `${sticker.x}%`,
-                                                        top: `${sticker.y}%`,
-                                                        transform: `translate(-50%, -50%) scale(${sticker.scale})`,
-                                                        fontSize: '3rem',
-                                                        zIndex: draggingStickerId === sticker.id ? 100 : 10,
+                                                    id={sticker.id}
+                                                    emoji={sticker.emoji}
+                                                    initialX={sticker.x}
+                                                    initialY={sticker.y}
+                                                    initialScale={sticker.scale}
+                                                    isDragging={draggingStickerId === sticker.id}
+                                                    onDragStart={setDraggingStickerId}
+                                                    onDragEnd={() => setDraggingStickerId(null)}
+                                                    onUpdate={(id, updates) => {
+                                                        setPhotoStickers(prev => prev.map(s =>
+                                                            s.id === id ? { ...s, ...updates } : s
+                                                        ));
                                                     }}
-                                                    onPointerDown={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-
-                                                        const rect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
-                                                        const startClientX = e.clientX;
-                                                        const startClientY = e.clientY;
-                                                        let hasMoved = false;
-                                                        const MOVE_THRESHOLD = 10; // pixels before counting as drag
-
-                                                        setDraggingStickerId(sticker.id);
-
-                                                        const handleMove = (moveEvent: PointerEvent) => {
-                                                            // Check if moved beyond threshold
-                                                            const dx = Math.abs(moveEvent.clientX - startClientX);
-                                                            const dy = Math.abs(moveEvent.clientY - startClientY);
-
-                                                            if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
-                                                                hasMoved = true;
-                                                                // Calculate position as percentage of container
-                                                                const newX = ((moveEvent.clientX - rect.left) / rect.width) * 100;
-                                                                const newY = ((moveEvent.clientY - rect.top) / rect.height) * 100;
-                                                                const clampedX = Math.max(5, Math.min(95, newX));
-                                                                const clampedY = Math.max(5, Math.min(95, newY));
-
-                                                                setPhotoStickers(prev => prev.map(s =>
-                                                                    s.id === sticker.id
-                                                                        ? { ...s, x: clampedX, y: clampedY }
-                                                                        : s
-                                                                ));
-                                                            }
-                                                        };
-
-                                                        const handleUp = () => {
-                                                            setDraggingStickerId(null);
-                                                            document.removeEventListener('pointermove', handleMove);
-                                                            document.removeEventListener('pointerup', handleUp);
-
-                                                            // Double-tap to remove
-                                                            if (!hasMoved) {
-                                                                const now = Date.now();
-                                                                const lastTap = stickerLastTapRef.current;
-
-                                                                if (lastTap && lastTap.id === sticker.id && now - lastTap.time < 400) {
-                                                                    // Double tap detected - remove sticker
-                                                                    setPhotoStickers(prev => prev.filter(s => s.id !== sticker.id));
-                                                                    stickerLastTapRef.current = null;
-                                                                } else {
-                                                                    // First tap - record it
-                                                                    stickerLastTapRef.current = { id: sticker.id, time: now };
-                                                                }
-                                                            }
-                                                        };
-
-                                                        document.addEventListener('pointermove', handleMove);
-                                                        document.addEventListener('pointerup', handleUp);
+                                                    onDelete={(id) => {
+                                                        setPhotoStickers(prev => prev.filter(s => s.id !== id));
                                                     }}
-                                                >
-                                                    {sticker.emoji}
-                                                </div>
+                                                />
                                             ))}
                                         </div>
                                     )}
@@ -2096,7 +2103,40 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                             {/* Drawing Canvas */}
                             {stitchMode === 'drawing' && (
                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-auto px-4 pt-20 pb-32">
-                                    <DrawingCanvas ref={drawingCanvasRef} className="w-full max-w-md" onAddText={addTextElement} />
+                                    <DrawingCanvas
+                                        ref={drawingCanvasRef}
+                                        className="w-full max-w-md"
+                                        onAddText={addTextElement}
+                                        onToggleStickers={() => {
+                                            setShowStickerPanel(!showStickerPanel);
+                                            setShowPhotoFilterPanel(false);
+                                        }}
+                                        isStickerPanelOpen={showStickerPanel}
+                                        onClearStickers={() => setPhotoStickers([])}
+                                        hasStickers={photoStickers.length > 0}
+                                    />
+                                    {/* Stickers Overlay for Drawing */}
+                                    {photoStickers.map((sticker) => (
+                                        <DraggableSticker
+                                            key={sticker.id}
+                                            id={sticker.id}
+                                            emoji={sticker.emoji}
+                                            initialX={sticker.x}
+                                            initialY={sticker.y}
+                                            initialScale={sticker.scale}
+                                            isDragging={draggingStickerId === sticker.id}
+                                            onDragStart={setDraggingStickerId}
+                                            onDragEnd={() => setDraggingStickerId(null)}
+                                            onUpdate={(id, updates) => {
+                                                setPhotoStickers(prev => prev.map(s =>
+                                                    s.id === id ? { ...s, ...updates } : s
+                                                ));
+                                            }}
+                                            onDelete={(id) => {
+                                                setPhotoStickers(prev => prev.filter(s => s.id !== id));
+                                            }}
+                                        />
+                                    ))}
                                 </div>
                             )}
 
@@ -2257,7 +2297,9 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                             setShowStickerPanel(false);
                                             setShowPhotoFilterPanel(false);
                                             // Open cropper with current image
-                                            setImageToCrop(mediaDraft.previewUrl!);
+                                            if (mediaDraft?.previewUrl) {
+                                                setImageToCrop(mediaDraft.previewUrl);
+                                            }
                                         }}
                                         className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
                                         aria-label="Crop"

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import * as fabric from 'fabric';
-import { Eraser, Undo2, Redo2, Palette, Circle, X, Type } from 'lucide-react';
+import { Eraser, Undo2, Redo2, Circle, Type, Smile, Trash } from 'lucide-react';
 
 const TARGET_WIDTH = 1080;
 const TARGET_HEIGHT = 1920;
@@ -36,10 +36,14 @@ export interface DrawingCanvasRef {
 interface DrawingCanvasProps {
     className?: string;
     onAddText?: () => void;
+    onToggleStickers?: () => void;
+    isStickerPanelOpen?: boolean;
+    onClearStickers?: () => void;
+    hasStickers?: boolean;
 }
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-    ({ className = '', onAddText }, ref) => {
+    ({ className = '', onAddText, onToggleStickers, isStickerPanelOpen, onClearStickers, hasStickers }, ref) => {
         const containerRef = useRef<HTMLDivElement>(null);
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
@@ -51,6 +55,30 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         const [activePanel, setActivePanel] = useState<'color' | 'size' | null>(null);
         const historyRef = useRef<string[]>([]);
         const historyStepRef = useRef(0);
+
+        const updateUndoRedoState = () => {
+            setCanUndo(historyStepRef.current > 0);
+            setCanRedo(historyStepRef.current < historyRef.current.length - 1);
+        };
+
+        const saveHistory = (canvas: fabric.Canvas) => {
+            const json = JSON.stringify(canvas.toJSON());
+
+            // Remove any redo states
+            historyRef.current = historyRef.current.slice(0, historyStepRef.current + 1);
+
+            // Add new state
+            historyRef.current.push(json);
+            historyStepRef.current = historyRef.current.length - 1;
+
+            // Limit history to 50 states
+            if (historyRef.current.length > 50) {
+                historyRef.current.shift();
+                historyStepRef.current--;
+            }
+
+            updateUndoRedoState();
+        };
 
         // Initialize fabric canvas
         useEffect(() => {
@@ -88,46 +116,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                 canvas.dispose();
                 fabricCanvasRef.current = null;
             };
+            // eslint-disable-next-line react-hooks/exhaustive-deps
         }, []);
-
-        // Update brush when color or size changes
-        useEffect(() => {
-            const canvas = fabricCanvasRef.current;
-            if (!canvas || !canvas.freeDrawingBrush) return;
-
-            if (isErasing) {
-                // Eraser mode: use white color with destination-out
-                canvas.freeDrawingBrush.color = '#1F2937'; // Same as background
-                canvas.freeDrawingBrush.width = currentBrushSize * 2; // Eraser is larger
-            } else {
-                canvas.freeDrawingBrush.color = currentColor;
-                canvas.freeDrawingBrush.width = currentBrushSize;
-            }
-        }, [currentColor, currentBrushSize, isErasing]);
-
-        const saveHistory = (canvas: fabric.Canvas) => {
-            const json = JSON.stringify(canvas.toJSON());
-
-            // Remove any redo states
-            historyRef.current = historyRef.current.slice(0, historyStepRef.current + 1);
-
-            // Add new state
-            historyRef.current.push(json);
-            historyStepRef.current = historyRef.current.length - 1;
-
-            // Limit history to 50 states
-            if (historyRef.current.length > 50) {
-                historyRef.current.shift();
-                historyStepRef.current--;
-            }
-
-            updateUndoRedoState();
-        };
-
-        const updateUndoRedoState = () => {
-            setCanUndo(historyStepRef.current > 0);
-            setCanRedo(historyStepRef.current < historyRef.current.length - 1);
-        };
 
         const handleUndo = async () => {
             const canvas = fabricCanvasRef.current;
@@ -253,6 +243,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                         </button>
                     )}
 
+                    {/* Sticker Button */}
+                    {onToggleStickers && (
+                        <button
+                            onClick={onToggleStickers}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${isStickerPanelOpen ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                            aria-label="Stickers"
+                        >
+                            <Smile className="w-5 h-5 text-white" />
+                        </button>
+                    )}
+
                     {/* Color Tool */}
                     <button
                         onClick={() => setActivePanel(activePanel === 'color' ? null : 'color')}
@@ -278,6 +279,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                     >
                         <Eraser className="w-5 h-5 text-white" />
                     </button>
+
+                    {/* Clear Stickers Badge - if stickers exist */}
+                    {hasStickers && onClearStickers && (
+                        <button
+                            onClick={onClearStickers}
+                            className="w-10 h-10 rounded-full bg-red-500/30 backdrop-blur-sm border-2 border-red-500/50 flex items-center justify-center shadow-lg transition-all hover:bg-red-500/50"
+                            aria-label="Clear stickers"
+                        >
+                            <Trash className="w-5 h-5 text-red-400" />
+                        </button>
+                    )}
 
                     {/* Undo */}
                     <button

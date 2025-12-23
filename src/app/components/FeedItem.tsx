@@ -940,6 +940,13 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     }, [currentIndex, displayOrderedContributions.length, mediaType, isVisible, hasContributions, isCommentsOpen, isVideoReady, mediaUrl]);
 
     const handleVideoEnded = () => {
+        // Efficiently loop single videos without triggering a state update cycle
+        if (displayOrderedContributions.length === 1 && videoRef.current) {
+            videoRef.current.currentTime = 0;
+            videoRef.current.play().catch(() => null);
+            return;
+        }
+
         setCurrentIndex((prev) => {
             if (displayOrderedContributions.length === 0) {
                 return 0;
@@ -1095,6 +1102,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                         autoPlay
                         playsInline
                         preload="auto"
+                        loop={displayOrderedContributions.length === 1}
                         controls={false}
                         controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                         disablePictureInPicture

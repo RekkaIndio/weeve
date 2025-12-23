@@ -243,9 +243,29 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     };
 
     const handleWhatsAppShare = async () => {
-        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
-        await openUrl(whatsappUrl);
-        toast.success('Opening WhatsApp...');
+        try {
+            const { Capacitor } = await import('@capacitor/core');
+            const isNative = Capacitor.isNativePlatform();
+
+            // Use native deep link on mobile platforms to open WhatsApp directly
+            // whatsapp:// scheme opens the app directly, while https://wa.me opens the web version
+            const whatsappUrl = isNative
+                ? `whatsapp://send?text=${encodeURIComponent(shareText)}`
+                : `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+
+            if (isNative) {
+                // On native, use window.location to trigger the deep link
+                window.location.href = whatsappUrl;
+            } else {
+                await openUrl(whatsappUrl);
+            }
+            toast.success('Opening WhatsApp...');
+        } catch (e) {
+            // Fallback to web URL if something goes wrong
+            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+            await openUrl(whatsappUrl);
+            toast.success('Opening WhatsApp...');
+        }
     };
 
     const toggleRecipientSelection = (recipient: Recipient) => {

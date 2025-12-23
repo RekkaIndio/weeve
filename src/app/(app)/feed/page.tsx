@@ -1,24 +1,94 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import FeedItem from "@/app/components/FeedItem";
 import FeedOnboardingOverlay from "@/app/components/FeedOnboardingOverlay";
 import { useAuth } from "@/app/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
+import { fetchGroups } from "@/lib/data";
 
 export default function Home() {
   const router = useRouter();
   const { user, loading } = useAuth();
-  const { stories, fetchStories, currentUser } = useStore();
+  const { stories, fetchStories, currentUser, setGroups, fetchFriends, isStoriesLoading } = useStore();
   const [showOnboardingOverlay, setShowOnboardingOverlay] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
+  // Force refresh key - changing this forces React to re-render
+  const [forceRefreshKey, setForceRefreshKey] = useState(0);
+
+
+
+
+
+
+  // CRITICAL: Force a full page reload after OAuth redirect to wake up the WebView
+  useEffect(() => {
+    const oauthReloadKey = 'weeve_oauth_needs_reload';
+    const wasOAuthRedirect = sessionStorage.getItem(oauthReloadKey);
+
+    if (wasOAuthRedirect) {
+      console.log('[Feed] OAuth redirect detected, removing flag');
+      sessionStorage.removeItem(oauthReloadKey);
+      // Don't reload again - flag was already consumed
+    } else {
+      // Quick check - reload immediately if stories are empty
+      const timer = setTimeout(() => {
+        const currentStories = useStore.getState().stories;
+        if (currentStories.length === 0) {
+          console.log('[Feed] No stories loaded, forcing page reload...');
+          sessionStorage.setItem(oauthReloadKey, 'true');
+          window.location.reload();
+        }
+      }, 100); // Very fast check - 100ms
+
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Force fetch on mount - quick delay
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        await fetchStories();
+        fetchGroups().then(groups => setGroups(groups));
+        fetchFriends();
+      } catch (err) {
+        console.error('[Feed] Fetch error:', err);
+      }
+    }, 0); // Immediate
+    return () => clearTimeout(timer);
+  }, [fetchStories, setGroups, fetchFriends]);
+
   // Tab state for feed organization
   const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
+
+  // Pull-to-refresh handler
+  const handleRefresh = useCallback(async () => {
+    // Allow refresh if we have an auth user, even if currentUser isn't set yet
+    if (isRefreshing || !user) return;
+
+    setIsRefreshing(true);
+    console.log('[Feed] Pull-to-refresh triggered');
+
+    try {
+      await Promise.all([
+        fetchStories(),
+        fetchGroups().then(groups => setGroups(groups)),
+        fetchFriends(),
+      ]);
+      console.log('[Feed] Refresh complete');
+    } catch (error) {
+      console.error('[Feed] Refresh error:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, user, fetchStories, setGroups, fetchFriends]);
 
   // Filter stories based on active tab
   const filteredStories = stories.filter(story => {
@@ -38,12 +108,35 @@ export default function Home() {
       const friendIds = useStore.getState().friends.map(f => f.id);
       return friendIds.includes(story.creatorId);
     }
+  }).filter(story => {
+    // Global filter: Exclude private stories where the current user is a "waiting" participant.
+    // These belong in the "Waiting" tab on the profile page, not in the main feed.
+    if (currentUser && story.visibility === 'private') {
+      const isWaitingForCurrentUser = (story.participants ?? []).some((p: any) => p.id === currentUser.id && p.status === 'waiting');
+      if (isWaitingForCurrentUser) {
+        return false;
+      }
+    }
+    return true;
   });
+
 
   // Re-calculate active index when changing tabs to prevent index out of bounds
   useEffect(() => {
     setActiveIndex(0);
   }, [activeTab]);
+
+  // DEBUG LOGGING - Moved here to have access to all variables
+  useEffect(() => {
+    console.log('[Feed Page Debug] Status Update:', {
+      authLoading: loading,
+      isStoriesLoading,
+      hasUser: !!user,
+      hasCurrentUser: !!currentUser,
+      hasFilteredStories: filteredStories.length > 0,
+      activeTab
+    });
+  }, [loading, isStoriesLoading, user, currentUser, filteredStories.length, activeTab]);
 
   // Preload adjacent stories' videos to speed up transitions (uses global cache)
   useEffect(() => {
@@ -83,13 +176,77 @@ export default function Home() {
     }
   }, [activeIndex, filteredStories]);
 
+  // Redirect to login if not authenticated
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login");
-    } else if (user) {
+    }
+  }, [loading, router, user]);
+
+  // Fetch stories when authenticated user is available
+  // We use `user` (auth user) as the trigger, not `currentUser` (store user)
+  // because currentUser might not be set yet due to race conditions after login
+  useEffect(() => {
+    if (user) {
+      console.log('[Feed] User authenticated, fetching stories...');
       fetchStories();
     }
-  }, [loading, router, user, fetchStories]);
+  }, [user, fetchStories]);
+
+  // Also check session on mount - handles the case where the page loads
+  // after a full redirect (window.location.replace) and user state hasn't propagated yet
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkSessionAndFetch = async () => {
+      // Retry multiple times with increasing delays
+      // Session might not be immediately available after login redirect
+      const maxAttempts = 5;
+      const delays = [100, 200, 300, 500, 1000]; // Standard delays
+
+      for (let attempt = 0; attempt < maxAttempts && !cancelled; attempt++) {
+        try {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) console.warn(`[Feed] Session check error (attempt ${attempt + 1}):`, sessionError);
+
+          if (session?.user) {
+            console.log(`[Feed] Session found on mount (attempt ${attempt + 1}), fetching data for user: ${session.user.id}`);
+
+            // Log access token presence (don't log full token)
+            console.log(`[Feed] Access token present: ${!!session.access_token}`);
+
+            // Serialize fetches to avoid overwhelming the cold connection
+            await fetchStories();
+
+            // Queue secondary fetches in background (don't await them for the retry loop)
+            Promise.allSettled([
+              fetchGroups().then(groups => setGroups(groups)),
+              fetchFriends(),
+            ]).catch(err => console.warn('[Feed] Secondary data fetch warning:', err));
+
+            console.log('[Feed] Mount-time data fetch triggered');
+            return; // Success, exit the retry loop
+          } else {
+            console.log(`[Feed] No session on attempt ${attempt + 1}, retrying...`);
+          }
+        } catch (err) {
+          console.warn(`[Feed] Session check attempt ${attempt + 1} failed:`, err);
+        }
+
+        // Wait before next attempt
+        if (attempt < maxAttempts - 1 && !cancelled) {
+          await new Promise(r => setTimeout(r, delays[attempt]));
+        }
+      }
+
+      console.warn('[Feed] All session check attempts exhausted');
+    };
+
+    // Run immediately on mount
+    checkSessionAndFetch();
+
+    return () => { cancelled = true; };
+  }, [fetchStories, setGroups, fetchFriends]);
 
   // Check if user needs onboarding tutorial
   useEffect(() => {
@@ -276,12 +433,26 @@ export default function Home() {
     };
   }, [filteredStories.length, activeIndex]); // Updated dependency
 
-  if (loading || !user) {
+  // Force unlock the UI after 3 seconds if still stuck
+  const [forceUnlock, setForceUnlock] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      console.log('[Feed] Force unlock triggered after 500ms');
+      setForceUnlock(true);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Only block on auth loading and user presence
+  // Don't block on isStoriesLoading - we have persisted stories to show
+  // Force unlock after 3 seconds as failsafe
+  if ((loading || !user) && !forceUnlock) {
+    console.log('[Feed Page Debug] Render blocked by:', { loading, noUser: !user, isStoriesLoading, forceUnlock });
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-[#EC1D99] border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-400 text-sm">Loading...</p>
+          <p className="text-gray-400 text-sm">{isStoriesLoading ? 'Refreshing feed...' : 'Loading...'}</p>
         </div>
       </div>
     );
@@ -290,7 +461,7 @@ export default function Home() {
   return (
     <>
       {/* Floating Tab Switcher */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex justify-center items-center pt-8 pb-4 pointer-events-none">
+      <div className="absolute top-0 left-0 right-0 z-50 flex justify-center items-center pb-4 pointer-events-none" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}>
         <div className="flex gap-4 pointer-events-auto drop-shadow-md">
           <button
             onClick={() => setActiveTab('following')}
@@ -307,6 +478,15 @@ export default function Home() {
           </button>
         </div>
       </div>
+
+      {/* Pull-to-refresh indicator */}
+      {isRefreshing && (
+        <div className="absolute top-16 left-0 right-0 z-40 flex justify-center" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+          <div className="bg-black/80 backdrop-blur-sm rounded-full p-2">
+            <div className="w-6 h-6 border-2 border-[#EC1D99] border-t-transparent rounded-full animate-spin" />
+          </div>
+        </div>
+      )}
 
       <div ref={containerRef} className="h-full w-full overflow-hidden scrollbar-hide">
         {filteredStories.map((story, index) => (
@@ -327,11 +507,44 @@ export default function Home() {
           </div>
         ))}
 
-        {/* End of Feed Placeholder */}
+        {/* End of Feed / Empty State */}
         <div className="h-full flex items-center justify-center bg-black text-gray-500">
-          <div className="text-center">
-            <p className="mb-4">You&apos;re all caught up!</p>
-            <button className="text-[#EC1D99] font-bold">Discover more</button>
+          <div className="text-center px-8">
+            {filteredStories.length === 0 ? (
+              isStoriesLoading ? (
+                // Show spinner while loading - prevents flash of "No stories"
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-12 h-12 border-4 border-[#EC1D99] border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : (
+                <>
+                  <p className="mb-4 text-lg">No stories yet</p>
+                  <p className="mb-6 text-sm text-gray-600">
+                    {activeTab === 'following'
+                      ? "Follow some friends to see their stories here!"
+                      : "Be the first to create a story, or check back later!"}
+                  </p>
+                  <button
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="px-6 py-3 bg-[#EC1D99] text-white font-bold rounded-full disabled:opacity-50"
+                  >
+                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                </>
+              )
+            ) : (
+              <>
+                <p className="mb-4">You&apos;re all caught up!</p>
+                <button
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="text-[#EC1D99] font-bold disabled:opacity-50"
+                >
+                  {isRefreshing ? 'Refreshing...' : 'Refresh feed'}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

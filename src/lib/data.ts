@@ -864,9 +864,9 @@ export async function createStoryContribution(options: CreateStoryContributionOp
 
 export async function fetchGroups(): Promise<Group[]> {
     try {
-        // Get current user
+        // Get current user using getSession (local) instead of getUser (remote) to avoid network timeouts
         const sessionCheckTimeoutMs = 6000;
-        const sessionPromise = supabase.auth.getUser();
+        const sessionPromise = supabase.auth.getSession();
         const sessionResult: unknown = await Promise.race([
             sessionPromise,
             new Promise<unknown>((resolve) => setTimeout(() => resolve({ timedOut: true }), sessionCheckTimeoutMs)),
@@ -874,18 +874,19 @@ export async function fetchGroups(): Promise<Group[]> {
 
         let user: { id: string } | null = null;
         if (!sessionResult || (sessionResult as { timedOut?: boolean })?.timedOut) {
-            console.warn('[fetchGroups] supabase.auth.getUser timed out');
+            console.warn('[fetchGroups] supabase.auth.getSession timed out');
         } else {
-            const maybeUser = (sessionResult as { data?: { user?: unknown } })?.data?.user ?? null;
-            if (maybeUser && typeof (maybeUser as { id?: unknown }).id === 'string') {
-                user = { id: (maybeUser as { id: string }).id };
-            } else {
-                user = null;
+            const maybeSession = (sessionResult as { data?: { session?: unknown } })?.data?.session ?? null;
+            if (maybeSession && (maybeSession as { user?: unknown })?.user) {
+                const sessionUser = (maybeSession as { user: { id: string } }).user;
+                if (sessionUser && typeof sessionUser.id === 'string') {
+                    user = { id: sessionUser.id };
+                }
             }
         }
 
         // Query groups with timeout to avoid stuck UI when network or backend is slow
-        const groupsQueryTimeoutMs = 8000;
+        const groupsQueryTimeoutMs = 15000;
         const groupsQueryPromise = supabase
             .from('groups')
             .select('*')

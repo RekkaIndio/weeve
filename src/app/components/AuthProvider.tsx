@@ -39,12 +39,60 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         // Ensure the local AuthProvider user state reflects the signed-in user
         setUser(supabaseUser);
 
+        // SESSION HEALTH CHECK (Universal)
+        // Verify that the session actually works for network requests before proceeding.
+        // This catches "stale token" issues on both Web and Native flows.
+        // TIMEOUT WRAPPER for Health Check
+        try {
+            console.log('[AuthProvider] handleUserLogin: Performing Session Health Check (DB Ping)...');
+
+            // Create a promise that rejects after 2 seconds
+            const timeoutPromise = new Promise<{ error: any }>((_, reject) =>
+                setTimeout(() => reject(new Error('Health Check Timeout')), 2000)
+            );
+
+            // Race the DB ping against the timeout
+            const { error: pingError } = await Promise.race([
+                supabase.from('users').select('count', { count: 'exact', head: true }).limit(1),
+                timeoutPromise
+            ]) as any;
+
+            if (pingError) {
+                console.warn('[AuthProvider] Health Check FAILED:', pingError);
+                console.log('[AuthProvider] Attempting aggressive session refresh...');
+                const { error: refreshError } = await supabase.auth.refreshSession();
+                if (refreshError) {
+                    console.error('[AuthProvider] Recovery refresh failed:', refreshError);
+                    // We don't throw, we let the flow continue to "Default User" logic so UI isn't dead
+                } else {
+                    console.log('[AuthProvider] Recovery refresh SUCCESS. Client should be ready.');
+                }
+            } else {
+                console.log('[AuthProvider] Health Check PASSED. Client is connected.');
+            }
+        } catch (pingEx) {
+            console.warn('[AuthProvider] Health Check Exception (Timeout or Error):', pingEx);
+            // If we timed out, we might want to try a fast refresh too, just in case
+            if ((pingEx as Error).message === 'Health Check Timeout') {
+                console.log('[AuthProvider] Health Check Timed Out - attempting fast refresh...');
+                await supabase.auth.refreshSession();
+            }
+        }
+
         try {
             // Check if we already have this user loaded with full profile data
             const state = useStore.getState();
+
+            // REMOVED: Short-circuit optimization. 
+            // We MUST allow the auth flow to proceed to ensure Supabase client is warm
+            // and connected, otherwise network requests fail immediately after redirect.
+            /* 
             if (state.currentUser && state.currentUser.id === supabaseUser.id && state.currentUser.avatar && !state.currentUser.avatar.includes('dicebear')) {
                 setLoading(false);
-            } else {
+            } else { 
+            */
+            {
+                // Only set default user if we don't have valid data yet
                 // Only set default user if we don't have valid data yet
                 const defaultUser = {
                     id: supabaseUser.id,
@@ -52,6 +100,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     avatar: supabaseUser.user_metadata?.picture || supabaseUser.user_metadata?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${supabaseUser.id}`,
                     tokens: 100,
                 };
+                console.log('[AuthProvider] Setting initial current user:', defaultUser.id, defaultUser.name);
                 setCurrentUser(defaultUser);
                 // Ensure user lands on feed immediately while the DB profile is created/propagates
                 try {
@@ -145,22 +194,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             const profile = await fetchProfileWithRetries(supabaseUser.id);
 
             // Define story fetcher to be used in both paths
-            const fetchStoriesWithRetry = async (maxAttempts = 3) => {
-                const storeState = useStore.getState();
-                for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-                    try {
-                        await storeState.fetchStories();
-                        console.info(`[AuthProvider] fetchStories succeeded on attempt ${attempt}`);
-                        return true;
-                    } catch (err) {
-                        console.warn(`[AuthProvider] fetchStories attempt ${attempt} failed:`, err);
-                        if (attempt < maxAttempts) {
-                            await new Promise(r => setTimeout(r, attempt * 500));
-                        }
-                    }
-                }
-                return false;
-            };
+            // Define story fetcher to be used in both paths
+            // Removed internal fetchStoriesWithRetry to let Feed page handle fetching
+            // and avoid race conditions/double-fetching on load.
 
             if (profile) {
                 profileFound = true;
@@ -181,7 +217,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     // before fetching stories which depends on currentUser
                     await Promise.resolve();
                     await new Promise(r => setTimeout(r, 50)); // Extra safety delay
-                    fetchStoriesWithRetry().catch(err => console.warn('[AuthProvider] fetchStories retry failed', err));
+                    await Promise.resolve();
+                    await new Promise(r => setTimeout(r, 50)); // Extra safety delay
+                    // fetchStoriesWithRetry().catch(err => console.warn('[AuthProvider] fetchStories retry failed', err));
                 }
 
                 // Check if user needs to complete onboarding
@@ -217,7 +255,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 // Wait for store state to propagate before fetching
                 await Promise.resolve();
                 await new Promise(r => setTimeout(r, 50));
-                fetchStoriesWithRetry().catch(err => console.warn('[AuthProvider] fetchStories retry failed (fallback path)', err));
+                await Promise.resolve();
+                await new Promise(r => setTimeout(r, 50));
+                // fetchStoriesWithRetry().catch(err => console.warn('[AuthProvider] fetchStories retry failed (fallback path)', err));
 
                 const currentPath = window.location.pathname;
                 if (isPublicRoute(currentPath)) {
@@ -246,7 +286,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                         tagline: fastProfile.tagline,
                         tokens: fastProfile.tokens,
                     });
-                    try { storeState.fetchStories(); } catch (err) { console.warn('[AuthProvider] fetchStories error after fastProfile fetch', err); }
+                    try { /* storeState.fetchStories(); */ } catch (err) { console.warn('[AuthProvider] fetchStories error after fastProfile fetch', err); }
                 }
                 return fastProfile;
             }
@@ -414,6 +454,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                         const refreshToken = params.get('refresh_token');
 
                         if (accessToken && refreshToken) {
+                            console.log('[AuthProvider] Google OAuth: Setting session from tokens...');
                             const { data, error: sessionError } = await supabase.auth.setSession({
                                 access_token: accessToken,
                                 refresh_token: refreshToken,
@@ -425,11 +466,70 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                             } else {
                                 if (data) {
                                     if (data.session) setLatestSession(data.session);
-                                    try {
-                                        const { data: verifySession } = await supabase.auth.getSession();
-                                    } catch (verifyErr) {
-                                        console.warn('[AuthProvider] failed to verify session after implicit setSession', verifyErr);
+
+                                    // CRITICAL: Wait for the Supabase client to fully stabilize
+                                    // The setSession() call updates internal state, but the HTTP client
+                                    // may not immediately use the new tokens. We wait for confirmation.
+                                    console.log('[AuthProvider] Google OAuth: Waiting for session to stabilize...');
+
+                                    await new Promise<void>((resolve) => {
+                                        let resolved = false;
+
+                                        // Method 1: Wait for auth state change event
+                                        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
+                                            if (!resolved && event === 'SIGNED_IN' && session) {
+                                                console.log('[AuthProvider] Google OAuth: Session stabilized via auth state change');
+                                                resolved = true;
+                                                subscription.unsubscribe();
+                                                resolve();
+                                            }
+                                        });
+
+                                        // Method 2: Fallback timeout - don't wait forever
+                                        setTimeout(() => {
+                                            if (!resolved) {
+                                                console.log('[AuthProvider] Google OAuth: Session stabilization timeout, proceeding anyway');
+                                                resolved = true;
+                                                subscription.unsubscribe();
+                                                resolve();
+                                            }
+                                        }, 2000); // 2-second max wait
+                                    });
+
+                                    // Now verify the session is actually usable with a Health Check
+                                    let healthCheckPassed = false;
+                                    for (let attempt = 1; attempt <= 3; attempt++) {
+                                        try {
+                                            console.log(`[AuthProvider] Google OAuth: Health Check attempt ${attempt}...`);
+                                            const pingPromise = supabase.from('users').select('count', { count: 'exact', head: true }).limit(1);
+                                            const timeoutPromise = new Promise((_, reject) =>
+                                                setTimeout(() => reject(new Error('Timeout')), 2000)
+                                            );
+
+                                            const { error: pingError } = await Promise.race([pingPromise, timeoutPromise]) as any;
+
+                                            if (!pingError) {
+                                                console.log('[AuthProvider] Google OAuth: Health Check PASSED');
+                                                healthCheckPassed = true;
+                                                break;
+                                            } else {
+                                                console.warn(`[AuthProvider] Google OAuth: Health Check attempt ${attempt} failed:`, pingError);
+                                            }
+                                        } catch (e) {
+                                            console.warn(`[AuthProvider] Google OAuth: Health Check attempt ${attempt} error:`, e);
+                                        }
+
+                                        // Wait before retry
+                                        if (attempt < 3) {
+                                            await new Promise(r => setTimeout(r, 500 * attempt));
+                                        }
                                     }
+
+                                    if (!healthCheckPassed) {
+                                        console.warn('[AuthProvider] Google OAuth: Health Check failed after retries, attempting session refresh...');
+                                        await supabase.auth.refreshSession();
+                                    }
+
                                     if (data.user) {
                                         setUser(data.user);
                                         const existing = await attemptFastProfileLoad(data.session?.access_token ?? undefined, data.user.id);
@@ -443,18 +543,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                             }
                                         }
                                         await handleUserLogin(data.user);
-                                        try {
-                                            await new Promise(resolve => setTimeout(resolve, 200));
-                                            const { data: verify } = await supabase.auth.getSession();
-                                            if (verify?.session) {
-                                                try { router.replace('/feed'); } catch (routerErr) { window.location.replace('/feed'); }
-                                            } else {
-                                                console.warn('[AuthProvider] session not visible after implicit setSession; reloading app to persist session');
-                                                window.location.replace('/feed');
-                                            }
-                                        } catch (err) {
-                                            console.warn('[AuthProvider] post-login redirect check failed:', err);
-                                        }
+
+                                        console.log('[AuthProvider] Google OAuth: Login complete, forcing full page reload to /feed');
+                                        // Use window.location for a FULL PAGE RELOAD
+                                        // This ensures all components remount fresh with the new auth state
+                                        // router.replace() doesn't work because the component tree doesn't fully re-render
+                                        window.location.replace('/feed');
                                     }
                                 }
                             }
@@ -621,6 +715,17 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             }
         };
     }, [handleUserLogin, router, setCurrentUser]);
+
+    // CRITICAL: Force unlock after 1 second to prevent stuck state
+    useEffect(() => {
+        if (loading) {
+            const timer = setTimeout(() => {
+                console.warn('[AuthProvider] Force unlocking after 500ms');
+                setLoading(false);
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [loading]);
 
     // Show loading spinner while checking auth
     if (loading) {

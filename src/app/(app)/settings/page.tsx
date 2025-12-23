@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { signOut, updateUserProfile } from "@/lib/auth";
+import { setLatestSession } from "@/lib/auth-session";
 import { supabase } from "@/lib/supabase";
 
 export default function SettingsPage() {
@@ -54,22 +55,50 @@ export default function SettingsPage() {
         }
     };
 
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+
     const handleLogout = async () => {
+        // Prevent double-taps
+        if (isLoggingOut) return;
+        setIsLoggingOut(true);
+
         try {
             console.log('[Settings] Logging out...');
-            const { error } = await signOut();
-            if (error) {
-                console.error('[Settings] Logout error:', error);
+
+            // Race between signOut and a timeout - don't let signOut hang forever
+            const signOutPromise = signOut();
+            const timeoutPromise = new Promise<{ error: Error }>((resolve) => {
+                setTimeout(() => {
+                    resolve({ error: new Error('Signout timed out after 3 seconds') });
+                }, 3000);
+            });
+
+            const result = await Promise.race([signOutPromise, timeoutPromise]);
+
+            if (result.error) {
+                console.warn('[Settings] Signout issue:', result.error.message);
+                // Continue with logout anyway - we'll clear local state
             } else {
                 console.log('[Settings] Signout successful');
             }
         } catch (err) {
             console.error('[Settings] Unexpected logout error:', err);
-        } finally {
-            console.log('[Settings] Clearing local state and redirecting to login (force)');
-            logoutUser();
-            router.push('/login');
         }
+
+        // ALWAYS clear local state and redirect, even if signOut failed/timed out
+        console.log('[Settings] Clearing local state and redirecting to login');
+        logoutUser();
+        setLatestSession(null); // Clear cached session
+
+        // Clear any cached session state
+        try {
+            await supabase.auth.signOut({ scope: 'local' });
+        } catch (e) {
+            // Ignore errors from local signout
+        }
+
+        // Force navigation with window.location for reliability on native
+        window.location.replace('/login');
     };
 
     const sections = [
@@ -184,9 +213,17 @@ export default function SettingsPage() {
                     </div>
                 ))}
 
-                <button onClick={handleLogout} className="w-full p-4 bg-gray-900 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold hover:bg-gray-800 transition-colors mt-8">
-                    <LogOut className="w-5 h-5" />
-                    Log Out
+                <button
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
+                    className={`w-full p-4 bg-gray-900 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold transition-colors mt-8 ${isLoggingOut ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-800'}`}
+                >
+                    {isLoggingOut ? (
+                        <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                        <LogOut className="w-5 h-5" />
+                    )}
+                    {isLoggingOut ? 'Logging out...' : 'Log Out'}
                 </button>
 
                 <button

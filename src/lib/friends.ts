@@ -153,37 +153,50 @@ export const searchUsers = async (query: string, currentUserId: string): Promise
 };
 
 export const getFriends = async (userId: string): Promise<User[]> => {
-    const { data, error } = await supabase
-        .from('friendships')
-        .select(`
-      friend_id,
-      profiles:friend_id (*)
-    `)
-        .eq('user_id', userId);
+    try {
+        // Add timeout protection to prevent hanging on native mobile
+        const FETCH_TIMEOUT_MS = 10000;
+        const friendsQueryPromise = supabase
+            .from('friendships')
+            .select(`
+          friend_id,
+          profiles:friend_id (*)
+        `)
+            .eq('user_id', userId);
 
-    if (error) {
-        console.error('Error fetching friends:', error);
+        const result: unknown = await Promise.race([
+            friendsQueryPromise,
+            new Promise<unknown>((resolve) => 
+                setTimeout(() => resolve({ data: null, error: new Error('Friends query timeout') }), FETCH_TIMEOUT_MS)
+            ),
+        ]);
+
+        const { data, error } = result as { data: any[] | null; error: any };
+
+        if (error) {
+            console.error('Error fetching friends:', error);
+            return [];
+        }
+
+        if (!data) return [];
+
+        return data
+            .filter((item: any) => item.profiles) // Filter out missing profiles
+            .map((item: any) => ({
+                id: item.profiles.user_id,
+                name: item.profiles.name,
+                avatar: item.profiles.avatar,
+                tokens: item.profiles.tokens,
+                isInfluencer: item.profiles.is_influencer,
+                interactionCost: item.profiles.interaction_cost,
+                inviteCode: item.profiles.invite_code,
+                isFriend: true,
+                friendRequestStatus: 'accepted',
+            }));
+    } catch (error) {
+        console.error('Unexpected error fetching friends:', error);
         return [];
     }
-
-
-    if (data?.length > 0) {
-
-    }
-
-    return data
-        .filter((item: any) => item.profiles) // Filter out missing profiles
-        .map((item: any) => ({
-            id: item.profiles.user_id,
-            name: item.profiles.name,
-            avatar: item.profiles.avatar,
-            tokens: item.profiles.tokens,
-            isInfluencer: item.profiles.is_influencer,
-            interactionCost: item.profiles.interaction_cost,
-            inviteCode: item.profiles.invite_code,
-            isFriend: true,
-            friendRequestStatus: 'accepted',
-        }));
 };
 
 export const addFriend = async (userId: string, friendId: string) => {

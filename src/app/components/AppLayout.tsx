@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "./AuthProvider";
 import NotificationBell from "./NotificationBell";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useDataRefresh } from "@/hooks/useDataRefresh";
 
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -14,6 +15,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { currentUser, stories } = useStore();
     const { user } = useAuth();
     usePushNotifications();
+    useDataRefresh(); // Global data refresh hook for keeping data up-to-date
 
 
     // Calculate if it's user's turn in any story
@@ -35,9 +37,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const showHomeNotification = currentUser && pathname === "/feed";
     const isHome = pathname === "/feed";
 
-    // Hide bottom nav on pages with their own sticky footer
+    // Hide bottom nav on pages with their own sticky footer or during initial load
     const hideBottomNav = pathname?.startsWith("/story/") || pathname === "/create-story";
-    const showNavigation = !!user && !hideBottomNav;
+    // Also hide nav during initial load when there are no stories yet (prevents flash)
+    const isInitialLoad = pathname === "/feed" && stories.length === 0;
+    const showNavigation = !!user && !hideBottomNav && !isInitialLoad;
 
     return (
         <div className="flex justify-center min-h-[100dvh] bg-black text-white">

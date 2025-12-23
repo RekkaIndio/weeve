@@ -224,7 +224,31 @@ const CreateStory = ({
   const participantsRef = useRef<HTMLDivElement | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);
+  const loadingStartTimeRef = useRef<number | null>(null);
   // const [isIOS, setIsIOS] = useState(false); // Removed as per request to unify behavior
+
+  // Safety mechanism: Reset stuck loading state when app resumes from background
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isLoading) {
+        // Check for timeout - if loading for more than 2 minutes, assume something went wrong
+        const LOADING_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+        if (loadingStartTimeRef.current && Date.now() - loadingStartTimeRef.current > LOADING_TIMEOUT_MS) {
+          console.warn('[CreateStory] Loading has been stuck for over 2 minutes. Resetting state.');
+          setIsLoading(false);
+          setError('Request timed out. Please try again.');
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
+    };
+  }, [isLoading]);
 
   useEffect(() => {
     // Check if running on iOS client-side -- NO LONGER USED FOR DRAG but maybe keep for other logic? 
@@ -487,6 +511,7 @@ const CreateStory = ({
     }
 
     setIsLoading(true);
+    loadingStartTimeRef.current = Date.now();
     setError("");
 
     try {
@@ -507,6 +532,7 @@ const CreateStory = ({
       }
     } finally {
       setIsLoading(false);
+      loadingStartTimeRef.current = null;
     }
   };
 

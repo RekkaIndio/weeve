@@ -525,7 +525,8 @@ export default function ProfilePage() {
         // Show if it's their turn in an active story
         if (s.status === 'active' && s.currentTurnUserId === currentUser.id) return true;
 
-        // Show if pending invite (any participant entry for user has status 'waiting')
+        // Show if pending invite or waiting slot (any participant entry for user has status 'waiting')
+        // This explicitly handles the case of "forked" stories where the user is added to a specific slot
         if (s.participants.some(p => p.id === currentUser.id && p.status === 'waiting')) return true;
 
         return false;
