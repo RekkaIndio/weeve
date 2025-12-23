@@ -220,7 +220,7 @@ function DiscoverContent() {
     return (
         <div className="min-h-screen bg-black text-white p-4 pb-24">
             {/* Search Header */}
-            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md py-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] mb-6">
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md py-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] mb-2">
                 <div className="flex items-center gap-3">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
@@ -241,38 +241,34 @@ function DiscoverContent() {
                 </div>
             </div>
 
-            {/* View Toggle - Improved with unified colors */}
-            <div className="flex gap-2 pb-6">
+            {/* View Tabs */}
+            <div className="flex items-center gap-6 px-2 border-b border-gray-800 mb-4 overflow-x-auto">
                 <button
                     onClick={() => setViewMode('all')}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl transition-all duration-200 ${viewMode === 'all'
-                        ? 'bg-gradient-to-r from-[#EC1D99]/20 to-[#EC1D99]/10 border border-[#EC1D99] shadow-lg shadow-[#EC1D99]/10'
-                        : 'bg-gray-900/50 border border-gray-800 hover:bg-gray-800 hover:border-gray-700'
-                        }`}
+                    className={`pb-3 text-sm font-medium transition-all relative ${viewMode === 'all' ? 'text-white' : 'text-gray-400 hover:text-gray-300'}`}
                 >
-                    <Sparkles className={`w-4 h-4 ${viewMode === 'all' ? 'text-[#EC1D99]' : 'text-gray-500'}`} />
-                    <span className={`text-sm font-medium ${viewMode === 'all' ? 'text-white' : 'text-gray-400'}`}>Stories</span>
+                    Stories
+                    {viewMode === 'all' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#EC1D99] rounded-t-full" />
+                    )}
                 </button>
                 <button
                     onClick={() => setViewMode('groups')}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl transition-all duration-200 ${viewMode === 'groups'
-                        ? 'bg-gradient-to-r from-[#EC1D99]/20 to-[#EC1D99]/10 border border-[#EC1D99] shadow-lg shadow-[#EC1D99]/10'
-                        : 'bg-gray-900/50 border border-gray-800 hover:bg-gray-800 hover:border-gray-700'
-                        }`}
+                    className={`pb-3 text-sm font-medium transition-all relative ${viewMode === 'groups' ? 'text-white' : 'text-gray-400 hover:text-gray-300'}`}
                 >
-                    <Users className={`w-4 h-4 ${viewMode === 'groups' ? 'text-[#EC1D99]' : 'text-gray-500'}`} />
-                    <span className={`text-sm font-medium ${viewMode === 'groups' ? 'text-white' : 'text-gray-400'}`}>Groups</span>
+                    Groups
+                    {viewMode === 'groups' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#EC1D99] rounded-t-full" />
+                    )}
                 </button>
-
                 <button
                     onClick={() => setViewMode('people')}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl transition-all duration-200 ${viewMode === 'people'
-                        ? 'bg-gradient-to-r from-[#EC1D99]/20 to-[#EC1D99]/10 border border-[#EC1D99] shadow-lg shadow-[#EC1D99]/10'
-                        : 'bg-gray-900/50 border border-gray-800 hover:bg-gray-800 hover:border-gray-700'
-                        }`}
+                    className={`pb-3 text-sm font-medium transition-all relative ${viewMode === 'people' ? 'text-white' : 'text-gray-400 hover:text-gray-300'}`}
                 >
-                    <Users className={`w-4 h-4 ${viewMode === 'people' ? 'text-[#EC1D99]' : 'text-gray-500'}`} />
-                    <span className={`text-sm font-medium ${viewMode === 'people' ? 'text-white' : 'text-gray-400'}`}>People</span>
+                    People
+                    {viewMode === 'people' && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#EC1D99] rounded-t-full" />
+                    )}
                 </button>
             </div>
 
@@ -289,8 +285,8 @@ function DiscoverContent() {
                             key={id}
                             onClick={() => setFeedType(id as typeof feedType)}
                             className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${feedType === id
-                                    ? 'bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/30'
-                                    : 'bg-gray-900 text-gray-400 border border-gray-800 hover:border-gray-700 hover:text-white'
+                                ? 'bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/30'
+                                : 'bg-gray-900 text-gray-400 border border-gray-800 hover:border-gray-700 hover:text-white'
                                 }`}
                         >
                             <Icon className="w-3.5 h-3.5" />
