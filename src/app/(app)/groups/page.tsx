@@ -10,6 +10,7 @@ import NotificationBell from "@/app/components/NotificationBell";
 import { useStore } from '@/lib/store';
 import { fetchGroups as fetchGroupsData } from '@/lib/data';
 import GroupShareModal from '@/app/components/GroupShareModal';
+import SearchBar from '@/app/components/SearchBar';
 
 type GroupRow = Database['public']['Tables']['groups']['Row'];
 
@@ -24,6 +25,7 @@ export default function GroupsPage() {
     const [isPrivate, setIsPrivate] = useState(false);
     const [creating, setCreating] = useState(false);
     const [shareGroup, setShareGroup] = useState<{ id: string; name: string; description: string; isPrivate: boolean } | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         loadGroups();
@@ -161,66 +163,79 @@ export default function GroupsPage() {
                 </div>
             </div>
 
+            <div className="mb-6">
+                <SearchBar
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder="Search groups..."
+                />
+            </div>
+
             {loading ? (
                 <div className="flex justify-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-3">
-                    {groups.map(group => (
-                        <div
-                            key={group.id}
-                            onClick={() => router.push(`/groups/${group.id}`)}
-                            className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition-colors cursor-pointer"
-                        >
-                            <img src={group.avatar || ''} alt={group.name} className="w-12 h-12 rounded-full bg-gray-800" />
-                            <div className="flex-1">
-                                <h3 className="font-bold text-base">{group.name}</h3>
-                                <p className="text-xs text-gray-400 line-clamp-1">{group.description}</p>
-                                <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                                    <Users className="w-3 h-3" />
-                                    <span>{group.memberCount || 0} members</span>
-                                    {group.isPrivate ? (
-                                        <span className="flex items-center gap-1 bg-gray-800 px-1.5 rounded text-[10px]">
-                                            <Lock className="w-2 h-2" /> Private
-                                        </span>
-                                    ) : (
-                                        <span className="flex items-center gap-1 bg-gray-800 px-1.5 rounded text-[10px]">
-                                            <Globe className="w-2 h-2" /> Public
-                                        </span>
-                                    )}
+                    {groups
+                        .filter(group =>
+                            group.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (group.description && group.description.toLowerCase().includes(searchQuery.toLowerCase()))
+                        )
+                        .map(group => (
+                            <div
+                                key={group.id}
+                                onClick={() => router.push(`/groups/${group.id}`)}
+                                className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition-colors cursor-pointer"
+                            >
+                                <img src={group.avatar || ''} alt={group.name} className="w-12 h-12 rounded-full bg-gray-800" />
+                                <div className="flex-1">
+                                    <h3 className="font-bold text-base">{group.name}</h3>
+                                    <p className="text-xs text-gray-400 line-clamp-1">{group.description}</p>
+                                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                                        <Users className="w-3 h-3" />
+                                        <span>{group.memberCount || 0} members</span>
+                                        {group.isPrivate ? (
+                                            <span className="flex items-center gap-1 bg-gray-800 px-1.5 rounded text-[10px]">
+                                                <Lock className="w-2 h-2" /> Private
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-1 bg-gray-800 px-1.5 rounded text-[10px]">
+                                                <Globe className="w-2 h-2" /> Public
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShareGroup({
-                                            id: group.id,
-                                            name: group.name,
-                                            description: group.description,
-                                            isPrivate: group.isPrivate
-                                        });
-                                    }}
-                                    className="p-2 text-gray-400 hover:text-[#EC1D99] hover:bg-gray-800 rounded-full transition-colors"
-                                    aria-label="Share group"
-                                >
-                                    <Share2 className="w-4 h-4" />
-                                </button>
-                                {!group.isMember && (
+                                <div className="flex items-center gap-2">
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            handleJoinGroup(group.id, group.isPrivate, group.name);
+                                            setShareGroup({
+                                                id: group.id,
+                                                name: group.name,
+                                                description: group.description,
+                                                isPrivate: group.isPrivate
+                                            });
                                         }}
-                                        className="text-xs font-medium text-[#EC1D99] border border-[#EC1D99] px-3 py-1 rounded-full hover:bg-[#EC1D99] hover:text-white transition-colors"
+                                        className="p-2 text-gray-400 hover:text-[#EC1D99] hover:bg-gray-800 rounded-full transition-colors"
+                                        aria-label="Share group"
                                     >
-                                        Join
+                                        <Share2 className="w-4 h-4" />
                                     </button>
-                                )}
+                                    {!group.isMember && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleJoinGroup(group.id, group.isPrivate, group.name);
+                                            }}
+                                            className="text-xs font-medium text-[#EC1D99] border border-[#EC1D99] px-3 py-1 rounded-full hover:bg-[#EC1D99] hover:text-white transition-colors"
+                                        >
+                                            Join
+                                        </button>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        ))}
 
                     {groups.length === 0 && (
                         <div className="text-center py-16 text-gray-500">

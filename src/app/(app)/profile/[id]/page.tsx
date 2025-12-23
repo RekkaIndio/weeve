@@ -2,12 +2,13 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useStore, User } from "@/lib/store";
-import { Grid, UserPlus, ChevronLeft, Share2, Check } from "lucide-react";
+import { Grid, UserPlus, ChevronLeft, Share2, Check, Clock } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from 'sonner';
-import { sendFriendRequest, getFriendRequests } from "@/lib/friends";
+import { sendFriendRequest, getFriendRequests, acceptFriendRequest } from "@/lib/friends";
+import { notifyNewFollower } from "@/lib/notifications";
 import VideoThumbnail from '@/app/components/VideoThumbnail';
 import MediaWithFallback from '@/app/components/MediaWithFallback';
 
@@ -49,8 +50,8 @@ export default function UserProfilePage() {
 
     // Friendship and follow state
     const [isFollowing, setIsFollowing] = useState(false);
-    const [isFriend, setIsFriend] = useState(false);
-    const [friendRequestSent, setFriendRequestSent] = useState(false);
+    const [friendStatus, setFriendStatus] = useState<'none' | 'friend' | 'requested' | 'incoming'>('none');
+    const [incomingRequestId, setIncomingRequestId] = useState<string | null>(null);
     const [processingFriendAction, setProcessingFriendAction] = useState(false);
 
     // Basic stats
@@ -135,29 +136,70 @@ export default function UserProfilePage() {
         })();
     }, [currentUser, fetchFriends, fetchStories]);
 
-    // Keep isFollowing and isFriend state updated when the friends list changes
+    // Keep isFollowing updated based on friends list (which represents "following")
     useEffect(() => {
-        const resolvedIsFollowing = !!friends.find(f => f.id === userId);
-        setIsFollowing(resolvedIsFollowing);
-        setIsFriend(resolvedIsFollowing);
+        const following = !!friends.find(f => f.id === userId);
+        setIsFollowing(following);
     }, [friends, userId]);
 
-    // Determine whether a friend request was sent
+    // Determine specific Friend Status (None, Requested, Friend)
     useEffect(() => {
         if (!currentUser) return;
         (async () => {
             try {
-                const { sent } = await getFriendRequests(currentUser.id);
-                if (sent && sent.some(req => req.receiver_id === userId)) {
-                    setFriendRequestSent(true);
-                } else {
-                    setFriendRequestSent(false);
+                // Check if TRUE friend (bidirectional)
+                // We are friends if I follow them AND they follow me
+                // OR check friend_requests status='accepted'
+                // Let's use friend_requests for clarity of status
+                const { sent, received } = await getFriendRequests(currentUser.id);
+
+                // Check for accepted request (either direction)
+                // Actually, the easiest way to check bidirectional friendship is via friendships table
+                // But for "Status" let's check requests first
+
+                const myRequestToThem = sent.find(r => r.receiver_id === userId);
+                const theirRequestToMe = received.find(r => r.sender_id === userId);
+
+                // If request is pending
+                if (myRequestToThem?.status === 'pending') {
+                    setFriendStatus('requested');
+                    return;
                 }
+
+                // If they requested me (pending)
+                if (theirRequestToMe?.status === 'pending') {
+                    setFriendStatus('incoming');
+                    setIncomingRequestId(theirRequestToMe.id);
+                    return;
+                }
+
+                // Check if TRUE friend (bidirectional) based on friendships table
+                // If I follow them AND they follow me -> Friend
+                const { data: reverseFriendship } = await supabase
+                    .from('friendships')
+                    .select('id')
+                    .eq('user_id', userId) // They
+                    .eq('friend_id', currentUser.id) // Follow Me
+                    .maybeSingle();
+
+                const iFollowThem = !!friends.find(f => f.id === userId);
+
+                if (iFollowThem && reverseFriendship) {
+                    setFriendStatus('friend');
+                } else {
+                    // Not fully friends yet
+                    // If no pending request found above, status is none (or check if accepted request exists?)
+                    // If accepted request exists, they SHOULD be friends.
+                    if (friendStatus !== 'requested' && friendStatus !== 'incoming') {
+                        setFriendStatus('none');
+                    }
+                }
+
             } catch (err) {
-                console.error('[UserProfile] Failed to fetch friend requests:', err);
+                console.error('[UserProfile] Failed to determine friend status:', err);
             }
         })();
-    }, [currentUser, userId]);
+    }, [currentUser, userId, friends, friendStatus /* re-check if status changes */]);
 
     // If user not found (in a real app, fetch from API)
     if (loadingProfile) {
@@ -215,6 +257,9 @@ export default function UserProfilePage() {
                 try { await fetchFriends(); } catch (err) { console.warn('[UserProfile] fetchFriends after follow failed', err); }
                 setIsFollowing(true);
                 toast.success('Following');
+
+                // Notify the user being followed
+                notifyNewFollower(currentUser.id, user.id).catch(console.error);
             }
         } catch (err) {
             console.error('[UserProfile] Follow toggle failed:', err);
@@ -224,29 +269,72 @@ export default function UserProfilePage() {
         }
     };
 
-    const handleAddFriend = async () => {
+    const handleFriendAction = async () => {
         if (!currentUser || !user) return;
-        if (isFriend) {
-            toast('Already friends');
+
+        if (friendStatus === 'friend') {
+            toast('You are already friends!');
             return;
         }
-        if (friendRequestSent) {
+        if (friendStatus === 'requested') {
             toast('Friend request already sent');
             return;
         }
 
         setProcessingFriendAction(true);
         try {
-            const sent = await sendFriendRequest(currentUser.id, user.id);
-            if (sent) {
-                setFriendRequestSent(true);
-                toast.success('Friend request sent');
+            if (friendStatus === 'incoming' && incomingRequestId) {
+                // Accept Request
+                const success = await acceptFriendRequest(incomingRequestId);
+                if (success) {
+                    setFriendStatus('friend');
+                    setIsFollowing(true); // Accepting makes us friends (bidirectional follow)
+
+                    // Refresh friends list to ensure store is up to date
+                    try { await fetchFriends(); } catch (e) { console.error(e); }
+
+                    toast.success('Friend request accepted!');
+                } else {
+                    toast.error('Failed to accept request');
+                }
             } else {
-                toast.error('Unable to send friend request');
+                // Send Request
+                const sent = await sendFriendRequest(currentUser.id, user.id);
+                if (sent) {
+                    setFriendStatus('requested');
+                    toast.success('Friend request sent');
+                } else {
+                    // Check if already friends via following
+                    const { data: reverseFriendship } = await supabase
+                        .from('friendships')
+                        .select('id')
+                        .eq('user_id', user.id)
+                        .eq('friend_id', currentUser.id)
+                        .maybeSingle();
+
+                    // Also check if I follow them
+                    const amFollowing = friends.some(f => f.id === user.id);
+
+                    if (reverseFriendship && amFollowing) {
+                        setFriendStatus('friend');
+                        toast('You are already friends!');
+                    } else {
+                        // Check for incoming request again (race condition)
+                        const { sent: s, received: r } = await getFriendRequests(currentUser.id);
+                        const incoming = r.find(req => req.sender_id === user.id && req.status === 'pending');
+                        if (incoming) {
+                            setFriendStatus('incoming');
+                            setIncomingRequestId(incoming.id);
+                            toast('This user sent you a request! Click again to accept.');
+                        } else {
+                            toast.error('Unable to send friend request');
+                        }
+                    }
+                }
             }
         } catch (err) {
-            console.error('[UserProfile] sendFriendRequest failed:', err);
-            toast.error('Failed to send friend request');
+            console.error('[UserProfile] handleFriendAction failed:', err);
+            toast.error('Failed to update friend status');
         } finally {
             setProcessingFriendAction(false);
         }
@@ -328,12 +416,31 @@ export default function UserProfilePage() {
 
                 <div className="flex gap-2 w-full max-w-xs">
                     <button
-                        onClick={handleAddFriend}
-                        disabled={processingFriendAction || isFriend || friendRequestSent}
-                        className={`flex-1 ${isFriend ? 'bg-gray-800' : 'bg-[#EC1D99]'} text-white font-bold py-2 rounded-lg text-sm text-center ${isFriend ? 'hover:bg-gray-800' : 'hover:bg-[#D41C84]'} transition-colors flex items-center justify-center gap-2`}
+                        onClick={handleFriendAction}
+                        disabled={processingFriendAction || friendStatus === 'friend' || friendStatus === 'requested'}
+                        className={`flex-1 ${friendStatus === 'friend' ? 'bg-emerald-600' : (friendStatus === 'requested' || friendStatus === 'incoming' ? 'bg-gray-700' : 'bg-[#EC1D99]')} text-white font-bold py-2 rounded-lg text-sm text-center ${friendStatus === 'friend' || friendStatus === 'requested' ? '' : 'hover:opacity-90'} transition-all flex items-center justify-center gap-2`}
                     >
-                        <UserPlus className="w-4 h-4" />
-                        {isFriend ? 'Friends' : (friendRequestSent ? 'Requested' : 'Add Friend')}
+                        {friendStatus === 'friend' ? (
+                            <>
+                                <Check className="w-4 h-4" />
+                                Friends
+                            </>
+                        ) : friendStatus === 'requested' ? (
+                            <>
+                                <Clock className="w-4 h-4" />
+                                Requested
+                            </>
+                        ) : friendStatus === 'incoming' ? (
+                            <>
+                                <UserPlus className="w-4 h-4" />
+                                Accept Request
+                            </>
+                        ) : (
+                            <>
+                                <UserPlus className="w-4 h-4" />
+                                Add Friend
+                            </>
+                        )}
                     </button>
                     <button
                         onClick={handleFollowToggle}
@@ -362,7 +469,7 @@ export default function UserProfilePage() {
             </div>
 
             {/* Grid */}
-            < div className="grid grid-cols-3 gap-0.5" >
+            <div className="grid grid-cols-3 gap-0.5" >
                 {
                     userStories.length > 0 ? (
                         userStories.map(story => {

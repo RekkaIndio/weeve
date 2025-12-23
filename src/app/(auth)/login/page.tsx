@@ -14,7 +14,13 @@ export default function LoginPage() {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
-    const [socialLoading, setSocialLoading] = useState<"google" | null>(null);
+    const [socialLoading, setSocialLoading] = useState<"google" | null>(() => {
+        // Check if OAuth was in progress (persisted in sessionStorage)
+        if (typeof window !== 'undefined' && sessionStorage.getItem('weeve_oauth_in_progress')) {
+            return "google";
+        }
+        return null;
+    });
 
     // Store ref code from URL parameter
     useEffect(() => {
@@ -85,6 +91,8 @@ export default function LoginPage() {
     const handleGoogleLogin = async () => {
         setError("");
         setSocialLoading("google");
+        // Persist loading state so it survives component remounts
+        sessionStorage.setItem('weeve_oauth_in_progress', 'true');
 
         try {
             const { error: authError } = await signInWithGoogle();
@@ -92,10 +100,28 @@ export default function LoginPage() {
         } catch (error) {
             console.error('[Login] Google sign-in error:', error);
             setSocialLoading(null);
+            sessionStorage.removeItem('weeve_oauth_in_progress');
             const message = error instanceof Error ? error.message : null;
             setError(message || "Failed to sign in with Google");
         }
     };
+
+    // Show loading screen while OAuth is in progress
+    if (socialLoading === "google") {
+        return (
+            <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
+                <div className="flex flex-col items-center gap-4">
+                    <img
+                        src="/weeve-logo.png"
+                        alt="Weeve Logo"
+                        className="w-20 h-20 object-contain"
+                    />
+                    <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <p className="text-white text-lg">Signing you in...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-black pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]">

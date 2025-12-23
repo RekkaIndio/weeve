@@ -260,6 +260,13 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         return friends.some(f => f.id === story.creatorId);
     }, [currentUser, friends, story.creatorId]);
 
+    // Check if current user is a participant in this story
+    const isParticipant = useMemo(() => {
+        if (!currentUser) return false;
+        if (currentUser.id === story.creatorId) return true;
+        return (story.participants ?? []).some(p => p.id === currentUser.id);
+    }, [currentUser, story.creatorId, story.participants]);
+
     // Pre-calculate slot content mapping to handle multi-slot users correctly
     const slotContentMap = useMemo(() => {
         const map = new Map<number, Contribution>();
@@ -1260,7 +1267,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                 </div>
 
                 {/* Weeve Button */}
-                {(story.visibility === 'public' || (story.visibility === 'private' && isFriendOfCreator)) && (
+                {(story.visibility === 'public' || (story.visibility === 'private' && isParticipant)) && (
                     <div className="flex flex-col items-center gap-0.5 relative">
                         <button
                             type="button"

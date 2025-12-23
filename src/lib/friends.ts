@@ -242,30 +242,74 @@ export interface FriendRequest {
  */
 export const sendFriendRequest = async (senderId: string, receiverId: string): Promise<boolean> => {
     try {
-        // Check if friendship already exists
-        const { data: existingFriendship } = await supabase
-            .from('friendships')
-            .select('id')
-            .or(`and(user_id.eq.${senderId},friend_id.eq.${receiverId}),and(user_id.eq.${receiverId},friend_id.eq.${senderId})`)
-            .limit(1)
-            .single();
+        // Verify sender's profile exists (required by foreign key constraint)
+        const { data: senderProfile, error: senderError } = await supabase
+            .from('profiles')
+            .select('user_id')
+            .eq('user_id', senderId)
+            .maybeSingle();
 
-        if (existingFriendship) {
-
+        if (senderError || !senderProfile) {
+            console.error('Error sending friend request: Sender profile does not exist', { senderId, senderError });
             return false;
         }
+
+        // Verify receiver's profile exists
+        const { data: receiverProfile, error: receiverError } = await supabase
+            .from('profiles')
+            .select('user_id')
+            .eq('user_id', receiverId)
+            .maybeSingle();
+
+        if (receiverError || !receiverProfile) {
+            console.error('Error sending friend request: Receiver profile does not exist', { receiverId, receiverError });
+            return false;
+        }
+
+
 
         // Check if request already exists
         const { data: existingRequest } = await supabase
             .from('friend_requests')
-            .select('id')
+            .select('*')
             .or(`and(sender_id.eq.${senderId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${senderId})`)
-            .limit(1)
-            .single();
+            .maybeSingle();
 
         if (existingRequest) {
+            if (existingRequest.status === 'pending') {
+                return false;
+            }
 
-            return false;
+            // If I am the sender of the stale request, I can just reactivate it
+            if (existingRequest.sender_id === senderId) {
+                const { error: updateError } = await supabase
+                    .from('friend_requests')
+                    .update({ 
+                        status: 'pending',
+                        created_at: new Date().toISOString()
+                    })
+                    .eq('id', existingRequest.id);
+
+                if (updateError) throw updateError;
+                
+                await notifyFriendRequest(senderId, receiverId);
+                return true;
+            } else {
+                // If the other person sent it (and it's declined/stale), I cannot update it (RLS policy).
+                // I must delete it first to clear the bidirectional unique constraint.
+                const { error: deleteError } = await supabase
+                    .from('friend_requests')
+                    .delete()
+                    .eq('id', existingRequest.id);
+                
+                if (deleteError) {
+                    console.error('Error deleting stale request:', deleteError);
+                    // If we can't delete, we likely can't insert either due to unique constraint.
+                    // But let's verify. If we can't delete, we return false.
+                    return false;
+                }
+                // Proceed to create NEW request below
+            }
         }
 
         // Create friend request

@@ -92,9 +92,9 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
             // Fallback navigation logic
             const { type, data } = notification;
 
-            if (type === 'friend_accepted' || type === 'friend_request') {
-                const profileId = data.sender_id || data.user_id || data.friend_id;
-                if (profileId) router.push(`/user/${profileId}`);
+            if (type === 'friend_accepted' || type === 'friend_request' || type === 'new_follower') {
+                const profileId = data.sender_id || data.user_id || data.friend_id || data.follower_id;
+                if (profileId) router.push(`/profile/${profileId}`);
             }
             else if (type.startsWith('group_')) {
                 if (data.group_id) router.push(`/groups/${data.group_id}`);
@@ -163,6 +163,7 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
         switch (type) {
             case 'friend_request':
             case 'friend_accepted':
+            case 'new_follower':
                 return <UserPlus className="w-5 h-5" />;
             case 'story_commented':
                 return <MessageCircle className="w-5 h-5" />;

@@ -22,7 +22,9 @@ export type NotificationType =
     | 'your_turn'
     | 'turn_skipped'
     | 'timer_warning'
-    | 'timer_expired';
+    | 'timer_warning'
+    | 'timer_expired'
+    | 'new_follower';
 
 export interface Notification {
     id: string;
@@ -406,6 +408,30 @@ export const notifyTimerWarning = async (
         message: `You have ${timeRemainingString} left to contribute to "${storyTitle}"`,
         data: { story_id: storyId },
         action_url: `/story/${storyId}`,
+        read: false,
+    });
+};
+
+/**
+ * Notify user of a new follower
+ */
+export const notifyNewFollower = async (followerId: string, followedId: string) => {
+    // Get follower's name
+    const { data: follower } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('user_id', followerId)
+        .single();
+
+    if (!follower) return;
+
+    await createNotification({
+        user_id: followedId,
+        type: 'new_follower',
+        title: 'New Follower',
+        message: `${follower.name} started following you`,
+        data: { follower_id: followerId },
+        action_url: `/profile/${followerId}`,
         read: false,
     });
 };

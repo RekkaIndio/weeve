@@ -9,12 +9,12 @@ export default function WelcomePage() {
     const { user } = useAuth();
 
     const handleComplete = () => {
-        router.push("/onboarding/prompt");
+        router.push("/onboarding/follows");
     };
 
     const handleSkip = () => {
-        // Skip directly to prompt page
-        router.push("/onboarding/prompt");
+        // Skip directly to follows page
+        router.push("/onboarding/follows");
     };
 
     return <WelcomeCarousel onComplete={handleComplete} onSkip={handleSkip} />;

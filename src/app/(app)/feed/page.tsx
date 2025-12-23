@@ -28,6 +28,7 @@ export default function Home() {
 
 
   // CRITICAL: Force a full page reload after OAuth redirect to wake up the WebView
+  // But skip if user needs onboarding (let AuthProvider handle redirect)
   useEffect(() => {
     const oauthReloadKey = 'weeve_oauth_needs_reload';
     const wasOAuthRedirect = sessionStorage.getItem(oauthReloadKey);
@@ -39,8 +40,13 @@ export default function Home() {
     } else {
       // Quick check - reload immediately if stories are empty
       const timer = setTimeout(() => {
-        const currentStories = useStore.getState().stories;
-        if (currentStories.length === 0) {
+        // Skip reload if user might need onboarding (AuthProvider will handle)
+        const storeState = useStore.getState();
+        const userProfile = storeState.currentUser;
+
+        // If no profile or stories are empty, might need reload
+        // But if this is a new user (no stories expected), skip reload
+        if (storeState.stories.length === 0 && userProfile) {
           console.log('[Feed] No stories loaded, forcing page reload...');
           sessionStorage.setItem(oauthReloadKey, 'true');
           window.location.reload();
@@ -92,10 +98,24 @@ export default function Home() {
 
   // Filter stories based on active tab
   const filteredStories = stories.filter(story => {
+    // Global filter: Private stories should only be visible to participants
+    if (story.visibility === 'private') {
+      if (!currentUser) return false;
+      // Only show if current user is the creator OR a participant
+      const isCreator = story.creatorId === currentUser.id;
+      const isParticipant = (story.participants ?? []).some((p: any) => p.id === currentUser.id);
+      if (!isCreator && !isParticipant) {
+        return false;
+      }
+      // Additional filter: exclude if user is a "waiting" participant (these go to Waiting tab)
+      const isWaitingForCurrentUser = (story.participants ?? []).some((p: any) => p.id === currentUser.id && p.status === 'waiting');
+      if (isWaitingForCurrentUser) {
+        return false;
+      }
+    }
+
     if (activeTab === 'foryou') {
-      // For You: Show all public stories, plus private ones I'm involved in
-      // For this MVP, we show everything in "For You" to maximize discovery, 
-      // but ideally this would be algorithmically sorted.
+      // For You: Show all public stories, plus private ones the user is involved in (already filtered above)
       return true;
     } else {
       // Following: Only show stories from friends
@@ -108,16 +128,6 @@ export default function Home() {
       const friendIds = useStore.getState().friends.map(f => f.id);
       return friendIds.includes(story.creatorId);
     }
-  }).filter(story => {
-    // Global filter: Exclude private stories where the current user is a "waiting" participant.
-    // These belong in the "Waiting" tab on the profile page, not in the main feed.
-    if (currentUser && story.visibility === 'private') {
-      const isWaitingForCurrentUser = (story.participants ?? []).some((p: any) => p.id === currentUser.id && p.status === 'waiting');
-      if (isWaitingForCurrentUser) {
-        return false;
-      }
-    }
-    return true;
   });
 
 

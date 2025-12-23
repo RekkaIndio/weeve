@@ -9,6 +9,7 @@ import { useStore } from '@/lib/store';
 import { getUserProfile, NATIVE_GOOGLE_REDIRECT_URI_ANDROID, NATIVE_GOOGLE_REDIRECT_URI_IOS, fetchProfileWithAccessToken, createUserProfile } from '@/lib/auth';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
 import { toast } from 'sonner';
 
 interface AuthContextType {
@@ -33,50 +34,60 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     const { setCurrentUser } = useStore();
     const router = useRouter();
 
-    const handleUserLogin = useCallback(async (supabaseUser: SupabaseUser) => {
+    const handleUserLogin = useCallback(async (supabaseUser: SupabaseUser, options?: { skipHealthCheck?: boolean }) => {
         // Force UI update to "wake up" the app
         setLoading(true);
         // Ensure the local AuthProvider user state reflects the signed-in user
         setUser(supabaseUser);
 
-        // SESSION HEALTH CHECK (Universal)
-        // Verify that the session actually works for network requests before proceeding.
-        // This catches "stale token" issues on both Web and Native flows.
-        // TIMEOUT WRAPPER for Health Check
-        try {
-            console.log('[AuthProvider] handleUserLogin: Performing Session Health Check (DB Ping)...');
+        // SESSION HEALTH CHECK (Universal) - Skip for fresh OAuth sessions
+        if (!options?.skipHealthCheck) {
+            // Verify that the session actually works for network requests before proceeding.
+            // This catches "stale token" issues on both Web and Native flows.
+            // TIMEOUT WRAPPER for Health Check
+            try {
+                console.log('[AuthProvider] handleUserLogin: Performing Session Health Check (DB Ping)...');
 
-            // Create a promise that rejects after 2 seconds
-            const timeoutPromise = new Promise<{ error: any }>((_, reject) =>
-                setTimeout(() => reject(new Error('Health Check Timeout')), 2000)
-            );
+                // Create a promise that rejects after 1 second (reduced from 2s for faster UX)
+                const timeoutPromise = new Promise<{ error: any }>((_, reject) =>
+                    setTimeout(() => reject(new Error('Health Check Timeout')), 1000)
+                );
 
-            // Race the DB ping against the timeout
-            const { error: pingError } = await Promise.race([
-                supabase.from('users').select('count', { count: 'exact', head: true }).limit(1),
-                timeoutPromise
-            ]) as any;
+                // Race the DB ping against the timeout
+                const { error: pingError } = await Promise.race([
+                    supabase.from('users').select('count', { count: 'exact', head: true }).limit(1),
+                    timeoutPromise
+                ]) as any;
 
-            if (pingError) {
-                console.warn('[AuthProvider] Health Check FAILED:', pingError);
-                console.log('[AuthProvider] Attempting aggressive session refresh...');
-                const { error: refreshError } = await supabase.auth.refreshSession();
-                if (refreshError) {
-                    console.error('[AuthProvider] Recovery refresh failed:', refreshError);
-                    // We don't throw, we let the flow continue to "Default User" logic so UI isn't dead
+                if (pingError) {
+                    console.warn('[AuthProvider] Health Check FAILED:', pingError);
+                    console.log('[AuthProvider] Attempting aggressive session refresh...');
+                    const { error: refreshError } = await supabase.auth.refreshSession();
+                    if (refreshError) {
+                        console.error('[AuthProvider] Recovery refresh failed:', refreshError);
+                    } else {
+                        console.log('[AuthProvider] Recovery refresh SUCCESS. Client should be ready.');
+                    }
                 } else {
-                    console.log('[AuthProvider] Recovery refresh SUCCESS. Client should be ready.');
+                    console.log('[AuthProvider] Health Check PASSED. Client is connected.');
                 }
-            } else {
-                console.log('[AuthProvider] Health Check PASSED. Client is connected.');
+            } catch (pingEx) {
+                console.warn('[AuthProvider] Health Check Exception (Timeout or Error):', pingEx);
+                if ((pingEx as Error).message === 'Health Check Timeout') {
+                    console.log('[AuthProvider] Health Check Timed Out - attempting fast refresh...');
+                    try {
+                        await Promise.race([
+                            supabase.auth.refreshSession(),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Refresh timeout')), 2000))
+                        ]);
+                        console.log('[AuthProvider] Fast refresh completed');
+                    } catch (refreshErr) {
+                        console.warn('[AuthProvider] Fast refresh failed or timed out:', refreshErr);
+                    }
+                }
             }
-        } catch (pingEx) {
-            console.warn('[AuthProvider] Health Check Exception (Timeout or Error):', pingEx);
-            // If we timed out, we might want to try a fast refresh too, just in case
-            if ((pingEx as Error).message === 'Health Check Timeout') {
-                console.log('[AuthProvider] Health Check Timed Out - attempting fast refresh...');
-                await supabase.auth.refreshSession();
-            }
+        } else {
+            console.log('[AuthProvider] handleUserLogin: Skipping health check (fresh OAuth)');
         }
 
         try {
@@ -102,16 +113,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 };
                 console.log('[AuthProvider] Setting initial current user:', defaultUser.id, defaultUser.name);
                 setCurrentUser(defaultUser);
-                // Ensure user lands on feed immediately while the DB profile is created/propagates
-                try {
-                    const currentPath = window.location.pathname;
-                    // Do not override the user's already visible onboarding/setup flow
-                    if (isPublicRoute(currentPath) && !currentPath.startsWith('/setup') && !currentPath.startsWith('/onboarding')) {
-                        router.replace('/feed');
-                    }
-                } catch (err) {
-                    console.warn('[AuthProvider] Failed to route to feed after setting default user', err);
-                }
+                // NOTE: Do NOT redirect to /feed here - we need to wait for profile check
+                // to determine if user needs onboarding. Redirect happens after profile is checked.
             }
 
             setLoading(false);
@@ -224,7 +227,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
                 // Check if user needs to complete onboarding
                 const currentPath = window.location.pathname;
-                let needsOnboarding = !profile.completedOnboarding && profile.onboardingStep !== null;
+                // New users have completedOnboarding = false - but we also need to check onboardingStep
+                // If onboardingStep === 2, user clicked "Continue Tutorial" and is on feed completing their first story
+                // They should NOT be redirected back to onboarding
+                let needsOnboarding = !profile.completedOnboarding && profile.onboardingStep !== 2;
                 try {
                     if (typeof window !== 'undefined' && supabaseUser?.id) {
                         const dismissed = !!localStorage.getItem(`weeve_onboarding_overlay_dismissed_${supabaseUser.id}`);
@@ -234,11 +240,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     // ignore local storage errors and proceed with default behavior
                 }
 
-                if (needsOnboarding && !currentPath.startsWith('/onboarding') && !currentPath.startsWith('/feed') && !currentPath.startsWith('/story')) {
-                    // User has profile but hasn't completed onboarding
-                    // Allow them to access onboarding routes, feed, and stories during tutorial
-
-                    window.location.replace('/onboarding/prompt');
+                if (needsOnboarding && !currentPath.startsWith('/onboarding')) {
+                    // User has profile but hasn't started onboarding tutorial yet - redirect to start
+                    // Users at step 2 are allowed to stay on /feed to complete their first story
+                    console.log('[AuthProvider] User needs onboarding, redirecting to /onboarding/welcome');
+                    window.location.replace('/onboarding/welcome');
                 } else if (!needsOnboarding && isPublicRoute(currentPath)) {
                     // User completed onboarding, redirect to feed if on auth pages
                     window.location.replace('/feed');
@@ -261,7 +267,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
                 const currentPath = window.location.pathname;
                 if (isPublicRoute(currentPath)) {
-                    try { router.replace('/feed'); } catch { window.location.replace('/feed'); }
+                    window.location.replace('/feed');
                 }
             }
         } catch (error) {
@@ -359,6 +365,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     return;
                 }
 
+                // CRITICAL: Close the in-app browser immediately so user sees the app
+                try {
+                    console.log('[AuthProvider] Closing in-app browser after OAuth callback');
+                    await Browser.close();
+                } catch (browserErr) {
+                    console.warn('[AuthProvider] Failed to close browser:', browserErr);
+                }
+
                 try {
                     const parsed = new URL(url);
                     const errorDescription = parsed.searchParams.get('error_description') ?? parsed.searchParams.get('error');
@@ -403,43 +417,25 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                 }
 
                                 if (data.user) {
+                                    console.log('[AuthProvider] PKCE: Session exchanged, redirecting immediately...');
                                     setUser(data.user);
-                                    // Try fast profile load via REST using the access token from the response
-                                    const accessToken = (data.session?.access_token) || (setterData?.session?.access_token);
-                                    try {
-                                        const existing = await attemptFastProfileLoad(accessToken as string | undefined, data.user.id);
-                                        if (!existing) {
-                                            // No profile found — attempt to auto-create a profile for UX (will be null if creation fails)
-                                            try {
-                                                const candidateName = data.user.user_metadata?.name ?? data.user.email?.split('@')[0] ?? 'User';
-                                                const createdProfile = await attemptCreateProfileAndSet(data.user.id, candidateName, data.user.user_metadata?.picture);
-                                                // try quickly to fetch after create
-                                                await attemptFastProfileLoad(accessToken as string | undefined, data.user.id);
-                                            } catch (createErr) {
-                                                console.warn('[AuthProvider] createUserProfile fallback failed:', createErr);
-                                            }
-                                        }
-                                    } catch (err) { console.warn('[AuthProvider] fastProfileLoad failed', err); }
-                                    await handleUserLogin(data.user);
-                                    try {
-                                        await new Promise(resolve => setTimeout(resolve, 200));
-                                        const { data: verify } = await supabase.auth.getSession();
-                                        if (verify?.session) {
-                                            // Try to use router replace first
-                                            try {
-                                                router.replace('/feed');
-                                            } catch (routerErr) {
-                                                console.warn('[AuthProvider] router.replace failed, falling back to location.replace', routerErr);
-                                                window.location.replace('/feed');
-                                            }
-                                        } else {
-                                            // session not visible yet, reload as a safe fallback so persisted session is read
-                                            console.warn('[AuthProvider] session not visible after setSession; reloading app to persist session');
-                                            window.location.replace('/feed');
-                                        }
-                                    } catch (err) {
-                                        console.warn('[AuthProvider] post-login redirect check failed:', err);
-                                    }
+
+                                    // Set flag to prevent race condition redirect to login
+                                    sessionStorage.setItem('weeve_just_authenticated', 'true');
+
+                                    // For speed, redirect IMMEDIATELY without waiting for profile check
+                                    // New Google users always go to onboarding (handleUserLogin will sort it out later)
+                                    // Check if they've logged in before by checking for stored user
+                                    const storedUserId = localStorage.getItem('weeve_last_user_id');
+                                    const isReturningUser = storedUserId === data.user.id;
+
+                                    // Store this user ID for future logins
+                                    localStorage.setItem('weeve_last_user_id', data.user.id);
+
+                                    console.log(`[AuthProvider] PKCE: Redirecting to ${isReturningUser ? 'feed' : 'onboarding/welcome'}`);
+                                    // Clear OAuth loading flag before redirect
+                                    sessionStorage.removeItem('weeve_oauth_in_progress');
+                                    window.location.replace(isReturningUser ? '/feed' : '/onboarding/welcome');
                                 }
                             }
                         }
@@ -467,88 +463,24 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                 if (data) {
                                     if (data.session) setLatestSession(data.session);
 
-                                    // CRITICAL: Wait for the Supabase client to fully stabilize
-                                    // The setSession() call updates internal state, but the HTTP client
-                                    // may not immediately use the new tokens. We wait for confirmation.
-                                    console.log('[AuthProvider] Google OAuth: Waiting for session to stabilize...');
-
-                                    await new Promise<void>((resolve) => {
-                                        let resolved = false;
-
-                                        // Method 1: Wait for auth state change event
-                                        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string, session: any) => {
-                                            if (!resolved && event === 'SIGNED_IN' && session) {
-                                                console.log('[AuthProvider] Google OAuth: Session stabilized via auth state change');
-                                                resolved = true;
-                                                subscription.unsubscribe();
-                                                resolve();
-                                            }
-                                        });
-
-                                        // Method 2: Fallback timeout - don't wait forever
-                                        setTimeout(() => {
-                                            if (!resolved) {
-                                                console.log('[AuthProvider] Google OAuth: Session stabilization timeout, proceeding anyway');
-                                                resolved = true;
-                                                subscription.unsubscribe();
-                                                resolve();
-                                            }
-                                        }, 2000); // 2-second max wait
-                                    });
-
-                                    // Now verify the session is actually usable with a Health Check
-                                    let healthCheckPassed = false;
-                                    for (let attempt = 1; attempt <= 3; attempt++) {
-                                        try {
-                                            console.log(`[AuthProvider] Google OAuth: Health Check attempt ${attempt}...`);
-                                            const pingPromise = supabase.from('users').select('count', { count: 'exact', head: true }).limit(1);
-                                            const timeoutPromise = new Promise((_, reject) =>
-                                                setTimeout(() => reject(new Error('Timeout')), 2000)
-                                            );
-
-                                            const { error: pingError } = await Promise.race([pingPromise, timeoutPromise]) as any;
-
-                                            if (!pingError) {
-                                                console.log('[AuthProvider] Google OAuth: Health Check PASSED');
-                                                healthCheckPassed = true;
-                                                break;
-                                            } else {
-                                                console.warn(`[AuthProvider] Google OAuth: Health Check attempt ${attempt} failed:`, pingError);
-                                            }
-                                        } catch (e) {
-                                            console.warn(`[AuthProvider] Google OAuth: Health Check attempt ${attempt} error:`, e);
-                                        }
-
-                                        // Wait before retry
-                                        if (attempt < 3) {
-                                            await new Promise(r => setTimeout(r, 500 * attempt));
-                                        }
-                                    }
-
-                                    if (!healthCheckPassed) {
-                                        console.warn('[AuthProvider] Google OAuth: Health Check failed after retries, attempting session refresh...');
-                                        await supabase.auth.refreshSession();
-                                    }
-
+                                    // FAST PATH: Just set user and redirect immediately
                                     if (data.user) {
+                                        console.log('[AuthProvider] Google OAuth: Session set, redirecting immediately...');
                                         setUser(data.user);
-                                        const existing = await attemptFastProfileLoad(data.session?.access_token ?? undefined, data.user.id);
-                                        if (!existing) {
-                                            try {
-                                                const candidateName = data.user.user_metadata?.name ?? data.user.email?.split('@')[0] ?? 'User';
-                                                const createdProfile2 = await attemptCreateProfileAndSet(data.user.id, candidateName, data.user.user_metadata?.picture);
-                                                await attemptFastProfileLoad(data.session?.access_token ?? undefined, data.user.id);
-                                            } catch (createErr) {
-                                                console.warn('[AuthProvider] createUserProfile fallback failed:', createErr);
-                                            }
-                                        }
-                                        await handleUserLogin(data.user);
 
-                                        console.log('[AuthProvider] Google OAuth: Login complete, forcing full page reload to /feed');
-                                        // Use window.location for a FULL PAGE RELOAD
-                                        // This ensures all components remount fresh with the new auth state
-                                        // router.replace() doesn't work because the component tree doesn't fully re-render
-                                        window.location.replace('/feed');
+                                        // Set flag to prevent race condition redirect to login
+                                        sessionStorage.setItem('weeve_just_authenticated', 'true');
+
+                                        // For speed, redirect IMMEDIATELY without waiting for profile check
+                                        const storedUserId = localStorage.getItem('weeve_last_user_id');
+                                        const isReturningUser = storedUserId === data.user.id;
+
+                                        // Store this user ID for future logins
+                                        localStorage.setItem('weeve_last_user_id', data.user.id);
+
+                                        console.log(`[AuthProvider] Implicit: Redirecting to ${isReturningUser ? 'feed' : 'onboarding/welcome'}`);
+                                        sessionStorage.removeItem('weeve_oauth_in_progress');
+                                        window.location.replace(isReturningUser ? '/feed' : '/onboarding/welcome');
                                     }
                                 }
                             }
@@ -618,14 +550,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
                 if (session?.user) {
                     // Profile already loaded in block above, just handle login
-                    await handleUserLogin(session.user);
+                    // Skip health check if just came from OAuth (session is fresh)
+                    const justAuthenticated = sessionStorage.getItem('weeve_just_authenticated');
+                    await handleUserLogin(session.user, { skipHealthCheck: !!justAuthenticated });
                 } else {
                     setLoading(false);
-                    // Redirect to login if on a protected route
-                    const currentPath = window.location.pathname;
-                    if (!isPublicRoute(currentPath)) {
-                        router.push('/login');
-                    }
+                    // Do NOT redirect to login here - this causes race conditions with OAuth
+                    // The onAuthStateChange or route guards will handle proper redirects
+                    console.log('[AuthProvider] No session found, staying on current page');
                 }
             } catch (error) {
                 console.error('[AuthProvider] Failed to initialize session:', error);
@@ -687,19 +619,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
             if (session?.user) {
                 try { await attemptFastProfileLoad(session.access_token ?? undefined, session.user.id); } catch (err) { console.warn('[AuthProvider] attemptFastProfileLoad in onAuthStateChange failed', err); }
-                await handleUserLogin(session.user);
+                // Skip health check if just came from OAuth (session is fresh)
+                const justAuthenticated = sessionStorage.getItem('weeve_just_authenticated');
+                await handleUserLogin(session.user, { skipHealthCheck: !!justAuthenticated });
             } else {
                 // User logged out
-                console.info('[AuthProvider] User logged out, clearing state');
+                console.info('[AuthProvider] No session in auth state change');
                 setCurrentUser(null);
                 setLoading(false);
-
-                // Redirect to login if on a protected route
-                const currentPath = window.location.pathname;
-                if (!isPublicRoute(currentPath)) {
-                    console.info('[AuthProvider] Redirecting to login from:', currentPath);
-                    router.push('/login');
-                }
+                // Do NOT redirect to login here - this causes race conditions with OAuth
+                // Route guards will handle unauthorized access
             }
         });
 
@@ -716,13 +645,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         };
     }, [handleUserLogin, router, setCurrentUser]);
 
-    // CRITICAL: Force unlock after 1 second to prevent stuck state
+    // Force unlock after 8 seconds to prevent stuck state (increased from 500ms to allow auth flow to complete)
     useEffect(() => {
         if (loading) {
             const timer = setTimeout(() => {
-                console.warn('[AuthProvider] Force unlocking after 500ms');
+                console.warn('[AuthProvider] Force unlocking after 8s timeout');
                 setLoading(false);
-            }, 500);
+            }, 8000);
             return () => clearTimeout(timer);
         }
     }, [loading]);
@@ -733,8 +662,18 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             <AuthContext.Provider value={{ user, loading }}>
                 <div className="min-h-screen bg-black flex items-center justify-center">
                     <div className="flex flex-col items-center gap-4">
-                        <div className="w-12 h-12 border-4 border-[#EC1D99] border-t-transparent rounded-full animate-spin"></div>
-                        <p className="text-gray-400 text-sm">Loading...</p>
+                        {/* Logo with spinning pink circle around it */}
+                        <div className="relative w-24 h-24 flex items-center justify-center">
+                            {/* Spinning pink circle border */}
+                            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-[#EC1D99] border-r-[#EC1D99] animate-spin"></div>
+                            {/* Logo in the center */}
+                            <img
+                                src="/weeve-logo.png"
+                                alt="Weeve"
+                                className="w-16 h-16 rounded-xl"
+                            />
+                        </div>
+                        <p className="text-gray-400 text-sm">Sign in</p>
                     </div>
                 </div>
             </AuthContext.Provider>
