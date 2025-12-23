@@ -404,8 +404,14 @@ export default function Home() {
     };
 
     // Prevent native scrolling during touch - we handle it ourselves
+    // But allow interaction with buttons, links, and other interactive elements
     const touchMove = (e: TouchEvent) => {
-      e.preventDefault();
+      const target = e.target as HTMLElement;
+      // Check if target or any parent is an interactive element
+      const isInteractive = target.closest('button, a, input, textarea, [role="button"]');
+      if (!isInteractive) {
+        e.preventDefault();
+      }
     };
 
     const touchEnd = (e: TouchEvent) => {

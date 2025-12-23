@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createUserProfile } from "@/lib/auth";
+import { processReferralCode } from "@/lib/referral";
 import { useAuth } from "@/app/components/AuthProvider";
 import { capturePhoto } from "@/lib/camera";
 import { supabase } from "@/lib/supabase";
@@ -146,23 +147,23 @@ export default function SetupPage() {
                 }
             }
 
-            const referrerCode = localStorage.getItem('weeve_invite_code') || undefined;
-
             const { error: profileError } = await createUserProfile(
                 user.id,
                 displayName.trim(),
                 finalAvatar,
                 undefined, // inviteCode (auto-generated)
-                referrerCode,
+                undefined, // referrerCode - now handled by processReferralCode
                 user.user_metadata?.date_of_birth
             );
 
-            // Clear invite code
-            if (referrerCode) {
-                localStorage.removeItem('weeve_invite_code');
-            }
-
             if (profileError) throw profileError;
+
+            // Process any pending referral code to connect with referrer
+            try {
+                await processReferralCode(user.id);
+            } catch (refErr) {
+                console.warn('[Setup] processReferralCode failed:', refErr);
+            }
 
             // Redirect to onboarding welcome carousel
             router.push("/onboarding/welcome");

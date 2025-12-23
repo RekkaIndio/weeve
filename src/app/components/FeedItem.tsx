@@ -10,7 +10,7 @@ if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoR
 
 import { Story, useStore, Contribution } from "@/lib/store";
 import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
-import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search } from "lucide-react";
+import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search, GitBranch } from "lucide-react";
 import { searchUsers } from "@/lib/friends";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -99,6 +99,13 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     const [showTutorialTooltip, setShowTutorialTooltip] = useState(false);
     const [showMonetizationModal, setShowMonetizationModal] = useState<'confirm' | 'insufficient' | null>(null);
     const [isAvatarsExpanded, setIsAvatarsExpanded] = useState(false);
+
+    // Weeve details editing state
+    const [showWeeveDetailsModal, setShowWeeveDetailsModal] = useState(false);
+    const [weeveTitle, setWeeveTitle] = useState('');
+    const [weeveDescription, setWeeveDescription] = useState('');
+    const [pendingParticipantId, setPendingParticipantId] = useState<string | null>(null);
+    const [isCreatingWeeve, setIsCreatingWeeve] = useState(false);
 
     const deductTokens = useStore((state) => state.deductTokens);
 
@@ -190,6 +197,14 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     const fetchFriends = useStore((state) => state.fetchFriends);
     const savedStoryIds = useStore((state) => state.savedStoryIds);
     const toggleStorySave = useStore((state) => state.toggleStorySave);
+    const stories = useStore((state) => state.stories);
+
+    // Get original story title for forked stories
+    const originalStoryTitle = useMemo(() => {
+        if (!story.forkedFromStoryId) return null;
+        const originalStory = stories.find(s => s.id === story.forkedFromStoryId);
+        return originalStory?.title || null;
+    }, [story.forkedFromStoryId, stories]);
 
     useEffect(() => {
         if (!isVisible) {
@@ -983,12 +998,35 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fallbackName)}`;
     }, [participantsMap]);
 
-    const handleForkStory = async (participantId: string) => {
+    // Show weeve details modal before forking
+    const handleShowWeeveDetails = (participantId: string) => {
+        // Initialize with original story values
+        setWeeveTitle(story.title);
+        setWeeveDescription(story.description || '');
+        setPendingParticipantId(participantId);
+        setShowParticipantPicker(false);
+        setShowFriendPicker(false);
+        setShowWeeveDetailsModal(true);
+    };
+
+    const handleForkStory = async (participantId: string, customTitle?: string, customDescription?: string) => {
+        console.log('[handleForkStory] Called with:', { participantId, customTitle, customDescription, selectedSlots });
+
+        // Prevent multiple clicks
+        if (isCreatingWeeve) {
+            console.log('[handleForkStory] Already creating weeve, ignoring...');
+            return;
+        }
 
         if (selectedSlots.length === 0) {
             console.error("No slots selected");
+            alert("Please select at least one slot to replace.");
+            setShowWeeveDetailsModal(false);
+            setPendingParticipantId(null);
             return;
         }
+
+        setIsCreatingWeeve(true);
 
         // Convert slot indices to contribution IDs using slotContentMap
         // This ensures we're passing the correct contributions to exclude, not just array indices
@@ -996,17 +1034,21 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             .map(slotIndex => slotContentMap.get(slotIndex)?.id)
             .filter((id): id is string => id !== undefined);
 
-
+        console.log('[handleForkStory] contributionIdsToReplace:', contributionIdsToReplace);
 
         try {
             console.log('[handleForkStory] Calling forkStory...');
-            const result = await forkStory(story.id, selectedSlots, participantId, contributionIdsToReplace);
+            const result = await forkStory(story.id, selectedSlots, participantId, contributionIdsToReplace, customTitle, customDescription);
             console.log('[handleForkStory] forkStory returned:', result);
 
             setIsForking(false);
             setSelectedSlots([]);
             setShowParticipantPicker(false);
             setShowFriendPicker(false);
+            setShowWeeveDetailsModal(false);
+            setPendingParticipantId(null);
+            setWeeveTitle('');
+            setWeeveDescription('');
 
             if (result.success && result.storyId) {
                 // Check if user selected themselves vs inviting a friend
@@ -1028,7 +1070,13 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             }
         } catch (error) {
             console.error("Error in handleForkStory:", error);
+            // Close modal on error too
+            setShowWeeveDetailsModal(false);
+            setPendingParticipantId(null);
+            setIsForking(false);
             alert("An error occurred while forking the story.");
+        } finally {
+            setIsCreatingWeeve(false);
         }
     };
 
@@ -1066,15 +1114,15 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white">
                     <div className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-black/40 border border-white/10 backdrop-blur-sm">
                         <div className="relative">
-                            <div className="w-16 h-16 rounded-full border-2 border-[#EC1D99]/70 p-1 animate-pulse">
+                            <div className="w-[52px] h-[52px] rounded-full border-2 border-[#EC1D99]/70 p-1 animate-pulse">
                                 <img
                                     src={waitingParticipant?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(waitingParticipant?.name || 'Storyteller')}`}
                                     alt={waitingParticipant?.name || 'Next creator'}
                                     className="w-full h-full rounded-full object-cover"
                                 />
                             </div>
-                            <div className="absolute -bottom-1 -right-1 bg-[#EC1D99] rounded-full p-1">
-                                <div className="w-2 h-2 bg-white rounded-full animate-ping" />
+                            <div className="absolute -bottom-0.5 -right-0.5 bg-[#EC1D99] rounded-full p-0.5">
+                                <div className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />
                             </div>
                         </div>
                         <span className="text-sm font-semibold tracking-wide uppercase text-gray-300">Waiting for</span>
@@ -1451,6 +1499,23 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                     {story.title}
                 </h2>
 
+                {/* Weeve of indicator for forked stories */}
+                {story.forkedFromStoryId && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/story/${story.forkedFromStoryId}`);
+                        }}
+                        className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-[#EC1D99] transition-colors mb-2"
+                    >
+                        <GitBranch className="w-3 h-3" />
+                        <span>Weeve of:</span>
+                        <span className="font-medium text-[#EC1D99] truncate max-w-[150px]">
+                            {originalStoryTitle || 'Original'}
+                        </span>
+                    </button>
+                )}
+
                 <p className="text-sm text-gray-200 mb-6 line-clamp-2 max-w-[85%]">
                     {story.description}
                 </p>
@@ -1529,13 +1594,13 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                                         <img
                                                             src={avatarUrl}
                                                             alt={name}
-                                                            className={`w-11 h-11 min-w-[44px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
-                                                                ? 'border-[#EC1D99] shadow-[0_0_12px_#EC1D99]'
+                                                            className={`w-9 h-9 min-w-[36px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
+                                                                ? 'border-[#EC1D99] shadow-[0_0_10px_#EC1D99]'
                                                                 : 'border-black/80'
                                                                 }`}
                                                         />
                                                         {isActive && (
-                                                            <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#EC1D99] rounded-full animate-pulse" />
+                                                            <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#EC1D99] rounded-full animate-pulse" />
                                                         )}
                                                     </Link>
                                                 );
@@ -1544,7 +1609,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                             {/* +X More Badge */}
                                             {hiddenCount > 0 && (
                                                 <div
-                                                    className="-ml-2 z-30 flex items-center justify-center w-11 h-11 rounded-full bg-gray-800/90 border-2 border-gray-600 text-white text-xs font-bold backdrop-blur-sm group-hover:bg-gray-700 group-hover:border-[#EC1D99]/50 transition-all"
+                                                    className="-ml-2 z-30 flex items-center justify-center w-9 h-9 rounded-full bg-gray-800/90 border-2 border-gray-600 text-white text-[10px] font-bold backdrop-blur-sm group-hover:bg-gray-700 group-hover:border-[#EC1D99]/50 transition-all"
                                                     title={`${hiddenCount} more slot${hiddenCount > 1 ? 's' : ''}`}
                                                 >
                                                     +{hiddenCount}
@@ -1573,13 +1638,13 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                             <img
                                                 src={p.avatar}
                                                 alt={p.name}
-                                                className={`w-10 h-10 min-w-[40px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
-                                                    ? 'border-[#EC1D99] shadow-[0_0_10px_#EC1D99]'
+                                                className={`w-8 h-8 min-w-[32px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
+                                                    ? 'border-[#EC1D99] shadow-[0_0_8px_#EC1D99]'
                                                     : 'border-black/80'
                                                     }`}
                                             />
                                             {isActive && (
-                                                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#EC1D99] rounded-full animate-pulse" />
+                                                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-[#EC1D99] rounded-full animate-pulse" />
                                             )}
                                         </Link>
                                     );
@@ -1591,7 +1656,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                         e.stopPropagation();
                                         setIsAvatarsExpanded(false);
                                     }}
-                                    className="-ml-1 z-30 flex items-center justify-center w-8 h-8 rounded-full bg-gray-800/80 border border-gray-600 text-gray-300 hover:text-white hover:bg-gray-700 transition-all"
+                                    className="-ml-1 z-30 flex items-center justify-center w-7 h-7 rounded-full bg-gray-800/80 border border-gray-600 text-gray-300 hover:text-white hover:bg-gray-700 transition-all"
                                     title="Collapse"
                                 >
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1965,7 +2030,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                 <div className="space-y-3">
                                     <button
                                         type="button"
-                                        onClick={() => currentUser && handleForkStory(currentUser.id)}
+                                        onClick={() => currentUser && handleShowWeeveDetails(currentUser.id)}
                                         className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
                                     >
                                         <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#EC1D99] to-purple-600 p-[2px]">
@@ -2023,7 +2088,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                                 friendSearchResults.map((user) => (
                                                     <button
                                                         key={user.id}
-                                                        onClick={() => handleForkStory(user.id)}
+                                                        onClick={() => handleShowWeeveDetails(user.id)}
                                                         className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors"
                                                     >
                                                         <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
@@ -2038,7 +2103,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                                 {friends.map((friend) => (
                                                     <button
                                                         key={friend.id}
-                                                        onClick={() => handleForkStory(friend.id)}
+                                                        onClick={() => handleShowWeeveDetails(friend.id)}
                                                         className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors"
                                                     >
                                                         <img src={friend.avatar} alt={friend.name} className="w-10 h-10 rounded-full object-cover" />
@@ -2053,6 +2118,109 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Weeve Details Modal */}
+            {
+                showWeeveDetailsModal && pendingParticipantId && (
+                    <div className="absolute inset-0 z-50 bg-black/90 flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
+                        <div className="w-full max-w-sm bg-[#1a1a2e] rounded-3xl p-6 border border-white/10">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-xl font-bold text-white">Customize Your Weeve</h3>
+                                <button
+                                    onClick={() => {
+                                        setShowWeeveDetailsModal(false);
+                                        setPendingParticipantId(null);
+                                        setIsForking(false);
+                                        setSelectedSlots([]);
+                                    }}
+                                    className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                                >
+                                    <X className="w-5 h-5 text-gray-400" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                {/* Title Input */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">Title</label>
+                                    <input
+                                        type="text"
+                                        value={weeveTitle}
+                                        onChange={(e) => setWeeveTitle(e.target.value)}
+                                        placeholder="Enter a title for your weeve..."
+                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-colors"
+                                        maxLength={100}
+                                    />
+                                </div>
+
+                                {/* Description Input */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-2">Description <span className="text-gray-500">(optional)</span></label>
+                                    <textarea
+                                        value={weeveDescription}
+                                        onChange={(e) => setWeeveDescription(e.target.value)}
+                                        placeholder="Add a description..."
+                                        rows={3}
+                                        className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-colors resize-none"
+                                        maxLength={500}
+                                    />
+                                </div>
+
+                                {/* Weeve of indicator preview */}
+                                <div className="bg-[#EC1D99]/10 border border-[#EC1D99]/20 rounded-xl p-4">
+                                    <div className="flex items-center gap-2 text-sm">
+                                        <GitBranch className="w-4 h-4 text-[#EC1D99]" />
+                                        <span className="text-gray-400">Weeve of:</span>
+                                        <span className="text-[#EC1D99] font-medium truncate">{story.title}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-2">This link will appear on your weeve</p>
+                                </div>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-3 mt-6">
+                                <button
+                                    onClick={() => {
+                                        // Skip - use original values
+                                        if (pendingParticipantId && !isCreatingWeeve) {
+                                            handleForkStory(pendingParticipantId);
+                                        }
+                                    }}
+                                    disabled={isCreatingWeeve}
+                                    className={`flex-1 py-3 px-4 rounded-xl text-white font-semibold transition-colors ${isCreatingWeeve ? 'bg-gray-700 cursor-not-allowed' : 'bg-white/10 hover:bg-white/20'}`}
+                                >
+                                    Skip
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        // Use custom values
+                                        if (pendingParticipantId && !isCreatingWeeve) {
+                                            const trimmedTitle = weeveTitle.trim();
+                                            const trimmedDescription = weeveDescription.trim();
+                                            handleForkStory(
+                                                pendingParticipantId,
+                                                trimmedTitle !== story.title ? trimmedTitle : undefined,
+                                                trimmedDescription !== (story.description || '') ? trimmedDescription : undefined
+                                            );
+                                        }
+                                    }}
+                                    disabled={isCreatingWeeve}
+                                    className={`flex-1 py-3 px-4 rounded-xl text-white font-semibold transition-colors ${isCreatingWeeve ? 'bg-gray-500 cursor-not-allowed' : 'bg-[#EC1D99] hover:bg-[#d61a88]'}`}
+                                >
+                                    {isCreatingWeeve ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            <span>Creating...</span>
+                                        </div>
+                                    ) : (
+                                        'Create Weeve'
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )

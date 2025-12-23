@@ -1110,50 +1110,84 @@ export default function ProfilePage() {
                 </div>
             </div>
 
-            <div className="flex flex-col items-center px-4 mb-8">
-                <div
-                    className="relative mb-4 group cursor-pointer"
-                    onClick={isEditing ? handleAvatarClick : undefined}
-                >
-                    <img
-                        src={isEditing ? editAvatar : currentUser.avatar}
-                        alt={currentUser.name}
-                        className={`w-24 h-24 rounded-full border-4 border-black bg-gray-800 object-cover ${uploadingAvatar ? 'opacity-50' : ''}`}
-                        onError={(e) => {
-                            (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${editName}`;
-                        }}
-                    />
-                    {uploadingAvatar && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
-                        </div>
-                    )}
-                    {!isEditing && !uploadingAvatar && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Camera className="w-8 h-8 text-white" />
-                        </div>
-                    )}
-                    {isEditing && !uploadingAvatar && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/60 rounded-full opacity-100">
-                            <Camera className="w-7 h-7 text-white" />
-                            <span className="text-[10px] uppercase tracking-wide text-white/80">Change</span>
-                        </div>
-                    )}
-                    {!isEditing && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleNativeShare();
+            <div className="px-4 mb-6">
+                {/* Profile Header - Horizontal Layout */}
+                <div className="flex items-start gap-4 mb-4">
+                    {/* Avatar */}
+                    <div
+                        className="relative flex-shrink-0 group cursor-pointer"
+                        onClick={isEditing ? handleAvatarClick : undefined}
+                    >
+                        <img
+                            src={isEditing ? editAvatar : currentUser.avatar}
+                            alt={currentUser.name}
+                            className={`w-20 h-20 rounded-full border-2 border-gray-800 bg-gray-800 object-cover ${uploadingAvatar ? 'opacity-50' : ''}`}
+                            onError={(e) => {
+                                (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${editName}`;
                             }}
-                            className="absolute bottom-0 right-0 bg-[#EC1D99] p-1.5 rounded-full border-2 border-black hover:bg-[#EC1D99]/90 transition-colors"
-                        >
-                            <Share2 className="w-4 h-4 text-white" />
-                        </button>
-                    )}
+                        />
+                        {uploadingAvatar && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-[#EC1D99]"></div>
+                            </div>
+                        )}
+                        {!isEditing && !uploadingAvatar && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Camera className="w-6 h-6 text-white" />
+                            </div>
+                        )}
+                        {isEditing && !uploadingAvatar && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-black/60 rounded-full opacity-100">
+                                <Camera className="w-5 h-5 text-white" />
+                                <span className="text-[8px] uppercase tracking-wide text-white/80">Change</span>
+                            </div>
+                        )}
+                        {!isEditing && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleNativeShare();
+                                }}
+                                className="absolute -bottom-1 -right-1 bg-[#EC1D99] p-1 rounded-full border-2 border-black hover:bg-[#EC1D99]/90 transition-colors"
+                            >
+                                <Share2 className="w-3 h-3 text-white" />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* User Info */}
+                    <div className="flex-1 min-w-0">
+                        <h2 className="text-lg font-bold flex items-center gap-1.5 truncate">
+                            @{currentUser.name.toLowerCase().replace(/\s+/g, '_')}
+                            <VerificationBadge
+                                isVerified={currentUser.isVerified || false}
+                                tier={currentUser.verificationTier}
+                                size="sm"
+                            />
+                        </h2>
+                        <p className="text-sm text-gray-400 line-clamp-2 mt-0.5">
+                            {currentUser.tagline || 'Storyteller, dreamer, and weaver of tales. 🌌'}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                            {(currentUser.website || (currentUser.preferences as any)?.website) && (
+                                <a
+                                    href={currentUser.website || (currentUser.preferences as any)?.website}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-[#EC1D99] hover:underline"
+                                >
+                                    {new URL(currentUser.website || (currentUser.preferences as any)?.website).hostname}
+                                </a>
+                            )}
+                            <span className="text-xs text-gray-500">
+                                Joined {new Date(currentUser.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
                 {isEditing ? (
-                    <div className="w-full max-w-xs space-y-3 mb-6">
+                    <div className="w-full space-y-3 mb-4">
                         <div>
                             <label className="text-xs text-gray-500 ml-1">Display Name</label>
                             <input
@@ -1203,61 +1237,32 @@ export default function ProfilePage() {
                     </div>
                 ) : (
                     <>
-                        <h2 className="text-xl font-bold mb-1 flex items-center gap-1.5">
-                            @{currentUser.name.toLowerCase().replace(/\s+/g, '_')}
-                            <VerificationBadge
-                                isVerified={currentUser.isVerified || false}
-                                tier={currentUser.verificationTier}
-                                size="md"
-                            />
-                        </h2>
-                        <p className="text-sm text-gray-400 text-center max-w-xs mb-2">
-                            {currentUser.tagline || 'Storyteller, dreamer, and weaver of tales. 🌌'}
-                        </p>
-
-                        {(currentUser.website || (currentUser.preferences as any)?.website) && (
-                            <a
-                                href={currentUser.website || (currentUser.preferences as any)?.website}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-[#EC1D99] hover:underline mb-4 flex items-center gap-1"
-                            >
-                                {new URL(currentUser.website || (currentUser.preferences as any)?.website).hostname}
-                            </a>
-                        )}
-
-                        <div className="flex items-center gap-4 text-xs text-gray-500 mb-6">
-                            <span>Joined {new Date(currentUser.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
-                        </div>
-
-                        {/* Stats */}
-                        <div className="flex items-center gap-8 mb-8 w-full max-w-xs justify-center">
-                            <div className="text-center">
-                                <div className="font-bold text-lg">{totalLikes}</div>
+                        {/* Stats - Compact Row */}
+                        <div className="flex items-center justify-between py-3 border-y border-gray-800 mb-4">
+                            <div className="flex-1 text-center">
+                                <div className="font-bold text-base">{totalLikes}</div>
                                 <div className="text-xs text-gray-500">Likes</div>
                             </div>
-                            <div className="text-center">
-                                <div className="font-bold text-lg">{followerCount}</div>
+                            <Link href="/profile/followers" className="flex-1 text-center hover:opacity-80 transition-opacity cursor-pointer">
+                                <div className="font-bold text-base">{followerCount}</div>
                                 <div className="text-xs text-gray-500">Followers</div>
-                            </div>
-                            <div className="text-center">
-                                <div className="font-bold text-lg">{followingCount}</div>
+                            </Link>
+                            <Link href="/profile/following" className="flex-1 text-center hover:opacity-80 transition-opacity cursor-pointer">
+                                <div className="font-bold text-base">{followingCount}</div>
                                 <div className="text-xs text-gray-500">Following</div>
-                            </div>
+                            </Link>
                         </div>
 
-                        <div className="w-full max-w-xs">
-                            <button
-                                onClick={() => {
-                                    setEditName(currentUser.name);
-                                    setEditAvatar(currentUser.avatar || '');
-                                    setIsEditing(true);
-                                }}
-                                className="w-full bg-white text-black font-bold py-2 rounded-lg text-sm text-center hover:bg-gray-200 transition-colors"
-                            >
-                                Edit Profile
-                            </button>
-                        </div>
+                        <button
+                            onClick={() => {
+                                setEditName(currentUser.name);
+                                setEditAvatar(currentUser.avatar || '');
+                                setIsEditing(true);
+                            }}
+                            className="w-full bg-white text-black font-bold py-2 rounded-lg text-sm text-center hover:bg-gray-200 transition-colors"
+                        >
+                            Edit Profile
+                        </button>
                     </>
                 )}
             </div>

@@ -92,9 +92,35 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                         recursive: true
                     });
 
+                    // Get or create the Weeve album for organizing saved videos
+                    // Note: albumIdentifier is REQUIRED on Android, optional on iOS
+                    const platform = Capacitor.getPlatform();
+                    let albumIdentifier: string | undefined;
+                    try {
+                        const albums = await Media.getAlbums();
+                        const weeveAlbum = albums.albums.find(a => a.name === 'Weeve');
+                        if (weeveAlbum) {
+                            albumIdentifier = weeveAlbum.identifier;
+                        } else {
+                            // Create the album if it doesn't exist
+                            await Media.createAlbum({ name: 'Weeve' });
+                            const updatedAlbums = await Media.getAlbums();
+                            const newAlbum = updatedAlbums.albums.find(a => a.name === 'Weeve');
+                            albumIdentifier = newAlbum?.identifier;
+                        }
+                    } catch (albumError) {
+                        console.warn('Could not get/create Weeve album:', albumError);
+                    }
+
+                    // On Android, albumIdentifier is required - throw if we don't have it
+                    if (platform === 'android' && !albumIdentifier) {
+                        throw new Error('Could not create album for saving video on Android');
+                    }
+
                     // Save to media gallery
                     await Media.saveVideo({
-                        path: tempFile.uri
+                        path: tempFile.uri,
+                        albumIdentifier: albumIdentifier
                     });
 
                     // Clean up temp file

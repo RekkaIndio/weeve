@@ -361,60 +361,72 @@ export default function UserProfilePage() {
                 <h1 className="font-bold text-lg">{user.name}</h1>
             </div>
 
-            {/* Profile Info */}
-            <div className="flex flex-col items-center px-4 mb-8">
-                <div className="relative mb-4">
-                    <img
-                        src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
-                        alt={user.name}
-                        className="w-24 h-24 rounded-full border-4 border-black bg-gray-800 object-cover"
-                    />
-                    {user.isInfluencer && (
-                        <div className="absolute -bottom-1 -right-1 bg-yellow-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full border-2 border-black">
-                            PRO
+            {/* Profile Info - Horizontal Layout */}
+            <div className="px-4 mb-6">
+                {/* Profile Header */}
+                <div className="flex items-start gap-4 mb-4">
+                    {/* Avatar */}
+                    <div className="relative flex-shrink-0">
+                        <img
+                            src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
+                            alt={user.name}
+                            className="w-20 h-20 rounded-full border-2 border-gray-800 bg-gray-800 object-cover"
+                        />
+                        {user.isInfluencer && (
+                            <div className="absolute -bottom-1 -right-1 bg-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
+                                PRO
+                            </div>
+                        )}
+                    </div>
+
+                    {/* User Info */}
+                    <div className="flex-1 min-w-0">
+                        <h2 className="text-lg font-bold truncate">
+                            @{user.name.toLowerCase().replace(/\s+/g, '_')}
+                        </h2>
+                        <p className="text-sm text-gray-400 line-clamp-2 mt-0.5">
+                            {user.tagline || 'Weeve user'}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1 flex-wrap">
+                            {(user.website || (user.preferences as any)?.website) && (
+                                <a
+                                    href={user.website || (user.preferences as any)?.website}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-[#EC1D99] hover:underline"
+                                >
+                                    {new URL(user.website || (user.preferences as any)?.website).hostname}
+                                </a>
+                            )}
+                            <span className="text-xs text-gray-500">
+                                Joined {new Date(user.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                            </span>
                         </div>
-                    )}
-                </div>
-                {(user.website || (user.preferences as any)?.website) && (
-                    <a
-                        href={user.website || (user.preferences as any)?.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-[#EC1D99] hover:underline mb-4 flex items-center gap-1"
-                    >
-                        {new URL(user.website || (user.preferences as any)?.website).hostname}
-                    </a>
-                )}
-
-                <div className="flex items-center gap-4 text-xs text-gray-500 mb-6">
-                    <span>Joined {new Date(user.createdAt || Date.now()).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>
+                    </div>
                 </div>
 
-                {/* Stats */}
-                <div className="flex items-center gap-6 mb-8 w-full max-w-sm justify-between px-4">
-                    <div className="text-center">
-                        <div className="font-bold text-lg">{userStories.length}</div>
+                {/* Stats - Compact Row */}
+                <div className="flex items-center justify-between py-3 border-y border-gray-800 mb-4">
+                    <div className="flex-1 text-center">
+                        <div className="font-bold text-base">{userStories.length}</div>
                         <div className="text-xs text-gray-500">Weeves</div>
                     </div>
-                    <div className="text-center">
-                        <div className="font-bold text-lg">{contributionsCount}</div>
-                        <div className="text-xs text-gray-500">Contributions</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="font-bold text-lg">{totalLikes}</div>
+                    <div className="flex-1 text-center">
+                        <div className="font-bold text-base">{totalLikes}</div>
                         <div className="text-xs text-gray-500">Likes</div>
                     </div>
-                    <div className="text-center">
-                        <div className="font-bold text-lg">{followerCount}</div>
+                    <Link href={`/profile/${userId}/followers`} className="flex-1 text-center hover:opacity-80 transition-opacity cursor-pointer">
+                        <div className="font-bold text-base">{followerCount}</div>
                         <div className="text-xs text-gray-500">Followers</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="font-bold text-lg">{followingCount}</div>
+                    </Link>
+                    <Link href={`/profile/${userId}/following`} className="flex-1 text-center hover:opacity-80 transition-opacity cursor-pointer">
+                        <div className="font-bold text-base">{followingCount}</div>
                         <div className="text-xs text-gray-500">Following</div>
-                    </div>
+                    </Link>
                 </div>
 
-                <div className="flex gap-2 w-full max-w-xs">
+                {/* Action Buttons */}
+                <div className="flex gap-2">
                     <button
                         onClick={handleFriendAction}
                         disabled={processingFriendAction || friendStatus === 'friend' || friendStatus === 'requested'}

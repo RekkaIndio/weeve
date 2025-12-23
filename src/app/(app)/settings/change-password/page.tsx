@@ -82,9 +82,23 @@ export default function ChangePasswordPage() {
         setIsUpdating(true);
 
         try {
-            // Verify current password by trying to sign in
-            const { data: userData, error: signInError } = await supabase.auth.getUser();
-            if (signInError || !userData.user?.email) {
+            // Get current user's email
+            const { data: userData, error: getUserError } = await supabase.auth.getUser();
+            if (getUserError || !userData.user?.email) {
+                throw new Error("Unable to get user information");
+            }
+
+            // Verify current password by attempting to sign in with it
+            const { error: verifyError } = await supabase.auth.signInWithPassword({
+                email: userData.user.email,
+                password: currentPassword,
+            });
+
+            if (verifyError) {
+                // If sign-in fails, the current password is wrong
+                if (verifyError.message.includes("Invalid login credentials")) {
+                    throw new Error("Current password is incorrect");
+                }
                 throw new Error("Unable to verify current password");
             }
 
@@ -290,8 +304,8 @@ export default function ChangePasswordPage() {
                                         type="submit"
                                         disabled={isUpdating || !currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword}
                                         className={`w-full ${isUpdating || !currentPassword || !newPassword || !confirmPassword || newPassword !== confirmPassword
-                                                ? 'bg-gray-600 cursor-not-allowed'
-                                                : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
+                                            ? 'bg-gray-600 cursor-not-allowed'
+                                            : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
                                             } text-white font-bold py-3 rounded-lg transition-colors`}
                                     >
                                         {isUpdating ? 'Updating Password...' : 'Update Password'}

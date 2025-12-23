@@ -135,7 +135,7 @@ interface AppState {
     addStoryComment: (storyId: string, content: string) => Promise<void>;
     logoutUser: () => void;
     fetchFriends: () => Promise<void>;
-    forkStory: (originalStoryId: string, slotIndices: number[], newParticipantId: string, contributionIdsToExclude?: string[]) => Promise<{ success: boolean; storyId?: string; error?: string }>;
+    forkStory: (originalStoryId: string, slotIndices: number[], newParticipantId: string, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     fetchStories: () => Promise<void>;
     setProfileUpdateInProgress: (value: boolean) => void;
 
@@ -523,7 +523,7 @@ export const useStore = create<AppState>()(
                 }
             },
 
-            forkStory: async (originalStoryId: string, slotIndices: number[], newParticipantId: string, contributionIdsToExclude?: string[]) => {
+            forkStory: async (originalStoryId: string, slotIndices: number[], newParticipantId: string, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => {
                 const { currentUser } = get();
                 if (!currentUser) return { success: false, error: "User not logged in" };
 
@@ -548,8 +548,8 @@ export const useStore = create<AppState>()(
                     const { data: newStoryData, error: createError } = await supabase
                         .from('stories')
                         .insert({
-                            title: originalStory.title,
-                            description: originalStory.description,
+                            title: customTitle?.trim() || originalStory.title,
+                            description: customDescription?.trim() || originalStory.description,
                             creator_id: currentUser.id, // The forker becomes the creator of the new branch
                             mode: originalStory.mode, // Copy mode from original story
                             visibility: 'private', // Set to private so it appears in waiting tab
@@ -559,7 +559,10 @@ export const useStore = create<AppState>()(
                             theme: originalStory.theme,
                             group_id: originalStory.group_id,
                             current_turn_user_id: newParticipantId, // Set turn to the new participant
-                            forked_from_story_id: originalStoryId // Reference to original story
+                            // Always link to the ROOT original story, not the immediate parent
+                            // If the story we're forking from is itself a fork, use its original reference
+                            // This ensures all weeves in a chain point back to the originating post
+                            forked_from_story_id: originalStory.forked_from_story_id || originalStoryId
                         })
                         .select()
                         .single();

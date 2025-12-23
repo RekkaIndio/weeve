@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { setLatestSession } from '@/lib/auth-session';
 import { useStore } from '@/lib/store';
 import { getUserProfile, NATIVE_GOOGLE_REDIRECT_URI_ANDROID, NATIVE_GOOGLE_REDIRECT_URI_IOS, fetchProfileWithAccessToken, createUserProfile } from '@/lib/auth';
+import { processReferralCode } from '@/lib/referral';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
@@ -337,6 +338,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 return null;
             }
             if (!createdProfile) return null;
+
+            // Process any pending referral code to connect with referrer
+            try {
+                await processReferralCode(createdProfile.user_id);
+            } catch (refErr) {
+                console.warn('[AuthProvider] processReferralCode failed:', refErr);
+            }
+
             const storeState = useStore.getState();
             if (!storeState.profileUpdateInProgress) {
                 setCurrentUser({
