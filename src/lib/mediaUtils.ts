@@ -91,9 +91,13 @@ export async function createImageFromText(content: string, style: TextStyle): Pr
 
 /**
  * Creates a watermark image containing the text "@[username]" followed by the Weeve logo.
+ * If originalCreator is provided (for weeved/forked stories), adds a second line with fork attribution.
  * Returns a Blob of the PNG image.
  */
-export async function createWatermarkImage(username: string): Promise<Blob> {
+export async function createWatermarkImage(
+    username: string,
+    originalCreator?: string
+): Promise<Blob> {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get canvas context');
@@ -121,9 +125,24 @@ export async function createWatermarkImage(username: string): Promise<Blob> {
     const logoHeight = 64; // Target logo height (increased for sharpness/size)
     const logoWidth = (logoImg.width / logoImg.height) * logoHeight; // Maintain aspect ratio
     
+    // Measure original creator text if provided (for fork attribution)
+    const forkSymbol = '⑂'; // Fork/branch symbol
+    const forkFontSize = 32; // Slightly smaller for the second line
+    let forkText = '';
+    let forkTextWidth = 0;
+    
+    if (originalCreator) {
+        ctx.font = `bold ${forkFontSize}px Inter, sans-serif`;
+        forkText = `${forkSymbol} from @${originalCreator}`;
+        forkTextWidth = ctx.measureText(forkText).width;
+    }
+    
     // Ensure height accommodates both text and logo comfortably
-    const totalHeight = Math.max(logoHeight, fontSize * 1.5); 
-    const totalWidth = textMetrics.width + padding + logoWidth;
+    // Add extra height for second line if original creator is present
+    const lineHeight = fontSize * 1.5;
+    const forkLineHeight = originalCreator ? forkFontSize * 1.5 : 0;
+    const totalHeight = Math.max(logoHeight, lineHeight) + forkLineHeight; 
+    const totalWidth = Math.max(textMetrics.width + padding + logoWidth, forkTextWidth + 24);
 
     // Set canvas size (with some buffer for shadows)
     canvas.width = totalWidth + 24; 
@@ -145,19 +164,30 @@ export async function createWatermarkImage(username: string): Promise<Blob> {
     ctx.shadowOffsetY = 3;
 
     const textX = 12; // Left margin
-    const centerY = canvas.height / 2;
+    // Calculate Y positions - if we have original creator, main line is higher
+    const mainLineY = originalCreator 
+        ? (canvas.height - forkLineHeight) / 2 
+        : canvas.height / 2;
 
-    ctx.fillText(text, textX, centerY);
+    ctx.fillText(text, textX, mainLineY);
 
     // 5. Draw Logo
     const logoX = textX + textMetrics.width + padding;
-    const logoY = centerY - (logoHeight / 2);
+    const logoY = mainLineY - (logoHeight / 2);
     
     // Enable high quality image smoothing
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     
     ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
+    
+    // 6. Draw fork attribution line if original creator is present
+    if (originalCreator && forkText) {
+        ctx.font = `bold ${forkFontSize}px Inter, sans-serif`;
+        ctx.fillStyle = '#EC1D99'; // Weeve pink for the fork attribution
+        const forkLineY = mainLineY + lineHeight * 0.6;
+        ctx.fillText(forkText, textX, forkLineY);
+    }
 
     return new Promise((resolve, reject) => {
         canvas.toBlob(blob => {

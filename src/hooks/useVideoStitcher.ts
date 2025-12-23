@@ -1,13 +1,14 @@
 import { useState, useRef, useCallback } from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { Story, Contribution } from '@/lib/store';
+import { Story, Contribution, useStore } from '@/lib/store';
 import { toast } from 'sonner';
 import { createImageFromText, createWatermarkImage } from '@/lib/mediaUtils';
 
 export type StitchingState = 'idle' | 'loading-ffmpeg' | 'downloading-assets' | 'stitching' | 'complete' | 'error';
 
 export function useVideoStitcher() {
+    const stories = useStore((state) => state.stories);
     const [state, setState] = useState<StitchingState>('idle');
     const [progress, setProgress] = useState(0);
     const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -373,7 +374,29 @@ export function useVideoStitcher() {
                 
                 // fallback to simpler name if too long?
                 // For now, trust the helper
-                const watermarkBlob = await createWatermarkImage(creatorName);
+                
+                // If this is a forked story, try to find the original creator
+                let originalCreatorName: string | undefined;
+                if (story.forkedFromStoryId) {
+                    const originalStory = stories.find(s => s.id === story.forkedFromStoryId);
+                    if (originalStory) {
+                        // Ideally we'd look up the participant, but we might only have the story metadata
+                        // Depending on how stories are loaded, we might need to rely on what's available.
+                        // For now let's try to find the creator in the participants list of the original story
+                        const originalCreator = originalStory.participants?.find(p => p.id === originalStory.creatorId);
+                        
+                        // If we can't find the participant object (maybe minimal data loaded), we might need to fetch it or skip
+                        // But usually feed stories have participants loaded.
+                        if (originalCreator) {
+                             originalCreatorName = originalCreator.name || originalCreator.inviteCode;
+                        } else {
+                            // Fallback: if we can't find the user object, we can't get the name easily without looking up profiles.
+                            // However, in many cases feed items have sufficient data. 
+                        }
+                    }
+                }
+
+                const watermarkBlob = await createWatermarkImage(creatorName, originalCreatorName);
                 await ffmpeg.writeFile('watermark.png', new Uint8Array(await watermarkBlob.arrayBuffer()));
                 cleanupFiles.push('watermark.png');
             } catch (e) {
