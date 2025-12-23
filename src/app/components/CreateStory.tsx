@@ -1330,7 +1330,7 @@ const CreateStory = ({
         <div className="max-w-xl mx-auto flex gap-3">
           <button
             onClick={handleBack}
-            className="flex-1 px-6 py-4 border border-gray-800 rounded-2xl text-gray-300 font-bold hover:bg-gray-900 hover:text-white transition-colors flex items-center justify-center bg-black/50 backdrop-blur-md"
+            className="flex-1 px-6 py-3 border border-gray-800 rounded-2xl text-gray-300 font-bold hover:bg-gray-900 hover:text-white transition-colors flex items-center justify-center bg-black/50 backdrop-blur-md"
             disabled={isLoading}
           >
             Cancel
@@ -1339,7 +1339,7 @@ const CreateStory = ({
           <button
             onClick={handleCreateStory}
             disabled={isLoading}
-            className={`flex-[2] px-8 py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#EC1D99]/25 ${isLoading
+            className={`flex-[2] px-8 py-3 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#EC1D99]/25 ${isLoading
               ? "opacity-70 cursor-wait bg-[#EC1D99]"
               : "bg-[#EC1D99] hover:bg-[#D41C84] active:scale-[0.98]"
               }`}

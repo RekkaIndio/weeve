@@ -2114,6 +2114,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                         isStickerPanelOpen={showStickerPanel}
                                         onClearStickers={() => setPhotoStickers([])}
                                         hasStickers={photoStickers.length > 0}
+                                        hideUI={!!activeElementId}
                                     />
                                     {/* Stickers Overlay for Drawing */}
                                     {photoStickers.map((sticker) => (
@@ -2688,8 +2689,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 </div>
             )}
 
-            {/* Context Thumbnails - Visible when composing OR cropping */}
-            {contributions.length > 0 && ((stitchMode !== null && !showStitchMenu) || imageToCrop) && (
+            {/* Context Thumbnails - Visible when composing OR cropping, BUT NOT when editing text (to avoid keyboard overlap) */}
+            {contributions.length > 0 && ((stitchMode !== null && !showStitchMenu) || imageToCrop) && !activeElementId && (
                 <StitchContextThumbnails
                     contributions={contributions}
                     className={imageToCrop ? 'bottom-36' : 'bottom-4'}

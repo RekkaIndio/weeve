@@ -40,10 +40,11 @@ interface DrawingCanvasProps {
     isStickerPanelOpen?: boolean;
     onClearStickers?: () => void;
     hasStickers?: boolean;
+    hideUI?: boolean;
 }
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-    ({ className = '', onAddText, onToggleStickers, isStickerPanelOpen, onClearStickers, hasStickers }, ref) => {
+    ({ className = '', onAddText, onToggleStickers, isStickerPanelOpen, onClearStickers, hasStickers, hideUI }, ref) => {
         const containerRef = useRef<HTMLDivElement>(null);
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const fabricCanvasRef = useRef<fabric.Canvas | null>(null);
@@ -231,86 +232,88 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                 </div>
 
                 {/* Right Side Tool Menu */}
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-[70]">
-                    {/* Add Text Button */}
-                    {onAddText && (
+                {!hideUI && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-[70]">
+                        {/* Add Text Button */}
+                        {onAddText && (
+                            <button
+                                onClick={onAddText}
+                                className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
+                                aria-label="Add Text"
+                            >
+                                <Type className="w-5 h-5 text-white" />
+                            </button>
+                        )}
+
+                        {/* Sticker Button */}
+                        {onToggleStickers && (
+                            <button
+                                onClick={onToggleStickers}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${isStickerPanelOpen ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                                aria-label="Stickers"
+                            >
+                                <Smile className="w-5 h-5 text-white" />
+                            </button>
+                        )}
+
+                        {/* Color Tool */}
                         <button
-                            onClick={onAddText}
-                            className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
-                            aria-label="Add Text"
-                        >
-                            <Type className="w-5 h-5 text-white" />
-                        </button>
-                    )}
+                            onClick={() => setActivePanel(activePanel === 'color' ? null : 'color')}
+                            className={`w-10 h-10 rounded-full border-2 shadow-lg transition-all ${activePanel === 'color' ? 'border-white scale-110' : 'border-white/30'}`}
+                            style={{ backgroundColor: currentColor }}
+                            aria-label="Select color"
+                        />
 
-                    {/* Sticker Button */}
-                    {onToggleStickers && (
+                        {/* Size Tool */}
                         <button
-                            onClick={onToggleStickers}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${isStickerPanelOpen ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
-                            aria-label="Stickers"
+                            onClick={() => setActivePanel(activePanel === 'size' ? null : 'size')}
+                            className={`w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 flex items-center justify-center shadow-lg transition-all ${activePanel === 'size' ? 'border-white' : 'border-white/30'}`}
+                            aria-label="Brush size"
                         >
-                            <Smile className="w-5 h-5 text-white" />
+                            <Circle className="text-white" style={{ width: currentBrushSize + 8, height: currentBrushSize + 8 }} fill="currentColor" />
                         </button>
-                    )}
 
-                    {/* Color Tool */}
-                    <button
-                        onClick={() => setActivePanel(activePanel === 'color' ? null : 'color')}
-                        className={`w-10 h-10 rounded-full border-2 shadow-lg transition-all ${activePanel === 'color' ? 'border-white scale-110' : 'border-white/30'}`}
-                        style={{ backgroundColor: currentColor }}
-                        aria-label="Select color"
-                    />
-
-                    {/* Size Tool */}
-                    <button
-                        onClick={() => setActivePanel(activePanel === 'size' ? null : 'size')}
-                        className={`w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 flex items-center justify-center shadow-lg transition-all ${activePanel === 'size' ? 'border-white' : 'border-white/30'}`}
-                        aria-label="Brush size"
-                    >
-                        <Circle className="text-white" style={{ width: currentBrushSize + 8, height: currentBrushSize + 8 }} fill="currentColor" />
-                    </button>
-
-                    {/* Eraser */}
-                    <button
-                        onClick={toggleEraser}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${isErasing ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
-                        aria-label="Eraser"
-                    >
-                        <Eraser className="w-5 h-5 text-white" />
-                    </button>
-
-                    {/* Clear Stickers Badge - if stickers exist */}
-                    {hasStickers && onClearStickers && (
+                        {/* Eraser */}
                         <button
-                            onClick={onClearStickers}
-                            className="w-10 h-10 rounded-full bg-red-500/30 backdrop-blur-sm border-2 border-red-500/50 flex items-center justify-center shadow-lg transition-all hover:bg-red-500/50"
-                            aria-label="Clear stickers"
+                            onClick={toggleEraser}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${isErasing ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                            aria-label="Eraser"
                         >
-                            <Trash className="w-5 h-5 text-red-400" />
+                            <Eraser className="w-5 h-5 text-white" />
                         </button>
-                    )}
 
-                    {/* Undo */}
-                    <button
-                        onClick={handleUndo}
-                        disabled={!canUndo}
-                        className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg disabled:opacity-40 transition-all"
-                        aria-label="Undo"
-                    >
-                        <Undo2 className="w-5 h-5 text-white" />
-                    </button>
+                        {/* Clear Stickers Badge - if stickers exist */}
+                        {hasStickers && onClearStickers && (
+                            <button
+                                onClick={onClearStickers}
+                                className="w-10 h-10 rounded-full bg-red-500/30 backdrop-blur-sm border-2 border-red-500/50 flex items-center justify-center shadow-lg transition-all hover:bg-red-500/50"
+                                aria-label="Clear stickers"
+                            >
+                                <Trash className="w-5 h-5 text-red-400" />
+                            </button>
+                        )}
 
-                    {/* Redo */}
-                    <button
-                        onClick={handleRedo}
-                        disabled={!canRedo}
-                        className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg disabled:opacity-40 transition-all"
-                        aria-label="Redo"
-                    >
-                        <Redo2 className="w-5 h-5 text-white" />
-                    </button>
-                </div>
+                        {/* Undo */}
+                        <button
+                            onClick={handleUndo}
+                            disabled={!canUndo}
+                            className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg disabled:opacity-40 transition-all"
+                            aria-label="Undo"
+                        >
+                            <Undo2 className="w-5 h-5 text-white" />
+                        </button>
+
+                        {/* Redo */}
+                        <button
+                            onClick={handleRedo}
+                            disabled={!canRedo}
+                            className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg disabled:opacity-40 transition-all"
+                            aria-label="Redo"
+                        >
+                            <Redo2 className="w-5 h-5 text-white" />
+                        </button>
+                    </div>
+                )}
 
                 {/* Pop-out Color Panel */}
                 {activePanel === 'color' && (
