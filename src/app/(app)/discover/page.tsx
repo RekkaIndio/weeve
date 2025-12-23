@@ -218,9 +218,9 @@ function DiscoverContent() {
 
 
     return (
-        <div className="min-h-screen bg-black text-white p-4 pb-24">
+        <div className="min-h-screen bg-black text-white pb-24">
             {/* Search Header */}
-            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md py-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] mb-2">
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md py-2 px-4 mb-2">
                 <div className="flex items-center gap-3">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
@@ -234,6 +234,7 @@ function DiscoverContent() {
                     </div>
                     {currentUser && (
                         <NotificationBell
+                            userId={currentUser.id}
                             className="bg-gray-900/80 border border-gray-800"
                             badgeClassName="bg-[#EC1D99]"
                         />
@@ -298,7 +299,7 @@ function DiscoverContent() {
 
             {/* Content Area */}
             {viewMode === 'groups' ? (
-                <div className="space-y-4">
+                <div className="space-y-4 px-4">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-xl font-bold">Popular Groups</h2>
                         <button
@@ -355,7 +356,7 @@ function DiscoverContent() {
                     </div>
                 </div>
             ) : viewMode === 'people' ? (
-                <div className="space-y-4">
+                <div className="space-y-4 px-4">
                     <div className="mb-4 grid grid-cols-1 gap-3">
                         {isSearchingPeople ? (
                             <div className="flex items-center justify-center py-8 gap-3">
@@ -399,7 +400,7 @@ function DiscoverContent() {
                     </div>
                 </div>
             ) : (
-                <div className="space-y-6">
+                <div className="space-y-6 px-4">
                     {/* Trending Stories Section */}
                     {!searchQuery.trim() && trendingStories.length > 0 && (
                         <div className="mb-2">

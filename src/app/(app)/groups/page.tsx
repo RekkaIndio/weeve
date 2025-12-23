@@ -156,6 +156,7 @@ export default function GroupsPage() {
                     </button>
                     {user && (
                         <NotificationBell
+                            userId={user.id}
                             className="bg-gray-900/80 border border-gray-800"
                             badgeClassName="bg-[#EC1D99]"
                         />
