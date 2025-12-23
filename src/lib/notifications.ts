@@ -24,7 +24,11 @@ export type NotificationType =
     | 'timer_warning'
     | 'timer_warning'
     | 'timer_expired'
-    | 'new_follower';
+    | 'timer_expired'
+    | 'new_follower'
+    | 'group_join_request'
+    | 'group_request_approved'
+    | 'group_request_declined';
 
 export interface Notification {
     id: string;

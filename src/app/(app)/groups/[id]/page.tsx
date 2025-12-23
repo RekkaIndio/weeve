@@ -22,6 +22,7 @@ export default function GroupDetailsPage() {
     const [isMember, setIsMember] = useState(false);
     const [isAdmin, setIsAdmin] = useState(false);
     const [isOwner, setIsOwner] = useState(false);
+    const [hasPendingRequest, setHasPendingRequest] = useState(false);
     const [activeTab, setActiveTab] = useState<'stories' | 'members'>('stories');
     const [showShareModal, setShowShareModal] = useState(false);
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -70,8 +71,15 @@ export default function GroupDetailsPage() {
 
             if (user) {
                 const memberRecord = membersData?.find((m: any) => m.user_id === user.id);
-                setIsMember(!!memberRecord);
-                setIsAdmin(memberRecord?.role === 'admin');
+                if (memberRecord) {
+                    setIsMember(memberRecord.status === 'active');
+                    setHasPendingRequest(memberRecord.status === 'pending');
+                    setIsAdmin(memberRecord.role === 'admin' && memberRecord.status === 'active');
+                } else {
+                    setIsMember(false);
+                    setHasPendingRequest(false);
+                    setIsAdmin(false);
+                }
                 setIsOwner(groupData.owner_id === user.id);
             }
 
@@ -104,13 +112,13 @@ export default function GroupDetailsPage() {
 
     const handleMediaSelect = async (source: 'camera' | 'gallery') => {
         setShowAvatarPicker(false);
-        
+
         // Double-check permissions
         if (!isAdmin && !isOwner) {
             toast.error('Only admins and owners can change the group photo');
             return;
         }
-        
+
         const file = await capturePhoto(source);
         if (!file) return;
 
@@ -171,16 +179,26 @@ export default function GroupDetailsPage() {
             return;
         }
         try {
+            const status = group.is_private ? 'pending' : 'active';
+
             const { error } = await supabase
                 .from('group_members')
                 .insert({
                     group_id: id,
                     user_id: user.id,
-                    role: 'member'
+                    role: 'member',
+                    status: status
                 });
+
             if (error) throw error;
-            toast.success('Joined group!');
-            fetchGroupDetails();
+
+            if (status === 'pending') {
+                toast.success('Request sent to group admins');
+                setHasPendingRequest(true);
+            } else {
+                toast.success('Joined group!');
+                fetchGroupDetails();
+            }
         } catch (error) {
             console.error('Error joining group:', error);
             toast.error('Failed to join group');
@@ -252,7 +270,7 @@ export default function GroupDetailsPage() {
                 <div className="flex items-center gap-4 text-sm text-gray-500 mb-6">
                     <div className="flex items-center gap-1">
                         <Users className="w-4 h-4" />
-                        <span>{members.length} members</span>
+                        <span>{members.filter((m: any) => m.status === 'active').length} members</span>
                     </div>
                     <div className="flex items-center gap-1">
                         {group.is_private ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
@@ -267,9 +285,13 @@ export default function GroupDetailsPage() {
                 {!isMember ? (
                     <button
                         onClick={handleJoin}
-                        className="bg-[#EC1D99] text-white px-8 py-2 rounded-full font-bold hover:bg-[#d61a88] transition-colors"
+                        disabled={hasPendingRequest}
+                        className={`px-8 py-2 rounded-full font-bold transition-colors ${hasPendingRequest
+                                ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                                : 'bg-[#EC1D99] text-white hover:bg-[#d61a88]'
+                            }`}
                     >
-                        Join Group
+                        {hasPendingRequest ? 'Request Sent' : (group.is_private ? 'Request to Join' : 'Join Group')}
                     </button>
                 ) : (
                     <Link
@@ -348,7 +370,7 @@ export default function GroupDetailsPage() {
                 ) : (
                     /* Members Tab */
                     <div className="space-y-3">
-                        {members.map((member) => (
+                        {members.filter(m => m.status === 'active').map((member) => (
                             <div key={member.id} className="flex items-center gap-3 bg-gray-900/50 p-3 rounded-xl">
                                 <img
                                     src={member.profiles?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.user_id}`}

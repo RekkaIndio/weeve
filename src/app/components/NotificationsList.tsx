@@ -164,6 +164,7 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
             case 'friend_request':
             case 'friend_accepted':
             case 'new_follower':
+            case 'group_join_request':
                 return <UserPlus className="w-5 h-5" />;
             case 'story_commented':
                 return <MessageCircle className="w-5 h-5" />;
@@ -172,6 +173,8 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
             case 'group_invite':
             case 'group_update':
             case 'group_joined':
+            case 'group_request_approved':
+            case 'group_request_declined':
                 return <Users className="w-5 h-5" />;
             default:
                 return <Bell className="w-5 h-5" />;

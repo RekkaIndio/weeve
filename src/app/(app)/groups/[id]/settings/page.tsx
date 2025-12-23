@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
-import { ArrowLeft, Trash2, Save, X } from 'lucide-react';
+import { ArrowLeft, Trash2, Save, X, Check, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function GroupSettingsPage() {
@@ -13,6 +13,7 @@ export default function GroupSettingsPage() {
     const router = useRouter();
     const [group, setGroup] = useState<any>(null);
     const [members, setMembers] = useState<any[]>([]);
+    const [requests, setRequests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
@@ -56,7 +57,13 @@ export default function GroupSettingsPage() {
                 .eq('group_id', id);
 
             if (membersError) throw membersError;
-            setMembers(membersData || []);
+            if (membersError) throw membersError;
+
+            const activeMembers = (membersData || []).filter((m: any) => m.status === 'active' || !m.status);
+            const pendingRequests = (membersData || []).filter((m: any) => m.status === 'pending');
+
+            setMembers(activeMembers);
+            setRequests(pendingRequests);
 
         } catch (error) {
             console.error('Error fetching group settings:', error);
@@ -105,6 +112,48 @@ export default function GroupSettingsPage() {
         } catch (error) {
             console.error('Error deleting group:', error);
             toast.error('Failed to delete group');
+        }
+    };
+
+    const handleApproveRequest = async (memberId: string) => {
+        try {
+            const { error } = await supabase
+                .from('group_members')
+                .update({ status: 'active' })
+                .eq('group_id', id)
+                .eq('user_id', memberId);
+
+            if (error) throw error;
+            toast.success('Request approved');
+
+            // Move from requests to members
+            const request = requests.find(r => r.user_id === memberId);
+            if (request) {
+                setRequests(requests.filter(r => r.user_id !== memberId));
+                setMembers([...members, { ...request, status: 'active' }]);
+            }
+        } catch (error) {
+            console.error('Error approving request:', error);
+            toast.error('Failed to approve request');
+        }
+    };
+
+    const handleDeclineRequest = async (memberId: string) => {
+        if (!confirm('Decline this join request?')) return;
+
+        try {
+            const { error } = await supabase
+                .from('group_members')
+                .delete()
+                .eq('group_id', id)
+                .eq('user_id', memberId);
+
+            if (error) throw error;
+            toast.success('Request declined');
+            setRequests(requests.filter(r => r.user_id !== memberId));
+        } catch (error) {
+            console.error('Error declining request:', error);
+            toast.error('Failed to decline request');
         }
     };
 
@@ -265,6 +314,49 @@ export default function GroupSettingsPage() {
                         {saving ? 'Saving...' : 'Save Changes'}
                     </button>
                 </div>
+
+                {/* Join Requests */}
+                {requests.length > 0 && (
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                            <UserPlus className="w-5 h-5 text-[#EC1D99]" />
+                            <h2 className="text-lg font-bold text-[#EC1D99]">Join Requests ({requests.length})</h2>
+                        </div>
+                        <div className="space-y-3">
+                            {requests.map((request) => (
+                                <div key={request.id} className="flex items-center justify-between bg-gray-900/50 p-3 rounded-xl border border-gray-800">
+                                    <div className="flex items-center gap-3">
+                                        <img
+                                            src={request.profiles?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${request.user_id}`}
+                                            alt={request.profiles?.name}
+                                            className="w-10 h-10 rounded-full bg-gray-800"
+                                        />
+                                        <div>
+                                            <p className="font-medium">{request.profiles?.name || 'Unknown User'}</p>
+                                            <p className="text-xs text-gray-500">Wants to join</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleApproveRequest(request.user_id)}
+                                            className="p-2 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded-full transition-colors"
+                                            title="Approve"
+                                        >
+                                            <Check className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeclineRequest(request.user_id)}
+                                            className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-full transition-colors"
+                                            title="Decline"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Member Management */}
                 <div className="space-y-4">
