@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, Loader, Globe, Lock, UserPlus, Check, X } from "lucide-react";
+import { ChevronLeft, Loader, Globe, Lock, UserPlus, Check, X, Type, AlignLeft, Users, Hash } from "lucide-react";
 import { Reorder, useDragControls } from "framer-motion";
 import NotificationBell from "./NotificationBell";
 import { searchUsers, addFriend, sendFriendRequest } from "@/lib/friends";
@@ -64,11 +64,11 @@ const StorySlotItem = ({
           onClick={() => {
             if (isEmpty && !isReordering) onFill(index);
           }}
-          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all select-none relative ${isReordering && participant
+          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all select-none relative bg-gray-800 ${isReordering && participant
             ? "ring-2 ring-yellow-400 cursor-grab active:cursor-grabbing transform scale-105"
             : participant
               ? "ring-2 ring-[#EC1D99] ring-offset-2 ring-offset-black"
-              : "bg-gray-800 border-2 border-dashed border-gray-600 hover:border-gray-500 cursor-pointer"
+              : "cursor-pointer hover:scale-105"
             }`}
         >
           {participant ? (
@@ -79,7 +79,9 @@ const StorySlotItem = ({
               draggable={false}
             />
           ) : (
-            <div className="text-gray-500 text-2xl pointer-events-none">+</div>
+            <div className="w-full h-full rounded-full border-2 border-dashed border-gray-600 group-hover:border-[#EC1D99]/50 transition-colors flex items-center justify-center">
+              <UserPlus className="w-5 h-5 text-gray-600 group-hover:text-[#EC1D99]/70 transition-colors" />
+            </div>
           )}
 
           {/* Remove Button (Hide during reorder) */}
@@ -619,7 +621,10 @@ const CreateStory = ({
   const renderDetailsSection = () => (
     <div className="space-y-6">
       <div className="text-left mb-4">
-        <h2 className="text-lg font-bold text-white mb-2">1. Story Details</h2>
+        <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+          <Type className="w-5 h-5 text-[#EC1D99]" />
+          Story Details
+        </h2>
         <p className="text-gray-400 text-sm">Give your story a name and description</p>
       </div>
 
@@ -627,22 +632,25 @@ const CreateStory = ({
       <div>
         <label
           htmlFor="title"
-          className="block text-sm font-medium text-gray-300 mb-2 font-sans"
+          className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 font-sans pl-1"
         >
           Story Title <span className="text-[#EC1D99]">*</span>
         </label>
-        <input
-          id="title"
-          type="text"
-          value={formState.title}
-          ref={titleInputRef}
-          onChange={handleTitleChange}
-          placeholder="Give your story a name..."
-          className="w-full px-4 py-4 bg-gray-900 border border-gray-800 rounded-xl focus:outline-none focus:border-[#EC1D99] focus:ring-2 focus:ring-[#EC1D99]/20 transition-all text-white text-lg font-semibold placeholder-gray-600 font-sans"
-          aria-describedby="title-counter"
-        />
+        <div className="relative group">
+          <input
+            id="title"
+            type="text"
+            value={formState.title}
+            ref={titleInputRef}
+            onChange={handleTitleChange}
+            placeholder="Give your story a name..."
+            className="w-full px-4 py-4 pl-11 bg-gray-800/50 border border-gray-700/50 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white text-lg font-semibold placeholder-gray-500 font-sans backdrop-blur-sm"
+            aria-describedby="title-counter"
+          />
+          <Type className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-[#EC1D99] transition-colors" />
+        </div>
         <p
-          className="text-xs text-gray-500 mt-2 font-sans text-right"
+          className="text-xs text-gray-500 mt-2 font-sans text-right px-1"
           id="title-counter"
         >
           {formState.title.length}/60
@@ -653,34 +661,149 @@ const CreateStory = ({
       <div>
         <label
           htmlFor="description"
-          className="block text-sm font-medium text-gray-300 mb-2 font-sans"
+          className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 font-sans pl-1"
         >
-          Description <span className="text-gray-500">(optional)</span>
+          Description <span className="text-gray-500 font-normal normal-case ml-1">(Optional)</span>
         </label>
-        <textarea
-          id="description"
-          value={formState.description}
-          onChange={handleDescriptionChange}
-          placeholder="What's this story about? Set the scene for your collaborators..."
-          rows={3}
-          className="w-full px-4 py-4 bg-gray-900 border border-gray-800 rounded-xl focus:outline-none focus:border-[#EC1D99] focus:ring-2 focus:ring-[#EC1D99]/20 transition-all text-white resize-none placeholder-gray-600 font-sans"
-          aria-describedby="desc-counter"
-        />
+        <div className="relative group">
+          <textarea
+            id="description"
+            value={formState.description}
+            onChange={handleDescriptionChange}
+            rows={3}
+            placeholder="What's this story about? Set the scene for your collaborators..."
+            className="w-full px-4 py-4 pl-11 bg-gray-800/50 border border-gray-700/50 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white resize-none placeholder-gray-500 font-sans backdrop-blur-sm leading-relaxed"
+            aria-describedby="desc-counter"
+          />
+          <AlignLeft className="absolute left-4 top-5 w-5 h-5 text-gray-500 group-focus-within:text-[#EC1D99] transition-colors" />
+        </div>
         <p
-          className="text-xs text-gray-500 mt-2 text-right"
+          className="text-xs text-gray-500 mt-2 text-right px-1"
           id="desc-counter"
         >
           {formState.description.length}/200
         </p>
       </div>
-    </div>
+      {/* Hashtags Input moved from Settings */}
+      <div className="relative">
+        <label
+          htmlFor="hashtag"
+          className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 font-sans pl-1"
+        >
+          Hashtags <span className="text-gray-500 font-normal normal-case ml-1">(Optional)</span>
+        </label>
+        <div className="flex gap-2 items-center relative">
+          <div className="relative flex-1 group">
+            <input
+              id="hashtag"
+              type="text"
+              value={hashtagInput}
+              onChange={(e) => setHashtagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === "," || e.key === " ") {
+                  e.preventDefault();
+                  handleAddHashtag();
+                }
+                if (e.key === "Escape") {
+                  setShowHashtagDropdown(false);
+                }
+                if (e.key === "ArrowDown" && hashtagSuggestions.length > 0) {
+                  e.preventDefault();
+                  setShowHashtagDropdown(true);
+                }
+              }}
+              onFocus={() => setShowHashtagDropdown(true)}
+              onBlur={() => {
+                // Delay to allow click on dropdown
+                setTimeout(() => setShowHashtagDropdown(false), 200);
+              }}
+              placeholder="#adventure #friends"
+              className="w-full px-4 py-4 pl-11 bg-gray-800/50 border border-gray-700/50 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white placeholder-gray-500 font-sans backdrop-blur-sm"
+              ref={hashtagInputRef}
+              autoComplete="off"
+            />
+            <Hash className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-[#EC1D99] transition-colors" />
+
+            {/* Hashtag Suggestions Dropdown */}
+            {showHashtagDropdown && (hashtagSuggestions.length > 0 || isSearchingHashtags) && (
+              <div className="absolute left-0 right-0 top-full mt-2 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto ring-1 ring-white/10">
+                {isSearchingHashtags && (
+                  <div className="flex items-center justify-center py-3 text-gray-500 text-sm">
+                    <Loader className="w-4 h-4 animate-spin mr-2" />
+                    Searching...
+                  </div>
+                )}
+                {!isSearchingHashtags && hashtagSuggestions.length > 0 && (
+                  <>
+                    <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-800">
+                      Existing hashtags
+                    </div>
+                    {hashtagSuggestions.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleSelectHashtagSuggestion(tag);
+                        }}
+                        className="w-full px-3 py-2.5 text-left text-white hover:bg-gray-800 transition-colors flex items-center gap-2"
+                      >
+                        <span className="text-[#EC1D99]">#</span>
+                        <span>{tag}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+                {!isSearchingHashtags && hashtagSuggestions.length === 0 && hashtagInput.trim() && (
+                  <div className="px-3 py-3 text-gray-500 text-sm text-center">
+                    No matching hashtags found. Press Enter to create a new one.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => handleAddHashtag()}
+            className="px-6 py-4 rounded-2xl bg-[#EC1D99] text-white font-bold hover:bg-[#D41C84] transition-colors shadow-lg shadow-[#EC1D99]/20"
+          >
+            Add
+          </button>
+        </div>
+
+        {/* Hashtag Chips */}
+        {formState.hashtags && formState.hashtags.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {formState.hashtags.map((tag) => (
+              <div
+                key={tag}
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-800/50 text-gray-200 rounded-full text-sm border border-gray-700/50 group hover:border-[#EC1D99]/50 transition-colors"
+              >
+                <span>#{tag}</span>
+                <button
+                  onClick={() => handleRemoveHashtag(tag)}
+                  className="text-gray-500 hover:text-white transition-colors font-bold group-hover:text-red-400"
+                  aria-label={`Remove ${tag}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div >
   );
+
+
 
   // Render Section 2: Contributors
   const renderContributorsSection = () => (
     <div className="space-y-6" ref={participantsRef}>
       <div className="text-left mb-6">
-        <h2 className="text-lg font-bold text-white mb-2">2. Participants</h2>
+        <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+          <Users className="w-5 h-5 text-[#EC1D99]" />
+          Participants
+        </h2>
         <p className="text-gray-400 text-sm">Choose who can add to this story</p>
       </div>
 
@@ -689,7 +812,7 @@ const CreateStory = ({
         <fieldset aria-labelledby="story-visibility-legend">
           <legend
             id="story-visibility-legend"
-            className="block text-sm font-medium text-gray-300 mb-3 font-sans"
+            className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 font-sans pl-1"
           >
             Visibility
           </legend>
@@ -698,21 +821,21 @@ const CreateStory = ({
             {/* Option 1: Private */}
             <div
               onClick={() => handleVisibilityChange("private")}
-              className={`flex-1 flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all border-2 ${formState.visibility === "private" ? "bg-[#EC1D99]/10 border-[#EC1D99]" : "bg-gray-900 border-gray-800 hover:border-gray-700"}`}
+              className={`flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-3 p-4 rounded-2xl cursor-pointer transition-all border ${formState.visibility === "private" ? "bg-[#EC1D99]/10 border-[#EC1D99] shadow-[0_0_20px_rgba(236,29,153,0.1)]" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600 hover:bg-gray-800"}`}
             >
-              <div className={`p-2 rounded-full ${formState.visibility === "private" ? "bg-[#EC1D99] text-white" : "bg-gray-800 text-gray-400"}`}>
+              <div className={`p-2.5 rounded-xl ${formState.visibility === "private" ? "bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/20" : "bg-gray-700 text-gray-400"}`}>
                 <Lock className="w-5 h-5" />
               </div>
-              <div className="flex-1">
+              <div className="text-center sm:text-left">
                 <label
-                  className="text-sm font-semibold text-white cursor-pointer block font-sans"
+                  className={`text-sm font-bold cursor-pointer block font-sans ${formState.visibility === "private" ? "text-white" : "text-gray-300"}`}
                 >
                   Private
                 </label>
                 <p
-                  className="text-xs text-gray-500 mt-0.5 font-sans"
+                  className="text-xs text-gray-500 mt-0.5 font-sans leading-relaxed"
                 >
-                  Only invited friends
+                  Only invited friends can view and contribute
                 </p>
               </div>
             </div>
@@ -720,21 +843,21 @@ const CreateStory = ({
             {/* Option 2: Public */}
             <div
               onClick={() => handleVisibilityChange("public")}
-              className={`flex-1 flex items-center gap-3 p-4 rounded-xl cursor-pointer transition-all border-2 ${formState.visibility === "public" ? "bg-[#EC1D99]/10 border-[#EC1D99]" : "bg-gray-900 border-gray-800 hover:border-gray-700"}`}
+              className={`flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-3 p-4 rounded-2xl cursor-pointer transition-all border ${formState.visibility === "public" ? "bg-[#EC1D99]/10 border-[#EC1D99] shadow-[0_0_20px_rgba(236,29,153,0.1)]" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600 hover:bg-gray-800"}`}
             >
-              <div className={`p-2 rounded-full ${formState.visibility === "public" ? "bg-[#EC1D99] text-white" : "bg-gray-800 text-gray-400"}`}>
+              <div className={`p-2.5 rounded-xl ${formState.visibility === "public" ? "bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/20" : "bg-gray-700 text-gray-400"}`}>
                 <Globe className="w-5 h-5" />
               </div>
-              <div className="flex-1">
+              <div className="text-center sm:text-left">
                 <label
-                  className="text-sm font-semibold text-white cursor-pointer block font-sans"
+                  className={`text-sm font-bold cursor-pointer block font-sans ${formState.visibility === "public" ? "text-white" : "text-gray-300"}`}
                 >
                   Public
                 </label>
                 <p
-                  className="text-xs text-gray-500 mt-0.5 font-sans"
+                  className="text-xs text-gray-500 mt-0.5 font-sans leading-relaxed"
                 >
-                  Anyone can view
+                  Anyone can view, but only invited friends join
                 </p>
               </div>
             </div>
@@ -743,50 +866,65 @@ const CreateStory = ({
       )}
 
       {/* Number of Participants */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <label
-            htmlFor="invite-count"
-            className="block text-sm font-medium text-gray-300 font-sans"
-          >
-            Number of Participants
-          </label>
-          <span className="text-lg font-bold text-[#EC1D99]">{formState.inviteCount + 1}</span>
-        </div>
-        <input
-          id="invite-count"
-          type="range"
-          min={2}
-          max={11}
-          value={formState.inviteCount + 1}
-          onChange={(e) => {
-            const totalParticipants = parseInt(e.target.value);
-            const newCount = totalParticipants - 1;
+      <div className="bg-gray-800/30 p-4 rounded-2xl border border-white/5">
+        <label
+          htmlFor="invite-count"
+          className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-4 font-sans pl-1"
+        >
+          Number of Participants
+        </label>
+        <div className="flex items-center justify-between gap-4">
+          <button
+            onClick={() => {
+              const current = formState.inviteCount + 1;
+              if (current > 2) {
+                const newTotal = current - 1;
+                const newCount = newTotal - 1;
 
-            // Update slots state
-            setSlots(prev => {
-              const current = prev || [];
-              // We need totalParticipants slots
-              if (current.length < totalParticipants) {
-                // Add new slots with generated IDs
-                const needed = totalParticipants - current.length;
-                const newItems = Array.from({ length: needed }).map(() => ({ id: generateId(), friend: null }));
-                return [...current, ...newItems];
-              } else if (current.length > totalParticipants) {
-                return current.slice(0, totalParticipants);
+                // Update slots
+                setSlots(prev => {
+                  // When reducing, slice from the end
+                  return prev.slice(0, newTotal);
+                });
+                setFormState(prev => ({ ...prev, inviteCount: newCount }));
               }
-              return current;
-            });
+            }}
+            disabled={formState.inviteCount + 1 <= 2}
+            className="w-10 h-10 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
+          >
+            <span className="text-xl font-bold mb-1">-</span>
+          </button>
 
-            setFormState(prev => ({
-              ...prev,
-              inviteCount: newCount
-            }));
-          }}
-          className="w-full accent-[#EC1D99] h-2 cursor-pointer"
-          aria-label="Number of participants"
-        />
-        <p className="text-xs text-gray-500 mt-2">Total number of people in this story (including you)</p>
+          <div className="flex-1 text-center">
+            <div className="text-3xl font-bold text-white tracking-tight">
+              {formState.inviteCount + 1}
+            </div>
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">
+              People Total
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              const current = formState.inviteCount + 1;
+              if (current < 11) {
+                const newTotal = current + 1;
+                const newCount = newTotal - 1;
+
+                setSlots(prev => {
+                  const newItems = Array.from({ length: 1 }).map(() => ({ id: generateId(), friend: null }));
+                  return [...prev, ...newItems];
+                });
+
+                setFormState(prev => ({ ...prev, inviteCount: newCount }));
+              }
+            }}
+            disabled={formState.inviteCount + 1 >= 11}
+            className="w-10 h-10 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
+          >
+            <span className="text-xl font-bold mb-1">+</span>
+          </button>
+        </div>
       </div>
 
       {/* Improved Slots Visualization */}
@@ -889,7 +1027,7 @@ const CreateStory = ({
             disabled={
               !slots.some(s => s.friend === null)
             }
-            className="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:outline-none focus:border-[#EC1D99] focus:ring-2 focus:ring-[#EC1D99]/20 transition-all text-white placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed font-sans"
+            className="w-full px-4 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed font-sans"
           />
 
           {/* Friend Avatar Popup */}
@@ -1008,119 +1146,15 @@ const CreateStory = ({
     </div>
   );
 
-  // Render Section 3: Finishing Touches (Hashtags, etc)
+  // Render Section 3: Finishing Touches (Advanced Settings only now)
   const renderFinishingTouchesSection = () => (
     <div className="space-y-6">
-      <div className="text-left mb-6">
-        <h2 className="text-lg font-bold text-white mb-2">3. Extras</h2>
-        <p className="text-gray-400 text-sm">Add hashtags and configure settings</p>
-      </div>
-
-      {/* Hashtags Input */}
-      <div className="relative">
-        <label
-          htmlFor="hashtag"
-          className="block text-sm font-medium text-gray-300 mb-2 font-sans"
-        >
-          Hashtags <span className="text-gray-500">(optional)</span>
-        </label>
-        <div className="flex gap-2 items-center relative">
-          <div className="relative flex-1">
-            <input
-              id="hashtag"
-              type="text"
-              value={hashtagInput}
-              onChange={(e) => setHashtagInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === "," || e.key === " ") {
-                  e.preventDefault();
-                  handleAddHashtag();
-                }
-                if (e.key === "Escape") {
-                  setShowHashtagDropdown(false);
-                }
-                if (e.key === "ArrowDown" && hashtagSuggestions.length > 0) {
-                  e.preventDefault();
-                  setShowHashtagDropdown(true);
-                }
-              }}
-              onFocus={() => setShowHashtagDropdown(true)}
-              onBlur={() => {
-                // Delay to allow click on dropdown
-                setTimeout(() => setShowHashtagDropdown(false), 200);
-              }}
-              placeholder="#adventure #friends"
-              className="w-full px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl focus:outline-none focus:border-[#EC1D99] focus:ring-2 focus:ring-[#EC1D99]/20 transition-all text-white placeholder-gray-600 font-sans"
-              ref={hashtagInputRef}
-              autoComplete="off"
-            />
-
-            {/* Hashtag Suggestions Dropdown */}
-            {showHashtagDropdown && (hashtagSuggestions.length > 0 || isSearchingHashtags) && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-gray-900 border border-gray-700 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
-                {isSearchingHashtags && (
-                  <div className="flex items-center justify-center py-3 text-gray-500 text-sm">
-                    <Loader className="w-4 h-4 animate-spin mr-2" />
-                    Searching...
-                  </div>
-                )}
-                {!isSearchingHashtags && hashtagSuggestions.length > 0 && (
-                  <>
-                    <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-800">
-                      Existing hashtags
-                    </div>
-                    {hashtagSuggestions.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          handleSelectHashtagSuggestion(tag);
-                        }}
-                        className="w-full px-3 py-2.5 text-left text-white hover:bg-gray-800 transition-colors flex items-center gap-2"
-                      >
-                        <span className="text-[#EC1D99]">#</span>
-                        <span>{tag}</span>
-                      </button>
-                    ))}
-                  </>
-                )}
-                {!isSearchingHashtags && hashtagSuggestions.length === 0 && hashtagInput.trim() && (
-                  <div className="px-3 py-3 text-gray-500 text-sm text-center">
-                    No matching hashtags found. Press Enter to create a new one.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => handleAddHashtag()}
-            className="px-4 py-3 rounded-xl bg-[#EC1D99] text-white font-semibold hover:bg-[#D41C84] transition-colors"
-          >
-            Add
-          </button>
-        </div>
-
-        {/* Hashtag Chips */}
-        {formState.hashtags && formState.hashtags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {formState.hashtags.map((tag) => (
-              <div
-                key={tag}
-                className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-800 text-gray-200 rounded-full text-sm border border-gray-700"
-              >
-                <span>#{tag}</span>
-                <button
-                  onClick={() => handleRemoveHashtag(tag)}
-                  className="text-gray-500 hover:text-white transition-colors font-bold"
-                  aria-label={`Remove ${tag}`}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+      <div className="text-left mb-2">
+        <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+          <Hash className="w-5 h-5 text-[#EC1D99]" />
+          Settings
+        </h2>
+        <p className="text-gray-400 text-sm">Configure advanced settings</p>
       </div>
 
 
@@ -1129,18 +1163,18 @@ const CreateStory = ({
         <button
           type="button"
           onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-          className="w-full flex items-center justify-between p-4 bg-gray-900 border border-gray-800 rounded-xl hover:border-gray-700 transition-colors"
+          className="w-full flex items-center justify-between p-4 bg-gray-800/30 border border-white/5 rounded-2xl hover:bg-gray-800/50 transition-colors group"
         >
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-300 font-sans">Advanced Options</span>
-            <span className="text-xs text-gray-500">
-              ({[
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-bold text-gray-300 font-sans group-hover:text-white transition-colors">Advanced Options</span>
+            <span className="text-xs text-gray-500 font-medium bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">
+              {[
                 formState.turnTimerHours && '⏰ Timer',
-              ].filter(Boolean).join(', ') || 'Optional'})
+              ].filter(Boolean).join(', ') || 'Optional'}
             </span>
           </div>
           <svg
-            className={`w-5 h-5 text-gray-400 transition-transform ${showAdvancedOptions ? 'rotate-180' : ''}`}
+            className={`w-5 h-5 text-gray-500 group-hover:text-white transition-all duration-300 ${showAdvancedOptions ? 'rotate-180' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -1150,41 +1184,48 @@ const CreateStory = ({
         </button>
 
         {showAdvancedOptions && (
-          <div className="mt-3 p-4 bg-gray-900 border border-gray-800 rounded-xl space-y-4">
+          <div className="mt-2 p-4 bg-gray-800/30 border border-white/5 rounded-2xl space-y-4 animate-fadeIn">
             {/* Turn Timer */}
             <div>
-              <label htmlFor="turn-timer" className="block text-sm font-medium text-gray-300 mb-2 font-sans">
+              <label htmlFor="turn-timer" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 font-sans pl-1">
                 Turn Timer
               </label>
-              <select
-                id="turn-timer"
-                value={formState.turnTimerHours ?? ''}
-                onChange={(e) => {
-                  const value = e.target.value === '' ? undefined : parseInt(e.target.value);
-                  setFormState(prev => ({ ...prev, turnTimerHours: value }));
-                }}
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl focus:outline-none focus:border-[#EC1D99] focus:ring-2 focus:ring-[#EC1D99]/20 transition-all text-white font-sans"
-              >
-                <option value="">No limit</option>
-                <option value="6">6 hours</option>
-                <option value="12">12 hours</option>
-                <option value="24">24 hours</option>
-                <option value="48">48 hours</option>
-                <option value="72">72 hours</option>
-                <option value="168">1 week</option>
-              </select>
-              <p className="text-xs text-gray-500 mt-1">
+              <div className="relative">
+                <select
+                  id="turn-timer"
+                  value={formState.turnTimerHours ?? ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? undefined : parseInt(e.target.value);
+                    setFormState(prev => ({ ...prev, turnTimerHours: value }));
+                  }}
+                  className="w-full px-4 py-4 pl-4 bg-gray-900 border border-gray-700 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white font-sans appearance-none"
+                >
+                  <option value="">No limit</option>
+                  <option value="6">6 hours</option>
+                  <option value="12">12 hours</option>
+                  <option value="24">24 hours</option>
+                  <option value="48">48 hours</option>
+                  <option value="72">72 hours</option>
+                  <option value="168">1 week</option>
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2 px-1">
                 How long each participant has to add their part
               </p>
             </div>
 
+            <div className="h-px bg-white/5" />
+
             {/* Allow Comments Toggle */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between py-1">
               <div>
-                <div className="text-sm text-gray-300 font-medium font-sans">
+                <div className="text-sm text-gray-300 font-bold font-sans">
                   Allow comments
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-gray-500 mt-0.5">
                   Users can comment on this story
                 </div>
               </div>
@@ -1198,10 +1239,10 @@ const CreateStory = ({
                   className="sr-only peer"
                 />
                 <span
-                  className={`w-11 h-6 rounded-full transition-colors ${formState.allowComments ? "bg-[#EC1D99]" : "bg-gray-700"}`}
+                  className={`w-12 h-7 rounded-full transition-colors duration-300 ${formState.allowComments ? "bg-[#EC1D99]" : "bg-gray-700"}`}
                 >
                   <span
-                    className={`block w-5 h-5 rounded-full bg-white shadow-lg transform transition-transform duration-200 ease-in-out ${formState.allowComments ? "translate-x-5" : "translate-x-0.5"} translate-y-0.5`}
+                    className={`block w-6 h-6 rounded-full bg-white shadow-lg transform transition-transform duration-300 ease-spring ${formState.allowComments ? "translate-x-5.5" : "translate-x-0.5"} translate-y-0.5`}
                   ></span>
                 </span>
               </label>
@@ -1249,44 +1290,47 @@ const CreateStory = ({
         )}
       </header>
 
-      <main className="flex-1 px-4 py-6 pb-28 overflow-y-auto hidden-scrollbar">
-        <div className="max-w-md mx-auto md:max-w-lg space-y-8">
+      <main className="flex-1 px-4 py-8 pb-32 overflow-y-auto hidden-scrollbar">
+        <div className="max-w-xl mx-auto space-y-8">
 
           {/* Error Message */}
           {error && (
             <div
               role="alert"
               aria-live="assertive"
-              className="p-4 bg-red-900/50 border border-red-800 rounded-xl animate-fadeIn"
+              className="p-4 bg-red-500/10 border border-red-500/50 rounded-2xl animate-fadeIn flex items-center gap-3"
             >
-              <p
-                className="text-sm text-red-200 font-sans"
-              >
+              <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+              <p className="text-sm text-red-200 font-medium font-sans">
                 {error}
               </p>
             </div>
           )}
 
-          {/* Form Sections */}
-          {renderDetailsSection()}
+          {/* Section 1: Story Details */}
+          <div className="bg-gray-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-sm shadow-xl">
+            {renderDetailsSection()}
+          </div>
 
-          <div className="h-px bg-gray-800 my-8" />
+          {/* Section 2: Participants */}
+          <div className="bg-gray-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-sm shadow-xl">
+            {renderContributorsSection()}
+          </div>
 
-          {renderContributorsSection()}
-
-          <div className="h-px bg-gray-800 my-8" />
-
-          {renderFinishingTouchesSection()}
+          {/* Section 3: Extras */}
+          <div className="bg-gray-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-sm shadow-xl">
+            {renderFinishingTouchesSection()}
+          </div>
 
         </div>
       </main>
 
       {/* Footer Actions */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent z-10 pb-[env(safe-area-inset-bottom,20px)]">
-        <div className="max-w-md mx-auto md:max-w-lg flex gap-3">
+        <div className="max-w-xl mx-auto flex gap-3">
           <button
             onClick={handleBack}
-            className="flex-1 px-6 py-4 border border-gray-700 rounded-xl text-gray-300 font-medium hover:bg-gray-900 transition-colors flex items-center justify-center"
+            className="flex-1 px-6 py-4 border border-gray-800 rounded-2xl text-gray-300 font-bold hover:bg-gray-900 hover:text-white transition-colors flex items-center justify-center bg-black/50 backdrop-blur-md"
             disabled={isLoading}
           >
             Cancel
@@ -1295,9 +1339,9 @@ const CreateStory = ({
           <button
             onClick={handleCreateStory}
             disabled={isLoading}
-            className={`flex-1 px-8 py-4 rounded-xl text-white font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${isLoading
+            className={`flex-[2] px-8 py-4 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#EC1D99]/25 ${isLoading
               ? "opacity-70 cursor-wait bg-[#EC1D99]"
-              : "bg-gradient-to-r from-[#EC1D99] to-[#D41C84] hover:scale-[1.02]"
+              : "bg-[#EC1D99] hover:bg-[#D41C84] active:scale-[0.98]"
               }`}
           >
             {isLoading ? (
@@ -1307,8 +1351,8 @@ const CreateStory = ({
               </>
             ) : (
               <>
-                <Check className="w-5 h-5" />
-                Create Story
+                <Check className="w-6 h-6" />
+                Create
               </>
             )}
           </button>

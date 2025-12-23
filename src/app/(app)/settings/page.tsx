@@ -124,6 +124,12 @@ export default function SettingsPage() {
             ]
         },
         {
+            title: "Community",
+            items: [
+                { label: "Weeve World", icon: Sparkles, action: () => router.push('/settings/world-map'), toggle: false }, // Explicit toggle: false to satisfy TS if needed, or just let it default
+            ]
+        },
+        {
             title: "Support",
             items: [
                 { label: "How Weeve Works", icon: Sparkles, action: () => router.push('/onboarding/welcome') },
@@ -228,7 +234,7 @@ export default function SettingsPage() {
 
                 <button
                     onClick={() => router.push('/settings/delete-account')}
-                    className="w-full p-4 bg-transparent border border-red-900/30 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold hover:bg-red-900/10 transition-colors mt-4"
+                    className="w-full p-4 bg-transparent border border-red-900/30 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold hover:bg-red-900/10 transition-colors mt-6"
                 >
                     <Trash2 className="w-5 h-5" />
                     Delete Account
