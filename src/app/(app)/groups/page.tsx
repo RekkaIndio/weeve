@@ -29,7 +29,7 @@ export default function GroupsPage() {
 
     useEffect(() => {
         loadGroups();
-    }, []);
+    }, [user]);
 
     const loadGroups = async () => {
         try {
@@ -38,7 +38,7 @@ export default function GroupsPage() {
                 setLoading(false);
             }
 
-            const fetchedGroups = await fetchGroupsData();
+            const fetchedGroups = await fetchGroupsData(user?.id);
             setGroups(fetchedGroups);
         } catch (error) {
             console.error('Error fetching groups:', error);
@@ -172,7 +172,8 @@ export default function GroupsPage() {
                 />
             </div>
 
-            {loading ? (
+            {/* Show groups immediately from cache, will refresh in background */}
+            {groups.length === 0 && loading ? (
                 <div className="flex justify-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
                 </div>

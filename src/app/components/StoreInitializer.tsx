@@ -23,7 +23,7 @@ export default function StoreInitializer() {
                 await fetchStories();
 
                 console.log('Fetching groups... (currentUser:)', currentUser.id, currentUser.name);
-                const groups = await fetchGroups();
+                const groups = await fetchGroups(currentUser.id);
                 console.log('Fetched groups:', groups.length);
                 setGroups(groups);
             } catch (error) {

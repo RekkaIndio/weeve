@@ -275,7 +275,7 @@ function DiscoverContent() {
 
             {/* Feed Type Filter Chips - Only show in Stories view */}
             {viewMode === 'all' && !searchQuery.trim() && (
-                <div className="flex gap-2 pb-4 overflow-x-auto scrollbar-hide -mx-4 px-4">
+                <div className="flex gap-2 pb-4 overflow-x-auto scrollbar-hide px-4">
                     {[
                         { id: 'forYou', label: 'For You', icon: Sparkles },
                         { id: 'trending', label: 'Trending', icon: TrendingUp },

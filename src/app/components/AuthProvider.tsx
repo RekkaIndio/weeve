@@ -654,13 +654,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         };
     }, [handleUserLogin, router, setCurrentUser]);
 
-    // Force unlock after 8 seconds to prevent stuck state (increased from 500ms to allow auth flow to complete)
+    // Force unlock after 3 seconds to prevent stuck state
     useEffect(() => {
         if (loading) {
             const timer = setTimeout(() => {
-                console.warn('[AuthProvider] Force unlocking after 8s timeout');
+                console.warn('[AuthProvider] Force unlocking after 3s timeout');
                 setLoading(false);
-            }, 8000);
+            }, 3000);
             return () => clearTimeout(timer);
         }
     }, [loading]);

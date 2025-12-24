@@ -206,7 +206,8 @@ export default function GroupDetailsPage() {
     };
 
 
-    if (loading) return (
+    // Only show loading spinner on initial load with no cached data
+    if (loading && !group) return (
         <div className="min-h-screen bg-black flex items-center justify-center text-white">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
         </div>
@@ -287,8 +288,8 @@ export default function GroupDetailsPage() {
                         onClick={handleJoin}
                         disabled={hasPendingRequest}
                         className={`px-8 py-2 rounded-full font-bold transition-colors ${hasPendingRequest
-                                ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                                : 'bg-[#EC1D99] text-white hover:bg-[#d61a88]'
+                            ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                            : 'bg-[#EC1D99] text-white hover:bg-[#d61a88]'
                             }`}
                     >
                         {hasPendingRequest ? 'Request Sent' : (group.is_private ? 'Request to Join' : 'Join Group')}

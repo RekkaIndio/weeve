@@ -862,25 +862,28 @@ export async function createStoryContribution(options: CreateStoryContributionOp
     return { contribution };
 }
 
-export async function fetchGroups(): Promise<Group[]> {
+export async function fetchGroups(userId?: string): Promise<Group[]> {
     try {
-        // Get current user using getSession (local) instead of getUser (remote) to avoid network timeouts
-        const sessionCheckTimeoutMs = 6000;
-        const sessionPromise = supabase.auth.getSession();
-        const sessionResult: unknown = await Promise.race([
-            sessionPromise,
-            new Promise<unknown>((resolve) => setTimeout(() => resolve({ timedOut: true }), sessionCheckTimeoutMs)),
-        ]);
+        // If userId is provided, we can skip the session check!
+        let user: { id: string } | null = userId ? { id: userId } : null;
 
-        let user: { id: string } | null = null;
-        if (!sessionResult || (sessionResult as { timedOut?: boolean })?.timedOut) {
-            console.warn('[fetchGroups] supabase.auth.getSession timed out');
-        } else {
-            const maybeSession = (sessionResult as { data?: { session?: unknown } })?.data?.session ?? null;
-            if (maybeSession && (maybeSession as { user?: unknown })?.user) {
-                const sessionUser = (maybeSession as { user: { id: string } }).user;
-                if (sessionUser && typeof sessionUser.id === 'string') {
-                    user = { id: sessionUser.id };
+        // Only fetch session if we don't have a userId
+        if (!user) {
+            const sessionCheckTimeoutMs = 6000;
+            const sessionResult: unknown = await Promise.race([
+                supabase.auth.getSession(),
+                new Promise<unknown>((resolve) => setTimeout(() => resolve({ timedOut: true }), sessionCheckTimeoutMs)),
+            ]);
+
+            if (!sessionResult || (sessionResult as { timedOut?: boolean })?.timedOut) {
+                console.warn('[fetchGroups] supabase.auth.getSession timed out');
+            } else {
+                const maybeSession = (sessionResult as { data?: { session?: unknown } })?.data?.session ?? null;
+                if (maybeSession && (maybeSession as { user?: unknown })?.user) {
+                    const sessionUser = (maybeSession as { user: { id: string } }).user;
+                    if (sessionUser && typeof sessionUser.id === 'string') {
+                        user = { id: sessionUser.id };
+                    }
                 }
             }
         }
@@ -891,6 +894,7 @@ export async function fetchGroups(): Promise<Group[]> {
             .from('groups')
             .select('*')
             .order('created_at', { ascending: false });
+        
         const groupsResult: unknown = await Promise.race([
             groupsQueryPromise,
             new Promise<unknown>((resolve) => setTimeout(() => resolve({ data: null, error: new Error('Groups query timeout') }), groupsQueryTimeoutMs)),

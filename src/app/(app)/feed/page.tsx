@@ -62,7 +62,7 @@ export default function Home() {
     const timer = setTimeout(async () => {
       try {
         await fetchStories();
-        fetchGroups().then(groups => setGroups(groups));
+        fetchGroups(user?.id).then(groups => setGroups(groups));
         fetchFriends();
       } catch (err) {
         console.error('[Feed] Fetch error:', err);
@@ -85,7 +85,7 @@ export default function Home() {
     try {
       await Promise.all([
         fetchStories(),
-        fetchGroups().then(groups => setGroups(groups)),
+        fetchGroups(user.id).then(groups => setGroups(groups)),
         fetchFriends(),
       ]);
       console.log('[Feed] Refresh complete');
@@ -230,7 +230,7 @@ export default function Home() {
 
             // Queue secondary fetches in background (don't await them for the retry loop)
             Promise.allSettled([
-              fetchGroups().then(groups => setGroups(groups)),
+              fetchGroups(session.user.id).then(groups => setGroups(groups)),
               fetchFriends(),
             ]).catch(err => console.warn('[Feed] Secondary data fetch warning:', err));
 
@@ -449,26 +449,25 @@ export default function Home() {
     };
   }, [filteredStories.length, activeIndex]); // Updated dependency
 
-  // Force unlock the UI after 3 seconds if still stuck
+  // Force unlock the UI after 200ms if still stuck - show cached content immediately
   const [forceUnlock, setForceUnlock] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => {
-      console.log('[Feed] Force unlock triggered after 500ms');
+      console.log('[Feed] Force unlock triggered after 200ms');
       setForceUnlock(true);
-    }, 500);
+    }, 200);
     return () => clearTimeout(timer);
   }, []);
 
-  // Only block on auth loading and user presence
-  // Don't block on isStoriesLoading - we have persisted stories to show
-  // Force unlock after 3 seconds as failsafe
-  if ((loading || !user) && !forceUnlock) {
-    console.log('[Feed Page Debug] Render blocked by:', { loading, noUser: !user, isStoriesLoading, forceUnlock });
+  // Only block on auth loading for a very short time - prefer showing cached content
+  // AuthProvider already shows a spinner, so we only block briefly here
+  if ((loading || !user) && !forceUnlock && stories.length === 0) {
+    console.log('[Feed Page Debug] Render blocked by:', { loading, noUser: !user, isStoriesLoading, forceUnlock, hasCachedStories: stories.length > 0 });
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-[#EC1D99] border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-gray-400 text-sm">{isStoriesLoading ? 'Refreshing feed...' : 'Loading...'}</p>
+          <p className="text-gray-400 text-sm">Loading feed...</p>
         </div>
       </div>
     );

@@ -53,7 +53,7 @@ export function useDataRefresh() {
             // Fetch all data in parallel for speed
             const results = await Promise.allSettled([
                 fetchStories(),
-                fetchGroups().then(groups => setGroups(groups)),
+                fetchGroups(currentUser?.id).then(groups => setGroups(groups)),
                 fetchFriends(),
             ]);
 
