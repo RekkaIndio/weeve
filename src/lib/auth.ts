@@ -150,8 +150,32 @@ export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise
  */
 export async function signOut(): Promise<{ error: Error | null }> {
     try {
+        console.log('[Auth] Signing out...');
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
+        
+        // Aggressively clear any localStorage session data to prevent
+        // corrupt sessions from causing hangs on next app launch
+        if (typeof window !== 'undefined' && window.localStorage) {
+            try {
+                // Look for and remove any Supabase session keys
+                const keysToRemove: string[] = [];
+                for (let i = 0; i < window.localStorage.length; i++) {
+                    const key = window.localStorage.key(i);
+                    if (key && (key.includes('supabase') || key.includes('sb-'))) {
+                        keysToRemove.push(key);
+                    }
+                }
+                keysToRemove.forEach(key => {
+                    console.log('[Auth] Clearing localStorage key:', key);
+                    window.localStorage.removeItem(key);
+                });
+            } catch (e) {
+                console.warn('[Auth] Failed to clear localStorage:', e);
+            }
+        }
+        
+        console.log('[Auth] Sign out complete');
         return { error: null };
     } catch (error) {
         console.error('[Auth] Signout error:', error);

@@ -29,6 +29,14 @@ export default function GroupsPage() {
 
     useEffect(() => {
         let isActive = true;
+
+        // Don't fetch until user is available - this prevents the session check
+        // timeout issue in production where the initial fetch happens before auth completes
+        if (!user) {
+            // If no user yet, just show loading - AuthProvider will redirect if truly not logged in
+            return;
+        }
+
         loadGroups(isActive);
         return () => {
             isActive = false;
@@ -36,19 +44,27 @@ export default function GroupsPage() {
     }, [user]);
 
     const loadGroups = async (isActive: boolean = true) => {
+        if (!user?.id) {
+            console.warn('[GroupsPage] loadGroups called without user ID, skipping');
+            setLoading(false);
+            return;
+        }
+
         try {
             // If we already have groups in the store, don't show loading spinner
             if (groups.length > 0 && isActive) {
                 setLoading(false);
             }
 
-            const fetchedGroups = await fetchGroupsData(user?.id);
+            console.log('[GroupsPage] Fetching groups for user:', user.id);
+            const fetchedGroups = await fetchGroupsData(user.id);
+            console.log('[GroupsPage] Fetched', fetchedGroups.length, 'groups');
 
             if (isActive) {
                 setGroups(fetchedGroups);
             }
         } catch (error) {
-            console.error('Error fetching groups:', error);
+            console.error('[GroupsPage] Error fetching groups:', error);
             if (isActive) toast.error('Failed to load groups');
         } finally {
             if (isActive) {

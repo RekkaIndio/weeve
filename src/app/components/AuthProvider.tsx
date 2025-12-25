@@ -138,71 +138,180 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // ---------------------------------------------------------------------------
     useEffect(() => {
         let mounted = true;
+        let initCompleted = false;
+
+        // Helper to clear potentially corrupted session data from localStorage
+        const clearCorruptedSessions = () => {
+            if (typeof window !== 'undefined' && window.localStorage) {
+                try {
+                    const keysToRemove: string[] = [];
+                    for (let i = 0; i < window.localStorage.length; i++) {
+                        const key = window.localStorage.key(i);
+                        if (key && (key.includes('supabase') || key.includes('sb-'))) {
+                            keysToRemove.push(key);
+                        }
+                    }
+                    if (keysToRemove.length > 0) {
+                        console.log('[AuthProvider] Clearing potentially corrupted session keys:', keysToRemove);
+                        keysToRemove.forEach(key => window.localStorage.removeItem(key));
+                    }
+                } catch (e) {
+                    console.warn('[AuthProvider] Failed to clear localStorage:', e);
+                }
+            }
+        };
 
         const initialize = async () => {
-            // 1. Get initial session
-            const { data: { session }, error } = await supabase.auth.getSession();
+            console.log('[AuthProvider] Starting initialization...');
+            const initStartTime = Date.now();
 
-            if (session?.user) {
-                setUser(session.user);
-                setLatestSession(session);
+            try {
+                // 1. Get initial session with timeout protection
+                // Reduced to 8s to prevent long waits in production
+                console.log('[AuthProvider] Fetching session...');
+                const sessionPromise = supabase.auth.getSession();
+                const timeoutPromise = new Promise<{ data: { session: null }, error: Error, timedOut: true }>((resolve) => {
+                    setTimeout(() => {
+                        console.warn('[AuthProvider] getSession timed out after 8 seconds');
+                        resolve({ data: { session: null }, error: new Error('Session fetch timed out'), timedOut: true });
+                    }, 8000);
+                });
 
-                // Perform Profile Sync BEFORE un-setting loading
-                await syncProfile(session.user, { access_token: session.access_token });
-            } else {
-                // No session
+                const result = await Promise.race([sessionPromise, timeoutPromise]) as any;
+                const session = result?.data?.session;
+                const error = result?.error;
+                const timedOut = result?.timedOut;
+
+                console.log('[AuthProvider] Session fetch completed in', Date.now() - initStartTime, 'ms, hasSession:', !!session?.user, 'timedOut:', !!timedOut);
+
+                if (error || timedOut) {
+                    console.warn('[AuthProvider] Session fetch error/timeout:', error?.message);
+                    // Clear potentially corrupted session data that might be causing hangs
+                    clearCorruptedSessions();
+                }
+
+                if (session?.user) {
+                    setUser(session.user);
+                    setLatestSession(session);
+
+                    // Perform Profile Sync with shorter timeout (5s)
+                    try {
+                        console.log('[AuthProvider] Syncing profile...');
+                        const syncPromise = syncProfile(session.user, { access_token: session.access_token });
+                        const syncTimeout = new Promise<null>((resolve) => {
+                            setTimeout(() => {
+                                console.warn('[AuthProvider] syncProfile timed out after 5 seconds');
+                                resolve(null);
+                            }, 5000);
+                        });
+                        await Promise.race([syncPromise, syncTimeout]);
+                        console.log('[AuthProvider] Profile sync completed in', Date.now() - initStartTime, 'ms');
+                    } catch (syncErr) {
+                        console.warn('[AuthProvider] syncProfile error during init:', syncErr);
+                    }
+                } else {
+                    // No session or timed out
+                    console.log('[AuthProvider] No session, clearing user state');
+                    setUser(null);
+                    setLatestSession(null);
+                    logoutUser();
+
+                    // Clear any potentially corrupt session storage
+                    if (typeof window !== 'undefined') {
+                        try {
+                            sessionStorage.removeItem('weeve_oauth_in_progress');
+                        } catch (e) { }
+                    }
+                }
+            } catch (initErr) {
+                console.error('[AuthProvider] Initialize error:', initErr);
+                // Fail gracefully - treat as no session
                 setUser(null);
                 setLatestSession(null);
                 logoutUser();
+            } finally {
+                initCompleted = true;
+                if (mounted) {
+                    console.log('[AuthProvider] Initialization complete, total time:', Date.now() - initStartTime, 'ms');
+                    setLoading(false);
+                }
             }
-
-            if (mounted) setLoading(false);
         };
+
+        // Master timeout: GUARANTEE that loading ends within 12 seconds no matter what
+        // This prevents the app from ever getting stuck on the loading screen
+        const masterTimeout = setTimeout(() => {
+            if (!initCompleted && mounted) {
+                console.error('[AuthProvider] MASTER TIMEOUT: Forcing loading to end after 12 seconds');
+                setUser(null);
+                setLatestSession(null);
+                logoutUser();
+                setLoading(false);
+            }
+        }, 12000);
 
         initialize();
 
-        // 2. Listen for changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-            console.log('[AuthProvider] Auth Change:', event);
+        // 2. Listen for changes - wrapped in try-catch for safety
+        let subscription: { unsubscribe: () => void } | null = null;
+        try {
+            const { data } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
+                console.log('[AuthProvider] Auth Change:', event);
 
-            if (!mounted) return;
+                if (!mounted) return;
 
-            if (session?.user) {
-                setUser(session.user);
-                setLatestSession(session);
+                if (session?.user) {
+                    setUser(session.user);
+                    setLatestSession(session);
 
-                // On SIGN_IN, we might need to sync profile again
-                if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-                    await syncProfile(session.user, { access_token: session.access_token });
+                    // On SIGN_IN, we might need to sync profile again (with timeout)
+                    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                        try {
+                            const syncPromise = syncProfile(session.user, { access_token: session.access_token });
+                            const syncTimeout = new Promise<null>((resolve) => setTimeout(() => {
+                                console.warn('[AuthProvider] onAuthStateChange syncProfile timed out');
+                                resolve(null);
+                            }, 10000));
+                            await Promise.race([syncPromise, syncTimeout]);
+                        } catch (syncErr) {
+                            console.warn('[AuthProvider] onAuthStateChange syncProfile error:', syncErr);
+                        }
+                    }
+
+                    // OAuth Redirect Handling (Clean up URL)
+                    if (event === 'SIGNED_IN') {
+                        // Check if we need to handle specific logic?
+                    }
+
+                } else {
+                    setUser(null);
+                    setLatestSession(null);
+                    logoutUser();
                 }
 
-                // OAuth Redirect Handling (Clean up URL)
-                if (event === 'SIGNED_IN') {
-                    // Check if we need to handle specific logic?
+                // Clean up OAuth loading state
+                if (typeof window !== 'undefined') {
+                    sessionStorage.removeItem('weeve_oauth_in_progress');
                 }
 
-            } else {
-                setUser(null);
-                setLatestSession(null);
-                logoutUser();
-            }
+                setLoading(false);
 
-            // Clean up OAuth loading state
-            if (typeof window !== 'undefined') {
-                sessionStorage.removeItem('weeve_oauth_in_progress');
-            }
-
-            setLoading(false);
-
-            // Handle redirects on change
-            if (event === 'SIGNED_OUT') {
-                window.location.href = '/login';
-            }
-        });
+                // Handle redirects on change
+                if (event === 'SIGNED_OUT') {
+                    window.location.href = '/login';
+                }
+            });
+            subscription = data.subscription;
+        } catch (subscriptionError) {
+            console.error('[AuthProvider] Failed to set up auth subscription:', subscriptionError);
+        }
 
         return () => {
             mounted = false;
-            subscription.unsubscribe();
+            clearTimeout(masterTimeout);
+            if (subscription) {
+                subscription.unsubscribe();
+            }
         };
     }, [setCurrentUser, syncProfile, router, logoutUser]);
 
@@ -280,10 +389,21 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     }
 
                     if (code) {
-                        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+                        // Add timeout to code exchange to prevent hanging
+                        const exchangePromise = supabase.auth.exchangeCodeForSession(code);
+                        const timeoutPromise = new Promise<{ data: { session: null }, error: Error }>((resolve) => {
+                            setTimeout(() => {
+                                console.warn('[AuthProvider] exchangeCodeForSession timed out after 15 seconds');
+                                resolve({ data: { session: null }, error: new Error('Code exchange timed out') });
+                            }, 15000);
+                        });
+
+                        const result = await Promise.race([exchangePromise, timeoutPromise]);
+                        const { data, error } = result as any;
+
                         if (error) throw error;
 
-                        if (data.session) {
+                        if (data?.session) {
                             console.log('[AuthProvider] Manual session usage from deep link exchange');
 
                             // Wrap in timeout to break out of native event loop and ensure React updates flushes
@@ -293,9 +413,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                 setLatestSession(data.session);
                                 if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
 
-                                // Check profile triggers immediately
+                                // Check profile triggers immediately (with timeout)
                                 try {
-                                    await syncProfile(data.session.user, { access_token: data.session.access_token });
+                                    const syncPromise = syncProfile(data.session.user, { access_token: data.session.access_token });
+                                    const syncTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000));
+                                    await Promise.race([syncPromise, syncTimeout]);
                                 } catch (err) {
                                     console.warn('[AuthProvider] Deep link sync profile error', err);
                                 }
@@ -305,6 +427,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                 router.push('/feed');
                                 router.refresh();
                             }, 50);
+                        } else {
+                            throw new Error('No session received from code exchange');
                         }
                     }
 
@@ -320,27 +444,46 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
                         if (access_token && refresh_token) {
                             setTimeout(async () => {
-                                const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
-                                if (error) console.error('[AuthProvider] setSession error', error);
+                                try {
+                                    // Add timeout to setSession
+                                    const sessionPromise = supabase.auth.setSession({ access_token, refresh_token });
+                                    const timeoutPromise = new Promise<{ data: { session: null }, error: Error }>((resolve) => {
+                                        setTimeout(() => {
+                                            resolve({ data: { session: null }, error: new Error('setSession timed out') });
+                                        }, 15000);
+                                    });
 
-                                if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
+                                    const result = await Promise.race([sessionPromise, timeoutPromise]);
+                                    const { data, error } = result as any;
 
-                                if (data?.session) {
-                                    console.log('[AuthProvider] Manual session usage from deep link (implicit)');
-                                    setUser(data.session.user);
-                                    setLatestSession(data.session);
+                                    if (error) console.error('[AuthProvider] setSession error', error);
 
-                                    try {
-                                        await syncProfile(data.session.user, { access_token: data.session.access_token });
-                                    } catch (err) {
-                                        console.warn('[AuthProvider] Deep link sync profile error', err);
+                                    if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
+
+                                    if (data?.session) {
+                                        console.log('[AuthProvider] Manual session usage from deep link (implicit)');
+                                        setUser(data.session.user);
+                                        setLatestSession(data.session);
+
+                                        try {
+                                            const syncPromise = syncProfile(data.session.user, { access_token: data.session.access_token });
+                                            const syncTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000));
+                                            await Promise.race([syncPromise, syncTimeout]);
+                                        } catch (err) {
+                                            console.warn('[AuthProvider] Deep link sync profile error', err);
+                                        }
                                     }
-                                }
 
-                                // FORCE navigation
-                                console.log('[AuthProvider] Force redirecting to feed (implicit)');
-                                router.push('/feed');
-                                router.refresh();
+                                    // FORCE navigation
+                                    console.log('[AuthProvider] Force redirecting to feed (implicit)');
+                                    router.push('/feed');
+                                    router.refresh();
+                                } catch (innerErr) {
+                                    console.error('[AuthProvider] Implicit flow error:', innerErr);
+                                    if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
+                                    toast.error('Authentication failed. Please try again.');
+                                    router.push('/login');
+                                }
                             }, 50);
                         }
                     }
