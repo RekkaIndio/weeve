@@ -39,6 +39,7 @@ export const viewport = {
 import AuthProvider from "./components/AuthProvider";
 import StoreInitializer from "./components/StoreInitializer";
 import InviteHandler from "./components/InviteHandler";
+import CrashlyticsInitializer from "./components/CrashlyticsInitializer";
 
 import { Toaster } from 'sonner';
 
@@ -55,6 +56,7 @@ export default function RootLayout({
         <AuthProvider>
           <StoreInitializer />
           <InviteHandler />
+          <CrashlyticsInitializer />
           {children}
           <Toaster richColors position="top-center" />
         </AuthProvider>
