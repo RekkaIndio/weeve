@@ -10,6 +10,7 @@ export default function SignUpPage() {
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
 
     // DOB State
     const [dobDay, setDobDay] = useState("");
@@ -35,7 +36,7 @@ export default function SignUpPage() {
     }, [searchParams]);
 
     const handleEmailSignUp = async () => {
-        if (!email || !password || !dobDay || !dobMonth || !dobYear) {
+        if (!email || !password || !confirmPassword || !dobDay || !dobMonth || !dobYear) {
             setError("Please fill in all fields");
             return;
         }
@@ -73,6 +74,11 @@ export default function SignUpPage() {
         }
         if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
             setError("Password must contain at least one special character");
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            setError("Passwords do not match");
             return;
         }
 
@@ -245,6 +251,15 @@ export default function SignUpPage() {
                         placeholder="Password (8+ chars, number, uppercase, special char)"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
+                        disabled={loading}
+                    />
+                    <input
+                        type="password"
+                        className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
+                        placeholder="Confirm Password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
                         disabled={loading}
                     />

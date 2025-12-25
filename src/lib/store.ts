@@ -30,6 +30,8 @@ export interface User {
     brandWebsite?: string;
     brandVerified?: boolean;
     brandSubscriptionStatus?: 'none' | 'active' | 'expired';
+    completedOnboarding?: boolean;
+    onboardingStep?: number;
 }
 
 export interface Group {
@@ -849,11 +851,11 @@ export const useStore = create<AppState>()(
                         ]);
                     };
 
-                    // First attempt: Fail fast (5s) to detect dead socket
-                    let result = await runQuery(5000);
+                    // First attempt: Fail fast (10s) to detect dead socket but allow slow connections
+                    let result = await runQuery(10000);
                     let { data: storiesData, error } = result as { data: any[] | null; error: any };
 
-                    // Auto-recovery: If failed, try refreshing session and retrying with patience (15s)
+                    // Auto-recovery: If failed, try refreshing session and retrying with patience (20s)
                     if (error) {
                         console.warn('[Store] fetchStories failed (attempt 1), attempting auto-recovery (refresh session + retry)...', error);
                         
@@ -861,12 +863,12 @@ export const useStore = create<AppState>()(
                         const refreshPromise = supabase.auth.refreshSession();
                         const { error: refreshError } = await Promise.race([
                             refreshPromise,
-                            new Promise<{ error: any }>(r => setTimeout(() => r({ error: new Error('Refresh timeout') }), 5000))
+                            new Promise<{ error: any }>(r => setTimeout(() => r({ error: new Error('Refresh timeout') }), 15000))
                         ]);
                         
                         if (!refreshError) {
                             console.log('[Store] Session refreshed, retrying fetchStories (attempt 2)...');
-                            result = await runQuery(15000); // Give it more time on retry
+                            result = await runQuery(20000); // Give it more time on retry
                             storiesData = (result as any).data;
                             error = (result as any).error;
                         } else {

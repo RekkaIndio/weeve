@@ -1859,6 +1859,84 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     setActiveMenu(null);
                 }}
             />
+
+            {/* Composer Header - Cancel/Post buttons */}
+            {isComposerOpen && (
+                <div className="absolute top-4 left-4 right-4 z-50 flex items-center justify-between pointer-events-auto">
+                    <button
+                        onClick={handleComposerCancel}
+                        className="px-4 py-2 rounded-full bg-black/40 backdrop-blur-md text-white font-medium hover:bg-black/60 transition-colors"
+                    >
+                        Cancel
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => handleComposerSubmit()}
+                            disabled={isPostDisabled || isUploading}
+                            className={`px-6 py-2 rounded-full font-bold transition-colors ${isPostDisabled || isUploading ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-[#EC1D99] text-white hover:bg-[#D41C84]'}`}
+                        >
+                            {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Post'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Photo Tools Menu - Right Side (Filters, Stickers, Crop) */}
+            {isComposerOpen && stitchMode === 'image' && mediaDraft?.previewUrl && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3 pointer-events-auto">
+                    {/* Filter Button */}
+                    <button
+                        onClick={() => {
+                            setShowPhotoFilterPanel(!showPhotoFilterPanel);
+                            setShowStickerPanel(false);
+                        }}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${showPhotoFilterPanel ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                        aria-label="Filters"
+                    >
+                        <Sparkles className="w-5 h-5 text-white" />
+                    </button>
+
+                    {/* Sticker Button */}
+                    <button
+                        onClick={() => {
+                            setShowStickerPanel(!showStickerPanel);
+                            setShowPhotoFilterPanel(false);
+                        }}
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${showStickerPanel ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                        aria-label="Stickers"
+                    >
+                        <Smile className="w-5 h-5 text-white" />
+                    </button>
+
+                    {/* Crop Button */}
+                    <button
+                        onClick={() => {
+                            setShowStickerPanel(false);
+                            setShowPhotoFilterPanel(false);
+                            if (mediaDraft?.previewUrl) {
+                                setImageToCrop(mediaDraft.previewUrl);
+                            }
+                        }}
+                        className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
+                        aria-label="Crop"
+                    >
+                        <Crop className="w-5 h-5 text-white" />
+                    </button>
+
+                    {/* Clear Stickers Button - visible when stickers exist */}
+                    {photoStickers.length > 0 && (
+                        <button
+                            onClick={() => setPhotoStickers([])}
+                            className="w-10 h-10 rounded-full bg-red-500/30 backdrop-blur-sm border-2 border-red-500/50 flex items-center justify-center shadow-lg transition-all hover:bg-red-500/50"
+                            aria-label="Clear stickers"
+                        >
+                            <Trash className="w-5 h-5 text-red-400" />
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Edit Story Modal */}
             {
                 showEditModal && (

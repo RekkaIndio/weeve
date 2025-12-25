@@ -54,7 +54,7 @@ try {
     _supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
         auth: {
             persistSession: true,
-            autoRefreshToken: false, // Disable auto-refresh to prevent blocking startup; we handle 401s lazily
+            autoRefreshToken: true, // Enable auto-refresh to ensure requests don't hang on expired tokens
             detectSessionInUrl: !Capacitor.isNativePlatform(),
         },
     });

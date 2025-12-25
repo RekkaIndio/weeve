@@ -153,9 +153,8 @@ export const searchUsers = async (query: string, currentUserId: string): Promise
 };
 
 export const getFriends = async (userId: string): Promise<User[]> => {
-    try {
-        // Add timeout protection to prevent hanging on native mobile
-        const FETCH_TIMEOUT_MS = 10000;
+    // Helper to run query with timeout
+    const runQuery = async (timeoutMs: number) => {
         const friendsQueryPromise = supabase
             .from('friendships')
             .select(`
@@ -164,17 +163,34 @@ export const getFriends = async (userId: string): Promise<User[]> => {
         `)
             .eq('user_id', userId);
 
-        const result: unknown = await Promise.race([
+        return Promise.race([
             friendsQueryPromise,
-            new Promise<unknown>((resolve) => 
-                setTimeout(() => resolve({ data: null, error: new Error('Friends query timeout') }), FETCH_TIMEOUT_MS)
+            new Promise<{ data: any[] | null; error: any }>((resolve) => 
+                setTimeout(() => resolve({ data: null, error: new Error(`Friends query timeout (${timeoutMs}ms)`) }), timeoutMs)
             ),
         ]);
+    };
 
-        const { data, error } = result as { data: any[] | null; error: any };
+    try {
+        // Attempt 1: 20s timeout
+        let result = await runQuery(20000);
+        let { data, error } = result as { data: any[] | null; error: any };
+
+        // Attempt 2: Auto-recovery on error
+        if (error) {
+            console.warn('[Friends] getFriends failed (attempt 1), refreshing session and retrying...', error);
+             const { error: refreshError } = await supabase.auth.refreshSession();
+             if (!refreshError) {
+                 result = await runQuery(20000); // Retry with same successful timeout
+                 data = (result as any).data;
+                 error = (result as any).error;
+             } else {
+                 console.warn('[Friends] Session refresh failed:', refreshError);
+             }
+        }
 
         if (error) {
-            console.error('Error fetching friends:', error);
+            console.error('Error fetching friends (final):', error);
             return [];
         }
 

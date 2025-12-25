@@ -28,23 +28,32 @@ export default function GroupsPage() {
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
-        loadGroups();
+        let isActive = true;
+        loadGroups(isActive);
+        return () => {
+            isActive = false;
+        };
     }, [user]);
 
-    const loadGroups = async () => {
+    const loadGroups = async (isActive: boolean = true) => {
         try {
             // If we already have groups in the store, don't show loading spinner
-            if (groups.length > 0) {
+            if (groups.length > 0 && isActive) {
                 setLoading(false);
             }
 
             const fetchedGroups = await fetchGroupsData(user?.id);
-            setGroups(fetchedGroups);
+
+            if (isActive) {
+                setGroups(fetchedGroups);
+            }
         } catch (error) {
             console.error('Error fetching groups:', error);
-            toast.error('Failed to load groups');
+            if (isActive) toast.error('Failed to load groups');
         } finally {
-            setLoading(false);
+            if (isActive) {
+                setLoading(false);
+            }
         }
     };
 

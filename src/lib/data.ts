@@ -961,7 +961,7 @@ export async function fetchGroups(userId?: string): Promise<Group[]> {
 
         // Only fetch session if we don't have a userId
         if (!user) {
-            const sessionCheckTimeoutMs = 6000;
+            const sessionCheckTimeoutMs = 10000;
             const sessionResult: unknown = await Promise.race([
                 supabase.auth.getSession(),
                 new Promise<unknown>((resolve) => setTimeout(() => resolve({ timedOut: true }), sessionCheckTimeoutMs)),
@@ -981,21 +981,40 @@ export async function fetchGroups(userId?: string): Promise<Group[]> {
         }
 
         // Query groups with timeout to avoid stuck UI when network or backend is slow
-        const groupsQueryTimeoutMs = 15000;
-        const groupsQueryPromise = supabase
-            .from('groups')
-            .select('*')
-            .order('created_at', { ascending: false });
+        const runQuery = async (timeoutMs: number) => {
+            const groupsQueryPromise = supabase
+                .from('groups')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            return Promise.race([
+                groupsQueryPromise,
+                new Promise<{ data: GroupRow[] | null; error: any }>((resolve) => 
+                    setTimeout(() => resolve({ data: null, error: new Error(`Groups query timeout (${timeoutMs}ms)`) }), timeoutMs)
+                ),
+            ]);
+        };
         
-        const groupsResult: unknown = await Promise.race([
-            groupsQueryPromise,
-            new Promise<unknown>((resolve) => setTimeout(() => resolve({ data: null, error: new Error('Groups query timeout') }), groupsQueryTimeoutMs)),
-        ]);
+        // Attempt 1: 20s timeout
+        let result = await runQuery(20000);
+        let { data, error } = result as { data: GroupRow[] | null; error: any };
 
-        const { data, error } = groupsResult as { data?: GroupRow[] | null; error?: any };
+        // Attempt 2: Auto-recovery on error
+        if (error) {
+             console.warn('[Groups] fetchGroups failed (attempt 1), refreshing session and retrying...', error);
+             const { error: refreshError } = await supabase.auth.refreshSession();
+             
+             if (!refreshError) {
+                 result = await runQuery(30000); // Retry with longer timeout (30s)
+                 data = (result as any).data;
+                 error = (result as any).error;
+             } else {
+                 console.warn('[Groups] Session refresh failed:', refreshError);
+             }
+        }
 
         if (error) {
-            console.error('Error fetching groups:', error);
+            console.error('Error fetching groups (final):', error);
             return [];
         }
 

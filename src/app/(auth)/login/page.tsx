@@ -3,12 +3,15 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn, signInWithGoogle } from "@/lib/auth";
+import { useAuth } from "@/app/components/AuthProvider";
 import { supabase } from '@/lib/supabase';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 
 export default function LoginPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
+
+    const { user } = useAuth(); // Get auth state to prevent flash
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -32,16 +35,28 @@ export default function LoginPage() {
 
     const [isIosChrome, setIsIosChrome] = useState(false);
 
+    // Auth state changes are handled by AuthProvider which will redirect to /feed
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
-            if (event === 'SIGNED_IN') {
-                setSocialLoading(null);
-                router.replace('/feed');
-            }
-        });
+        // Safety timeout: If we are stuck in "Signing you in..." for more than 15 seconds, reset it.
+        // This handles cases where the deep link never comes back or fails silently.
+        let timeoutId: NodeJS.Timeout;
 
-        return () => subscription.unsubscribe();
-    }, [router]);
+        if (socialLoading === "google") {
+            const startTime = Date.now();
+            // check if we have a timestamp stored? For now just simple timeout from mount/update
+
+            timeoutId = setTimeout(() => {
+                console.warn('[Login] OAuth timeout - clearing loading state');
+                setSocialLoading(null);
+                sessionStorage.removeItem('weeve_oauth_in_progress');
+                setError("Login timed out. Please try again.");
+            }, 30000); // 30 seconds timeout
+        }
+
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+        };
+    }, [socialLoading]);
 
     useEffect(() => {
         try {
@@ -77,8 +92,9 @@ export default function LoginPage() {
                 if (sessionError) console.error('[Login] Error setting session:', sessionError);
             }
 
-            // Redirect to homepage - AuthProvider will also handle setup redirect if needed
-            router.push('/feed');
+            // AuthProvider will handle redirect to /feed once session is detected
+            // router.push('/feed'); 
+
         } catch (error) {
             console.error('[Login] Error:', error);
             const message = error instanceof Error ? error.message : null;

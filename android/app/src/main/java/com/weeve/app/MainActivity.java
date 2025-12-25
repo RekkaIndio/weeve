@@ -5,6 +5,7 @@ import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 import com.capacitorjs.plugins.browser.BrowserPlugin;
 import com.codetrixstudio.capacitor.GoogleAuth.GoogleAuth;
+import io.capawesome.capacitorjs.plugins.firebase.crashlytics.FirebaseCrashlyticsPlugin;
 
 public class MainActivity extends BridgeActivity {
 	@Override
@@ -12,5 +13,6 @@ public class MainActivity extends BridgeActivity {
 		super.onCreate(savedInstanceState);
 		registerPlugin(BrowserPlugin.class);
 		registerPlugin(GoogleAuth.class);
+		registerPlugin(FirebaseCrashlyticsPlugin.class);
 	}
 }

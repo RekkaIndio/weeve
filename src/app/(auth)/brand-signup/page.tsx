@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signUp } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { useStore } from "@/lib/store";
 import Link from "next/link";
 import { Building2, Globe, Mail, Lock, ArrowRight, CheckCircle2, Eye, EyeOff } from "lucide-react";
 
@@ -237,7 +238,24 @@ export default function BrandSignUpPage() {
 
             console.log('[BrandSignup] Brand account created successfully, redirecting...');
 
-            // 3. Brand profile is complete - skip setup page and go directly to onboarding
+            // 3. Manually update store to prevent race conditions with AuthProvider
+            // AuthProvider might have synced a "default" profile if it beat us to the DB.
+            // We overwrite it here with the correct brand data to ensure the UI is perfect.
+            useStore.getState().setCurrentUser({
+                id: user.id,
+                name: brandName,
+                avatar: faviconUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
+                tagline: undefined,
+                tokens: 100,
+                inviteCode: inviteCode,
+                isBrand: true,
+                brandWebsite: normalizedUrl,
+                brandSubscriptionStatus: 'none',
+                completedOnboarding: false,
+                onboardingStep: 1,
+            });
+
+            // 4. Brand profile is complete - skip setup page and go directly to onboarding
             // The profile already has name, avatar, and all brand fields set
             router.push('/onboarding/welcome');
 
