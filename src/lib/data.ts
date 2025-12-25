@@ -614,9 +614,17 @@ export async function createStoryContribution(options: CreateStoryContributionOp
 
     const { data: storyData } = await supabase
         .from('stories')
-        .select('creator_id, post_type, canon_slots, contributions (user_id, timestamp)')
+        .select('creator_id, post_type, canon_slots, group_id, contributions (user_id, timestamp)')
         .eq('id', options.storyId)
         .single();
+
+    // Check if story belongs to a group and validate membership
+    if (storyData?.group_id) {
+        const isMember = await isGroupMember(storyData.group_id, options.userId);
+        if (!isMember) {
+            throw new Error('You must be a member of this group to contribute to this story');
+        }
+    }
 
     // For Canon posts, determine the next available slot for the brand
     let timestamp = options.timestamp ?? Date.now();
@@ -1101,5 +1109,34 @@ export async function fetchUserStories(userId: string): Promise<Story[]> {
     } catch (error) {
         console.error('Unexpected error fetching stories:', error);
         return [];
+    }
+}
+
+/**
+ * Check if a user is a member of a specific group
+ * @param groupId - The group ID to check
+ * @param userId - The user ID to check
+ * @returns true if the user is an active member of the group, false otherwise
+ */
+export async function isGroupMember(groupId: string, userId: string): Promise<boolean> {
+    try {
+        const { data, error } = await supabase
+            .from('group_members')
+            .select('status')
+            .eq('group_id', groupId)
+            .eq('user_id', userId)
+            .single();
+
+        if (error) {
+            // User is not a member if no record exists
+            if (error.code === 'PGRST116') return false;
+            console.error('Error checking group membership:', error);
+            return false;
+        }
+
+        return data?.status === 'active';
+    } catch (error) {
+        console.error('Unexpected error checking group membership:', error);
+        return false;
     }
 }

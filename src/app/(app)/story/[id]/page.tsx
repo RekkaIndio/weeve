@@ -414,6 +414,28 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     return;
                 }
 
+                // Check if story belongs to a group and validate membership
+                if (s.group_id) {
+                    // Import isGroupMember dynamically to avoid circular dependencies
+                    const { isGroupMember } = await import('@/lib/data');
+                    const currentUserId = currentUser?.id;
+
+                    if (currentUserId) {
+                        const isMember = await isGroupMember(s.group_id, currentUserId);
+                        if (!isMember) {
+                            console.warn('[Story] User is not a member of the group for this story');
+                            toast.error('You must be a member of this group to view this story');
+                            router.push('/groups');
+                            return;
+                        }
+                    } else {
+                        // Not logged in - can't view group-specific stories
+                        toast.error('Please sign in to view group stories');
+                        router.push('/');
+                        return;
+                    }
+                }
+
                 // Note: We intentionally don't check "cancelled" here because we want to 
                 // add the story to the store even if the component remounted during navigation
 

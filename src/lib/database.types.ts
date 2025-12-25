@@ -29,6 +29,11 @@ export interface Database {
                     preferences: Json
                     last_name_change_at: string | null
                     date_of_birth: string | null
+                    is_brand: boolean
+                    brand_website: string | null
+                    brand_verified: boolean
+                    brand_verified_at: string | null
+                    brand_subscription_status: 'none' | 'active' | 'expired'
                     created_at: string
                     updated_at: string
                 }
@@ -48,6 +53,11 @@ export interface Database {
                     preferences?: Json
                     last_name_change_at?: string | null
                     date_of_birth?: string | null
+                    is_brand?: boolean
+                    brand_website?: string | null
+                    brand_verified?: boolean
+                    brand_verified_at?: string | null
+                    brand_subscription_status?: 'none' | 'active' | 'expired'
                     created_at?: string
                     updated_at?: string
                 }
@@ -67,6 +77,11 @@ export interface Database {
                     preferences?: Json
                     last_name_change_at?: string | null
                     date_of_birth?: string | null
+                    is_brand?: boolean
+                    brand_website?: string | null
+                    brand_verified?: boolean
+                    brand_verified_at?: string | null
+                    brand_subscription_status?: 'none' | 'active' | 'expired'
                     created_at?: string
                     updated_at?: string
                 }
