@@ -20,152 +20,27 @@ import { toast } from "sonner";
 import { useTimerCheck } from "@/lib/useTimerCheck";
 import { supabase } from "@/lib/supabase";
 
-const FONT_OPTIONS = [
-    { label: "Sans", value: "'Inter', 'Helvetica Neue', sans-serif" },
-    { label: "Serif", value: "'Playfair Display', 'Georgia', serif" },
-    { label: "Mono", value: "'Space Mono', 'Courier New', monospace" },
-    { label: "Script", value: "'Pacifico', 'Brush Script MT', cursive" },
-    { label: "Display", value: "'Bebas Neue', 'Impact', sans-serif" },
-] as const;
+import {
+    TimelineEntry, MediaPickerConfig, PhotoSticker, MediaDraft
+} from "./types";
+import {
+    FONT_OPTIONS,
+    FONT_SIZE_OPTIONS,
+    TEXT_COLOR_OPTIONS,
+    BACKGROUND_OPTIONS,
+    ALIGN_OPTIONS,
+    DEFAULT_TEXT_STYLE,
+    EMPTY_CONTRIBUTIONS
+} from "./constants/text";
+import { PHOTO_FILTERS } from "./constants/filters";
+import { STICKER_EMOJIS, EMOJI_OPTIONS } from "./constants/stickers";
 
-const FONT_SIZE_OPTIONS = [18, 24, 32, 40, 48, 56] as const;
-
-const TEXT_COLOR_OPTIONS = [
-    "#FFFFFF",
-    "#EC1D99",
-    "#FFD166",
-    "#06D6A0",
-    "#118AB2",
-    "#EF476F",
-    "#F4F1DE",
-] as const;
-
-const BACKGROUND_OPTIONS = [
-    "transparent",
-    "rgba(0,0,0,0.6)",
-    "rgba(236,29,153,0.25)",
-    "rgba(255,209,102,0.25)",
-    "rgba(17,138,178,0.25)",
-    "rgba(244,241,222,0.35)",
-] as const;
-
-const EMOJI_OPTIONS = [
-    "✨",
-    "🔥",
-    "🎉",
-    "🌟",
-    "💫",
-    "🥳",
-    "🚀",
-    "🎬",
-    "📸",
-    "🎵",
-] as const;
-
-const ALIGN_OPTIONS: Array<{ value: TextStyle["textAlign"]; icon: typeof AlignLeft }> = [
-    { value: "left", icon: AlignLeft },
-    { value: "center", icon: AlignCenter },
-    { value: "right", icon: AlignRight },
-];
-
-const EMPTY_CONTRIBUTIONS: Contribution[] = [];
-
-const DEFAULT_TEXT_STYLE: TextStyle = {
-    fontFamily: "'Inter', 'Helvetica Neue', sans-serif",
-    fontSize: 28,
-    textColor: "#FFFFFF",
-    backgroundColor: "transparent",
-    textAlign: "center",
-};
-
-// Photo filter presets using CSS filters
-const PHOTO_FILTERS = [
-    // Basic
-    { id: 'normal', label: 'Normal', filter: 'none' },
-
-    // Classic
-    { id: 'vintage', label: 'Vintage', filter: 'sepia(0.4) contrast(1.1) brightness(0.9)' },
-    { id: 'retro', label: 'Retro', filter: 'sepia(0.25) contrast(1.15) saturate(1.2) brightness(0.95)' },
-    { id: 'film', label: 'Film', filter: 'contrast(1.1) saturate(0.9) brightness(1.05) sepia(0.1)' },
-    { id: 'polaroid', label: 'Polaroid', filter: 'contrast(0.9) brightness(1.1) saturate(0.85) sepia(0.15)' },
-
-    // Black & White
-    { id: 'bw', label: 'B&W', filter: 'grayscale(1) contrast(1.1)' },
-    { id: 'noir', label: 'Noir', filter: 'grayscale(1) contrast(1.4) brightness(0.9)' },
-    { id: 'silver', label: 'Silver', filter: 'grayscale(0.8) contrast(1.05) brightness(1.1)' },
-
-    // Warm Tones
-    { id: 'warm', label: 'Warm', filter: 'sepia(0.2) saturate(1.3) brightness(1.05)' },
-    { id: 'golden', label: 'Golden', filter: 'sepia(0.3) saturate(1.2) brightness(1.05) hue-rotate(-10deg)' },
-    { id: 'sunset', label: 'Sunset', filter: 'sepia(0.35) saturate(1.4) brightness(1.0) hue-rotate(-15deg)' },
-    { id: 'amber', label: 'Amber', filter: 'sepia(0.5) saturate(1.1) brightness(0.95)' },
-
-    // Cool Tones
-    { id: 'cool', label: 'Cool', filter: 'saturate(0.9) brightness(1.05) hue-rotate(10deg)' },
-    { id: 'arctic', label: 'Arctic', filter: 'saturate(0.8) brightness(1.1) hue-rotate(20deg) contrast(1.05)' },
-    { id: 'ocean', label: 'Ocean', filter: 'saturate(1.1) brightness(1.0) hue-rotate(30deg)' },
-    { id: 'moonlight', label: 'Moon', filter: 'saturate(0.7) brightness(1.15) hue-rotate(15deg) contrast(0.95)' },
-
-    // Vibrant
-    { id: 'vivid', label: 'Vivid', filter: 'saturate(1.5) contrast(1.1)' },
-    { id: 'pop', label: 'Pop', filter: 'saturate(1.7) contrast(1.15) brightness(1.05)' },
-    { id: 'neon', label: 'Neon', filter: 'saturate(2.0) contrast(1.2) brightness(1.1)' },
-    { id: 'electric', label: 'Electric', filter: 'saturate(1.8) contrast(1.25) hue-rotate(5deg)' },
-
-    // Moody
-    { id: 'fade', label: 'Fade', filter: 'contrast(0.9) brightness(1.1) saturate(0.8)' },
-    { id: 'dramatic', label: 'Drama', filter: 'contrast(1.3) brightness(0.95) saturate(1.1)' },
-    { id: 'moody', label: 'Moody', filter: 'contrast(1.2) brightness(0.85) saturate(0.9)' },
-    { id: 'shadow', label: 'Shadow', filter: 'contrast(1.35) brightness(0.8) saturate(0.85)' },
-
-    // Soft & Dreamy
-    { id: 'soft', label: 'Soft', filter: 'contrast(0.85) brightness(1.1) saturate(0.9)' },
-    { id: 'dreamy', label: 'Dreamy', filter: 'contrast(0.8) brightness(1.15) saturate(0.85) blur(0.5px)' },
-    { id: 'haze', label: 'Haze', filter: 'contrast(0.9) brightness(1.2) saturate(0.75)' },
-
-    // Artistic
-    { id: 'invert', label: 'Invert', filter: 'invert(1)' },
-    { id: 'sepia', label: 'Sepia', filter: 'sepia(1)' },
-    { id: 'chrome', label: 'Chrome', filter: 'saturate(0) contrast(1.3) brightness(1.1)' },
-
-    // Instagram-style
-    { id: 'clarendon', label: 'Claren', filter: 'contrast(1.2) saturate(1.35)' },
-    { id: 'gingham', label: 'Gingham', filter: 'brightness(1.05) hue-rotate(-10deg) saturate(0.9)' },
-    { id: 'juno', label: 'Juno', filter: 'sepia(0.1) saturate(1.5) contrast(1.15) brightness(1.05)' },
-    { id: 'lark', label: 'Lark', filter: 'contrast(0.9) saturate(1.1) brightness(1.1)' },
-    { id: 'reyes', label: 'Reyes', filter: 'sepia(0.22) brightness(1.1) contrast(0.85) saturate(0.75)' },
-] as const;
-
-// Sticker emoji library organized by category
-const STICKER_EMOJIS = [
-    // Love & Hearts
-    '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💕', '💖', '💗', '💘', '💝', '😍', '🥰', '😘',
-    // Fire & Stars
-    '🔥', '✨', '⭐', '🌟', '💫', '⚡', '💥', '🎇', '🎆', '🌈',
-    // Faces
-    '😂', '🤣', '😊', '😎', '🥳', '🤩', '😇', '🥺', '😭', '🤯', '😱', '🙄', '😏', '🤔', '🤗',
-    // Gestures
-    '👍', '👏', '🙌', '🤝', '✌️', '🤞', '🤟', '🤙', '👋', '💪', '🙏',
-    // Animals
-    '🦋', '🐶', '🐱', '🦊', '🐻', '🐼', '🐨', '🦁', '🐯', '🦄',
-    // Nature
-    '🌸', '🌺', '🌻', '🌹', '🌷', '🍀', '🌴', '🌊', '☀️', '🌙', '⛅', '❄️',
-    // Food & Drink
-    '🍕', '🍔', '🍟', '🌮', '🍦', '🍩', '🎂', '🍷', '🍾', '☕',
-    // Celebration
-    '🎉', '🎊', '🎈', '🎁', '🏆', '🥇', '👑', '💎', '🎵', '🎶',
-    // Objects
-    '📸', '🎬', '🎤', '🎸', '💌', '✈️', '🚀', '💡', '🔮', '🎭',
-];
-
-// Sticker type definition
-interface PhotoSticker {
-    id: string;
-    emoji: string;
-    x: number; // percentage 0-100
-    y: number; // percentage 0-100
-    scale: number;
-}
+// Components
+import { EditorCanvas } from "./components/EditorCanvas";
+import { StitchComposer } from "./components/StitchComposer";
+import { StoryTimeline } from "./components/StoryTimeline";
+import { StitchMenu } from "./components/StitchMenu";
+import { MediaPickerOverlay } from "./components/MediaPickerOverlay";
 
 export default function StoryPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -280,7 +155,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
     const [textElements, setTextElements] = useState<TextElement[]>([]);
     const [activeElementId, setActiveElementId] = useState<string | null>(null);
-    const [mediaDraft, setMediaDraft] = useState<{ type: 'video' | 'image'; file?: File; previewUrl?: string } | null>(null);
+    const [mediaDraft, setMediaDraft] = useState<MediaDraft | null>(null);
     const [imageToCrop, setImageToCrop] = useState<string | null>(null);
     const [photoFilter, setPhotoFilter] = useState<string>('normal');
     const [showPhotoFilterPanel, setShowPhotoFilterPanel] = useState(false);
@@ -1894,854 +1769,96 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             </div >
 
             {/* Timeline Controls */}
-            {
-                !isComposerOpen && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-30 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
-                        <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', scrollSnapType: 'x mandatory' }}>
-                            {timelineEntries.map((entry, entryIndex) => {
-                                // Handle empty slot entries (waiting participants or open slots)
-                                if (entry.type === 'empty') {
-                                    const participant = entry.participant;
+            {!isComposerOpen && timelineEntries && (
+                <StoryTimeline
+                    timelineEntries={timelineEntries}
+                    story={story}
+                    currentUser={currentUser}
+                    activeContributionIndex={activeIndex}
+                    isMyTurn={isMyTurn}
+                    isStoryComplete={isStoryComplete}
+                    contributions={contributions}
+                    participantMap={participantMap}
+                    participantsWithoutContributions={participantsWithoutContributions}
+                    onContributionSelect={handleContributionSelect}
+                    onAddWeeve={() => {
+                        try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
+                        setShowStitchMenu(true);
+                        setShowOnboardingTutorial(false);
+                    }}
+                />
+            )}
+            {/* Creation Overlays */}
+            {showStitchMenu && (
+                <StitchMenu
+                    onOptionSelect={handleStitchOption}
+                    onClose={() => setShowStitchMenu(false)}
+                />
+            )}
 
-                                    // HANDLE OPEN/RESERVED SLOTS (No Participant assigned)
-                                    if (!participant) {
-                                        const isReserved = story.postType === 'canon' && story.canonSlots?.includes(entry.position);
-                                        // For Canon, if it's reserved, it belongs to the Creator (Brand)
-                                        // If I am the Creator, it's MY turn.
-                                        // If I am NOT the Creator, it's "Reserved".
+            {mediaPickerConfig && (
+                <MediaPickerOverlay
+                    config={mediaPickerConfig}
+                    onSelectSource={handleMediaSourceSelection}
+                    onCancel={handleMediaPickerCancel}
+                />
+            )}
 
-                                        const isCreator = currentUser?.id === story.creatorId;
-                                        const isReservedForMe = isReserved && isCreator;
-
-                                        // Brand Owner should not be prompted to stitch on Open slots
-                                        const isBrandOwnerOnOpenSlot = isCreator && !isReserved;
-
-                                        const isNextSequentialSlot = entry.position === contributions.length;
-
-                                        // BRAND POST SPECIAL HANDLING
-                                        // For brand posts, public users who haven't contributed yet can add to any OPEN slot
-                                        // OPEN = not reserved AND previous slots are filled (sequential requirement)
-                                        const isBrandPost = story.postType === 'canon' || story.postType === 'seed';
-                                        const hasUserContributed = story.contributions?.some(c => c.userId === currentUser?.id);
-
-                                        // Check if all previous positions have contributions
-                                        const previousSlotsFilled = entry.position === 0 ||
-                                            Array.from({ length: entry.position }, (_, i) => i)
-                                                .every(pos => contributions.some(c => {
-                                                    // Decode position from timestamp
-                                                    if (c.timestamp >= 1000000 && c.timestamp < 100000000) {
-                                                        return Math.floor(c.timestamp / 1000000) - 1 === pos;
-                                                    }
-                                                    return false;
-                                                }));
-
-                                        const canPublicUserAdd = isBrandPost && !isCreator && !hasUserContributed && !isReserved && previousSlotsFilled;
-
-                                        // Check if user can add to this slot
-                                        // For normal stories: use isMyTurn logic
-                                        // For brand posts: brand owners should never see "YOUR TURN" on open slots, only public users
-                                        const canAddNormalStory = !isBrandPost && isMyTurn && !userHasWaitingSlot && !isStoryComplete && isNextSequentialSlot;
-                                        const canAdd = canAddNormalStory || canPublicUserAdd || isReservedForMe;
-
-                                        if (canAdd && !isBrandOwnerOnOpenSlot) {
-                                            return (
-                                                <button
-                                                    key={`add-${entry.position}`}
-                                                    id="add-weeve-button"
-                                                    onClick={() => {
-                                                        try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
-                                                        setShowStitchMenu(true);
-                                                        setShowOnboardingTutorial(false);
-                                                    }}
-                                                    className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
-                                                    style={timelineItemSnapStyle}
-                                                >
-                                                    <div className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors">
-                                                        <Plus className="w-6 h-6" />
-                                                    </div>
-                                                    <span className="text-[10px] text-[#EC1D99] font-medium max-w-[64px] truncate">
-                                                        Your turn
-                                                    </span>
-                                                    <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
-                                                </button>
-                                            );
-                                        }
-
-                                        return (
-                                            <button
-                                                key={`open-${entry.position}`}
-                                                disabled={!isReservedForMe && !canPublicUserAdd && !(!isReserved && isNextSequentialSlot)}
-                                                onClick={() => {
-                                                    if (isReservedForMe || canPublicUserAdd || (!isReserved && isNextSequentialSlot)) {
-                                                        try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
-                                                        setShowStitchMenu(true);
-                                                        setShowOnboardingTutorial(false);
-                                                    }
-                                                }}
-                                                className={`flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none ${isReservedForMe || canPublicUserAdd || (!isReserved && isNextSequentialSlot) ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
-                                                style={timelineItemSnapStyle}
-                                            >
-                                                <div
-                                                    className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center transition-all shrink-0 ${isReservedForMe ? 'border-[#EC1D99] bg-[#EC1D99]/10' : isReserved ? 'border-purple-500/50 bg-purple-500/10' : canPublicUserAdd ? 'border-[#EC1D99] bg-[#EC1D99]/10' : 'border-gray-600 bg-white/5'}`}
-                                                >
-                                                    <span className={`text-[10px] font-bold ${isReservedForMe || canPublicUserAdd ? 'text-[#EC1D99]' : 'text-gray-400'}`}>
-                                                        {isReservedForMe ? 'YOU' : isReserved ? 'BRAND' : canPublicUserAdd ? '+' : 'OPEN'}
-                                                    </span>
-                                                </div>
-                                                <span className={`text-[10px] font-medium max-w-[64px] truncate ${isReservedForMe || canPublicUserAdd ? 'text-[#EC1D99]' : 'text-gray-400'}`}>
-                                                    {isReservedForMe ? 'Reserved' : isReserved ? 'Reserved' : canPublicUserAdd ? 'Your turn' : 'Open'}
-                                                </span>
-                                                <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
-                                            </button>
-                                        );
-                                    }
-
-                                    const isCurrentUser = currentUser?.id === participant.id;
-                                    const isCurrentTurn = story.currentTurnUserId === participant.id;
-
-
-
-                                    // Show clickable + button for current user's empty slot
-                                    if (isCurrentUser && isMyTurn && !isStoryComplete) {
-                                        return (
-                                            <button
-                                                key={`empty-${participant.id}-${entry.position}`}
-                                                id="add-weeve-button"
-                                                onClick={() => {
-                                                    setShowStitchMenu(true);
-                                                    setShowOnboardingTutorial(false);
-                                                }}
-                                                className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
-                                                style={timelineItemSnapStyle}
-                                            >
-                                                <div className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors">
-                                                    <Plus className="w-6 h-6" />
-                                                </div>
-                                                <span className="text-[10px] text-[#EC1D99] font-medium max-w-[64px] truncate">
-                                                    Your turn
-                                                </span>
-                                                <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
-                                            </button>
-                                        );
-                                    }
-
-                                    // Check if this is the current user waiting for previous parts to complete
-                                    const isWaitingForPreviousParts = isCurrentUser && !isStoryComplete && entry.position > contributionsCount;
-
-                                    // Show disabled placeholder for other users' empty slots
-                                    return (
-                                        <button
-                                            key={`empty-${participant.id}-${entry.position}`}
-                                            type="button"
-                                            disabled
-                                            className={`flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none cursor-default ${isCurrentUser ? 'opacity-60' : 'opacity-40'}`}
-                                            style={timelineItemSnapStyle}
-                                        >
-                                            <div
-                                                className={`w-12 h-12 rounded-full border-2 border-dashed overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentUser ? 'border-[#EC1D99]/50' : isCurrentTurn ? 'border-[#EC1D99]/70' : 'border-gray-600'}`}
-                                            >
-                                                <img
-                                                    src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
-                                                    alt={participant.name}
-                                                    className="w-full h-full object-cover opacity-50"
-                                                />
-                                            </div>
-                                            <span className="text-[10px] text-gray-400 font-medium max-w-[64px] truncate" title={participant.name}>
-                                                {participant.name.split(' ').slice(0, 2).join(' ')}
-                                            </span>
-                                            <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
-                                            {isWaitingForPreviousParts ? (
-                                                <span className="text-[9px] text-yellow-500 font-medium">
-                                                    Waiting for Part {contributionsCount + 1}
-                                                </span>
-                                            ) : isCurrentTurn && (
-                                                <span className="text-[10px] text-[#EC1D99] font-semibold">
-                                                    {participant.id === currentUser?.id ? 'Your turn' : 'Their turn'}
-                                                </span>
-                                            )}
-                                        </button>
-                                    );
-                                }
-
-                                // Handle contribution entries
-                                const { contribution, index, occurrence, isLatestForUser } = entry;
-                                const participant = participantMap.get(contribution.userId);
-                                const displayName = participant?.name ?? contribution.userName;
-                                const avatar = participant?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`;
-                                const isActive = index === activeIndex;
-                                const isCurrentTurn = isLatestForUser && story.currentTurnUserId === contribution.userId;
-
-                                return (
-                                    <button
-                                        key={`${contribution.id}-${index}`}
-                                        type="button"
-                                        onClick={() => handleContributionSelect(index)}
-                                        className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none text-white"
-                                        style={timelineItemSnapStyle}
-                                    >
-                                        <div
-                                            className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isActive
-                                                ? 'border-[#EC1D99] shadow-[0_0_15px_rgba(236,29,153,0.35)]'
-                                                : isCurrentTurn
-                                                    ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]'
-                                                    : 'border-gray-700'}`}
-                                        >
-                                            <img
-                                                src={avatar}
-                                                alt={displayName}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        </div>
-                                        <span className="text-[10px] text-gray-300 font-medium max-w-[64px] truncate" title={displayName}>
-                                            {displayName.split(' ').slice(0, 2).join(' ')}
-                                        </span>
-                                        <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {occurrence}</span>
-                                        {/* Only show "Their turn" for other users - current user sees the + button with "Your turn" */}
-                                        {isCurrentTurn && contribution.userId !== currentUser?.id && (
-                                            <span className="text-[10px] text-[#EC1D99] font-semibold">
-                                                Their turn
-                                            </span>
-                                        )}
-                                    </button>
-                                );
-                            })}
-
-                            {participantsWithoutContributions.map((participant, idx) => {
-                                const isCurrentTurn = story.currentTurnUserId === participant.id;
-                                const isCurrentUserSlot = participant.id === currentUser?.id;
-
-
-
-                                // Otherwise show the disabled avatar for other participants
-                                return (
-                                    <button
-                                        key={`pending-${participant.id}-${participant.position ?? idx}`}
-                                        type="button"
-                                        disabled
-                                        className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none opacity-60 cursor-default"
-                                        style={timelineItemSnapStyle}
-                                    >
-                                        <div
-                                            className={`w-12 h-12 rounded-full border-2 border-dashed overflow-hidden flex items-center justify-center transition-all shrink-0 ${isCurrentTurn ? 'border-[#EC1D99] shadow-[0_0_12px_rgba(236,29,153,0.25)]' : 'border-[#EC1D99]/40'}`}
-                                        >
-                                            <img
-                                                src={participant.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(participant.name)}`}
-                                                alt={participant.name}
-                                                className="w-full h-full object-cover opacity-70"
-                                            />
-                                        </div>
-                                        <span className="text-[10px] text-[#EC1D99]/70 font-medium max-w-[64px] truncate" title={participant.name}>
-                                            {participant.name.split(' ').slice(0, 2).join(' ')}
-                                        </span>
-                                        <span className="text-[9px] uppercase tracking-wide text-[#EC1D99]/50">No part yet</span>
-                                        {isCurrentTurn && (
-                                            <span className="text-[10px] text-[#EC1D99] font-semibold">
-                                                Their turn
-                                            </span>
-                                        )}
-                                    </button>
-                                );
-                            })}
-
-
-                        </div>
-
-                        {!hasContributions && (
-                            <div className="text-xs text-gray-500 px-2 pb-2">
-                                No stitches yet. Be the first to add one!
-                            </div>
-                        )}
-
-
-
-                        {isStoryComplete ? (
-                            <div className="text-center text-xs text-gray-500 py-2">
-                                Story complete — stitch limit reached.
-                            </div>
-                        ) : null}
-                    </div>
-                )
-            }
-
-            {/* Stitch Menu Modal */}
-            {
-                showStitchMenu && (
-                    <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-40 flex flex-col items-center justify-end pb-12 animate-in slide-in-from-bottom duration-300">
-                        <button
-                            onClick={() => setShowStitchMenu(false)}
-                            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white"
-                        >
-                            <X className="w-8 h-8" />
-                        </button>
-
-                        <h2 className="text-xl font-bold mb-8">How do you want to stitch?</h2>
-
-                        <div className="flex gap-6 mb-8">
-                            <button
-                                onClick={() => handleStitchOption('video')}
-                                className="flex flex-col items-center gap-2 group"
-                            >
-                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                    <Video className="w-8 h-8" />
-                                </div>
-                                <span className="text-sm font-medium">Video</span>
-                            </button>
-
-                            <button
-                                onClick={() => handleStitchOption('image')}
-                                className="flex flex-col items-center gap-2 group"
-                            >
-                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                    <Camera className="w-8 h-8" />
-                                </div>
-                                <span className="text-sm font-medium">Photo</span>
-                            </button>
-
-
-
-                            <button
-                                onClick={() => handleStitchOption('drawing')}
-                                className="flex flex-col items-center gap-2 group"
-                            >
-                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                    <Pencil className="w-8 h-8" />
-                                </div>
-                                <span className="text-sm font-medium">Draw</span>
-                            </button>
-                        </div>
-                    </div>
-                )
-            }
-
-            {
-                mediaPickerConfig && (
-                    <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex flex-col items-center justify-end pb-12 animate-in slide-in-from-bottom duration-300">
-                        <button
-                            onClick={handleMediaPickerCancel}
-                            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white"
-                        >
-                            <X className="w-8 h-8" />
-                        </button>
-
-                        <h2 className="text-xl font-bold mb-8">{mediaPickerConfig.heading}</h2>
-
-                        <div className="flex gap-6 mb-8">
-                            <button
-                                onClick={() => handleMediaSourceSelection(mediaPickerConfig.type, 'camera')}
-                                className="flex flex-col items-center gap-2 group"
-                            >
-                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                    <mediaPickerConfig.TakeIcon className="w-8 h-8" />
-                                </div>
-                                <span className="text-sm font-medium">{mediaPickerConfig.takeLabel}</span>
-                            </button>
-
-                            <button
-                                onClick={() => handleMediaSourceSelection(mediaPickerConfig.type, 'gallery')}
-                                className="flex flex-col items-center gap-2 group"
-                            >
-                                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
-                                    <mediaPickerConfig.UploadIcon className="w-8 h-8" />
-                                </div>
-                                <span className="text-sm font-medium">{mediaPickerConfig.uploadLabel}</span>
-                            </button>
-                        </div>
-                    </div>
-                )
-            }
-
-            {/* Composer Overlay */}
-            {
-                isComposerOpen && (
-                    <>
-                        <div
-                            className="absolute inset-0 z-40 pointer-events-auto overflow-hidden"
-                            onClick={(e) => {
-                                // Skip if we just selected an element via tap (prevents flashing deselection)
-                                if (justSelectedRef.current) return;
-                                if (activeElementId) {
-                                    // Only deselect if clicking the background directly (not intercepted by child)
-                                    setActiveElementId(null);
-                                    setActiveMenu(null);
-                                    setHasMovedInCurrentEdit(false);
-                                }
-                            }}
-                        >
-                            {(stitchMode === 'video' || stitchMode === 'image') && mediaDraft?.previewUrl && (
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-8 pt-12 pb-32">
-                                    {stitchMode === 'video' ? (
-                                        <video
-                                            src={mediaDraft.previewUrl}
-                                            className="max-h-[70vh] w-auto rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] pointer-events-auto"
-                                            autoPlay
-                                            playsInline
-                                            loop
-                                            onClick={(e) => {
-                                                if (e.currentTarget.paused) e.currentTarget.play();
-                                                else e.currentTarget.pause();
-                                            }}
-                                        />
-                                    ) : (
-                                        <div className="relative max-h-[70vh]">
-                                            <img
-                                                src={mediaDraft.previewUrl}
-                                                alt="Selected media preview"
-                                                className="max-h-[70vh] w-auto rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] object-contain pointer-events-auto transition-all duration-300"
-                                                style={{ filter: PHOTO_FILTERS.find(f => f.id === photoFilter)?.filter || 'none' }}
-                                            />
-                                            {/* Stickers Overlay */}
-                                            {photoStickers.map((sticker) => (
-                                                <DraggableSticker
-                                                    key={sticker.id}
-                                                    id={sticker.id}
-                                                    emoji={sticker.emoji}
-                                                    initialX={sticker.x}
-                                                    initialY={sticker.y}
-                                                    initialScale={sticker.scale}
-                                                    isDragging={draggingStickerId === sticker.id}
-                                                    onDragStart={setDraggingStickerId}
-                                                    onDragEnd={() => setDraggingStickerId(null)}
-                                                    onUpdate={(id, updates) => {
-                                                        setPhotoStickers(prev => prev.map(s =>
-                                                            s.id === id ? { ...s, ...updates } : s
-                                                        ));
-                                                    }}
-                                                    onDelete={(id) => {
-                                                        setPhotoStickers(prev => prev.filter(s => s.id !== id));
-                                                    }}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Drawing Canvas */}
-                            {stitchMode === 'drawing' && (
-                                <div className="absolute inset-0 flex items-center justify-center pointer-events-auto px-4 pt-20 pb-32">
-                                    <DrawingCanvas
-                                        ref={drawingCanvasRef}
-                                        className="w-full max-w-md"
-                                        onAddText={addTextElement}
-                                        onToggleStickers={() => {
-                                            setShowStickerPanel(!showStickerPanel);
-                                            setShowPhotoFilterPanel(false);
-                                        }}
-                                        isStickerPanelOpen={showStickerPanel}
-                                        onClearStickers={() => setPhotoStickers([])}
-                                        hasStickers={photoStickers.length > 0}
-                                        hideUI={!!activeElementId}
-                                    />
-                                    {/* Stickers Overlay for Drawing */}
-                                    {photoStickers.map((sticker) => (
-                                        <DraggableSticker
-                                            key={sticker.id}
-                                            id={sticker.id}
-                                            emoji={sticker.emoji}
-                                            initialX={sticker.x}
-                                            initialY={sticker.y}
-                                            initialScale={sticker.scale}
-                                            isDragging={draggingStickerId === sticker.id}
-                                            onDragStart={setDraggingStickerId}
-                                            onDragEnd={() => setDraggingStickerId(null)}
-                                            onUpdate={(id, updates) => {
-                                                setPhotoStickers(prev => prev.map(s =>
-                                                    s.id === id ? { ...s, ...updates } : s
-                                                ));
-                                            }}
-                                            onDelete={(id) => {
-                                                setPhotoStickers(prev => prev.filter(s => s.id !== id));
-                                            }}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-
-
-
-                            {(stitchMode === 'text' || stitchMode === 'drawing') && textElements.map((element) => {
-                                const isEditing = activeElementId === element.id;
-                                const isInitialCenter = element.position.left === -1 && element.position.top === -1;
-
-                                // Focus Mode: If editing and haven't manually moved it, force it to center (above keyboard)
-                                const showCentered = (isEditing && !hasMovedInCurrentEdit) || isInitialCenter;
-
-                                return (
-                                    <div
-                                        key={element.id}
-                                        ref={(el) => {
-                                            if (el) draggableRefs.current.set(element.id, el);
-                                            else draggableRefs.current.delete(element.id);
-                                        }}
-                                        className={`pointer-events-auto select-none absolute touch-none ${isEditing ? 'z-[60]' : 'z-30 hover:z-40'}`}
-                                        style={{
-                                            left: showCentered ? '50%' : 0,
-                                            top: showCentered ? '20%' : 0, // 30% down is a good "above keyboard" spot usually
-                                            transform: showCentered
-                                                ? 'translate3d(-50%, 0, 0)'
-                                                : `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
-                                        }}
-                                        onPointerDown={(e) => {
-                                            if (!isEditing) handleDragStart(e, element.id);
-                                        }}
-                                        onPointerMove={(e) => {
-                                            handleDragMove(e, element.id);
-                                        }}
-                                        onPointerUp={(e) => {
-                                            handleDragEnd(e, element.id);
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <div className="relative group flex flex-col items-center">
-                                            {/* Drag Handle (Visible in Edit Mode + View Mode?) */}
-                                            {/* User asked for handle on top. Useful for Edit Mode. */}
-                                            {isEditing && (
-                                                <div
-                                                    className="mb-2 px-3 py-1 bg-white/20 rounded-full backdrop-blur-md cursor-grab active:cursor-grabbing hover:bg-white/30 transition-colors pointer-events-auto"
-                                                    onPointerDown={(e) => handleDragStart(e, element.id)}
-                                                >
-                                                    <div className="w-8 h-1 bg-white rounded-full shadow-sm" />
-                                                </div>
-                                            )}
-
-                                            {isEditing ? (
-                                                <textarea
-                                                    value={element.content}
-                                                    onChange={(e) => {
-                                                        updateElement(element.id, { content: e.target.value });
-                                                        // Auto-resize
-                                                        e.target.style.height = 'auto';
-                                                        e.target.style.height = e.target.scrollHeight + 'px';
-                                                    }}
-                                                    placeholder="Type something..."
-                                                    className="min-w-[200px] max-w-[80vw] overflow-hidden bg-transparent resize-none focus:outline-none text-center placeholder:text-white/50"
-                                                    style={{
-                                                        fontFamily: element.style.fontFamily,
-                                                        fontSize: element.style.fontSize,
-                                                        color: element.style.textColor,
-                                                        textAlign: element.style.textAlign,
-                                                        backgroundColor: element.style.backgroundColor,
-                                                        padding: element.style.backgroundColor === 'transparent' ? '0.5rem' : '1rem 1.25rem',
-                                                        borderRadius: element.style.backgroundColor === 'transparent' ? '0' : '1.5rem',
-                                                        backdropFilter: element.style.backgroundColor === 'transparent' ? 'none' : 'blur(8px)',
-                                                    }}
-                                                    autoFocus
-                                                    rows={1}
-                                                    // STOP PROPAGATION on textarea so dragging doesn't break typing
-                                                    onPointerDown={(e) => e.stopPropagation()}
-                                                />
-                                            ) : (
-                                                <div
-                                                    className="min-w-[200px] max-w-[80vw] text-center"
-                                                    style={{
-                                                        fontFamily: element.style.fontFamily,
-                                                        fontSize: element.style.fontSize,
-                                                        color: element.style.textColor,
-                                                        textAlign: element.style.textAlign,
-                                                        backgroundColor: element.style.backgroundColor,
-                                                        padding: element.style.backgroundColor === 'transparent' ? '0' : '1rem 1.25rem',
-                                                        borderRadius: element.style.backgroundColor === 'transparent' ? '0' : '1.5rem',
-                                                        backdropFilter: element.style.backgroundColor === 'transparent' ? 'none' : 'blur(4px)',
-                                                        cursor: 'grab',
-                                                        whiteSpace: 'pre-wrap',
-                                                        userSelect: 'none',
-                                                    }}
-                                                >
-                                                    {element.content || <span className="opacity-50 italic">Tap to edit</span>}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )
-                            })}
-                        </div>
-
-                        {/* Side Menu & Controls */}
-                        <div className="absolute inset-0 z-50 pointer-events-none">
-                            {/* Top Controls */}
-                            <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-auto">
-                                <button
-                                    onClick={handleComposerCancel}
-                                    className="px-4 py-2 rounded-full bg-black/40 backdrop-blur-md text-white font-medium hover:bg-black/60 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-
-                                <div className="flex items-center gap-2">
-
-
-                                    <button
-                                        onClick={() => handleComposerSubmit()}
-                                        disabled={isPostDisabled || isUploading}
-                                        className={`px-6 py-2 rounded-full font-bold transition-colors ${isPostDisabled || isUploading ? 'bg-gray-800 text-gray-500 cursor-not-allowed' : 'bg-[#EC1D99] text-white hover:bg-[#D41C84]'}`}
-                                    >
-                                        {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Post'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Photo Tools Menu - Right Side (toggle buttons only) */}
-                            {stitchMode === 'image' && mediaDraft?.previewUrl && (
-                                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 pointer-events-auto">
-                                    {/* Filter Button */}
-                                    <button
-                                        onClick={() => {
-                                            setShowPhotoFilterPanel(!showPhotoFilterPanel);
-                                            setShowStickerPanel(false);
-                                        }}
-                                        className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${showPhotoFilterPanel ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
-                                        aria-label="Filters"
-                                    >
-                                        <Sparkles className="w-5 h-5 text-white" />
-                                    </button>
-
-                                    {/* Sticker Button */}
-                                    <button
-                                        onClick={() => {
-                                            setShowStickerPanel(!showStickerPanel);
-                                            setShowPhotoFilterPanel(false);
-                                        }}
-                                        className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${showStickerPanel ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
-                                        aria-label="Stickers"
-                                    >
-                                        <Smile className="w-5 h-5 text-white" />
-                                    </button>
-
-                                    {/* Crop Button */}
-                                    <button
-                                        onClick={() => {
-                                            // Close panels before opening cropper
-                                            setShowStickerPanel(false);
-                                            setShowPhotoFilterPanel(false);
-                                            // Open cropper with current image
-                                            if (mediaDraft?.previewUrl) {
-                                                setImageToCrop(mediaDraft.previewUrl);
-                                            }
-                                        }}
-                                        className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
-                                        aria-label="Crop"
-                                    >
-                                        <Crop className="w-5 h-5 text-white" />
-                                    </button>
-
-                                    {/* Clear Stickers Button - visible when stickers exist */}
-                                    {photoStickers.length > 0 && (
-                                        <button
-                                            onClick={() => setPhotoStickers([])}
-                                            className="w-10 h-10 rounded-full bg-red-500/30 backdrop-blur-sm border-2 border-red-500/50 flex items-center justify-center shadow-lg transition-all hover:bg-red-500/50"
-                                            aria-label="Clear stickers"
-                                        >
-                                            <Trash className="w-5 h-5 text-red-400" />
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Improved Bottom Toolbar for Text Styling */}
-                            {(stitchMode === 'text' || stitchMode === 'drawing') && (
-                                <>
-                                    {/* Right Side Vertical Menu (Triggers) */}
-                                    <div
-                                        className="absolute top-24 right-4 flex flex-col gap-6 z-50 pointer-events-auto"
-                                        onPointerDown={(e) => e.stopPropagation()}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        {/* Add Text Button - Always visible if limit not reached */}
-                                        {textElements.length < 5 && stitchMode !== 'drawing' && (
-                                            <button
-                                                onClick={addTextElement}
-                                                className="flex flex-col items-center gap-1 drop-shadow-md text-white hover:text-gray-200"
-                                            >
-                                                <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
-                                                    <Plus className="w-5 h-5" />
-                                                </div>
-                                                <span className="text-[10px] font-bold shadow-black text-shadow">Add</span>
-                                            </button>
-                                        )}
-
-                                        {/* Styling Tools - Only visible when editing */}
-                                        {activeElementId && (
-                                            <>
-                                                <button
-                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenu(activeMenu === 'font' ? null : 'font'); }}
-                                                    className={`flex flex-col items-center gap-1 drop-shadow-md ${activeMenu === 'font' ? 'text-[#EC1D99]' : 'text-white'}`}
-                                                >
-                                                    <Type className="w-6 h-6" />
-                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Font</span>
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenu(activeMenu === 'color' ? null : 'color'); }}
-                                                    className={`flex flex-col items-center gap-1 drop-shadow-md ${activeMenu === 'color' ? 'text-[#EC1D99]' : 'text-white'}`}
-                                                >
-                                                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 border border-white" />
-                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Color</span>
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenu(activeMenu === 'bg' ? null : 'bg'); }}
-                                                    className={`flex flex-col items-center gap-1 drop-shadow-md ${activeMenu === 'bg' ? 'text-[#EC1D99]' : 'text-white'}`}
-                                                >
-                                                    <div className="w-6 h-6 border-2 border-white border-dashed rounded" />
-                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Fill</span>
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenu(activeMenu === 'align' ? null : 'align'); }}
-                                                    className={`flex flex-col items-center gap-1 drop-shadow-md ${activeMenu === 'align' ? 'text-[#EC1D99]' : 'text-white'}`}
-                                                >
-                                                    <AlignLeft className="w-6 h-6" />
-                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Align</span>
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveMenu(activeMenu === 'size' ? null : 'size'); }}
-                                                    className={`flex flex-col items-center gap-1 drop-shadow-md ${activeMenu === 'size' ? 'text-[#EC1D99]' : 'text-white'}`}
-                                                >
-                                                    <span className="text-xl font-bold leading-none">Aa</span>
-                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Size</span>
-                                                </button>
-
-                                                {/* Delete Button */}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        if (activeElementId) {
-                                                            setTextElements(prev => prev.filter(el => el.id !== activeElementId));
-                                                            setActiveElementId(null);
-                                                            setActiveMenu(null);
-                                                        }
-                                                    }}
-                                                    className="flex flex-col items-center gap-1 drop-shadow-md text-red-400 hover:text-red-300"
-                                                >
-                                                    <Trash className="w-6 h-6" />
-                                                    <span className="text-[10px] font-bold shadow-black text-shadow">Delete</span>
-                                                </button>
-
-                                                {/* Done Button */}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        setActiveElementId(null);
-                                                        setActiveMenu(null);
-                                                        setHasMovedInCurrentEdit(false);
-                                                    }}
-                                                    className="mt-4 w-8 h-8 flex items-center justify-center bg-white rounded-full text-black shadow-lg hover:bg-gray-200"
-                                                >
-                                                    <X className="w-5 h-5" />
-                                                </button>
-                                            </>
-                                        )}
-                                    </div>
-
-                                    {/* Bottom Options Bar (Only visible when a menu is active) */}
-                                    {activeMenu && (
-                                        <div
-                                            className="absolute bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-md z-[70] pointer-events-auto animate-in slide-in-from-bottom border-t border-white/10"
-                                            onPointerDown={(e) => e.stopPropagation()}
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            <div className="flex items-center justify-center overflow-x-auto no-scrollbar py-2">
-                                                {activeMenu === 'font' && (
-                                                    <div className="flex items-center gap-2 px-4">
-                                                        {FONT_OPTIONS.map((font) => (
-                                                            <button
-                                                                key={font.value}
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                    updateTextStyle('fontFamily', font.value);
-                                                                }}
-                                                                className={`px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-all ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.fontFamily === font.value ? 'bg-white text-black font-bold' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                                                                style={{ fontFamily: font.value }}
-                                                                onPointerDown={(e) => e.stopPropagation()}
-                                                            >
-                                                                {font.label}
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {activeMenu === 'color' && (
-                                                    <div className="flex items-center gap-3 px-4">
-                                                        {TEXT_COLOR_OPTIONS.map((color) => (
-                                                            <button
-                                                                key={color}
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                    updateTextStyle('textColor', color);
-                                                                }}
-                                                                className={`w-8 h-8 rounded-full border-2 transition-all ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.textColor === color ? 'border-white scale-110 shadow-[0_0_10px_rgba(255,255,255,0.5)]' : 'border-transparent hover:scale-105'}`}
-                                                                style={{ backgroundColor: color }}
-                                                                onPointerDown={(e) => e.stopPropagation()}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {activeMenu === 'bg' && (
-                                                    <div className="flex items-center gap-3 px-4">
-                                                        {BACKGROUND_OPTIONS.map((color) => (
-                                                            <button
-                                                                key={color}
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                    updateTextStyle('backgroundColor', color);
-                                                                }}
-                                                                className={`w-10 h-8 rounded border-2 transition-all ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.backgroundColor === color ? 'border-white scale-105 shadow-[0_0_10px_rgba(255,255,255,0.3)]' : 'border-transparent hover:border-white/30'}`}
-                                                                style={{
-                                                                    background: color === 'transparent'
-                                                                        ? 'linear-gradient(45deg, #333 25%, transparent 25%), linear-gradient(-45deg, #333 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #333 75%), linear-gradient(-45deg, transparent 75%, #333 75%)'
-                                                                        : color,
-                                                                    backgroundSize: '8px 8px',
-                                                                    backgroundColor: color === 'transparent' ? '#222' : color
-                                                                }}
-                                                                onPointerDown={(e) => e.stopPropagation()}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {activeMenu === 'align' && (
-                                                    <div className="flex items-center gap-4 bg-white/10 rounded-full px-2 py-1">
-                                                        {ALIGN_OPTIONS.map(({ value, icon: Icon }) => (
-                                                            <button
-                                                                key={value}
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                    updateTextStyle('textAlign', value);
-                                                                }}
-                                                                className={`p-2 rounded-full transition-all ${activeElementId && textElements.find(el => el.id === activeElementId)?.style.textAlign === value ? 'bg-white text-black' : 'text-gray-300 hover:text-white'}`}
-                                                                onPointerDown={(e) => e.stopPropagation()}
-                                                            >
-                                                                <Icon className="w-5 h-5" />
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {activeMenu === 'size' && (
-                                                    <div className="flex items-center gap-2 px-4 w-full max-w-sm">
-                                                        <span className="text-xs font-bold text-gray-400">A</span>
-                                                        <input
-                                                            type="range"
-                                                            min={16}
-                                                            max={60}
-                                                            step={2}
-                                                            value={activeElementId ? (textElements.find(el => el.id === activeElementId)?.style.fontSize || 28) : 28}
-                                                            onChange={(e) => updateTextStyle('fontSize', parseInt(e.target.value))}
-                                                            className="flex-1 h-2 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#EC1D99] [&::-webkit-slider-thumb]:cursor-pointer"
-                                                            onPointerDown={(e) => e.stopPropagation()}
-                                                        />
-                                                        <span className="text-xl font-bold text-white">A</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    </>
-                )
-            }
+            <StitchComposer
+                isComposerOpen={isComposerOpen}
+                stitchMode={stitchMode}
+                mediaDraft={mediaDraft}
+                photoFilter={photoFilter}
+                photoStickers={photoStickers}
+                textElements={textElements}
+                activeElementId={activeElementId}
+                activeMenu={activeMenu}
+                hasMovedInCurrentEdit={hasMovedInCurrentEdit}
+                showPhotoFilterPanel={showPhotoFilterPanel}
+                showStickerPanel={showStickerPanel}
+                draggingStickerId={draggingStickerId}
+                drawingCanvasRef={drawingCanvasRef}
+                draggableRefs={draggableRefs}
+                justSelectedRef={justSelectedRef}
+                onBackgroundClick={() => {
+                    if (activeElementId) {
+                        setActiveElementId(null);
+                        setActiveMenu(null);
+                        setHasMovedInCurrentEdit(false);
+                    }
+                }}
+                onAddText={addTextElement}
+                onToggleStickers={() => {
+                    setShowStickerPanel(!showStickerPanel);
+                    setShowPhotoFilterPanel(false);
+                }}
+                onClearStickers={() => setPhotoStickers([])}
+                onSetPhotoStickers={setPhotoStickers}
+                onSetDraggingStickerId={setDraggingStickerId}
+                onSelectFilter={setPhotoFilter}
+                onSelectSticker={(emoji) => {
+                    const newSticker: PhotoSticker = {
+                        id: `sticker-${Date.now()}-${photoStickers.length}`,
+                        emoji,
+                        x: 50,
+                        y: 50,
+                        scale: 1,
+                    };
+                    setPhotoStickers(prev => [...prev, newSticker]);
+                }}
+                onDragStart={handleDragStart}
+                onDragMove={handleDragMove}
+                onDragEnd={handleDragEnd}
+                onSetActiveElementId={setActiveElementId}
+                onSetActiveMenu={setActiveMenu}
+                onSetHasMovedInCurrentEdit={setHasMovedInCurrentEdit}
+                onUpdateTextStyle={updateTextStyle}
+                onDeleteTextElement={(id) => {
+                    setTextElements(prev => prev.filter(el => el.id !== id));
+                    setActiveElementId(null);
+                    setActiveMenu(null);
+                }}
+            />
             {/* Edit Story Modal */}
             {
                 showEditModal && (
@@ -2824,86 +1941,6 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 )
             }
 
-            {/* Photo Filter Bar - Horizontal scrollable at bottom */}
-            {stitchMode === 'image' && showPhotoFilterPanel && mediaDraft?.previewUrl && (
-                <div className="fixed bottom-36 left-0 right-0 z-[110] pointer-events-auto animate-in slide-in-from-bottom duration-200">
-                    <div
-                        className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide bg-gradient-to-t from-black/80 to-transparent"
-                        style={{ WebkitOverflowScrolling: 'touch' }}
-                    >
-                        {PHOTO_FILTERS.map((filter) => (
-                            <button
-                                key={filter.id}
-                                onClick={() => setPhotoFilter(filter.id)}
-                                className={`shrink-0 flex flex-col items-center gap-1.5 transition-all ${photoFilter === filter.id ? 'scale-105' : 'opacity-80 hover:opacity-100'}`}
-                            >
-                                {/* Filter preview thumbnail */}
-                                <div
-                                    className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-colors ${photoFilter === filter.id ? 'border-[#EC1D99]' : 'border-white/20'}`}
-                                    style={{ filter: filter.filter }}
-                                >
-                                    <img
-                                        src={mediaDraft.previewUrl}
-                                        alt=""
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-                                <span className={`text-xs font-medium ${photoFilter === filter.id ? 'text-[#EC1D99]' : 'text-white/70'}`}>
-                                    {filter.label}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Sticker Picker - Horizontal scrollable at bottom */}
-            {stitchMode === 'image' && showStickerPanel && mediaDraft?.previewUrl && (
-                <div className="fixed bottom-36 left-0 right-0 z-[110] pointer-events-auto animate-in slide-in-from-bottom duration-200">
-                    {/* Instructions - above carousel */}
-                    <div className="text-center pt-2 pb-1 px-4">
-                        <span className="text-xs text-gray-400">
-                            {photoStickers.length > 0
-                                ? 'Drag to move • Double-tap to remove'
-                                : 'Tap emoji to add sticker'}
-                        </span>
-                    </div>
-                    <div
-                        className="flex gap-2 px-4 py-2 overflow-x-auto scrollbar-hide bg-gradient-to-t from-black/80 to-transparent"
-                        style={{ WebkitOverflowScrolling: 'touch' }}
-                    >
-                        {STICKER_EMOJIS.map((emoji, index) => (
-                            <button
-                                key={index}
-                                onClick={() => {
-                                    // Add sticker at center of image
-                                    const newSticker: PhotoSticker = {
-                                        id: `sticker-${Date.now()}-${index}`,
-                                        emoji,
-                                        x: 50, // center
-                                        y: 50, // center  
-                                        scale: 1,
-                                    };
-                                    setPhotoStickers(prev => [...prev, newSticker]);
-                                }}
-                                className="shrink-0 w-12 h-12 flex items-center justify-center text-3xl bg-white/10 rounded-xl hover:bg-white/20 hover:scale-110 transition-all active:scale-95"
-                            >
-                                {emoji}
-                            </button>
-                        ))}
-                        {/* Clear All button */}
-                        {photoStickers.length > 0 && (
-                            <button
-                                onClick={() => setPhotoStickers([])}
-                                className="shrink-0 w-12 h-12 flex items-center justify-center bg-red-500/20 border border-red-500/50 rounded-xl hover:bg-red-500/40 transition-all"
-                                aria-label="Clear all stickers"
-                            >
-                                <Trash className="w-5 h-5 text-red-400" />
-                            </button>
-                        )}
-                    </div>
-                </div>
-            )}
 
             {/* Context Thumbnails - Visible when composing OR cropping, BUT NOT when editing text (to avoid keyboard overlap) */}
             {contributions.length > 0 && ((stitchMode !== null && !showStitchMenu) || imageToCrop) && !activeElementId && (
