@@ -1341,9 +1341,9 @@ const CreateStory = ({
         )
       }
 
-      {/* Friend Picker - Hidden for brand Seed/Canon posts since they're public */}
+      {/* Friend Picker - Hidden for brand users since their posts are public */}
       {
-        formState.postType !== 'seed' && formState.postType !== 'canon' && (
+        !currentUser?.isBrand && formState.postType !== 'seed' && formState.postType !== 'canon' && (
           <div className="relative">
             <div className="flex justify-between items-center mb-2">
               <div className="flex items-center gap-2">
