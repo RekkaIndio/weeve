@@ -37,8 +37,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const showHomeNotification = currentUser && pathname === "/feed";
     const isHome = pathname === "/feed";
 
-    // Hide bottom nav on pages with their own sticky footer or during initial load
-    const hideBottomNav = pathname?.startsWith("/story/") || pathname === "/create-story";
+    // Hide bottom nav only on create-story page for full screen composition
+    const hideBottomNav = pathname === "/create-story";
     // Also hide nav during initial load when there are no stories yet (prevents flash)
     const isInitialLoad = pathname === "/feed" && stories.length === 0;
     const showNavigation = !!user && !hideBottomNav && !isInitialLoad;
