@@ -96,38 +96,56 @@ export async function createImageFromText(content: string, style: TextStyle): Pr
  */
 export async function createWatermarkImage(
     username: string,
-    originalCreator?: string
+    originalCreator?: string,
+    brandAvatarUrl?: string
 ): Promise<Blob> {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not get canvas context');
 
-    // 1. Load Logo
+    // 1. Load Weeve Logo
     const logoImg = new Image();
-    // Wrap image loading in a promise
     await new Promise((resolve, reject) => {
         logoImg.onload = resolve;
         logoImg.onerror = reject;
-        logoImg.crossOrigin = 'anonymous'; // Important for canvas export
+        logoImg.crossOrigin = 'anonymous'; 
         logoImg.src = '/weeve-logo.png';
     });
 
-    // 2. Measure Text
-    // Increase resolution for sharpness (will appear smaller if video is large, but 720p width is standard)
-    // 40px font size is sharper than 24px
+    // 2. Load Brand Avatar if provided
+    let brandImg: HTMLImageElement | null = null;
+    if (brandAvatarUrl) {
+        brandImg = new Image();
+        try {
+            await new Promise((resolve, reject) => {
+                brandImg!.onload = resolve;
+                brandImg!.onerror = reject;
+                brandImg!.crossOrigin = 'anonymous';
+                brandImg!.src = brandAvatarUrl;
+            });
+        } catch (e) {
+            console.warn('Failed to load brand avatar for watermark:', e);
+            brandImg = null;
+        }
+    }
+
+    // 3. Measure Text
     const fontSize = 42; 
     ctx.font = `bold ${fontSize}px Inter, sans-serif`;
     const text = `@${username}`;
     const textMetrics = ctx.measureText(text);
     
-    // 3. Layout Dimensions
-    const padding = 24; // Padding between text and logo
-    const logoHeight = 64; // Target logo height (increased for sharpness/size)
-    const logoWidth = (logoImg.width / logoImg.height) * logoHeight; // Maintain aspect ratio
+    // 4. Layout Dimensions
+    const padding = 24; 
+    const logoHeight = 64; 
+    const logoWidth = (logoImg.width / logoImg.height) * logoHeight;
     
-    // Measure original creator text if provided (for fork attribution)
-    const forkSymbol = '⑂'; // Fork/branch symbol
-    const forkFontSize = 32; // Slightly smaller for the second line
+    // Brand Avatar dimensions
+    const brandSize = brandImg ? 80 : 0; // Slightly larger than logo
+    const brandPadding = brandImg ? 24 : 0;
+
+    const forkSymbol = '⑂'; 
+    const forkFontSize = 32; 
     let forkText = '';
     let forkTextWidth = 0;
     
@@ -137,57 +155,80 @@ export async function createWatermarkImage(
         forkTextWidth = ctx.measureText(forkText).width;
     }
     
-    // Ensure height accommodates both text and logo comfortably
-    // Add extra height for second line if original creator is present
     const lineHeight = fontSize * 1.5;
     const forkLineHeight = originalCreator ? forkFontSize * 1.5 : 0;
-    const totalHeight = Math.max(logoHeight, lineHeight) + forkLineHeight; 
-    const totalWidth = Math.max(textMetrics.width + padding + logoWidth, forkTextWidth + 24);
+    // Total height considers brand avatar or text lines
+    const totalHeight = Math.max(logoHeight, brandSize, lineHeight + forkLineHeight);
+    
+    // Total width: [BrandAvatar] + padding + [Text] + padding + [Logo]
+    // Or if fork text is wider than main text
+    const textBlockWidth = Math.max(textMetrics.width, forkTextWidth);
+    const totalWidth = brandSize + brandPadding + textBlockWidth + padding + logoWidth;
 
-    // Set canvas size (with some buffer for shadows)
     canvas.width = totalWidth + 24; 
     canvas.height = totalHeight + 12;
 
-    // Clear context after resize
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 4. Draw Text
-    // Re-set font after resize as it might reset context state
-    ctx.font = `bold ${fontSize}px Inter, sans-serif`;
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#FFFFFF';
-    
-    // Add shadow/outline for readability on any background
+    // 5. Draw
+    // Shadow settings
     ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
     ctx.shadowBlur = 6;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 3;
 
-    const textX = 12; // Left margin
-    // Calculate Y positions - if we have original creator, main line is higher
+    let currentX = 12;
+
+    // Draw Brand Avatar (Circular)
+    if (brandImg) {
+        const brandY = (canvas.height - brandSize) / 2;
+        
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(currentX + brandSize/2, brandY + brandSize/2, brandSize/2, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(brandImg, currentX, brandY, brandSize, brandSize);
+        ctx.restore();
+
+        // Draw border/stroke for brand avatar
+        ctx.beginPath();
+        ctx.arc(currentX + brandSize/2, brandY + brandSize/2, brandSize/2, 0, Math.PI * 2);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.stroke();
+
+        currentX += brandSize + brandPadding;
+    }
+
+    // Draw Text
+    ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#FFFFFF';
+    
     const mainLineY = originalCreator 
         ? (canvas.height - forkLineHeight) / 2 
         : canvas.height / 2;
 
-    ctx.fillText(text, textX, mainLineY);
-
-    // 5. Draw Logo
-    const logoX = textX + textMetrics.width + padding;
-    const logoY = mainLineY - (logoHeight / 2);
+    ctx.fillText(text, currentX, mainLineY);
     
-    // Enable high quality image smoothing
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    
-    ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
-    
-    // 6. Draw fork attribution line if original creator is present
     if (originalCreator && forkText) {
         ctx.font = `bold ${forkFontSize}px Inter, sans-serif`;
-        ctx.fillStyle = '#EC1D99'; // Weeve pink for the fork attribution
+        ctx.fillStyle = '#EC1D99';
         const forkLineY = mainLineY + lineHeight * 0.6;
-        ctx.fillText(forkText, textX, forkLineY);
+        ctx.fillText(forkText, currentX, forkLineY);
     }
+
+    // Draw Weeve Logo
+    currentX += textBlockWidth + padding;
+    const logoY = (canvas.height - logoHeight) / 2;
+    
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(logoImg, currentX, logoY, logoWidth, logoHeight);
 
     return new Promise((resolve, reject) => {
         canvas.toBlob(blob => {

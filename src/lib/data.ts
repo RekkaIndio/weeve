@@ -244,6 +244,10 @@ const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
         likes: likesArray.length,
         likedBy: likesArray,
         comments,
+        // Brand post fields
+        postType: (story as any).post_type ?? 'normal',
+        canonSlots: (story as any).canon_slots ?? [],
+        brandId: (story as any).brand_id ?? undefined,
     };
 };
 
@@ -606,9 +610,52 @@ export async function createStoryContribution(options: CreateStoryContributionOp
         console.warn('[Upload] File provided but lacks size metadata, skipping upload and keeping media_url undefined');
     }
 
-    const timestamp = options.timestamp ?? Date.now();
-
     const textStyleJson: Json | null = options.textStyle ? (options.textStyle as unknown as Json) : null;
+
+    const { data: storyData } = await supabase
+        .from('stories')
+        .select('creator_id, post_type, canon_slots, contributions (user_id, timestamp)')
+        .eq('id', options.storyId)
+        .single();
+
+    // For Canon posts, determine the next available slot for the brand
+    let timestamp = options.timestamp ?? Date.now();
+    const isBrandPost = storyData?.post_type === 'canon' || storyData?.post_type === 'seed';
+    const isBrandOwner = storyData?.creator_id === options.userId;
+    const canonSlots = (storyData as any)?.canon_slots as number[] | null;
+
+    if (isBrandPost && isBrandOwner && canonSlots && canonSlots.length > 0) {
+        // Get brand's existing contributions
+        const brandContributions = (storyData?.contributions || [])
+            .filter((c: any) => c.user_id === options.userId);
+
+        // Check if brand has already filled all their slots
+        if (brandContributions.length >= canonSlots.length) {
+            throw new Error('Brand has already filled all reserved slots');
+        }
+
+        // Find the next unfilled canon slot
+        const filledSlots = brandContributions.map((c: any) => {
+            // Decode position from timestamp
+            if (c.timestamp >= 1000000 && c.timestamp < 100000000) {
+                return Math.floor(c.timestamp / 1000000) - 1;
+            }
+            return -1;
+        });
+
+        const nextSlot = canonSlots.find(slot => !filledSlots.includes(slot));
+        
+        if (nextSlot === undefined) {
+            throw new Error('No available canon slots');
+        }
+
+        // Encode position in timestamp: (position + 1) * 1000000 + timestamp % 1000000
+        timestamp = (nextSlot + 1) * 1000000 + (Date.now() % 1000000);
+    }
+
+    // All contributions default to 'approved'
+    // Brands can manually reject via three dots menu if needed
+    const approvalStatus = 'approved';
 
     const insertPayload = {
         story_id: options.storyId,
@@ -619,6 +666,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
         media_url: publicUrl,
         timestamp,
         text_style: textStyleJson,
+        approval_status: approvalStatus,
     } as const;
 
     let insertedContribution: any = null;
@@ -722,15 +770,51 @@ export async function createStoryContribution(options: CreateStoryContributionOp
     }
 
     // Update participant status from 'waiting' to 'accepted' after contributing
+    // OR insert as new participant if they don't exist (for brand posts where public users contribute)
     try {
-        await supabase
-            .from('story_participants')
-            .update({ status: 'accepted' })
-            .eq('story_id', options.storyId)
-            .eq('user_id', options.userId)
-            .eq('status', 'waiting');
+        // Skip this for the story creator - they're automatically a participant
+        const isCreator = storyData?.creator_id === options.userId;
+        
+        if (!isCreator) {
+            // First try to update existing 'waiting' participant
+            const { data: updated } = await supabase
+                .from('story_participants')
+                .update({ status: 'accepted' })
+                .eq('story_id', options.storyId)
+                .eq('user_id', options.userId)
+                .eq('status', 'waiting')
+                .select();
+
+            // If no rows were updated, check if participant exists at all
+            if (!updated || updated.length === 0) {
+                const { data: existing } = await supabase
+                    .from('story_participants')
+                    .select('user_id')
+                    .eq('story_id', options.storyId)
+                    .eq('user_id', options.userId)
+                    .single();
+
+                // If participant doesn't exist, insert them (common for brand posts)
+                if (!existing) {
+                    // Get the next position
+                    const { count: participantCount } = await supabase
+                        .from('story_participants')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('story_id', options.storyId);
+
+                    await supabase
+                        .from('story_participants')
+                        .insert({
+                            story_id: options.storyId,
+                            user_id: options.userId,
+                            status: 'accepted',
+                            position: participantCount || 0,
+                        });
+                }
+            }
+        }
     } catch (statusUpdateError) {
-        console.warn('[Upload] Failed to update participant status:', statusUpdateError);
+        console.warn('[Upload] Failed to update/insert participant:', statusUpdateError);
         // Non-blocking - continue even if this fails
     }
 
@@ -984,7 +1068,7 @@ export async function fetchUserStories(userId: string): Promise<Story[]> {
             .from('stories')
             .select(`
                 *,
-                contributions (*),
+                contributions!inner (*),
                 story_participants (
                     *,
                     user:profiles (*)
@@ -995,6 +1079,7 @@ export async function fetchUserStories(userId: string): Promise<Story[]> {
                 story_likes (*),
                 story_comments (*)
             `)
+            .eq('contributions.approval_status', 'approved')
             .in('id', storyIds)
             .order('created_at', { ascending: false });
 

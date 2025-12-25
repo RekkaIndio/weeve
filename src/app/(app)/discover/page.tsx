@@ -18,7 +18,7 @@ function DiscoverContent() {
     const [newGroupDesc, setNewGroupDesc] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState<'all' | 'groups' | 'people'>(tabParam === 'groups' ? 'groups' : 'all');
-    const [feedType, setFeedType] = useState<'forYou' | 'trending' | 'new' | 'friends'>('forYou');
+    const [feedType, setFeedType] = useState<'forYou' | 'trending' | 'new' | 'friends' | 'seeds' | 'canon'>('forYou');
 
     const [peopleResults, setPeopleResults] = useState<FriendType[]>([]);
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
@@ -165,6 +165,24 @@ function DiscoverContent() {
                     return dateB - dateA;
                 });
 
+            case 'seeds':
+                // Only show Seed brand posts (postType === 'seed')
+                const seedStories = filtered.filter(story => story.postType === 'seed');
+                return [...seedStories].sort((a, b) => {
+                    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                    return dateB - dateA;
+                });
+
+            case 'canon':
+                // Only show Canon brand posts (postType === 'canon')
+                const canonStories = filtered.filter(story => story.postType === 'canon');
+                return [...canonStories].sort((a, b) => {
+                    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                    return dateB - dateA;
+                });
+
             default:
                 return filtered;
         }
@@ -281,6 +299,8 @@ function DiscoverContent() {
                         { id: 'trending', label: 'Trending', icon: TrendingUp },
                         { id: 'new', label: 'New', icon: Clock },
                         { id: 'friends', label: 'Friends', icon: Heart },
+                        { id: 'seeds', label: '🌱 Seeds', icon: null },
+                        { id: 'canon', label: '🎬 Canon', icon: null },
                     ].map(({ id, label, icon: Icon }) => (
                         <button
                             key={id}
@@ -290,7 +310,7 @@ function DiscoverContent() {
                                 : 'bg-gray-900 text-gray-400 border border-gray-800 hover:border-gray-700 hover:text-white'
                                 }`}
                         >
-                            <Icon className="w-3.5 h-3.5" />
+                            {Icon && <Icon className="w-3.5 h-3.5" />}
                             {label}
                         </button>
                     ))}

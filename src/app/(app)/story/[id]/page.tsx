@@ -185,6 +185,43 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         return originalStory?.title || null;
     }, [story?.forkedFromStoryId, stories]);
 
+    // Handle payment success/failure from Stripe redirect
+    useEffect(() => {
+        const handlePaymentStatus = async () => {
+            // Check URL params for payment status
+            const urlParams = new URLSearchParams(window.location.search);
+            const paymentStatus = urlParams.get('payment');
+
+            if (!paymentStatus || !story) return;
+
+            if (paymentStatus === 'success') {
+                try {
+                    // Update story payment status to completed
+                    const { error } = await supabase
+                        .from('stories')
+                        .update({ payment_status: 'completed', payment_completed_at: new Date().toISOString() })
+                        .eq('id', storyId);
+
+                    if (error) {
+                        console.error('Error updating payment status:', error);
+                        toast.error('Payment verification failed. Please contact support.');
+                    } else {
+                        toast.success('Payment successful! Your story is now live.');
+                        // Refresh stories to get updated payment status
+                        await fetchStories();
+                    }
+                } catch (err) {
+                    console.error('Error processing payment success:', err);
+                }
+
+                // Clean up URL
+                router.replace(`/story/${storyId}`, { scroll: false });
+            }
+        };
+
+        handlePaymentStatus();
+    }, [storyId, story, router, fetchStories]);
+
     useEffect(() => {
 
     }, [storyId, story, stories]);
@@ -305,9 +342,12 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
     // Check if current user is involved in this story (creator or participant)
     // If not, treat the story as "complete" for display purposes so they see the normal post view
+    // EXCEPTION: Brand posts (canon/seed) allow public users to weave, so don't mark as complete
+    const isBrandPost = story?.postType === 'canon' || story?.postType === 'seed';
     const isUserInvolvedInStory = currentUser && story && (
         story.creatorId === currentUser.id ||
-        story.participants.some(p => p.id === currentUser.id)
+        story.participants.some(p => p.id === currentUser.id) ||
+        isBrandPost  // Brand posts are always "open" for public users to weave
     );
 
     const isStoryComplete = story?.status === 'completed' || isAtCapacity || !isUserInvolvedInStory;
@@ -437,6 +477,9 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     allowReuse: (s as any).allow_reuse ?? undefined,
                     turnTimerHours: s.turn_timer_hours ?? undefined,
                     forkedFromStoryId: (s as any).forked_from_story_id ?? undefined,
+                    postType: (s as any).post_type ?? 'normal',
+                    canonSlots: (s as any).canon_slots ?? undefined,
+                    scheduledFor: (s as any).scheduled_for ?? undefined,
                 };
 
                 console.log('[Story] About to call addStory with id:', mapped.id);
@@ -611,13 +654,43 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         }
 
         // Combine and sort by position
-        const allEntries = [
+        // Combine contributions and waiting participants
+        const existingEntries = [
             ...contributionEntries.map(e => ({ ...e, sortPosition: e.position })),
             ...emptySlotEntries.map(e => ({ ...e, sortPosition: e.position })),
-        ].sort((a, b) => a.sortPosition - b.sortPosition);
+        ];
 
-        return allEntries;
-    }, [contributions, story?.participants]);
+        // Synthesize missing slots up to maxWeeves for Canon/Seed visualization
+        const coveredPositions = new Set(existingEntries.map(e => e.position));
+        const syntheticEntries = [];
+
+        let totalSlots = story?.maxWeeves || 0;
+
+        // Ensure we at least cover the next available slot if story is not complete, 
+        // so we can render the "Add" button in the correct position
+        const nextSlotIndex = contributions.length;
+        const isComplete = story?.status === 'completed' || (totalSlots > 0 && nextSlotIndex >= totalSlots);
+
+        if (!isComplete && totalSlots <= nextSlotIndex) {
+            totalSlots = nextSlotIndex + 1;
+        }
+
+        // Only show synthetic slots if we need to cover positions
+        if (totalSlots > 0) {
+            for (let i = 0; i < totalSlots; i++) {
+                if (!coveredPositions.has(i)) {
+                    syntheticEntries.push({
+                        type: 'empty' as const,
+                        participant: null, // Open/Reserved slot with no assigned user
+                        position: i,
+                        sortPosition: i
+                    });
+                }
+            }
+        }
+
+        return [...existingEntries, ...syntheticEntries].sort((a, b) => a.sortPosition - b.sortPosition);
+    }, [contributions, story?.participants, story?.maxWeeves]);
 
     // Separate out contribution entries for backward compatibility
     const contributionTimelineEntries = useMemo(() =>
@@ -1207,6 +1280,20 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             return;
         }
 
+        // BRAND POST: One-time contribution limit
+        // Check if this is a brand post and user has already contributed
+        // EXCEPTION: Brand owners can contribute multiple times to fill their reserved slots
+        const isBrandOwner = story && currentUser && story.creatorId === currentUser.id;
+        const isBrandPost = story?.postType === 'canon' || story?.postType === 'seed';
+        const userHasContributed = story.contributions?.some(c => c.userId === currentUser.id);
+
+        if (isBrandPost && !isBrandOwner && userHasContributed) {
+            toast.error("You've already contributed to this brand post.");
+            resetComposer();
+            setShowStitchMenu(false);
+            return;
+        }
+
         const trimmed = (stitchMode === 'text' || stitchMode === 'drawing') ? textElements.map(el => el.content).join(" ").trim() : '';
 
         if (stitchMode === 'text' && trimmed.length === 0) {
@@ -1380,8 +1467,27 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 nextTurnUserId: nextTurnUpdate,
             });
 
-            addContribution(story.id, contribution, { nextTurnUserId: nextTurnUpdate });
-            toast.success('Contribution posted!');
+
+            // Check if this is a brand post and user is not the creator
+            const isBrandPost = story.postType === 'canon' || story.postType === 'seed';
+            const isCreator = story.creatorId === currentUser.id;
+            const isPending = isBrandPost && !isCreator;
+
+            if (isPending) {
+                // For brand posts, contribution is pending approval - don't add to local state
+                toast.success('Submitted for approval! The brand will review your contribution.');
+            } else {
+                // For regular posts or brand creators, add to local state and show in UI
+                addContribution(story.id, contribution, { nextTurnUserId: nextTurnUpdate });
+
+                // Refresh stories from server so contribution appears in feed/discovery immediately
+                setTimeout(() => {
+                    fetchStories().catch(err => console.warn('[Story] fetchStories failed after contribution', err));
+                }, 100);
+
+                toast.success('Contribution posted!');
+            }
+
             setActiveIndex(story.contributions.length);
             setIsPlaying(true);
             resetComposer();
@@ -1769,9 +1875,103 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-30 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
                         <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', scrollSnapType: 'x mandatory' }}>
                             {timelineEntries.map((entry, entryIndex) => {
-                                // Handle empty slot entries (waiting participants)
+                                // Handle empty slot entries (waiting participants or open slots)
                                 if (entry.type === 'empty') {
                                     const participant = entry.participant;
+
+                                    // HANDLE OPEN/RESERVED SLOTS (No Participant assigned)
+                                    if (!participant) {
+                                        const isReserved = story.postType === 'canon' && story.canonSlots?.includes(entry.position);
+                                        // For Canon, if it's reserved, it belongs to the Creator (Brand)
+                                        // If I am the Creator, it's MY turn.
+                                        // If I am NOT the Creator, it's "Reserved".
+
+                                        const isCreator = currentUser?.id === story.creatorId;
+                                        const isReservedForMe = isReserved && isCreator;
+
+                                        // Brand Owner should not be prompted to stitch on Open slots
+                                        const isBrandOwnerOnOpenSlot = isCreator && !isReserved;
+
+                                        const isNextSequentialSlot = entry.position === contributions.length;
+
+                                        // BRAND POST SPECIAL HANDLING
+                                        // For brand posts, public users who haven't contributed yet can add to any OPEN slot
+                                        // OPEN = not reserved AND previous slots are filled (sequential requirement)
+                                        const isBrandPost = story.postType === 'canon' || story.postType === 'seed';
+                                        const hasUserContributed = story.contributions?.some(c => c.userId === currentUser?.id);
+
+                                        // Check if all previous positions have contributions
+                                        const previousSlotsFilled = entry.position === 0 ||
+                                            Array.from({ length: entry.position }, (_, i) => i)
+                                                .every(pos => contributions.some(c => {
+                                                    // Decode position from timestamp
+                                                    if (c.timestamp >= 1000000 && c.timestamp < 100000000) {
+                                                        return Math.floor(c.timestamp / 1000000) - 1 === pos;
+                                                    }
+                                                    return false;
+                                                }));
+
+                                        const canPublicUserAdd = isBrandPost && !isCreator && !hasUserContributed && !isReserved && previousSlotsFilled;
+
+                                        // Check if user can add to this slot
+                                        // For normal stories: use isMyTurn logic
+                                        // For brand posts: brand owners should never see "YOUR TURN" on open slots, only public users
+                                        const canAddNormalStory = !isBrandPost && isMyTurn && !userHasWaitingSlot && !isStoryComplete && isNextSequentialSlot;
+                                        const canAdd = canAddNormalStory || canPublicUserAdd || isReservedForMe;
+
+                                        if (canAdd && !isBrandOwnerOnOpenSlot) {
+                                            return (
+                                                <button
+                                                    key={`add-${entry.position}`}
+                                                    id="add-weeve-button"
+                                                    onClick={() => {
+                                                        try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
+                                                        setShowStitchMenu(true);
+                                                        setShowOnboardingTutorial(false);
+                                                    }}
+                                                    className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
+                                                    style={timelineItemSnapStyle}
+                                                >
+                                                    <div className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors">
+                                                        <Plus className="w-6 h-6" />
+                                                    </div>
+                                                    <span className="text-[10px] text-[#EC1D99] font-medium max-w-[64px] truncate">
+                                                        Your turn
+                                                    </span>
+                                                    <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
+                                                </button>
+                                            );
+                                        }
+
+                                        return (
+                                            <button
+                                                key={`open-${entry.position}`}
+                                                disabled={!isReservedForMe && !canPublicUserAdd && !(!isReserved && isNextSequentialSlot)}
+                                                onClick={() => {
+                                                    if (isReservedForMe || canPublicUserAdd || (!isReserved && isNextSequentialSlot)) {
+                                                        try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
+                                                        setShowStitchMenu(true);
+                                                        setShowOnboardingTutorial(false);
+                                                    }
+                                                }}
+                                                className={`flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none ${isReservedForMe || canPublicUserAdd || (!isReserved && isNextSequentialSlot) ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+                                                style={timelineItemSnapStyle}
+                                            >
+                                                <div
+                                                    className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center transition-all shrink-0 ${isReservedForMe ? 'border-[#EC1D99] bg-[#EC1D99]/10' : isReserved ? 'border-purple-500/50 bg-purple-500/10' : canPublicUserAdd ? 'border-[#EC1D99] bg-[#EC1D99]/10' : 'border-gray-600 bg-white/5'}`}
+                                                >
+                                                    <span className={`text-[10px] font-bold ${isReservedForMe || canPublicUserAdd ? 'text-[#EC1D99]' : 'text-gray-400'}`}>
+                                                        {isReservedForMe ? 'YOU' : isReserved ? 'BRAND' : canPublicUserAdd ? '+' : 'OPEN'}
+                                                    </span>
+                                                </div>
+                                                <span className={`text-[10px] font-medium max-w-[64px] truncate ${isReservedForMe || canPublicUserAdd ? 'text-[#EC1D99]' : 'text-gray-400'}`}>
+                                                    {isReservedForMe ? 'Reserved' : isReserved ? 'Reserved' : canPublicUserAdd ? 'Your turn' : 'Open'}
+                                                </span>
+                                                <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
+                                            </button>
+                                        );
+                                    }
+
                                     const isCurrentUser = currentUser?.id === participant.id;
                                     const isCurrentTurn = story.currentTurnUserId === participant.id;
 
@@ -1886,29 +2086,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                 const isCurrentTurn = story.currentTurnUserId === participant.id;
                                 const isCurrentUserSlot = participant.id === currentUser?.id;
 
-                                // If it's the current user's turn and this is their slot, show the + button
-                                if (isCurrentUserSlot && isMyTurn && !isStoryComplete) {
-                                    return (
-                                        <button
-                                            key={`pending-${participant.id}-${participant.position ?? idx}`}
-                                            id="add-weeve-button"
-                                            onClick={() => {
-                                                try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
-                                                setShowStitchMenu(true);
-                                                setShowOnboardingTutorial(false);
-                                            }}
-                                            className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
-                                            style={timelineItemSnapStyle}
-                                        >
-                                            <div className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors">
-                                                <Plus className="w-6 h-6" />
-                                            </div>
-                                            <span className="text-[10px] text-[#EC1D99] font-medium max-w-[64px] truncate">
-                                                Your turn
-                                            </span>
-                                        </button>
-                                    );
-                                }
+
 
                                 // Otherwise show the disabled avatar for other participants
                                 return (
@@ -1941,26 +2119,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                 );
                             })}
 
-                            {/* Show + button only if it's user's turn AND they don't have a specific waiting slot AND they're not already shown in participantsWithoutContributions */}
-                            {isMyTurn && !userHasWaitingSlot && !isStoryComplete && !participantsWithoutContributions.some(p => p.id === currentUser?.id) && (
-                                <button
-                                    id="add-weeve-button"
-                                    onClick={() => {
-                                        try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
-                                        setShowStitchMenu(true);
-                                        setShowOnboardingTutorial(false);
-                                    }}
-                                    className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
-                                    style={timelineItemSnapStyle}
-                                >
-                                    <div className="shrink-0 w-12 h-12 rounded-full border-2 border-dashed border-[#EC1D99] flex items-center justify-center text-[#EC1D99] hover:bg-[#EC1D99]/10 transition-colors">
-                                        <Plus className="w-6 h-6" />
-                                    </div>
-                                    <span className="text-[10px] text-[#EC1D99] font-medium">
-                                        Your turn
-                                    </span>
-                                </button>
-                            )}
+
                         </div>
 
                         {!hasContributions && (

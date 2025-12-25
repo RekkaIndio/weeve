@@ -10,7 +10,7 @@ export interface User {
     tagline?: string;
     tokens: number;
     isInfluencer?: boolean;
-    interactionCost?: number;
+    interactionCost?: number; // Cost to interact with this user (in tokens)
     inviteCode?: string;
     isPrivate?: boolean;
     isVerified?: boolean;
@@ -25,6 +25,11 @@ export interface User {
         website?: string;
         [key: string]: any;
     };
+    // Brand account fields
+    isBrand?: boolean;
+    brandWebsite?: string;
+    brandVerified?: boolean;
+    brandSubscriptionStatus?: 'none' | 'active' | 'expired';
 }
 
 export interface Group {
@@ -64,6 +69,9 @@ export interface Contribution {
     mediaUrl?: string; // URL for video or image
     timestamp: number;
     textStyle?: TextStyle;
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
+    reviewedAt?: string;
+    reviewedBy?: string;
 }
 
 export interface StoryComment {
@@ -101,6 +109,36 @@ export interface Story {
     forkedFromStoryId?: string; // Reference to original story if this is a fork
     created_at?: string;
     updated_at?: string;
+    // Brand post fields
+    postType?: 'normal' | 'canon' | 'seed';
+    canonSlots?: number[]; // Array of immutable slot indices (0-indexed)
+    brandId?: string; // Brand account ID if this is a brand post
+    isFeatured?: boolean;
+    scheduledFor?: string;
+    visibilityDays?: number;
+    // Approval status (for Canon posts - entire story approval)
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
+    reviewedAt?: string;
+    reviewedBy?: string;
+}
+
+/**
+ * Check if a specific slot in a story is immutable.
+ * - Seed posts: slot 0 is always immutable
+ * - Canon posts: slots in canonSlots array are immutable
+ */
+export function isSlotImmutable(story: Story, slotIndex: number): boolean {
+    if (story.postType === 'seed' && slotIndex === 0) return true;
+    if (story.postType === 'canon' && story.canonSlots?.includes(slotIndex)) return true;
+    return false;
+}
+
+/**
+ * Check if a story is a brand post (Canon or Seed mode).
+ * Brand posts can only be stitched into, not weeved/forked.
+ */
+export function isBrandPost(story: Story): boolean {
+    return story.postType === 'canon' || story.postType === 'seed';
 }
 
 interface AppState {
@@ -544,6 +582,11 @@ export const useStore = create<AppState>()(
                         return { success: false, error: `Failed to fetch original story: ${fetchError?.message || 'Unknown error'}` };
                     }
 
+                    // GUARD: Block weeve/fork on brand posts (canon/seed)
+                    // Brand posts can only be stitched into, not forked
+                    const postType = (originalStory as any).post_type;
+
+
                     // 2. Create new story (copy metadata)
                     const { data: newStoryData, error: createError } = await supabase
                         .from('stories')
@@ -743,7 +786,7 @@ export const useStore = create<AppState>()(
                                 contributions (*),
                                 story_participants (
                                     *,
-                                    profiles:user_id (id, name, avatar, is_influencer, is_private)
+                                    profiles:user_id (id, name, avatar, is_influencer, is_private, is_brand)
                                 ),
                                 story_likes (user_id),
                                 story_comments (
@@ -805,9 +848,21 @@ export const useStore = create<AppState>()(
 
                             // For public stories, only show if they have at least 1 contribution OR the current user is a participant
                             if (s.visibility === 'public') {
+                                // Filter out future scheduled posts (unless I am the creator)
+                                if (s.scheduled_for) {
+                                  const isScheduledFuture = new Date(s.scheduled_for) > new Date();
+                                  const isCreator = currentUserId && s.creator_id === currentUserId;
+                                  if (isScheduledFuture && !isCreator) return false;
+                                }
+
+                                // Filter out incomplete Brand Canon/Seed posts (unless I am the creator)
+                                // Brands must fill all their reserved slots (canon_slots) before the post goes public
+
                                 const hasContributions = s.contributions && s.contributions.length > 0;
                                 const isParticipant = currentUserId && (s.story_participants ?? []).some((p: any) => p.user_id === currentUserId);
-                                return hasContributions || isParticipant;
+                                // Show brand posts to their creators even without contributions so they can add content
+                                const isBrandPostCreator = currentUserId && (s.post_type === 'canon' || s.post_type === 'seed') && s.creator_id === currentUserId;
+                                return hasContributions || isParticipant || isBrandPostCreator;
                             }
 
                             // For private stories, hide those where the current user is a waiting participant
@@ -838,6 +893,7 @@ export const useStore = create<AppState>()(
                                 avatar: profile.avatar,
                                 tokens: 0, // Not needed for display
                                 isInfluencer: profile.is_influencer,
+                                isBrand: profile.is_brand,
                                 isPrivate: profile.is_private === true,
                                 status: (sp.status === 'accepted' || sp.status === 'waiting' || sp.status === 'declined') ? (sp.status as 'accepted' | 'waiting' | 'declined') : undefined,
                                 position: sp.position
@@ -886,7 +942,8 @@ export const useStore = create<AppState>()(
                             creatorId: s.creator_id,
                             visibility: s.visibility,
                             mode: s.mode ?? 'invite',
-                            status: s.status,
+                            // Calculate status: Brand posts expire after visibilityDays, becoming 'completed' (view-only)
+                            status: ((s.post_type === 'canon' || s.post_type === 'seed') && s.visibility_days && (new Date(s.created_at).getTime() + (s.visibility_days * 86400000) < Date.now())) ? 'completed' : s.status,
                             currentTurnUserId: s.current_turn_user_id,
                             contributions,
                             participants,
@@ -904,7 +961,14 @@ export const useStore = create<AppState>()(
                             allowComments: s.allow_comments,
                             allowReuse: s.allow_reuse,
                             turnTimerHours: s.turn_timer_hours,
-                            forkedFromStoryId: s.forked_from_story_id ?? undefined
+                            forkedFromStoryId: s.forked_from_story_id ?? undefined,
+                            // Brand fields
+                            postType: s.post_type ?? 'normal',
+                            canonSlots: s.canon_slots ?? undefined,
+                            visibilityDays: s.visibility_days ?? undefined,
+                            brandId: s.brand_id ?? undefined,
+                            isFeatured: s.is_featured ?? false,
+                            scheduledFor: s.scheduled_for ?? undefined
                         };
                     });
 

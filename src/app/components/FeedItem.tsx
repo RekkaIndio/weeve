@@ -8,9 +8,9 @@ if (!(globalThis as any).__weeveVideoPreloadCache) (globalThis as any).__weeveVi
 if (!(globalThis as any).__weeveVideoPosterCache) (globalThis as any).__weeveVideoPosterCache = GLOBAL_VIDEO_POSTER_CACHE;
 if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoReadyRef = GLOBAL_VIDEO_READY_REF;
 
-import { Story, useStore, Contribution } from "@/lib/store";
+import { Story, useStore, Contribution, isSlotImmutable } from "@/lib/store";
 import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
-import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search, GitBranch } from "lucide-react";
+import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search, GitBranch, Plus } from "lucide-react";
 import { searchUsers } from "@/lib/friends";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -67,6 +67,7 @@ const formatRelativeTime = (timestamp: number) => {
 
 export default function FeedItem({ story, initialContributionId }: FeedItemProps) {
     const router = useRouter();
+
     const [currentIndex, setCurrentIndex] = useState(0);
     const initialSet = useRef(false);
     const [isVisible, setIsVisible] = useState(false);
@@ -1315,7 +1316,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                 </div>
 
                 {/* Weeve Button */}
-                {(story.visibility === 'public' || (story.visibility === 'private' && isParticipant)) && (
+                {(story.visibility === 'public' || (story.visibility === 'private' && isParticipant)) && !['canon', 'seed'].includes(story.postType || '') && (
                     <div className="flex flex-col items-center gap-0.5 relative">
                         <button
                             type="button"
@@ -1373,6 +1374,33 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                         )}
                     </div>
                 )}
+
+                {/* Weeve Button for Brand/Seed posts */}
+                {['canon', 'seed'].includes(story.postType || '') && story.status !== 'completed' && (() => {
+                    const isCreator = currentUser?.id === story.creatorId;
+                    const hasUserContributed = story.contributions?.some(c => c.userId === currentUser?.id);
+
+                    // Brand owners cannot weave to their own posts
+                    // Public users: can only contribute if they haven't already
+                    const canWeeve = !isCreator && !hasUserContributed;
+
+                    return canWeeve ? (
+                        <div className="flex flex-col items-center gap-0.5 relative">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    // Navigate to the story (behaves like normal weeve)
+                                    router.push(`/story/${story.id}`);
+                                }}
+                                className="w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-[#EC1D99] text-[#EC1D99] transition-all hover:bg-[#EC1D99] hover:text-white hover:scale-110 active:scale-95"
+                                aria-label="Weeve to brand story"
+                            >
+                                <span className="font-black text-lg">W</span>
+                            </button>
+                            <span className="text-xs font-bold text-[#EC1D99]">Weeve</span>
+                        </div>
+                    ) : null;
+                })()}
 
                 {/* Share Button */}
                 <div className="flex flex-col items-center gap-1">
@@ -1495,8 +1523,19 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                 </div>
             )}
             <div className="absolute bottom-0 left-0 right-0 p-6 pb-6 text-white z-10">
-                <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md">
+                <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md flex items-center gap-2">
                     {story.title}
+                    {/* Canon/Seed badge for brand posts */}
+                    {story.postType === 'canon' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/30 text-purple-300 rounded-full text-xs font-medium" title="Canon Post - Some slots are immutable">
+                            🎬 Canon
+                        </span>
+                    )}
+                    {story.postType === 'seed' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/30 text-green-300 rounded-full text-xs font-medium" title="Seed Post - First slot is immutable">
+                            🌱 Seed
+                        </span>
+                    )}
                 </h2>
 
                 {/* Weeve of indicator for forked stories */}

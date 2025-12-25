@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/lib/store";
 import FeedItem from "@/app/components/FeedItem";
 import FeedOnboardingOverlay from "@/app/components/FeedOnboardingOverlay";
 import { useAuth } from "@/app/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { fetchGroups } from "@/lib/data";
+import { toast } from "sonner";
 
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   const { stories, fetchStories, currentUser, setGroups, fetchFriends, isStoriesLoading } = useStore();
   const [showOnboardingOverlay, setShowOnboardingOverlay] = useState(false);
@@ -21,6 +23,16 @@ export default function Home() {
 
   // Force refresh key - changing this forces React to re-render
   const [forceRefreshKey, setForceRefreshKey] = useState(0);
+
+  // Check for payment success query param
+  useEffect(() => {
+    const paymentStatus = searchParams?.get('payment');
+    if (paymentStatus === 'success') {
+      toast.success('Payment successful! Your brand story is now live.');
+      // Remove query param from URL
+      router.replace('/feed', { scroll: false });
+    }
+  }, [searchParams, router]);
 
 
 

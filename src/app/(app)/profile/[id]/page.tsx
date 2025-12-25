@@ -83,6 +83,7 @@ export default function UserProfilePage() {
                         isInfluencer: data.is_influencer || undefined,
                         interactionCost: data.interaction_cost || undefined,
                         inviteCode: data.invite_code || undefined,
+                        isBrand: data.is_brand || false,
                         isPrivate: false // Assuming default for now
                     });
                 }
@@ -342,6 +343,35 @@ export default function UserProfilePage() {
 
     const userStories = stories.filter(s => s.participants.some(p => p.id === user?.id));
 
+    // Separate featured stories (only for brand profiles)
+    const featuredStories = userStories.filter(s => s.isFeatured && user?.isBrand);
+    const regularStories = userStories.filter(s => !s.isFeatured || !user?.isBrand);
+
+    // Pin/Unpin handler
+    const handlePinStory = async (e: React.MouseEvent, storyId: string, currentFeatured: boolean) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!currentUser || currentUser.id !== user?.id) return;
+
+        // Optimistic update in UI would require store update, for now we rely on fetchStories refresh or simple toast
+        try {
+            const { error } = await supabase
+                .from('stories')
+                .update({ is_featured: !currentFeatured })
+                .eq('id', storyId);
+
+            if (error) throw error;
+
+            toast.success(currentFeatured ? 'Story unpinned' : 'Story pinned to profile');
+            // Refresh stories
+            fetchStories();
+        } catch (err) {
+            console.error('Error pinning story:', err);
+            toast.error('Failed to update pin status');
+        }
+    };
+
     // Count contributions across all stories by this user
     const contributionsCount = stories.reduce((acc, s) => acc + (s.contributions ? s.contributions.filter(c => c.userId === user?.id).length : 0), 0);
 
@@ -480,15 +510,51 @@ export default function UserProfilePage() {
                 </button>
             </div>
 
-            {/* Grid */}
-            <div className="grid grid-cols-3 gap-0.5" >
+            {/* Featured Stories Section (Brand Only) */}
+            {user?.isBrand && (featuredStories.length > 0 || (currentUser?.id === user?.id && userStories.length > 0)) && (
+                <div className="mt-6 px-4 mb-2">
+                    {featuredStories.length > 0 && (
+                        <>
+                            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <span className="text-yellow-500">★</span> Featured Stories
+                            </h3>
+                            <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+                                {featuredStories.map(story => (
+                                    <Link key={story.id} href={`/story/${story.id}`} className="flex-shrink-0 w-32 aspect-[3/4] relative rounded-xl overflow-hidden bg-gray-900 group border border-yellow-500/30">
+                                        <MediaWithFallback src={story.coverImage || story.contributions[0]?.mediaUrl} alt={story.title} className="w-full h-full object-cover" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                                        <div className="absolute bottom-2 left-2 right-2">
+                                            <div className="text-xs font-bold text-white truncate">{story.title}</div>
+                                            <div className="text-[10px] text-gray-400">{story.likes} likes</div>
+                                        </div>
+                                        {/* Unpin button for owner */}
+                                        {currentUser?.id === user?.id && (
+                                            <button
+                                                onClick={(e) => handlePinStory(e, story.id, true)}
+                                                className="absolute top-1 right-1 bg-black/50 hover:bg-black/80 p-1.5 rounded-full text-white backdrop-blur-sm transition-colors"
+                                            >
+                                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" /></svg>
+                                            </button>
+                                        )}
+                                    </Link>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* All Stories Grid */}
+            {user?.isBrand && <div className="px-4 py-2 text-sm font-bold text-gray-400 uppercase tracking-wider">All Weeves</div>}
+            <div className="grid grid-cols-3 gap-0.5">
                 {
-                    userStories.length > 0 ? (
-                        userStories.map(story => {
+                    regularStories.length > 0 ? (
+                        regularStories.map(story => {
                             const sortedContributions = (story.contributions || []).slice().sort((a, b) => a.timestamp - b.timestamp);
                             const firstContribution = sortedContributions[0];
                             const firstMediaType = firstContribution?.mediaType;
                             const firstMediaUrl = firstContribution?.mediaUrl;
+                            const isPinned = story.isFeatured;
 
                             return (
                                 <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden">
@@ -512,20 +578,31 @@ export default function UserProfilePage() {
                                         <div className="w-2 h-2 bg-white rounded-full"></div>
                                         {story.contributions.length}
                                     </div>
+
+                                    {/* Pin Button for Brand Owner */}
+                                    {currentUser?.id === user?.id && user?.isBrand && (
+                                        <button
+                                            onClick={(e) => handlePinStory(e, story.id, false)}
+                                            className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm"
+                                        >
+                                            <svg className="w-4 h-4 text-white/50 hover:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                                        </button>
+                                    )}
                                 </Link>
                             );
                         })
                     ) : (
                         <div className="col-span-3 flex flex-col items-center justify-center py-16 text-gray-500">
+                            {/* ... existing empty state ... */}
                             <Grid className="w-12 h-12 mb-3 opacity-50" />
                             <p className="text-sm">No weeves yet</p>
-                        </div>
+                        </div >
                     )
                 }
 
                 {/* Fillers for visual balance if few stories */}
                 {
-                    userStories.length > 0 && userStories.length < 3 && [1, 2].map(i => (
+                    regularStories.length > 0 && regularStories.length < 3 && [1, 2].map(i => (
                         <div key={i} className="aspect-[3/4] bg-gray-900/50"></div>
                     ))
                 }

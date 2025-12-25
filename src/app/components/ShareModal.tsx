@@ -54,6 +54,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const [savedFilePath, setSavedFilePath] = useState<string | null>(null);
     const [isSaved, setIsSaved] = useState(false);
     const [lastAction, setLastAction] = useState<'save' | 'share' | null>(null);
+    const [isHighQualityExport, setIsHighQualityExport] = useState(false);
 
     // Automatically save video when stitching completes after a save action
     useEffect(() => {
@@ -66,7 +67,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
 
                 const response = await fetch(videoUrl);
                 const fileBlob = await response.blob();
-                const filename = `${story.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_weeve.mp4`;
+                const filename = `${story.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_weeve${isHighQualityExport ? '_HQ' : ''}.mp4`;
 
                 if (isNative) {
                     // Save to device's media gallery (Photos/Gallery)
@@ -709,6 +710,24 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
 
                                 {/* Secondary Actions */}
                                 <div className="grid grid-cols-2 gap-3 mt-2">
+                                    {/* Brand Tools - High Quality Export */}
+                                    {currentUser?.isBrand && currentUser?.id === story.creatorId && (
+                                        <div className="col-span-2 mb-1">
+                                            <button
+                                                onClick={() => {
+                                                    setIsHighQualityExport(true);
+                                                    setLastAction('save');
+                                                    stitchStory(story, { highQuality: true });
+                                                    toast.loading('Preparing high-quality export (this may take a moment)...');
+                                                }}
+                                                disabled={stitchingState !== 'idle' && stitchingState !== 'error' && stitchingState !== 'complete'}
+                                                className="w-full flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-yellow-600 to-yellow-800 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+                                            >
+                                                <Download className="w-4 h-4 text-white" />
+                                                <span className="text-xs font-bold text-white uppercase tracking-wider">Export High Quality 4K</span>
+                                            </button>
+                                        </div>
+                                    )}
                                     <button
                                         onClick={handleCopyLink}
                                         className="flex items-center justify-center gap-2 p-3 bg-gray-800/50 hover:bg-gray-800 rounded-xl transition-colors"
@@ -735,6 +754,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                                         if (videoUrl) {
                                                             handleShareFile('other'); // "More"
                                                         } else {
+                                                            setIsHighQualityExport(false);
                                                             setLastAction('save');
                                                             stitchStory(story);
                                                         }

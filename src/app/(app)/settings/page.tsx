@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3 } from "lucide-react";
+import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3, Receipt } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { signOut, updateUserProfile } from "@/lib/auth";
 import { setLatestSession } from "@/lib/auth-session";
@@ -123,6 +123,12 @@ export default function SettingsPage() {
                 { label: "Blocked Users", icon: User, action: () => router.push('/settings/blocked-users') },
             ]
         },
+        ...(currentUser?.isBrand ? [{
+            title: "Billing",
+            items: [
+                { label: "Transaction History", icon: Receipt, action: () => router.push('/settings/transaction-history') },
+            ]
+        }] : []),
         {
             title: "Community",
             items: [
@@ -133,6 +139,7 @@ export default function SettingsPage() {
             title: "Support",
             items: [
                 { label: "How Weeve Works", icon: Sparkles, action: () => router.push('/onboarding/welcome') },
+                ...(currentUser?.isBrand ? [{ label: "How Canon & Seed Work", icon: Sparkles, action: () => router.push('/settings/brand-tutorial') }] : []),
                 { label: "Help Center", icon: HelpCircle, action: () => router.push('/settings/help-center') },
                 { label: "Report a Problem", icon: HelpCircle, action: () => router.push('/settings/report-problem') },
             ]

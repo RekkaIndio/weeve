@@ -8,6 +8,8 @@ import NotificationBell from "./NotificationBell";
 import { searchUsers, addFriend, sendFriendRequest } from "@/lib/friends";
 import { searchHashtags } from "@/lib/hashtags";
 import { toast } from "sonner";
+import { getPrice, formatPrice, getAvailableSlotCounts } from "@/lib/brand-pricing";
+import { getPaymentLink } from "@/lib/stripe-payment-links";
 
 export interface Friend {
   id: string;
@@ -146,13 +148,26 @@ export interface CreateStoryFormState {
   allowComments: boolean;
   turnTimerHours?: number;
   monetizationCost?: number;
+  // Brand post fields
+  postType?: 'normal' | 'canon' | 'seed';
+  canonSlots?: number[]; // Array of immutable slot indices (0-indexed)
+  visibilityDays?: number; // Brand post visibility duration (1, 3, 7, 14 days)
+  scheduledFor?: string; // ISO date string for scheduled posts
 }
 
 interface CreateStoryProps {
   onBack?: () => void;
-  onCreateStory: (data: CreateStoryFormState) => Promise<void>;
+  onCreateStory: (data: CreateStoryFormState) => Promise<string>; // Returns story ID
   availableFriends?: Friend[];
-  currentUser?: { id: string; name: string; avatar?: string; tokens: number };
+  currentUser?: {
+    id: string;
+    name: string;
+    avatar?: string;
+    tokens: number;
+    // Brand account fields
+    isBrand?: boolean;
+    brandSubscriptionStatus?: 'none' | 'active' | 'expired';
+  };
   onDeductTokens?: (amount: number) => boolean;
   groupId?: string;
   groupName?: string;
@@ -204,6 +219,9 @@ const CreateStory = ({
     allowComments: true,
     turnTimerHours: undefined,
     monetizationCost: undefined,
+    // Brand post fields - default to normal for non-brand users
+    postType: 'normal',
+    canonSlots: [],
   });
 
   // Sync slots to orderedParticipants in formState whenever slots change (optional but good for consistency)
@@ -393,6 +411,33 @@ const CreateStory = ({
     setError("");
   };
 
+  // Handle post type change (for brand accounts)
+  const handlePostTypeChange = (postType: 'normal' | 'canon' | 'seed') => {
+    setFormState((prev) => ({
+      ...prev,
+      postType,
+      // Seed mode automatically sets slot 0 as immutable
+      canonSlots: postType === 'seed' ? [0] : (postType === 'normal' ? [] : prev.canonSlots),
+      // Brand posts are always public
+      visibility: postType !== 'normal' ? 'public' : prev.visibility,
+    }));
+    setError("");
+  };
+
+  // Handle canon slot toggle (for Canon mode)
+  const handleToggleCanonSlot = (slotIndex: number) => {
+    setFormState((prev) => {
+      const currentSlots = prev.canonSlots || [];
+      const isSelected = currentSlots.includes(slotIndex);
+      return {
+        ...prev,
+        canonSlots: isSelected
+          ? currentSlots.filter(i => i !== slotIndex)
+          : [...currentSlots, slotIndex].sort((a, b) => a - b),
+      };
+    });
+  };
+
   // Handle adding a friend
   const handleAddFriend = async (friend: Friend) => {
     // Check for influencer cost
@@ -504,8 +549,23 @@ const CreateStory = ({
 
     const activeParticipants = slots.map(s => s.friend).filter(p => p !== null);
 
-    if (activeParticipants.length !== slots.length) {
+    // For normal stories, all slots must be filled with invited friends
+    // For Brand Canon/Seed stories, empty slots are allowed (they are open for public)
+    const isBrandPost = formState.postType === 'canon' || formState.postType === 'seed';
+
+    if (!isBrandPost && activeParticipants.length !== slots.length) {
       setError("Please fill all empty slots before creating the story");
+      if (participantsRef.current) {
+        participantsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
+    // Check if brand post requires payment
+    const requiresPayment = isBrandPost && formState.visibilityDays;
+
+    if (isBrandPost && !formState.visibilityDays) {
+      setError("Please select a visibility duration for your brand post");
       if (participantsRef.current) {
         participantsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -522,7 +582,29 @@ const CreateStory = ({
         ...formState,
         orderedParticipants: slots.map(s => s.friend)
       };
-      await onCreateStory(submissionData);
+
+      // Create the story and get the story ID
+      const storyId = await onCreateStory(submissionData);
+
+      // For brand posts requiring payment, redirect to Stripe
+      if (requiresPayment && formState.visibilityDays) {
+        const paymentLink = getPaymentLink(
+          formState.postType as 'seed' | 'canon',
+          formState.visibilityDays,
+          storyId
+        );
+
+        if (paymentLink) {
+          // Redirect to Stripe payment page
+          window.location.href = paymentLink;
+          // Note: loading state will persist during redirect, which is desired
+        } else {
+          setError("Payment configuration error. Please contact support.");
+          setIsLoading(false);
+        }
+      }
+      // For normal posts, onCreateStory already handles the redirect
+
     } catch (err) {
       setError(
         err instanceof Error
@@ -532,7 +614,6 @@ const CreateStory = ({
       if (topRef.current) {
         topRef.current.scrollIntoView({ behavior: 'smooth' });
       }
-    } finally {
       setIsLoading(false);
       loadingStartTimeRef.current = null;
     }
@@ -814,336 +895,604 @@ const CreateStory = ({
             id="story-visibility-legend"
             className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 font-sans pl-1"
           >
-            Visibility
+            {currentUser?.isBrand ? 'Post Type' : 'Visibility'}
           </legend>
 
-          <div className="flex gap-3">
-            {/* Option 1: Private */}
-            <div
-              onClick={() => handleVisibilityChange("private")}
-              className={`flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-3 p-4 rounded-2xl cursor-pointer transition-all border ${formState.visibility === "private" ? "bg-[#EC1D99]/10 border-[#EC1D99] shadow-[0_0_20px_rgba(236,29,153,0.1)]" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600 hover:bg-gray-800"}`}
-            >
-              <div className={`p-2.5 rounded-xl ${formState.visibility === "private" ? "bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/20" : "bg-gray-700 text-gray-400"}`}>
-                <Lock className="w-5 h-5" />
-              </div>
-              <div className="text-center sm:text-left">
-                <label
-                  className={`text-sm font-bold cursor-pointer block font-sans ${formState.visibility === "private" ? "text-white" : "text-gray-300"}`}
+          {/* Brand Post Type Selector (Canon/Seed) */}
+          {currentUser?.isBrand ? (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                {/* Option 1: Normal (Public) */}
+                <div
+                  onClick={() => handlePostTypeChange("normal")}
+                  className={`flex-1 flex items-center gap-2 p-2.5 rounded-xl cursor-pointer transition-all border ${formState.postType === "normal" ? "bg-[#EC1D99]/10 border-[#EC1D99]" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600"}`}
                 >
-                  Private
-                </label>
-                <p
-                  className="text-xs text-gray-500 mt-0.5 font-sans leading-relaxed"
-                >
-                  Only invited friends can view and contribute
-                </p>
-              </div>
-            </div>
-
-            {/* Option 2: Public */}
-            <div
-              onClick={() => handleVisibilityChange("public")}
-              className={`flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-3 p-4 rounded-2xl cursor-pointer transition-all border ${formState.visibility === "public" ? "bg-[#EC1D99]/10 border-[#EC1D99] shadow-[0_0_20px_rgba(236,29,153,0.1)]" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600 hover:bg-gray-800"}`}
-            >
-              <div className={`p-2.5 rounded-xl ${formState.visibility === "public" ? "bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/20" : "bg-gray-700 text-gray-400"}`}>
-                <Globe className="w-5 h-5" />
-              </div>
-              <div className="text-center sm:text-left">
-                <label
-                  className={`text-sm font-bold cursor-pointer block font-sans ${formState.visibility === "public" ? "text-white" : "text-gray-300"}`}
-                >
-                  Public
-                </label>
-                <p
-                  className="text-xs text-gray-500 mt-0.5 font-sans leading-relaxed"
-                >
-                  Anyone can view, but only invited friends join
-                </p>
-              </div>
-            </div>
-          </div>
-        </fieldset>
-      )}
-
-      {/* Number of Participants */}
-      <div className="bg-gray-800/30 p-4 rounded-2xl border border-white/5">
-        <label
-          htmlFor="invite-count"
-          className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-4 font-sans pl-1"
-        >
-          Number of Participants
-        </label>
-        <div className="flex items-center justify-between gap-4">
-          <button
-            onClick={() => {
-              const current = formState.inviteCount + 1;
-              if (current > 2) {
-                const newTotal = current - 1;
-                const newCount = newTotal - 1;
-
-                // Update slots
-                setSlots(prev => {
-                  // When reducing, slice from the end
-                  return prev.slice(0, newTotal);
-                });
-                setFormState(prev => ({ ...prev, inviteCount: newCount }));
-              }
-            }}
-            disabled={formState.inviteCount + 1 <= 2}
-            className="w-10 h-10 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
-          >
-            <span className="text-xl font-bold mb-1">-</span>
-          </button>
-
-          <div className="flex-1 text-center">
-            <div className="text-3xl font-bold text-white tracking-tight">
-              {formState.inviteCount + 1}
-            </div>
-            <div className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">
-              People Total
-            </div>
-          </div>
-
-          <button
-            onClick={() => {
-              const current = formState.inviteCount + 1;
-              if (current < 11) {
-                const newTotal = current + 1;
-                const newCount = newTotal - 1;
-
-                setSlots(prev => {
-                  const newItems = Array.from({ length: 1 }).map(() => ({ id: generateId(), friend: null }));
-                  return [...prev, ...newItems];
-                });
-
-                setFormState(prev => ({ ...prev, inviteCount: newCount }));
-              }
-            }}
-            disabled={formState.inviteCount + 1 >= 11}
-            className="w-10 h-10 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
-          >
-            <span className="text-xl font-bold mb-1">+</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Improved Slots Visualization */}
-      <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-medium text-gray-300">Story Turn Order</span>
-
-          {/* Reorder Toggle */}
-          <button
-            onClick={() => setIsReordering(!isReordering)}
-            className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${isReordering
-              ? "bg-[#EC1D99] text-white"
-              : "bg-gray-800 text-gray-400 hover:text-white"
-              }`}
-          >
-            {isReordering ? "Done" : "Reorder"}
-          </button>
-        </div>
-
-        {/* Reorder.Group for Drag and Drop */}
-        <Reorder.Group
-          axis="x"
-          layoutScroll
-          values={slots}
-          onReorder={setSlots}
-          className="flex items-start py-2 overflow-x-auto pb-4 no-scrollbar px-5"
-        >
-          {slots.map((slot, idx) => {
-            const participant = slot.friend;
-            const isCurrentUser = participant?.id === currentUser?.id;
-
-            return (
-              <StorySlotItem
-                key={slot.id}
-                slot={slot}
-                index={idx}
-                isCurrentUser={isCurrentUser}
-                onRemove={handleRemoveFriend}
-                onFill={(i) => {
-                  setSlotToFill(i);
-                  setShowFriendDropdown(true);
-                }}
-                isLast={idx === slots.length - 1}
-                isReordering={isReordering}
-              />
-            );
-          })}
-        </Reorder.Group>
-      </div>
-
-      {/* Friend Picker */}
-      <div className="relative">
-        <div className="flex justify-between items-center mb-2">
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="friends-input"
-              className="block text-sm font-medium text-gray-300 font-sans"
-            >
-              Search Friends
-            </label>
-            {onRefreshFriends && (
-              <button
-                onClick={async () => {
-                  setIsLoading(true);
-                  await onRefreshFriends();
-                  setIsLoading(false);
-                  toast.success("Friends list refreshed");
-                }}
-                className="text-xs text-[#EC1D99] hover:text-[#D41C84] transition-colors"
-                type="button"
-              >
-                Refresh
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Friend Search Input */}
-        <div className="relative">
-          <input
-            id="friends-input"
-            type="text"
-            value={friendSearchInput}
-            onChange={(e) => setFriendSearchInput(e.target.value)}
-            ref={friendsInputRef}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                if (filteredFriends.length > 0) {
-                  handleAddFriend(filteredFriends[0]);
-                }
-              }
-            }}
-            onFocus={() => setShowFriendDropdown(true)}
-            onBlur={() => {
-              // Longer delay to prevent premature closing
-              setTimeout(() => setShowFriendDropdown(false), 500);
-            }}
-            placeholder="Type a name to search..."
-            disabled={
-              !slots.some(s => s.friend === null)
-            }
-            className="w-full px-4 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed font-sans"
-          />
-
-          {/* Friend Avatar Popup */}
-          {showFriendDropdown && (
-            <div
-              role="dialog"
-              aria-label="Select a friend"
-              className="absolute top-full left-0 right-0 mt-2 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-20 max-h-64 overflow-y-auto p-3"
-            >
-              {isSearching ? (
-                <div className="flex items-center justify-center py-4 text-gray-400">
-                  <Loader className="w-5 h-5 animate-spin mr-2" />
-                  <span>Searching...</span>
+                  <div className={`p-1.5 rounded-lg ${formState.postType === "normal" ? "bg-[#EC1D99] text-white" : "bg-gray-700 text-gray-400"}`}>
+                    <Globe className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <label className={`text-xs font-bold cursor-pointer block ${formState.postType === "normal" ? "text-white" : "text-gray-300"}`}>
+                      Normal
+                    </label>
+                    <p className="text-[10px] text-gray-500">Standard post</p>
+                  </div>
                 </div>
-              ) : filteredFriends.length > 0 ? (
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                  {filteredFriends.map((friend) => {
-                    const canAddToStory = friend.isFriend || friend.id === currentUser?.id;
-                    const showFriendRequestButton = !friend.isFriend &&
-                      friend.id !== currentUser?.id &&
-                      friend.friendRequestStatus === 'none';
-                    const isPendingSent = friend.friendRequestStatus === 'pending_sent';
-                    const isPendingReceived = friend.friendRequestStatus === 'pending_received';
 
-                    return (
-                      <div
-                        key={friend.id}
-                        onClick={(e) => {
-                          if (canAddToStory) {
-                            e.preventDefault();
-                            handleAddFriend(friend);
-                          }
-                        }}
-                        className={`flex flex-col items-center gap-2 w-full p-2 rounded-lg relative group transition-all ${canAddToStory ? 'cursor-pointer hover:bg-gray-800 hover:scale-105' : ''}`}
-                      >
-                        <div className="relative">
-                          <img
-                            src={friend.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
-                            alt={friend.name}
-                            className={`w-12 h-12 rounded-full border-2 ${canAddToStory ? 'border-gray-700' : 'border-gray-600 opacity-60'}`}
-                          />
-                          {!friend.isFriend && friend.id !== currentUser?.id && (
-                            <div className="absolute -bottom-1 -right-1 bg-gray-700 rounded-full p-0.5">
-                              <UserPlus className="w-3 h-3 text-gray-400" />
-                            </div>
-                          )}
-                          {isPendingSent && (
-                            <div className="absolute -top-1 -right-1 bg-blue-500 rounded-full w-4 h-4 flex items-center justify-center">
-                              <span className="text-[8px]">...</span>
-                            </div>
-                          )}
-                          {isPendingReceived && (
-                            <div className="absolute -top-1 -right-1 bg-[#EC1D99] rounded-full w-4 h-4 flex items-center justify-center">
-                              <span className="text-[8px]">!</span>
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-xs text-white text-center font-sans">
-                          {friend.id === currentUser?.id ? "You" : friend.name.split(" ").slice(0, 2).join(" ")}
-                        </span>
-                        {friend.isInfluencer && (
-                          <div className="flex items-center gap-1 bg-yellow-500/20 px-1.5 py-0.5 rounded text-[10px] text-yellow-400 border border-yellow-500/30">
-                            <span>🪙</span>
-                            <span>{friend.interactionCost}</span>
-                          </div>
-                        )}
-
-                        {/* Action buttons */}
-                        {canAddToStory ? (
-                          null
-                        ) : showFriendRequestButton ? (
-                          <button
-                            onMouseDown={async (e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (!currentUser) return;
-                              const success = await sendFriendRequest(currentUser.id, friend.id);
-                              if (success) {
-                                toast.success(`Friend request sent to ${friend.name}`);
-                                setFriendSearchInput(friendSearchInput + ' ');
-                                setTimeout(() => setFriendSearchInput(friendSearchInput), 10);
-                              } else {
-                                toast.error('Could not send friend request');
-                              }
-                            }}
-                            className="w-full py-1 px-2 bg-gray-700 hover:bg-gray-600 text-white text-[10px] rounded-md transition-colors"
-                          >
-                            Send Request
-                          </button>
-                        ) : isPendingSent ? (
-                          <div className="w-full py-1 px-2 bg-blue-500/20 text-blue-400 text-[10px] rounded-md text-center border border-blue-500/30">
-                            Pending
-                          </div>
-                        ) : isPendingReceived ? (
-                          <div className="w-full py-1 px-2 bg-[#EC1D99]/20 text-[#EC1D99] text-[10px] rounded-md text-center border border-[#EC1D99]/30">
-                            Check Activity
-                          </div>
-                        ) : (
-                          <div className="w-full py-1 px-2 bg-gray-800 text-gray-500 text-[10px] rounded-md text-center">
-                            Not Available
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                {/* Option 2: Seed Mode */}
+                <div
+                  onClick={() => {
+                    if (currentUser?.brandSubscriptionStatus === 'active') {
+                      handlePostTypeChange("seed");
+                    } else {
+                      // Show upgrade prompt
+                      window.location.href = '/settings/subscription';
+                    }
+                  }}
+                  className={`flex-1 flex items-center gap-2 p-2.5 rounded-xl transition-all border relative
+                    ${currentUser?.brandSubscriptionStatus !== 'active' ? 'cursor-pointer' : 'cursor-pointer'}
+                    ${formState.postType === "seed" ? "bg-green-500/10 border-green-500" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600"}`}
+                >
+                  {currentUser?.brandSubscriptionStatus !== 'active' && (
+                    <div className="absolute -top-1 -right-1 text-[8px] bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-1.5 py-0.5 rounded-full font-bold">
+                      PRO
+                    </div>
+                  )}
+                  <div className={`p-1.5 rounded-lg ${formState.postType === "seed" ? "bg-green-500 text-white" : "bg-gray-700 text-gray-400"}`}>
+                    <span className="text-sm">🌱</span>
+                  </div>
+                  <div>
+                    <label className={`text-xs font-bold cursor-pointer block ${formState.postType === "seed" ? "text-white" : "text-gray-300"}`}>
+                      Seed
+                    </label>
+                    <p className="text-[10px] text-gray-500">Slot 1 locked</p>
+                  </div>
                 </div>
-              ) : (
-                <div className="text-center py-4 text-gray-500 text-sm">
-                  No users found
+
+                {/* Option 3: Canon Mode */}
+                <div
+                  onClick={() => {
+                    if (currentUser?.brandSubscriptionStatus === 'active') {
+                      handlePostTypeChange("canon");
+                    } else {
+                      // Show upgrade prompt
+                      window.location.href = '/settings/subscription';
+                    }
+                  }}
+                  className={`flex-1 flex items-center gap-2 p-2.5 rounded-xl transition-all border relative
+                    ${currentUser?.brandSubscriptionStatus !== 'active' ? 'cursor-pointer' : 'cursor-pointer'}
+                    ${formState.postType === "canon" ? "bg-purple-500/10 border-purple-500" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600"}`}
+                >
+                  {currentUser?.brandSubscriptionStatus !== 'active' && (
+                    <div className="absolute -top-1 -right-1 text-[8px] bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-1.5 py-0.5 rounded-full font-bold">
+                      PRO
+                    </div>
+                  )}
+                  <div className={`p-1.5 rounded-lg ${formState.postType === "canon" ? "bg-purple-500 text-white" : "bg-gray-700 text-gray-400"}`}>
+                    <span className="text-sm">🎬</span>
+                  </div>
+                  <div>
+                    <label className={`text-xs font-bold cursor-pointer block ${formState.postType === "canon" ? "text-white" : "text-gray-300"}`}>
+                      Canon
+                    </label>
+                    <p className="text-[10px] text-gray-500">Lock any slot</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Upgrade prompt for non-premium brands */}
+              {currentUser?.brandSubscriptionStatus !== 'active' && (
+                <a
+                  href="/settings/subscription"
+                  className="block text-center text-xs text-yellow-400 hover:text-yellow-300 transition-colors py-1"
+                >
+                  ✨ Upgrade to unlock Seed & Canon posts
+                </a>
+              )}
+
+              {/* Visibility Duration & Pricing for Seed/Canon posts */}
+              {(formState.postType === 'seed' || formState.postType === 'canon') && (
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 pl-1">
+                    Post Visibility Duration
+                  </label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { days: 1, label: '1 Day' },
+                      { days: 3, label: '3 Days' },
+                      { days: 7, label: '1 Week' },
+                      { days: 14, label: '2 Weeks' },
+                    ].map(({ days, label }) => {
+                      const price = getPrice(formState.postType as 'seed' | 'canon', days);
+                      const isSelected = formState.visibilityDays === days;
+
+                      return (
+                        <button
+                          key={days}
+                          type="button"
+                          onClick={() => setFormState(prev => ({ ...prev, visibilityDays: days }))}
+                          className={`p-2 rounded-lg text-center transition-all border ${isSelected
+                            ? 'bg-[#EC1D99]/20 border-[#EC1D99] text-white'
+                            : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:border-gray-600'
+                            }`}
+                        >
+                          <div className="text-xs font-bold">{label}</div>
+                          <div className={`text-[9px] font-semibold ${isSelected ? 'text-green-400' : 'text-gray-500'}`}>
+                            {price ? formatPrice(price) : 'N/A'}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[9px] text-gray-500 px-1">
+                    How long this post stays visible on the discovery page.
+                  </p>
+                </div>
+              )}
+
+              {/* Info about brand posts */}
+              {formState.postType !== 'normal' && (
+                <div className="p-2 bg-gray-800/50 rounded-lg border border-gray-700/50 text-[10px] text-gray-400">
+                  <span className="text-[#EC1D99] font-semibold">Note:</span> Brand posts are public. Anyone can stitch to empty slots.
                 </div>
               )}
             </div>
+          ) : (
+            /* Standard Visibility Selector for non-brand users */
+            <div className="flex gap-3">
+              {/* Option 1: Private */}
+              <div
+                onClick={() => handleVisibilityChange("private")}
+                className={`flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-3 p-4 rounded-2xl cursor-pointer transition-all border ${formState.visibility === "private" ? "bg-[#EC1D99]/10 border-[#EC1D99] shadow-[0_0_20px_rgba(236,29,153,0.1)]" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600 hover:bg-gray-800"}`}
+              >
+                <div className={`p-2.5 rounded-xl ${formState.visibility === "private" ? "bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/20" : "bg-gray-700 text-gray-400"}`}>
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div className="text-center sm:text-left">
+                  <label
+                    className={`text-sm font-bold cursor-pointer block font-sans ${formState.visibility === "private" ? "text-white" : "text-gray-300"}`}
+                  >
+                    Private
+                  </label>
+                  <p
+                    className="text-xs text-gray-500 mt-0.5 font-sans leading-relaxed"
+                  >
+                    Only invited friends can view and contribute
+                  </p>
+                </div>
+              </div>
+
+              {/* Option 2: Public */}
+              <div
+                onClick={() => handleVisibilityChange("public")}
+                className={`flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-3 p-4 rounded-2xl cursor-pointer transition-all border ${formState.visibility === "public" ? "bg-[#EC1D99]/10 border-[#EC1D99] shadow-[0_0_20px_rgba(236,29,153,0.1)]" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600 hover:bg-gray-800"}`}
+              >
+                <div className={`p-2.5 rounded-xl ${formState.visibility === "public" ? "bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/20" : "bg-gray-700 text-gray-400"}`}>
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div className="text-center sm:text-left">
+                  <label
+                    className={`text-sm font-bold cursor-pointer block font-sans ${formState.visibility === "public" ? "text-white" : "text-gray-300"}`}
+                  >
+                    Public
+                  </label>
+                  <p
+                    className="text-xs text-gray-500 mt-0.5 font-sans leading-relaxed"
+                  >
+                    Anyone can view, but only invited friends join
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
-        </div>
-      </div>
-    </div>
+        </fieldset>
+      )
+      }
+
+      {/* Number of Participants - Different UI for brand posts */}
+      {
+        (formState.postType === 'seed' || formState.postType === 'canon') ? (
+          /* Brand Post Slot Configuration */
+          <div className="bg-gray-800/30 p-4 rounded-2xl border border-white/5 space-y-4">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 font-sans pl-1">
+              {formState.postType === 'seed' ? 'Contributor Slots' : 'Story Slots'}
+            </label>
+
+            {/* Slot Count Selector */}
+            <div className="flex items-center justify-between gap-4">
+              <button
+                onClick={() => {
+                  const minSlots = formState.postType === 'seed' ? 2 : 1; // Seed needs at least brand + 1
+                  if (formState.inviteCount + 1 > minSlots) {
+                    setFormState(prev => ({ ...prev, inviteCount: prev.inviteCount - 1 }));
+                  }
+                }}
+                disabled={formState.inviteCount + 1 <= (formState.postType === 'seed' ? 2 : 1)}
+                className="w-10 h-10 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
+              >
+                <span className="text-xl font-bold mb-1">-</span>
+              </button>
+
+              <div className="flex-1 text-center">
+                <div className="text-3xl font-bold text-white tracking-tight">
+                  {formState.inviteCount + 1}
+                </div>
+                <div className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">
+                  Total Slots
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (formState.inviteCount + 1 < 10) {
+                    setFormState(prev => ({ ...prev, inviteCount: prev.inviteCount + 1 }));
+                  }
+                }}
+                disabled={formState.inviteCount + 1 >= 10}
+                className="w-10 h-10 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
+              >
+                <span className="text-xl font-bold mb-1">+</span>
+              </button>
+            </div>
+
+            {/* Slot Preview */}
+            <div className="bg-gray-900/50 rounded-xl p-3 border border-gray-800">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+                {Array.from({ length: formState.inviteCount + 1 }).map((_, idx) => {
+                  const isBrandSlot = formState.postType === 'seed' && idx === 0;
+                  const isCanonLocked = formState.postType === 'canon' && formState.canonSlots?.includes(idx);
+
+                  return (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div
+                        onClick={() => {
+                          if (formState.postType === 'canon') {
+                            // Toggle lock for canon posts
+                            setFormState(prev => ({
+                              ...prev,
+                              canonSlots: prev.canonSlots?.includes(idx)
+                                ? prev.canonSlots.filter(i => i !== idx)
+                                : [...(prev.canonSlots || []), idx]
+                            }));
+                          }
+                        }}
+                        className={`relative flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center transition-all ${isBrandSlot
+                          ? 'bg-[#EC1D99] border-2 border-[#EC1D99]'
+                          : isCanonLocked
+                            ? 'bg-purple-500/20 border-2 border-purple-500 cursor-pointer'
+                            : formState.postType === 'canon'
+                              ? 'bg-gray-700 border-2 border-gray-600 cursor-pointer hover:border-purple-400'
+                              : 'bg-gray-700 border-2 border-gray-600'
+                          }`}
+                      >
+                        {isBrandSlot ? (
+                          <img
+                            src={currentUser?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.id}`}
+                            alt="Brand"
+                            className="w-full h-full rounded-full object-cover"
+                          />
+                        ) : isCanonLocked ? (
+                          <span className="text-lg">🔒</span>
+                        ) : (
+                          <span className="text-gray-500 text-xs">{idx + 1}</span>
+                        )}
+                        {isBrandSlot && (
+                          <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-0.5">
+                            <span className="text-[8px]">🌱</span>
+                          </div>
+                        )}
+                      </div>
+                      {idx < formState.inviteCount && (
+                        <div className="w-4 h-0.5 bg-gray-700 flex-shrink-0" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {formState.postType === 'seed' && (
+                <p className="text-[10px] text-gray-500 mt-2 text-center">
+                  🌱 You're locked in slot 1. Others will fill remaining slots.
+                </p>
+              )}
+              {formState.postType === 'canon' && (
+                <p className="text-[10px] text-gray-500 mt-2 text-center">
+                  🔒 Tap slots to lock them. Locked slots can only be filled by you.
+                </p>
+              )}
+            </div>
+
+            <p className="text-xs text-gray-400 px-1">
+              🌍 This post will be <span className="text-green-400 font-medium">public</span>. Anyone can stitch to open slots.
+            </p>
+          </div>
+        ) : (
+          /* Normal Post - Original Participant UI */
+          <>
+            <div className="bg-gray-800/30 p-4 rounded-2xl border border-white/5">
+              <label
+                htmlFor="invite-count"
+                className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-4 font-sans pl-1"
+              >
+                Number of Participants
+              </label>
+              <div className="flex items-center justify-between gap-4">
+                <button
+                  onClick={() => {
+                    const current = formState.inviteCount + 1;
+                    if (current > 2) {
+                      const newTotal = current - 1;
+                      const newCount = newTotal - 1;
+
+                      // Update slots
+                      setSlots(prev => {
+                        // When reducing, slice from the end
+                        return prev.slice(0, newTotal);
+                      });
+                      setFormState(prev => ({ ...prev, inviteCount: newCount }));
+                    }
+                  }}
+                  disabled={formState.inviteCount + 1 <= 2}
+                  className="w-10 h-10 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
+                >
+                  <span className="text-xl font-bold mb-1">-</span>
+                </button>
+
+                <div className="flex-1 text-center">
+                  <div className="text-3xl font-bold text-white tracking-tight">
+                    {formState.inviteCount + 1}
+                  </div>
+                  <div className="text-xs text-gray-500 font-medium uppercase tracking-wider mt-1">
+                    People Total
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    const current = formState.inviteCount + 1;
+                    if (current < 11) {
+                      const newTotal = current + 1;
+                      const newCount = newTotal - 1;
+
+                      setSlots(prev => {
+                        const newItems = Array.from({ length: 1 }).map(() => ({ id: generateId(), friend: null }));
+                        return [...prev, ...newItems];
+                      });
+
+                      setFormState(prev => ({ ...prev, inviteCount: newCount }));
+                    }
+                  }}
+                  disabled={formState.inviteCount + 1 >= 11}
+                  className="w-10 h-10 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-white transition-colors"
+                >
+                  <span className="text-xl font-bold mb-1">+</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Improved Slots Visualization */}
+            <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium text-gray-300">Story Turn Order</span>
+
+                {/* Reorder Toggle */}
+                <button
+                  onClick={() => setIsReordering(!isReordering)}
+                  className={`text-xs font-medium px-3 py-1 rounded-full transition-colors ${isReordering
+                    ? "bg-[#EC1D99] text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                    }`}
+                >
+                  {isReordering ? "Done" : "Reorder"}
+                </button>
+              </div>
+
+              {/* Reorder.Group for Drag and Drop */}
+              <Reorder.Group
+                axis="x"
+                layoutScroll
+                values={slots}
+                onReorder={setSlots}
+                className="flex items-start py-2 overflow-x-auto pb-4 no-scrollbar px-5"
+              >
+                {slots.map((slot, idx) => {
+                  const participant = slot.friend;
+                  const isCurrentUser = participant?.id === currentUser?.id;
+
+                  return (
+                    <StorySlotItem
+                      key={slot.id}
+                      slot={slot}
+                      index={idx}
+                      isCurrentUser={isCurrentUser}
+                      onRemove={handleRemoveFriend}
+                      onFill={(i) => {
+                        setSlotToFill(i);
+                        setShowFriendDropdown(true);
+                      }}
+                      isLast={idx === slots.length - 1}
+                      isReordering={isReordering}
+                    />
+                  );
+                })}
+              </Reorder.Group>
+            </div>
+          </>
+        )
+      }
+
+      {/* Friend Picker - Hidden for brand Seed/Canon posts since they're public */}
+      {
+        formState.postType !== 'seed' && formState.postType !== 'canon' && (
+          <div className="relative">
+            <div className="flex justify-between items-center mb-2">
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="friends-input"
+                  className="block text-sm font-medium text-gray-300 font-sans"
+                >
+                  Search Friends
+                </label>
+                {onRefreshFriends && (
+                  <button
+                    onClick={async () => {
+                      setIsLoading(true);
+                      await onRefreshFriends();
+                      setIsLoading(false);
+                      toast.success("Friends list refreshed");
+                    }}
+                    className="text-xs text-[#EC1D99] hover:text-[#D41C84] transition-colors"
+                    type="button"
+                  >
+                    Refresh
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Friend Search Input */}
+            <div className="relative">
+              <input
+                id="friends-input"
+                type="text"
+                value={friendSearchInput}
+                onChange={(e) => setFriendSearchInput(e.target.value)}
+                ref={friendsInputRef}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (filteredFriends.length > 0) {
+                      handleAddFriend(filteredFriends[0]);
+                    }
+                  }
+                }}
+                onFocus={() => setShowFriendDropdown(true)}
+                onBlur={() => {
+                  // Longer delay to prevent premature closing
+                  setTimeout(() => setShowFriendDropdown(false), 500);
+                }}
+                placeholder="Type a name to search..."
+                disabled={
+                  !slots.some(s => s.friend === null)
+                }
+                className="w-full px-4 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed font-sans"
+              />
+
+              {/* Friend Avatar Popup */}
+              {showFriendDropdown && (
+                <div
+                  role="dialog"
+                  aria-label="Select a friend"
+                  className="absolute top-full left-0 right-0 mt-2 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-20 max-h-64 overflow-y-auto p-3"
+                >
+                  {isSearching ? (
+                    <div className="flex items-center justify-center py-4 text-gray-400">
+                      <Loader className="w-5 h-5 animate-spin mr-2" />
+                      <span>Searching...</span>
+                    </div>
+                  ) : filteredFriends.length > 0 ? (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                      {filteredFriends.map((friend) => {
+                        const canAddToStory = friend.isFriend || friend.id === currentUser?.id;
+                        const showFriendRequestButton = !friend.isFriend &&
+                          friend.id !== currentUser?.id &&
+                          friend.friendRequestStatus === 'none';
+                        const isPendingSent = friend.friendRequestStatus === 'pending_sent';
+                        const isPendingReceived = friend.friendRequestStatus === 'pending_received';
+
+                        return (
+                          <div
+                            key={friend.id}
+                            onClick={(e) => {
+                              if (canAddToStory) {
+                                e.preventDefault();
+                                handleAddFriend(friend);
+                              }
+                            }}
+                            className={`flex flex-col items-center gap-2 w-full p-2 rounded-lg relative group transition-all ${canAddToStory ? 'cursor-pointer hover:bg-gray-800 hover:scale-105' : ''}`}
+                          >
+                            <div className="relative">
+                              <img
+                                src={friend.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(friend.name)}`}
+                                alt={friend.name}
+                                className={`w-12 h-12 rounded-full border-2 ${canAddToStory ? 'border-gray-700' : 'border-gray-600 opacity-60'}`}
+                              />
+                              {!friend.isFriend && friend.id !== currentUser?.id && (
+                                <div className="absolute -bottom-1 -right-1 bg-gray-700 rounded-full p-0.5">
+                                  <UserPlus className="w-3 h-3 text-gray-400" />
+                                </div>
+                              )}
+                              {isPendingSent && (
+                                <div className="absolute -top-1 -right-1 bg-blue-500 rounded-full w-4 h-4 flex items-center justify-center">
+                                  <span className="text-[8px]">...</span>
+                                </div>
+                              )}
+                              {isPendingReceived && (
+                                <div className="absolute -top-1 -right-1 bg-[#EC1D99] rounded-full w-4 h-4 flex items-center justify-center">
+                                  <span className="text-[8px]">!</span>
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-xs text-white text-center font-sans">
+                              {friend.id === currentUser?.id ? "You" : friend.name.split(" ").slice(0, 2).join(" ")}
+                            </span>
+                            {friend.isInfluencer && (
+                              <div className="flex items-center gap-1 bg-yellow-500/20 px-1.5 py-0.5 rounded text-[10px] text-yellow-400 border border-yellow-500/30">
+                                <span>🪙</span>
+                                <span>{friend.interactionCost}</span>
+                              </div>
+                            )}
+
+                            {/* Action buttons */}
+                            {canAddToStory ? (
+                              null
+                            ) : showFriendRequestButton ? (
+                              <button
+                                onMouseDown={async (e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (!currentUser) return;
+                                  const success = await sendFriendRequest(currentUser.id, friend.id);
+                                  if (success) {
+                                    toast.success(`Friend request sent to ${friend.name}`);
+                                    setFriendSearchInput(friendSearchInput + ' ');
+                                    setTimeout(() => setFriendSearchInput(friendSearchInput), 10);
+                                  } else {
+                                    toast.error('Could not send friend request');
+                                  }
+                                }}
+                                className="w-full py-1 px-2 bg-gray-700 hover:bg-gray-600 text-white text-[10px] rounded-md transition-colors"
+                              >
+                                Send Request
+                              </button>
+                            ) : isPendingSent ? (
+                              <div className="w-full py-1 px-2 bg-blue-500/20 text-blue-400 text-[10px] rounded-md text-center border border-blue-500/30">
+                                Pending
+                              </div>
+                            ) : isPendingReceived ? (
+                              <div className="w-full py-1 px-2 bg-[#EC1D99]/20 text-[#EC1D99] text-[10px] rounded-md text-center border border-[#EC1D99]/30">
+                                Check Activity
+                              </div>
+                            ) : (
+                              <div className="w-full py-1 px-2 bg-gray-800 text-gray-500 text-[10px] rounded-md text-center">
+                                Not Available
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-gray-500 text-sm">
+                      No users found
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      }
+    </div >
   );
 
   // Render Section 3: Finishing Touches (Advanced Settings only now)
@@ -1170,6 +1519,7 @@ const CreateStory = ({
             <span className="text-xs text-gray-500 font-medium bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">
               {[
                 formState.turnTimerHours && '⏰ Timer',
+                formState.scheduledFor && '📅 Scheduled',
               ].filter(Boolean).join(', ') || 'Optional'}
             </span>
           </div>
@@ -1185,39 +1535,43 @@ const CreateStory = ({
 
         {showAdvancedOptions && (
           <div className="mt-2 p-4 bg-gray-800/30 border border-white/5 rounded-2xl space-y-4 animate-fadeIn">
-            {/* Turn Timer */}
-            <div>
-              <label htmlFor="turn-timer" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 font-sans pl-1">
-                Turn Timer
-              </label>
-              <div className="relative">
-                <select
-                  id="turn-timer"
-                  value={formState.turnTimerHours ?? ''}
-                  onChange={(e) => {
-                    const value = e.target.value === '' ? undefined : parseInt(e.target.value);
-                    setFormState(prev => ({ ...prev, turnTimerHours: value }));
-                  }}
-                  className="w-full px-4 py-4 pl-4 bg-gray-900 border border-gray-700 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white font-sans appearance-none"
-                >
-                  <option value="">No limit</option>
-                  <option value="6">6 hours</option>
-                  <option value="12">12 hours</option>
-                  <option value="24">24 hours</option>
-                  <option value="48">48 hours</option>
-                  <option value="72">72 hours</option>
-                  <option value="168">1 week</option>
-                </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+            {/* Turn Timer - Hidden for Seed/Canon posts which use visibility days */}
+            {formState.postType !== 'seed' && formState.postType !== 'canon' && (
+              <>
+                <div>
+                  <label htmlFor="turn-timer" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 font-sans pl-1">
+                    Turn Timer
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="turn-timer"
+                      value={formState.turnTimerHours ?? ''}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? undefined : parseInt(e.target.value);
+                        setFormState(prev => ({ ...prev, turnTimerHours: value }));
+                      }}
+                      className="w-full px-4 py-4 pl-4 bg-gray-900 border border-gray-700 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white font-sans appearance-none"
+                    >
+                      <option value="">No limit</option>
+                      <option value="6">6 hours</option>
+                      <option value="12">12 hours</option>
+                      <option value="24">24 hours</option>
+                      <option value="48">48 hours</option>
+                      <option value="72">72 hours</option>
+                      <option value="168">1 week</option>
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 px-1">
+                    How long each participant has to add their part
+                  </p>
                 </div>
-              </div>
-              <p className="text-xs text-gray-500 mt-2 px-1">
-                How long each participant has to add their part
-              </p>
-            </div>
 
-            <div className="h-px bg-white/5" />
+                <div className="h-px bg-white/5" />
+              </>
+            )}
 
             {/* Allow Comments Toggle */}
             <div className="flex items-center justify-between py-1">
@@ -1247,6 +1601,37 @@ const CreateStory = ({
                 </span>
               </label>
             </div>
+
+            {/* Schedule Post - Brand Only */}
+            {currentUser?.isBrand && (
+              <>
+                <div className="h-px bg-white/5" />
+                <div>
+                  <label htmlFor="schedule-time" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 font-sans pl-1">
+                    Schedule Post
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="datetime-local"
+                      id="schedule-time"
+                      value={formState.scheduledFor || ''}
+                      onChange={(e) => {
+                        setFormState(prev => ({ ...prev, scheduledFor: e.target.value }));
+                      }}
+                      className="w-full px-4 py-4 pl-4 bg-gray-900 border border-gray-700 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white font-sans appearance-none [&::-webkit-calendar-picker-indicator]:invert"
+                    />
+                    {!formState.scheduledFor && (
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 px-1">
+                    Set a future date and time to publish this story
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

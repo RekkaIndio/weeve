@@ -29,6 +29,14 @@ function CreateStoryContent() {
     }
   }, [fetchFriends, currentUser]);
 
+  // Handle payment cancellation
+  useEffect(() => {
+    const paymentStatus = searchParams?.get('payment');
+    if (paymentStatus === 'cancelled') {
+      toast.error('Payment was cancelled. Please try again.');
+    }
+  }, [searchParams]);
+
   const fetchGroupInfo = async () => {
     if (!groupId) return;
     try {
@@ -74,8 +82,8 @@ function CreateStoryContent() {
     };
   };
 
-  const handleCreateStory = async (data: CreateStoryFormState) => {
-    if (!currentUser) return; // Safety check
+  const handleCreateStory = async (data: CreateStoryFormState): Promise<string> => {
+    if (!currentUser) throw new Error('User not authenticated'); // Safety check
 
     try {
       // Ensure description is never empty (database requires NOT NULL)
@@ -115,13 +123,17 @@ function CreateStoryContent() {
       // Create story in Supabase with first slot (first non-null slot) as initial turn
       const initialTurnUserId = slotsWithUser.find(s => s)?.id ?? currentUser.id;
 
+      // Check if this is a brand post requiring payment
+      const isBrandPost = data.postType === 'canon' || data.postType === 'seed';
+      const requiresPayment = isBrandPost && data.visibilityDays;
+
       const { data: storyData, error: storyError } = await supabase
         .from('stories')
         .insert({
           title: data.title,
           description: description,
           creator_id: currentUser.id,
-          mode: 'invite', // Defaulting to invite mode for now based on UI
+          mode: (data.postType === 'canon' || data.postType === 'seed') ? 'open' : 'invite',
           visibility: data.visibility, // Assuming DB has visibility column or we map it
           status: 'active',
           max_weeves: computedMaxWeeves, // Store total slots including creator (inviteCount is friend count)
@@ -131,6 +143,12 @@ function CreateStoryContent() {
           hashtags: data.hashtags,
           turn_timer_hours: data.turnTimerHours || null,
           monetization_cost: data.monetizationCost || null,
+          scheduled_for: data.scheduledFor || null,
+          post_type: data.postType || 'normal',
+          canon_slots: data.canonSlots || null,
+          visibility_days: data.visibilityDays || null,
+          // Set payment status for brand posts
+          payment_status: requiresPayment ? 'pending' : 'completed',
         })
         .select()
         .single();
@@ -227,8 +245,7 @@ function CreateStoryContent() {
                 likedBy: [],
                 comments: [],
                 allowComments: data.allowComments,
-
-                mode: 'invite',
+                mode: (data.postType === 'canon' || data.postType === 'seed') ? 'open' : 'invite',
                 monetizationCost: data.monetizationCost,
                 turnTimerHours: storyData.turn_timer_hours ?? (data.turnTimerHours ?? undefined),
                 created_at: storyData.created_at,
@@ -300,12 +317,15 @@ function CreateStoryContent() {
         likedBy: [],
         comments: [],
         allowComments: data.allowComments,
-
-        mode: 'invite',
+        mode: (data.postType === 'canon' || data.postType === 'seed') ? 'open' : 'invite',
         monetizationCost: data.monetizationCost,
         turnTimerHours: storyData.turn_timer_hours ?? (data.turnTimerHours ?? undefined),
         created_at: storyData.created_at,
         updated_at: storyData.updated_at,
+        // Brand fields
+        postType: data.postType || 'normal',
+        canonSlots: data.canonSlots || undefined,
+        scheduledFor: data.scheduledFor || undefined,
       };
 
       addStory(newStory);
@@ -317,15 +337,23 @@ function CreateStoryContent() {
         console.warn('[CreateStory] fetchStories after create failed:', err);
       }
 
-      console.log('Story created and added to store, redirecting...');
-      // Redirect to the new story
+      console.log('Story created and added to store');
+
+      // For brand posts requiring payment, return the ID without redirecting
+      // The CreateStory component will handle the redirect to Stripe
+      if (requiresPayment) {
+        return newStoryId;
+      }
+
+      // For normal posts, redirect to the story
       router.push(`/story/${newStoryId}`);
+      return newStoryId;
 
     } catch (error) {
       console.error('Error creating story:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create story. Please try again.';
       toast.error(errorMessage);
-      alert('Failed to create story. Please try again.');
+      throw error; // Re-throw to let CreateStory component handle it
     }
   };
 

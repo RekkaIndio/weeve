@@ -157,6 +157,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                     tagline: profile.tagline,
                                     tokens: profile.tokens,
                                     inviteCode: profile.inviteCode,
+                                    isBrand: profile.isBrand,
+                                    brandWebsite: profile.brandWebsite,
+                                    brandSubscriptionStatus: profile.brandSubscriptionStatus,
                                 };
                                 const storeState = useStore.getState();
                                 if (!storeState.profileUpdateInProgress) {
@@ -213,6 +216,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     tagline: profile.tagline,
                     tokens: profile.tokens,
                     inviteCode: profile.inviteCode,
+                    isBrand: profile.isBrand,
+                    brandWebsite: profile.brandWebsite,
+                    brandSubscriptionStatus: profile.brandSubscriptionStatus,
                 };
                 const storeState = useStore.getState();
                 if (!storeState.profileUpdateInProgress) {
@@ -292,6 +298,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                         avatar: fastProfile.avatar,
                         tagline: fastProfile.tagline,
                         tokens: fastProfile.tokens,
+                        isBrand: fastProfile.isBrand,
+                        brandWebsite: fastProfile.brandWebsite,
+                        brandSubscriptionStatus: fastProfile.brandSubscriptionStatus,
                     });
                     try { /* storeState.fetchStories(); */ } catch (err) { console.warn('[AuthProvider] fetchStories error after fastProfile fetch', err); }
                 }
@@ -325,6 +334,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                         tokens: createdProfileAfterRefresh.tokens ?? 100,
                                         inviteCode: createdProfileAfterRefresh.invite_code ?? undefined,
                                         isPrivate: createdProfileAfterRefresh.is_private ?? false,
+                                        isBrand: (createdProfileAfterRefresh as any).is_brand ?? false,
+                                        brandWebsite: (createdProfileAfterRefresh as any).brand_website ?? undefined,
                                     });
                                 }
                                 return createdProfileAfterRefresh;
@@ -356,6 +367,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     tokens: createdProfile.tokens ?? 100,
                     inviteCode: createdProfile.invite_code ?? undefined,
                     isPrivate: createdProfile.is_private ?? false,
+                    isBrand: (createdProfile as any).is_brand ?? false,
+                    brandWebsite: (createdProfile as any).brand_website ?? undefined,
                 });
             }
             return createdProfile;
@@ -519,6 +532,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             })();
 
             const nativeListenerPromise = App.addListener('appUrlOpen', async ({ url }) => {
+                // Handle Stripe payment success deep link
+                if (url.startsWith('com.weeve.app://payment-success')) {
+                    console.log('[AuthProvider] Payment success deep link received, redirecting to feed');
+                    // Stripe Payment Links can't pass custom data, so just go to feed with success flag
+                    window.location.href = '/feed?payment=success';
+                    return;
+                }
+
+                // Handle OAuth callback URLs
                 await processAuthCallbackUrl(url);
             });
 
@@ -682,8 +704,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                 className="w-16 h-16 rounded-xl"
                             />
                         </div>
-                        <p className="text-gray-400 text-sm">Sign in</p>
                     </div>
+
                 </div>
             </AuthContext.Provider>
         );

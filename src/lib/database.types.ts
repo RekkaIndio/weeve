@@ -89,6 +89,9 @@ export interface Database {
                     hashtags: string[] | null
                     turn_timer_hours: number | null
                     forked_from_story_id: string | null
+                    approval_status: 'pending' | 'approved' | 'rejected'
+                    reviewed_at: string | null
+                    reviewed_by: string | null
                     created_at: string
                     updated_at: string
                 }
@@ -107,6 +110,9 @@ export interface Database {
                     group_id?: string | null
                     turn_timer_hours?: number | null
                     forked_from_story_id?: string | null
+                    approval_status?: 'pending' | 'approved' | 'rejected'
+                    reviewed_at?: string | null
+                    reviewed_by?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -125,6 +131,9 @@ export interface Database {
                     group_id?: string | null
                     turn_timer_hours?: number | null
                     forked_from_story_id?: string | null
+                    approval_status?: 'pending' | 'approved' | 'rejected'
+                    reviewed_at?: string | null
+                    reviewed_by?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -148,6 +157,9 @@ export interface Database {
                     media_url: string | null
                     timestamp: number
                     text_style: Json | null
+                    approval_status: 'pending' | 'approved' | 'rejected'
+                    reviewed_at: string | null
+                    reviewed_by: string | null
                     created_at: string
                 }
                 Insert: {
@@ -160,6 +172,9 @@ export interface Database {
                     media_url?: string | null
                     timestamp: number
                     text_style?: Json | null
+                    approval_status?: 'pending' | 'approved' | 'rejected'
+                    reviewed_at?: string | null
+                    reviewed_by?: string | null
                     created_at?: string
                 }
                 Update: {
@@ -172,6 +187,9 @@ export interface Database {
                     media_url?: string | null
                     timestamp?: number
                     text_style?: Json | null
+                    approval_status?: 'pending' | 'approved' | 'rejected'
+                    reviewed_at?: string | null
+                    reviewed_by?: string | null
                     created_at?: string
                 }
                 Relationships: [

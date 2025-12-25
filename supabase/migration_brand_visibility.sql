@@ -1,0 +1,2 @@
+ALTER TABLE stories 
+ADD COLUMN IF NOT EXISTS visibility_days INTEGER;

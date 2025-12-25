@@ -67,7 +67,7 @@ export function useVideoStitcher() {
     const lastProgressValueRef = useRef<number>(0);
     const progressWatchdogRef = useRef<number | null>(null);
 
-    const stitchStory = useCallback(async (story: Story) => {
+    const stitchStory = useCallback(async (story: Story, options?: { highQuality?: boolean }) => {
         if (!story.contributions || story.contributions.length === 0) {
             toast.error('No clips to stitch');
             return;
@@ -259,7 +259,7 @@ export function useVideoStitcher() {
                     const videoFlags = [
                         '-c:v', 'libx264', '-profile:v', 'baseline', '-level', '3.0',
                         '-preset', 'ultrafast',
-                        '-b:v', '1.5M',
+                        '-b:v', options?.highQuality ? '5M' : '1.5M',
                         '-r', '30',
                         '-g', '30',
                         '-an', // No Audio
@@ -396,7 +396,11 @@ export function useVideoStitcher() {
                     }
                 }
 
-                const watermarkBlob = await createWatermarkImage(creatorName, originalCreatorName);
+                const watermarkBlob = await createWatermarkImage(
+                    creatorName, 
+                    originalCreatorName,
+                    creator?.isBrand && creator.avatar ? creator.avatar : undefined
+                );
                 await ffmpeg.writeFile('watermark.png', new Uint8Array(await watermarkBlob.arrayBuffer()));
                 cleanupFiles.push('watermark.png');
             } catch (e) {
@@ -441,8 +445,8 @@ export function useVideoStitcher() {
                         '-map', '1:a',
                         '-movflags', '+faststart',
                         '-c:v', 'libx264',
-                        '-preset', 'ultrafast',
-                        '-crf', '23',
+                        '-preset', options?.highQuality ? 'medium' : 'ultrafast',
+                        '-crf', options?.highQuality ? '18' : '23',
                         '-c:a', 'aac',
                         '-b:a', '128k',
                         '-max_muxing_queue_size', '1024',
@@ -459,8 +463,8 @@ export function useVideoStitcher() {
                             '-i', 'final_a.m4a',
                             '-movflags', '+faststart',
                             '-c:v', 'libx264',
-                            '-preset', 'ultrafast',
-                            '-crf', '23',
+                            '-preset', options?.highQuality ? 'medium' : 'ultrafast',
+                            '-crf', options?.highQuality ? '18' : '23',
                             '-c:a', 'aac', 
                             '-b:a', '128k',
                             '-max_muxing_queue_size', '1024',

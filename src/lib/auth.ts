@@ -34,6 +34,9 @@ export interface AuthUser {
     completedOnboarding?: boolean;
     lastNameChangeAt?: string;
     dateOfBirth?: string;
+    isBrand?: boolean;
+    brandWebsite?: string;
+    brandSubscriptionStatus?: 'none' | 'active' | 'expired';
 }
 
 /**
@@ -178,7 +181,7 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
     try {
         const { data, error } = await supabase
             .from('profiles')
-            .select('user_id, name, avatar, tagline, tokens, invite_code, is_private, onboarding_step, completed_onboarding, last_name_change_at')
+            .select('user_id, name, avatar, tagline, tokens, invite_code, is_private, onboarding_step, completed_onboarding, last_name_change_at, is_brand, brand_website, brand_subscription_status')
             .eq('user_id', userId)
             .maybeSingle();
 
@@ -199,6 +202,9 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
             completedOnboarding: data.completed_onboarding ?? false,
             lastNameChangeAt: data.last_name_change_at || undefined,
             dateOfBirth: data.date_of_birth || undefined,
+            isBrand: data.is_brand || false,
+            brandWebsite: data.brand_website || undefined,
+            brandSubscriptionStatus: data.brand_subscription_status || 'none',
         };
     } catch (error) {
         console.error('[Auth] Get profile error:', error);
@@ -215,7 +221,7 @@ export async function fetchProfileWithAccessToken(accessToken: string, userId: s
         if (!accessToken) return null;
         const restUrl = new URL(`${SUPABASE_URL}/rest/v1/profiles`);
         restUrl.searchParams.set('user_id', `eq.${encodeURIComponent(userId)}`);
-        restUrl.searchParams.set('select', 'user_id,name,avatar,tagline,tokens,invite_code,is_private,onboarding_step,completed_onboarding,last_name_change_at');
+        restUrl.searchParams.set('select', 'user_id,name,avatar,tagline,tokens,invite_code,is_private,onboarding_step,completed_onboarding,last_name_change_at,is_brand,brand_website,brand_subscription_status');
 
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -253,6 +259,9 @@ export async function fetchProfileWithAccessToken(accessToken: string, userId: s
             completedOnboarding: row.completed_onboarding ?? false,
             lastNameChangeAt: row.last_name_change_at || undefined,
             dateOfBirth: row.date_of_birth || undefined,
+            isBrand: row.is_brand || false,
+            brandWebsite: row.brand_website || undefined,
+            brandSubscriptionStatus: row.brand_subscription_status || 'none',
         };
     } catch (err) {
         console.warn('[Auth] fetchProfileWithAccessToken error:', err);

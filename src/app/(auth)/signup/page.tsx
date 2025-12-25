@@ -306,6 +306,16 @@ export default function SignUpPage() {
                             Log in
                         </a>
                     </p>
+
+                    <p className="mt-4 text-center text-sm text-gray-400">
+                        Are you a brand?{" "}
+                        <a
+                            href="/brand-signup"
+                            className="text-[#EC1D99] font-semibold underline hover:text-pink-400 transition-colors"
+                        >
+                            Create a Brand Account
+                        </a>
+                    </p>
                 </div>
             </div>
 
