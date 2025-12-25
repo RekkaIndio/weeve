@@ -8,7 +8,7 @@ if (!(globalThis as any).__weeveVideoPreloadCache) (globalThis as any).__weeveVi
 if (!(globalThis as any).__weeveVideoPosterCache) (globalThis as any).__weeveVideoPosterCache = GLOBAL_VIDEO_POSTER_CACHE;
 if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoReadyRef = GLOBAL_VIDEO_READY_REF;
 
-import { Story, useStore, Contribution, isSlotImmutable } from "@/lib/store";
+import { Story, useStore, Contribution, isSlotImmutable, isBrandPost, getSlotProgress } from "@/lib/store";
 import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
 import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search, GitBranch, Plus, ExternalLink } from "lucide-react";
 import { searchUsers } from "@/lib/friends";

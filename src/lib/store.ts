@@ -143,6 +143,49 @@ export function isBrandPost(story: Story): boolean {
     return story.postType === 'canon' || story.postType === 'seed';
 }
 
+/**
+ * Get slot progress for a brand post.
+ * Returns the number of filled slots vs total slots needed.
+ */
+export interface SlotProgress {
+    filled: number;
+    total: number;
+    percentage: number;
+    isComplete: boolean;
+}
+
+export function getSlotProgress(story: Story): SlotProgress | null {
+    if (!isBrandPost(story)) {
+        return null;
+    }
+
+    const totalSlots = story.maxWeeves || 0;
+    
+    // For brand posts, count approved contributions
+    const filledSlots = story.contributions.filter(
+        c => c.approvalStatus === 'approved' || !c.approvalStatus
+    ).length;
+
+    const percentage = totalSlots > 0 ? (filledSlots / totalSlots) * 100 : 0;
+    const isComplete = filledSlots >= totalSlots;
+
+    return {
+        filled: filledSlots,
+        total: totalSlots,
+        percentage,
+        isComplete
+    };
+}
+
+/**
+ * Check if a brand post needs contributors (has unfilled slots).
+ */
+export function needsContributors(story: Story): boolean {
+    const progress = getSlotProgress(story);
+    return progress !== null && !progress.isComplete;
+}
+
+
 interface AppState {
     currentUser: User | null;
     stories: Story[];

@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation';
 import Link from "next/link";
 import { Search, TrendingUp, Sparkles, Clock, Users, Plus, X, Heart } from "lucide-react";
 import NotificationBell from "@/app/components/NotificationBell";
+import { rankStories } from '@/lib/discovery/core';
+
 
 import MediaWithFallback from "@/app/components/MediaWithFallback";
 import { searchUsers, fetchPublicUsers, sendFriendRequest, Friend as FriendType } from '@/lib/friends';
@@ -166,22 +168,26 @@ function DiscoverContent() {
                 });
 
             case 'seeds':
-                // Only show Seed brand posts (postType === 'seed')
-                const seedStories = filtered.filter(story => story.postType === 'seed');
-                return [...seedStories].sort((a, b) => {
-                    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-                    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-                    return dateB - dateA;
-                });
+                // Use discovery algorithm for Seed posts
+                if (!currentUser) return [];
+                const rankedSeeds = rankStories(
+                    filtered,
+                    currentUser,
+                    { variant: 'seed', diversityMode: true, limit: 100 },
+                    friends || []
+                );
+                return rankedSeeds.map(r => r.story);
 
             case 'canon':
-                // Only show Canon brand posts (postType === 'canon')
-                const canonStories = filtered.filter(story => story.postType === 'canon');
-                return [...canonStories].sort((a, b) => {
-                    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-                    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-                    return dateB - dateA;
-                });
+                // Use discovery algorithm for Canon posts  
+                if (!currentUser) return [];
+                const rankedCanon = rankStories(
+                    filtered,
+                    currentUser,
+                    { variant: 'canon', diversityMode: true, limit: 100 },
+                    friends || []
+                );
+                return rankedCanon.map(r => r.story);
 
             default:
                 return filtered;

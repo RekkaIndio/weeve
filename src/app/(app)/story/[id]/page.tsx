@@ -1083,6 +1083,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     <div className="flex flex-col items-center">
                         <h1 className="font-bold text-sm tracking-wide uppercase opacity-80 font-sans">Weeve Timeline</h1>
                         {story?.title && <div className="text-sm text-gray-300 mt-1 font-semibold">{story.title}</div>}
+
+
                         {/* Weeve of indicator for forked stories */}
                         {story.forkedFromStoryId && (
                             <button
