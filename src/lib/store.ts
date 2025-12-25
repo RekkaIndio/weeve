@@ -120,6 +120,8 @@ export interface Story {
     approvalStatus?: 'pending' | 'approved' | 'rejected';
     reviewedAt?: string;
     reviewedBy?: string;
+    // Product link for brand posts
+    productUrl?: string;
 }
 
 /**

@@ -153,6 +153,7 @@ export interface CreateStoryFormState {
   canonSlots?: number[]; // Array of immutable slot indices (0-indexed)
   visibilityDays?: number; // Brand post visibility duration (1, 3, 7, 14 days)
   scheduledFor?: string; // ISO date string for scheduled posts
+  productUrl?: string; // Product URL for brand posts
 }
 
 interface CreateStoryProps {
@@ -1025,6 +1026,26 @@ const CreateStory = ({
                   </div>
                   <p className="text-[9px] text-gray-500 px-1">
                     How long this post stays visible on the discovery page.
+                  </p>
+                </div>
+              )}
+
+              {/* Product Link for Brand Posts */}
+              {(formState.postType === 'seed' || formState.postType === 'canon') && (
+                <div className="space-y-2">
+                  <label htmlFor="product-url" className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400 pl-1">
+                    Product Link <span className="text-gray-500 font-normal normal-case ml-1">(Optional)</span>
+                  </label>
+                  <input
+                    id="product-url"
+                    type="url"
+                    value={formState.productUrl || ''}
+                    onChange={(e) => setFormState(prev => ({ ...prev, productUrl: e.target.value }))}
+                    placeholder="https://yourbrand.com/product"
+                    className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-lg focus:outline-none focus:border-[#EC1D99] focus:ring-2 focus:ring-[#EC1D99]/20 transition-all text-white text-sm placeholder-gray-500"
+                  />
+                  <p className="text-[9px] text-gray-500 px-1">
+                    Your story title will become a clickable link to this URL
                   </p>
                 </div>
               )}

@@ -149,6 +149,8 @@ function CreateStoryContent() {
           visibility_days: data.visibilityDays || null,
           // Set payment status for brand posts
           payment_status: requiresPayment ? 'pending' : 'completed',
+          // Product URL for brand posts
+          product_url: data.productUrl || null,
         })
         .select()
         .single();

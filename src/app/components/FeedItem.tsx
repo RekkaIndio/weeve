@@ -10,7 +10,7 @@ if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoR
 
 import { Story, useStore, Contribution, isSlotImmutable } from "@/lib/store";
 import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
-import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search, GitBranch, Plus } from "lucide-react";
+import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search, GitBranch, Plus, ExternalLink } from "lucide-react";
 import { searchUsers } from "@/lib/friends";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1523,8 +1523,22 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                 </div>
             )}
             <div className="absolute bottom-0 left-0 right-0 p-6 pb-6 text-white z-10">
-                <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md flex items-center gap-2">
-                    {story.title}
+                <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md flex items-center gap-2 flex-wrap">
+                    {/* Clickable title for brand posts with product URLs */}
+                    {story.productUrl ? (
+                        <a
+                            href={story.productUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 hover:text-[#EC1D99] transition-colors underline decoration-[#EC1D99]/50 underline-offset-2"
+                        >
+                            {story.title}
+                            <ExternalLink className="w-4 h-4 flex-shrink-0" />
+                        </a>
+                    ) : (
+                        story.title
+                    )}
                     {/* Canon/Seed badge for brand posts */}
                     {story.postType === 'canon' && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-500/30 text-purple-300 rounded-full text-xs font-medium" title="Canon Post - Some slots are immutable">
