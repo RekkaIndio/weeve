@@ -124,8 +124,9 @@ export default function SettingsPage() {
             ]
         },
         ...(currentUser?.isBrand ? [{
-            title: "Billing",
+            title: "Brand",
             items: [
+                { label: "Brand Analytics", icon: BarChart3, action: () => router.push('/analytics') },
                 { label: "Transaction History", icon: Receipt, action: () => router.push('/settings/transaction-history') },
             ]
         }] : []),
