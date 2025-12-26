@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/lib/store";
 import FeedItem from "@/app/components/FeedItem";
@@ -8,6 +8,7 @@ import FeedOnboardingOverlay from "@/app/components/FeedOnboardingOverlay";
 import { useAuth } from "@/app/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { fetchGroups } from "@/lib/data";
+import { rankFeedStories } from "@/lib/discovery/feed-algorithm";
 import { toast } from "sonner";
 
 export default function Home() {
@@ -108,51 +109,34 @@ export default function Home() {
     }
   }, [isRefreshing, user, fetchStories, setGroups, fetchFriends]);
 
-  // Filter stories based on active tab
-  const filteredStories = stories.filter(story => {
-    // Exclude reported stories
-    if (reportedStoryIds.includes(story.id)) return false;
+  // Rank and filter stories using the harmonious feed algorithm
+  // This handles:
+  // - Fork spacing (min 5 positions between forks of same root)
+  // - Diversity limits (max 3 forks per root, max 2 in top 20)
+  // - Score-based ranking with engagement and recency
+  // - Following vs For You filtering
+  const filteredStories = useMemo(() => {
+    // Get group membership IDs for filtering
+    const groupMembershipIds = new Set(groups.map(g => g.id));
 
-    // Group content check - only show if user is a member of the group
-    // This is a secondary safeguard (primary filter is in fetchStories)
-    if (story.groupId) {
-      const isMemberOfGroup = groups.some(g => g.id === story.groupId);
-      if (!isMemberOfGroup) {
-        return false;
-      }
-    }
+    // Get friend list from store
+    const friends = useStore.getState().friends;
 
-    // Global filter: Private stories should only be visible to participants
-    if (story.visibility === 'private') {
-      if (!currentUser) return false;
-      // Only show if current user is the creator OR a participant
-      const isCreator = story.creatorId === currentUser.id;
-      const isParticipant = (story.participants ?? []).some((p: any) => p.id === currentUser.id);
-      if (!isCreator && !isParticipant) {
-        return false;
-      }
-      // Additional filter: exclude if user is a "waiting" participant (these go to Waiting tab)
-      const isWaitingForCurrentUser = (story.participants ?? []).some((p: any) => p.id === currentUser.id && p.status === 'waiting');
-      if (isWaitingForCurrentUser) {
-        return false;
-      }
-    }
-
-    if (activeTab === 'foryou') {
-      // For You: Show all public stories, plus private ones the user is involved in (already filtered above)
-      return true;
-    } else {
-      // Following: Only show stories from friends
-      if (!currentUser) return false;
-      // Include my own stories
-      if (story.creatorId === currentUser.id) return true;
-      // Include stories from friends
-      // We need to check if we follow the creator. 
-      // Assuming 'friends' in store are people I follow/am friends with.
-      const friendIds = useStore.getState().friends.map(f => f.id);
-      return friendIds.includes(story.creatorId);
-    }
-  });
+    return rankFeedStories(stories, {
+      feedType: activeTab,
+      currentUserId: currentUser?.id,
+      friends: friends,
+      groupMembershipIds,
+      reportedStoryIds,
+      config: {
+        forkSpacing: 5,
+        maxForksPerRoot: 3,
+        maxForksInTop20: 2,
+        originalPostBoost: 50,
+        prioritizeOriginals: true,
+      },
+    });
+  }, [stories, activeTab, currentUser?.id, groups, reportedStoryIds]);
 
 
   // Re-calculate active index when changing tabs to prevent index out of bounds

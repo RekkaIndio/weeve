@@ -93,3 +93,50 @@ export interface AlgorithmAnalytics {
   timestamp: number;
   variant: string;
 }
+
+// ============================================================================
+// FEED ALGORITHM TYPES
+// ============================================================================
+
+/**
+ * Extended scoring factors for feed ranking
+ */
+export interface FeedScoringFactors extends ScoringFactors {
+  /** Penalty for same-root fork proximity in feed */
+  forkDiversity: number;
+  /** Boost for original brand posts over forks */
+  originalBoost: number;
+  /** Score for non-brand user-generated content */
+  userContent: number;
+}
+
+/**
+ * Feed-specific context extending base discovery context
+ */
+export interface FeedContext extends DiscoveryContext {
+  /** Type of feed being displayed */
+  feedType: 'foryou' | 'following';
+  /** Current user's ID */
+  currentUserId?: string;
+  /** Minimum positions between forks of same root */
+  forkSpacing?: number;
+  /** Whether to prioritize original posts over forks */
+  showOriginalFirst?: boolean;
+}
+
+/**
+ * Metadata about fork relationships for a story
+ */
+export interface ForkMetadata {
+  /** Whether this story is a fork of another */
+  isFork: boolean;
+  /** The root story ID if this is a fork */
+  rootStoryId?: string;
+  /** Total engagement score for this story */
+  engagement: number;
+  /** Whether this is a brand Canon/Seed post */
+  isBrandPost: boolean;
+  /** Number of forks this story has (if original) */
+  forkCount?: number;
+}
+
