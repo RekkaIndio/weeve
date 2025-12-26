@@ -23,7 +23,7 @@ const AuthContext = createContext<AuthContextType>({
     loading: true,
 });
 
-const PUBLIC_ROUTES = ['/', '/login', '/signup', '/setup', '/brands', '/communities', '/influencers', '/auth/callback', '/terms', '/partnership'];
+const PUBLIC_ROUTES = ['/', '/login', '/signup', '/setup', '/brands', '/communities', '/influencers', '/auth/callback', '/terms', '/partnership', '/brand-signup'];
 
 const isPublicRoute = (path: string) => PUBLIC_ROUTES.includes(path);
 

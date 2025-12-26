@@ -381,7 +381,7 @@ export default function BrandSignUpPage() {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="text-lg">📊</span>
-                                        <span><strong className="text-white">Analytics</strong> - Track engagement (coming soon)</span>
+                                        <span><strong className="text-white">Analytics</strong> - Track engagement </span>
                                     </div>
                                 </div>
                             </div>
