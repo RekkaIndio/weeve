@@ -462,7 +462,7 @@ export default function BrandSignUpPage() {
                                     disabled={loading}
                                 />
                                 <span className="text-sm text-gray-400">
-                                    I agree to Weeve's <a href="/terms" className="text-[#EC1D99] underline">Terms of Service</a> and <a href="/brand-terms" className="text-[#EC1D99] underline">Brand Partner Agreement</a>, including content guidelines for brand posts.
+                                    I agree to Weeve's <a href="/terms" className="text-[#EC1D99] underline">Terms of Service</a> and <a href="/partnership" className="text-[#EC1D99] underline">Partnership Agreement</a>, including content guidelines for brand posts.
                                 </span>
                             </label>
 

@@ -11,6 +11,9 @@ import { rankStories } from '@/lib/discovery/core';
 import MediaWithFallback from "@/app/components/MediaWithFallback";
 import { searchUsers, fetchPublicUsers, sendFriendRequest, Friend as FriendType } from '@/lib/friends';
 
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+
 function DiscoverContent() {
     const { stories, groups, addGroup, currentUser, friends } = useStore();
     const searchParams = useSearchParams();
@@ -18,6 +21,8 @@ function DiscoverContent() {
     const [showCreateGroup, setShowCreateGroup] = useState(false);
     const [newGroupName, setNewGroupName] = useState('');
     const [newGroupDesc, setNewGroupDesc] = useState('');
+    const [isPrivate, setIsPrivate] = useState(false);
+    const [creating, setCreating] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [viewMode, setViewMode] = useState<'all' | 'groups' | 'people'>(tabParam === 'groups' ? 'groups' : 'all');
     const [feedType, setFeedType] = useState<'forYou' | 'trending' | 'new' | 'friends' | 'seeds' | 'canon'>('forYou');
@@ -138,6 +143,12 @@ function DiscoverContent() {
             });
             if (participantMatches) return true;
 
+            // Search in group name
+            if (story.groupId) {
+                const group = groups.find(g => g.id === story.groupId);
+                if (group && group.name.toLowerCase().includes(query)) return true;
+            }
+
             return false;
         });
 
@@ -194,38 +205,65 @@ function DiscoverContent() {
         }
     })();
 
-    // Filter groups based on search query
-    const filteredGroups = groups.filter(group => {
-        if (!searchQuery.trim()) return true;
+    // Get stories that belong to groups for the Groups tab
+    const groupStories = filteredStories.filter(story => story.groupId);
 
-        const query = searchQuery.toLowerCase();
-
-        // Search in group name
-        if (group.name.toLowerCase().includes(query)) return true;
-
-        // Search in group description
-        if (group.description.toLowerCase().includes(query)) return true;
-
-        return false;
-    });
-
-    const handleCreateGroup = (e: React.FormEvent) => {
+    const handleCreateGroup = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newGroupName.trim()) return;
+        if (!newGroupName.trim() || !currentUser) return;
 
-        const newGroup: Group = {
-            id: Math.random().toString(36).substr(2, 9),
-            name: newGroupName,
-            description: newGroupDesc,
-            avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${newGroupName}`,
-            memberCount: 1,
-            isPrivate: false,
-        };
+        setCreating(true);
+        try {
+            const { data: groupData, error: groupError } = await supabase
+                .from('groups')
+                .insert({
+                    name: newGroupName,
+                    description: newGroupDesc,
+                    avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${newGroupName}`,
+                    is_private: isPrivate,
+                    owner_id: currentUser.id,
+                    member_count: 1
+                })
+                .select()
+                .single();
 
-        addGroup(newGroup);
-        setShowCreateGroup(false);
-        setNewGroupName('');
-        setNewGroupDesc('');
+            if (groupError) throw groupError;
+
+            const { error: memberError } = await supabase
+                .from('group_members')
+                .insert({
+                    group_id: groupData.id,
+                    user_id: currentUser.id,
+                    role: 'admin'
+                });
+
+            if (memberError) throw memberError;
+
+            // Update local store for immediate feedback
+            const newGroup: Group = {
+                id: groupData.id,
+                name: groupData.name,
+                description: groupData.description || '',
+                avatar: groupData.avatar || '',
+                memberCount: 1,
+                isPrivate: groupData.is_private,
+                isMember: true,
+                ownerIsVerified: currentUser.isVerified,
+                ownerVerificationTier: currentUser.verificationTier
+            };
+            addGroup(newGroup);
+
+            toast.success('Group created successfully!');
+            setShowCreateGroup(false);
+            setNewGroupName('');
+            setNewGroupDesc('');
+            setIsPrivate(false);
+        } catch (error) {
+            console.error('Error creating group:', error);
+            toast.error('Failed to create group');
+        } finally {
+            setCreating(false);
+        }
     };
 
     const handleSendFriendRequest = async (personId: string) => {
@@ -327,56 +365,133 @@ function DiscoverContent() {
             {viewMode === 'groups' ? (
                 <div className="space-y-4 px-4">
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold">Popular Groups</h2>
+                        <h2 className="text-xl font-bold">Group Stories</h2>
                         <button
                             onClick={() => setShowCreateGroup(true)}
                             className="flex items-center gap-1 text-sm bg-[#EC1D99] px-3 py-1.5 rounded-full hover:bg-[#d61a88] transition-colors shadow-lg shadow-[#EC1D99]/20"
                         >
                             <Plus className="w-4 h-4" />
-                            Create
+                            Create Group
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3">
-                        {filteredGroups.length > 0 ? (
-                            filteredGroups.map(group => (
-                                <Link
-                                    key={group.id}
-                                    href={`/groups/${group.id}`}
-                                    className="bg-gradient-to-br from-gray-900 to-gray-900/50 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-[#EC1D99]/50 hover:shadow-lg hover:shadow-[#EC1D99]/5 transition-all duration-200 cursor-pointer group"
-                                >
-                                    <MediaWithFallback
-                                        src={group.avatar}
-                                        alt={group.name}
-                                        className="w-12 h-12 rounded-full bg-gray-800 ring-2 ring-gray-800 group-hover:ring-[#EC1D99]/30 transition-all"
-                                    />
-                                    <div className="flex-1">
-                                        <h3 className="font-bold text-base group-hover:text-[#EC1D99] transition-colors">{group.name}</h3>
-                                        <p className="text-xs text-gray-400 line-clamp-1">{group.description}</p>
-                                        <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                                            <Users className="w-3 h-3" />
-                                            <span>{group.memberCount.toLocaleString()} members</span>
-                                            {group.isPrivate && <span className="bg-gray-800 px-1.5 rounded text-[10px]">Private</span>}
+                    <div className="grid grid-cols-2 gap-3">
+                        {groupStories.length > 0 ? (
+                            groupStories.map((story, idx) => {
+                                const group = groups.find(g => g.id === story.groupId);
+                                return (
+                                    <Link
+                                        key={story.id}
+                                        href={`/story/${story.id}`}
+                                        className={`relative rounded-xl overflow-hidden group/card ${idx % 3 === 0 ? 'row-span-2 aspect-[9/16]' : 'aspect-square'}`}
+                                    >
+                                        <MediaWithFallback
+                                            src={story.coverImage || story.contributions[0]?.mediaUrl}
+                                            alt={story.title}
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
+                                            {group && (
+                                                <div className="flex items-center gap-1.5 mb-2 bg-black/40 backdrop-blur-sm p-1.5 rounded-full w-fit max-w-[90%]">
+                                                    <MediaWithFallback
+                                                        src={group.avatar}
+                                                        alt={group.name}
+                                                        className="w-4 h-4 rounded-full border border-white/20"
+                                                    />
+                                                    <span className="text-[10px] font-medium text-white/90 truncate">{group.name}</span>
+                                                </div>
+                                            )}
+                                            <h3 className="font-bold text-sm line-clamp-2 mb-1">{story.title}</h3>
+                                            <div className="flex items-center gap-1 text-xs text-gray-300">
+                                                <Users className="w-3 h-3" />
+                                                <span>{story.participants.length}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <span className="text-xs font-medium text-[#EC1D99] border border-[#EC1D99] px-3 py-1 rounded-full group-hover:bg-[#EC1D99] group-hover:text-white transition-colors">
-                                        View
-                                    </span>
-                                </Link>
-                            ))
+                                        {/* Hover overlay with pink glow */}
+                                        <div className="absolute inset-0 ring-1 ring-inset ring-white/5 rounded-xl group-hover/card:ring-[#EC1D99]/50 group-hover/card:shadow-lg group-hover/card:shadow-[#EC1D99]/20 transition-all duration-300" />
+                                    </Link>
+                                );
+                            })
                         ) : (
-                            <div className="text-center py-12 space-y-3">
-                                <Users className="w-12 h-12 text-gray-700 mx-auto" />
-                                <p className="text-gray-400">{`No groups found matching "${searchQuery}"`}</p>
-                                <button
-                                    onClick={() => {
-                                        setSearchQuery('');
-                                        setShowCreateGroup(true);
-                                    }}
-                                    className="text-[#EC1D99] text-sm font-medium hover:underline"
-                                >
-                                    Create the first one →
-                                </button>
+                            <div className="col-span-2 space-y-6">
+                                {filteredStories.filter(s => s.groupId).length === 0 && (
+                                    <>
+                                        {/* Your Groups Section - Only if user has groups and no specific search preventing matches (though search logic applies to filteredGroups below too) */}
+                                        {currentUser && groups.some(g => userGroupIds.has(g.id)) && (
+                                            <div className="space-y-3">
+                                                <h3 className="text-sm font-bold text-gray-400">Your Groups</h3>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {groups
+                                                        .filter(g => userGroupIds.has(g.id) && g.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                                        .slice(0, 4)
+                                                        .map(group => (
+                                                            <Link
+                                                                key={group.id}
+                                                                href={`/groups/${group.id}`}
+                                                                className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex flex-col items-center text-center gap-2 hover:border-[#EC1D99]/50 hover:shadow-lg hover:shadow-[#EC1D99]/5 transition-all"
+                                                            >
+                                                                <MediaWithFallback
+                                                                    src={group.avatar}
+                                                                    alt={group.name}
+                                                                    className="w-12 h-12 rounded-full bg-gray-800 ring-2 ring-gray-800"
+                                                                />
+                                                                <div>
+                                                                    <h4 className="font-bold text-sm line-clamp-1">{group.name}</h4>
+                                                                    <p className="text-[10px] text-gray-500">{group.memberCount} members</p>
+                                                                </div>
+                                                            </Link>
+                                                        ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Public Groups / Discover Groups Section */}
+                                        <div className="space-y-3">
+                                            <h3 className="text-sm font-bold text-gray-400">Discover Groups</h3>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {groups
+                                                    .filter(g => !g.isPrivate && (!currentUser || !userGroupIds.has(g.id)) && g.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                                    .sort((a, b) => b.memberCount - a.memberCount)
+                                                    .slice(0, 10) // Show more suggestions
+                                                    .map(group => (
+                                                        <Link
+                                                            key={group.id}
+                                                            href={`/groups/${group.id}`}
+                                                            className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex flex-col items-center text-center gap-2 hover:border-[#EC1D99]/50 hover:shadow-lg hover:shadow-[#EC1D99]/5 transition-all"
+                                                        >
+                                                            <MediaWithFallback
+                                                                src={group.avatar}
+                                                                alt={group.name}
+                                                                className="w-12 h-12 rounded-full bg-gray-800 ring-2 ring-gray-800"
+                                                            />
+                                                            <div>
+                                                                <h4 className="font-bold text-sm line-clamp-1">{group.name}</h4>
+                                                                <p className="text-[10px] text-gray-500">{group.memberCount} members</p>
+                                                            </div>
+                                                            <span className="text-[10px] font-medium text-[#EC1D99] bg-[#EC1D99]/10 border border-[#EC1D99]/20 px-2 py-0.5 rounded-full mt-1">
+                                                                Join
+                                                            </span>
+                                                        </Link>
+                                                    ))}
+                                            </div>
+                                            {groups.filter(g => !g.isPrivate && g.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                                                <div className="text-center py-8">
+                                                    <p className="text-gray-500 text-sm">No groups found.</p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="text-center pt-4">
+                                            <p className="text-gray-400 text-sm mb-2">Can't find what you're looking for?</p>
+                                            <button
+                                                onClick={() => setShowCreateGroup(true)}
+                                                className="text-[#EC1D99] text-sm font-medium hover:underline"
+                                            >
+                                                Start your own group →
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
@@ -545,41 +660,62 @@ function DiscoverContent() {
 
             {/* Create Group Modal */}
             {showCreateGroup && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                    <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-[#121212] border border-gray-800 rounded-2xl w-full max-w-md p-6 relative shadow-2xl animate-in zoom-in-95 duration-200">
                         <button
                             onClick={() => setShowCreateGroup(false)}
-                            className="absolute right-4 top-4 text-gray-400 hover:text-white"
+                            className="absolute right-4 top-4 text-gray-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-full"
                         >
                             <X className="w-5 h-5" />
                         </button>
-                        <h2 className="text-xl font-bold mb-4">Create New Group</h2>
-                        <form onSubmit={handleCreateGroup} className="space-y-4">
+
+                        <h2 className="text-xl font-bold mb-1">Create New Group</h2>
+                        <p className="text-sm text-gray-500 mb-6">Build a space for your community</p>
+
+                        <form onSubmit={handleCreateGroup} className="space-y-5">
                             <div>
-                                <label className="block text-sm text-gray-400 mb-1">Group Name</label>
+                                <label className="block text-sm font-medium text-gray-300 mb-1.5">Group Name</label>
                                 <input
                                     type="text"
                                     value={newGroupName}
                                     onChange={(e) => setNewGroupName(e.target.value)}
-                                    className="w-full bg-black border border-gray-800 rounded-lg p-3 focus:border-[#EC1D99] focus:outline-none transition-colors"
+                                    className="w-full bg-black/50 border border-gray-800 rounded-xl p-3 focus:border-[#EC1D99] focus:outline-none focus:ring-1 focus:ring-[#EC1D99] transition-all text-white placeholder-gray-600"
                                     placeholder="e.g. Photography Lovers"
                                     required
                                 />
                             </div>
+
                             <div>
-                                <label className="block text-sm text-gray-400 mb-1">Description</label>
+                                <label className="block text-sm font-medium text-gray-300 mb-1.5">Description</label>
                                 <textarea
                                     value={newGroupDesc}
                                     onChange={(e) => setNewGroupDesc(e.target.value)}
-                                    className="w-full bg-black border border-gray-800 rounded-lg p-3 focus:border-[#EC1D99] focus:outline-none transition-colors h-24 resize-none"
+                                    className="w-full bg-black/50 border border-gray-800 rounded-xl p-3 focus:border-[#EC1D99] focus:outline-none focus:ring-1 focus:ring-[#EC1D99] transition-all h-28 resize-none text-white placeholder-gray-600"
                                     placeholder="What is this group about?"
                                 />
                             </div>
+
+                            <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-800 bg-black/30 cursor-pointer hover:border-gray-700 transition-colors">
+                                <div className="relative flex items-center mt-1">
+                                    <input
+                                        type="checkbox"
+                                        checked={isPrivate}
+                                        onChange={(e) => setIsPrivate(e.target.checked)}
+                                        className="w-4 h-4 rounded border-gray-600 bg-transparent text-[#EC1D99] focus:ring-[#EC1D99] focus:ring-offset-0 focus:ring-offset-transparent"
+                                    />
+                                </div>
+                                <div>
+                                    <span className="block text-sm font-medium text-white">Private Group</span>
+                                    <span className="block text-xs text-gray-500">Only people with an invite link can join this group.</span>
+                                </div>
+                            </label>
+
                             <button
                                 type="submit"
-                                className="w-full bg-[#EC1D99] hover:bg-[#d61a88] text-white font-bold py-3 rounded-lg transition-colors shadow-lg shadow-[#EC1D99]/20"
+                                disabled={creating}
+                                className="w-full bg-[#EC1D99] hover:bg-[#d61a88] text-white font-bold py-3.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EC1D99]/20 active:scale-[0.99]"
                             >
-                                Create Group
+                                {creating ? 'Creating Group...' : 'Create Group'}
                             </button>
                         </form>
                     </div>
