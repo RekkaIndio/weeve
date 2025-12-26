@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signUp, signInWithGoogle } from "@/lib/auth";
+import { Eye, EyeOff, Check, X } from "lucide-react";
 
 export default function SignUpPage() {
     const router = useRouter();
@@ -11,6 +12,8 @@ export default function SignUpPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
 
     const [acceptTerms, setAcceptTerms] = useState(false);
@@ -38,6 +41,16 @@ export default function SignUpPage() {
         }
     }, [searchParams]);
 
+    const passwordCriteria = [
+        { label: "At least 8 characters", met: password.length >= 8 },
+        { label: "At least one lowercase letter", met: /[a-z]/.test(password) },
+        { label: "At least one uppercase letter", met: /[A-Z]/.test(password) },
+        { label: "At least one number", met: /[0-9]/.test(password) },
+        { label: "At least one special character", met: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) },
+    ];
+
+    const isPasswordValid = passwordCriteria.every(c => c.met);
+
     const handleEmailSignUp = async () => {
         if (!email || !password || !confirmPassword || !dobDay || !dobMonth || !dobYear) {
             setError("Please fill in all fields");
@@ -58,25 +71,9 @@ export default function SignUpPage() {
             return;
         }
 
-        // Validate password: 8+ chars, number, lowercase, uppercase, special character
-        if (password.length < 8) {
-            setError("Password must be at least 8 characters");
-            return;
-        }
-        if (!/[a-z]/.test(password)) {
-            setError("Password must contain at least one lowercase letter");
-            return;
-        }
-        if (!/[A-Z]/.test(password)) {
-            setError("Password must contain at least one uppercase letter");
-            return;
-        }
-        if (!/[0-9]/.test(password)) {
-            setError("Password must contain at least one number");
-            return;
-        }
-        if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-            setError("Password must contain at least one special character");
+        // Validate password using our criteria
+        if (!isPasswordValid) {
+            setError("Please verify that your password meets all requirements");
             return;
         }
 
@@ -216,24 +213,59 @@ export default function SignUpPage() {
                         onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
                         disabled={loading}
                     />
-                    <input
-                        type="password"
-                        className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
-                        placeholder="Password (8+ chars, number, uppercase, special char)"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
-                        disabled={loading}
-                    />
-                    <input
-                        type="password"
-                        className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
-                        placeholder="Confirm Password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
-                        disabled={loading}
-                    />
+                    <div className="relative">
+                        <input
+                            type={showPassword ? "text" : "password"}
+                            className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all pr-12"
+                            placeholder="Password (8+ chars, number, uppercase, special char)"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
+                            disabled={loading}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-gray-400 hover:text-white transition-colors"
+                        >
+                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                    </div>
+
+                    {/* Password Criteria Checklist */}
+                    {password && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                            {passwordCriteria.map((criterion, index) => (
+                                <div key={index} className={`flex items-center gap-1.5 ${criterion.met ? 'text-green-400' : 'text-gray-400'}`}>
+                                    {criterion.met ? (
+                                        <Check className="w-3 h-3" />
+                                    ) : (
+                                        <div className="w-3 h-3 rounded-full border border-gray-500" />
+                                    )}
+                                    <span>{criterion.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="relative">
+                        <input
+                            type={showConfirmPassword ? "text" : "password"}
+                            className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all pr-12"
+                            placeholder="Confirm Password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
+                            disabled={loading}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-gray-400 hover:text-white transition-colors"
+                        >
+                            {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                    </div>
 
                     {/* Date of Birth Selection */}
                     <div className="space-y-2">

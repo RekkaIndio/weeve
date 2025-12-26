@@ -304,26 +304,77 @@ export async function createUserProfile(
     referrerCode?: string,
     dateOfBirth?: string
 ): Promise<{ data: ProfileRow | null; error: Error | null }> {
-    try {
-        const profileData: ProfileInsert = {
-            user_id: userId,
-            name,
-            avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
-            tokens: 100,
-            invite_code: inviteCode || `${name.toUpperCase().slice(0, 3)}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-            onboarding_step: 1,
-            completed_onboarding: false,
-            date_of_birth: dateOfBirth,
-        };
+    const attemptCreate = async (candidateName: string, isRetry = false): Promise<{ data: ProfileRow | null; error: any }> => {
+        try {
+            const profileData: ProfileInsert = {
+                user_id: userId,
+                name: candidateName,
+                avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
+                tokens: 100,
+                // Regenerate invite code if name changed or if it's a retry, to ensure uniqueness there too
+                invite_code: inviteCode && !isRetry ? inviteCode : `${candidateName.toUpperCase().slice(0, 3).replace(/[^A-Z]/g, 'U')}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+                onboarding_step: 1,
+                completed_onboarding: false,
+                date_of_birth: dateOfBirth,
+            };
 
-        const { data: insertedProfile, error } = await supabase
+            // Split upsert and select to debug 406 error
+            // We use upsert, but if the conflict is on 'user_id', it updates. 
+            // If the conflict is on 'name' (unique_display_name), it throws 23505.
+            const { error: insertError } = await supabase
+                .from('profiles')
+                .upsert(profileData, { onConflict: 'user_id' });
+
+            if (insertError) throw insertError;
+
+            return { data: null, error: null }; // Success (data fetched separately)
+        } catch (err) {
+            return { data: null, error: err };
+        }
+    };
+
+    try {
+        // Retry loop for unique name constraint
+        let currentName = name;
+        let success = false;
+        let lastError = null;
+
+        for (let i = 0; i < 3; i++) {
+            const result = await attemptCreate(currentName, i > 0);
+            if (!result.error) {
+                success = true;
+                break;
+            }
+
+            // Check if it's a unique constraint violation on the name
+            // Postgres error code 23505 = unique_violation
+            if (result.error?.code === '23505' && (result.error?.message?.includes('unique_display_name') || result.error?.message?.includes('name'))) {
+                console.log(`[Auth] Name collision for "${currentName}". Retrying with suffix...`);
+                // Append random 4 characters
+                currentName = `${name.slice(0, 20)}_${Math.random().toString(36).substr(2, 4)}`;
+                lastError = result.error;
+            } else {
+                // Some other error, rethrow immediately
+                console.error('[Auth] Create profile INSERT error:', JSON.stringify(result.error, null, 2));
+                throw result.error;
+            }
+        }
+
+        if (!success) {
+            console.error('[Auth] Failed to generate unique name after retries.');
+            throw lastError || new Error('Failed to generate unique name');
+        }
+
+        // Fetch the profile we just created/updated
+         const { data: insertedProfile, error: selectError } = await supabase
             .from('profiles')
-            .upsert(profileData, { onConflict: 'user_id' })
             .select()
+            .eq('user_id', userId)
             .maybeSingle();
 
-        if (error) {
-            throw error;
+        if (selectError) {
+             console.error('[Auth] Create profile SELECT error:', JSON.stringify(selectError, null, 2));
+             throw selectError;
         }
 
         // Handle referrer
@@ -336,13 +387,12 @@ export async function createUserProfile(
 
             if (referrer) {
                 await addFriend(userId, referrer.user_id);
-
             }
         }
 
         return { data: insertedProfile ?? null, error: null };
     } catch (error) {
-        console.error('[Auth] Create profile error:', error);
+        console.error('[Auth] Create profile error (full):', JSON.stringify(error, null, 2));
         return { data: null, error: error as Error };
     }
 }

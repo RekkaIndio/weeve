@@ -1398,6 +1398,42 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             setIsUploading(false);
             uploadStartTimeRef.current = null;
         }
+
+        // POST-SUBMISSION: Check if this was the onboarding story and mark as complete
+        if (story.title === 'Your First Weeve Story' && story.maxWeeves === 3) {
+            try {
+                console.log('[Story] Completing onboarding for user:', currentUser.id);
+                const { error: updateError } = await supabase
+                    .from('profiles')
+                    .update({
+                        completed_onboarding: true,
+                        onboarding_step: null // Clear the step
+                    })
+                    .eq('user_id', currentUser.id);
+
+                if (updateError) {
+                    console.error('[Story] Failed to update onboarding status:', updateError);
+                } else {
+                    // Update local store immediately to prevent redirect loops
+                    const { setCurrentUser } = useStore.getState();
+                    setCurrentUser({
+                        ...currentUser,
+                        completedOnboarding: true,
+                        onboardingStep: undefined
+                    });
+
+                    // Clear any local storage flags
+                    try {
+                        localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true');
+                        localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true');
+                    } catch (e) { }
+
+                    toast.success('Tutorial completed! Welcome to Weeve! 🎉');
+                }
+            } catch (err) {
+                console.error('[Story] Error in onboarding completion:', err);
+            }
+        }
     };
 
     // Handle leaving the story

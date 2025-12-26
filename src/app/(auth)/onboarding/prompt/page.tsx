@@ -118,19 +118,19 @@ export default function PromptPage() {
 
             // Use hard navigation with fallback to ensure we navigate
             try {
-                router.push('/onboarding/follows');
+                router.push('/feed');
                 // Fallback after short delay
                 setTimeout(() => {
-                    window.location.replace('/onboarding/follows');
+                    window.location.replace('/feed');
                 }, 500);
             } catch (navErr) {
                 console.warn('[Prompt] router.push failed, using fallback:', navErr);
-                window.location.replace('/onboarding/follows');
+                window.location.replace('/feed');
             }
         } catch (err) {
             console.error('[Prompt] Error skipping:', err);
             // Even on error, try to navigate away
-            window.location.replace('/onboarding/follows');
+            window.location.replace('/feed');
         }
     };
 

@@ -67,6 +67,8 @@ export default function InterestsPage() {
 
             if (error) throw error;
 
+            console.log('[Interests] Preferences saved successfully');
+
             // Navigate to next step
             router.push('/onboarding/prompt');
         } catch (err) {

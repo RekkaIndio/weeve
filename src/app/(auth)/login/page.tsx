@@ -6,6 +6,7 @@ import { signIn, signInWithGoogle } from "@/lib/auth";
 import { useAuth } from "@/app/components/AuthProvider";
 import { supabase } from '@/lib/supabase';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -15,6 +16,7 @@ export default function LoginPage() {
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [socialLoading, setSocialLoading] = useState<"google" | null>(() => {
@@ -251,15 +253,24 @@ export default function LoginPage() {
                         onKeyPress={(e) => e.key === 'Enter' && handleEmailLogin()}
                         disabled={loading}
                     />
-                    <input
-                        type="password"
-                        className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
-                        placeholder="Password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleEmailLogin()}
-                        disabled={loading}
-                    />
+                    <div className="relative">
+                        <input
+                            type={showPassword ? "text" : "password"}
+                            className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all pr-12"
+                            placeholder="Password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleEmailLogin()}
+                            disabled={loading}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-gray-400 hover:text-white transition-colors"
+                        >
+                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                    </div>
 
                     <button
                         onClick={handleEmailLogin}

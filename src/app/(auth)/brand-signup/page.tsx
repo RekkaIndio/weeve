@@ -6,7 +6,7 @@ import { signUp, checkDisplayNameAvailability, checkBrandWebsiteAvailability } f
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
 import Link from "next/link";
-import { Building2, Globe, Mail, Lock, ArrowRight, CheckCircle2, Eye, EyeOff, X, Loader2, AlertCircle } from "lucide-react";
+import { Building2, Globe, Mail, Lock, ArrowRight, CheckCircle2, Eye, EyeOff, X, Loader2, AlertCircle, Check } from "lucide-react";
 import { BLOCKED_DOMAINS } from "@/lib/blocked-domains";
 
 export default function BrandSignUpPage() {
@@ -165,6 +165,16 @@ export default function BrandSignUpPage() {
         return () => clearTimeout(timeoutId);
     }, [websiteUrl]);
 
+    const passwordCriteria = [
+        { label: "At least 8 characters", met: password.length >= 8 },
+        { label: "At least one lowercase letter", met: /[a-z]/.test(password) },
+        { label: "At least one uppercase letter", met: /[A-Z]/.test(password) },
+        { label: "At least one number", met: /[0-9]/.test(password) },
+        { label: "At least one special character", met: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) },
+    ];
+
+    const isPasswordValid = passwordCriteria.every(c => c.met);
+
 
 
     const isBusinessEmail = (email: string): boolean => {
@@ -221,25 +231,9 @@ export default function BrandSignUpPage() {
             return;
         }
 
-        // Validate password: 8+ chars, number, lowercase, uppercase, special character
-        if (password.length < 8) {
-            setError("Password must be at least 8 characters");
-            return;
-        }
-        if (!/[a-z]/.test(password)) {
-            setError("Password must contain at least one lowercase letter");
-            return;
-        }
-        if (!/[A-Z]/.test(password)) {
-            setError("Password must contain at least one uppercase letter");
-            return;
-        }
-        if (!/[0-9]/.test(password)) {
-            setError("Password must contain at least one number");
-            return;
-        }
-        if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-            setError("Password must contain at least one special character");
+        // Validate password using our criteria
+        if (!isPasswordValid) {
+            setError("Please verify that your password meets all requirements");
             return;
         }
 
@@ -584,6 +578,24 @@ export default function BrandSignUpPage() {
                                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                 </button>
                             </div>
+
+                            {/* Password Criteria Checklist */}
+                            {password && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                                    {passwordCriteria.map((criterion, index) => (
+                                        <div key={index} className={`flex items-center gap-1.5 ${criterion.met ? 'text-green-400' : 'text-gray-400'}`}>
+                                            {criterion.met ? (
+                                                <Check className="w-3 h-3" />
+                                            ) : (
+                                                <div className="w-3 h-3 rounded-full border border-gray-500" />
+                                            )}
+                                            <span>{criterion.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+
 
                             {/* Terms Checkbox */}
                             <label className="flex items-start gap-3 cursor-pointer p-3 bg-white/5 rounded-lg border border-white/10">

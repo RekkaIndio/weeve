@@ -42,7 +42,8 @@ export default function FollowsPage() {
                 .from('profiles')
                 .select('user_id, name, avatar, tagline')
                 .neq('user_id', user.id)
-                .limit(10);
+                .order('created_at', { ascending: false })
+                .limit(50);
 
             if (error) throw error;
 
