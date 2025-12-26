@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { PushNotifications, Token, ActionPerformed, PushNotificationSchema } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'sonner';
+import NotificationToast from './NotificationToast';
 
 const PushNotificationInitializer = () => {
     useEffect(() => {
@@ -45,9 +46,13 @@ const PushNotificationInitializer = () => {
 
             PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
                 console.log('Push received: ' + JSON.stringify(notification));
-                toast.info(notification.title || 'New Notification', {
-                    description: notification.body,
-                });
+                toast.custom((t) => (
+                    <NotificationToast
+                        title={notification.title || 'Weeve'}
+                        body={notification.body || ''}
+                        onDismiss={() => toast.dismiss(t)}
+                    />
+                ));
             });
 
             PushNotifications.addListener('pushNotificationActionPerformed', (notification: ActionPerformed) => {
