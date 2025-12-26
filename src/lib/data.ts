@@ -985,7 +985,7 @@ export async function fetchGroups(userId?: string): Promise<Group[]> {
         const runQuery = async (timeoutMs: number) => {
             const groupsQueryPromise = supabase
                 .from('groups')
-                .select('*, owner:owner_id(is_verified, verification_tier)')
+                .select('*, owner:owner_id(is_verified, verification_tier, is_brand, brand_verified)')
                 .order('created_at', { ascending: false });
             
             return Promise.race([
@@ -998,7 +998,7 @@ export async function fetchGroups(userId?: string): Promise<Group[]> {
         
         // Attempt 1: 20s timeout
         let result = await runQuery(20000);
-        type GroupWithOwner = GroupRow & { owner?: { is_verified: boolean; verification_tier: 'bronze' | 'silver' | 'gold' | null } | null };
+        type GroupWithOwner = GroupRow & { owner?: { is_verified: boolean; verification_tier: 'bronze' | 'silver' | 'gold' | null; is_brand: boolean; brand_verified: boolean } | null };
         let { data, error } = result as { data: GroupWithOwner[] | null; error: any };
 
         // Attempt 2: Auto-recovery on error
@@ -1064,8 +1064,8 @@ export async function fetchGroups(userId?: string): Promise<Group[]> {
             isPrivate: group.is_private,
             isMember: membershipMap[group.id] || false,
             storyCount: storyCountMap[group.id] || 0,
-            ownerIsVerified: group.owner?.is_verified ?? false,
-            ownerVerificationTier: group.owner?.verification_tier ?? null,
+            ownerIsVerified: group.owner?.is_verified || group.owner?.is_brand || false,
+            ownerVerificationTier: group.owner?.verification_tier || (group.owner?.is_brand ? 'gold' : null),
         }));
     } catch (error) {
         console.error('Unexpected error fetching groups:', error);

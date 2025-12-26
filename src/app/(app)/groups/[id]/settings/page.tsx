@@ -773,7 +773,7 @@ export default function GroupSettingsPage() {
                                         </div>
                                     </div>
                                     <div className="flex gap-1">
-                                        {member.user_id !== user?.id && roles.length > 0 && (
+                                        {roles.length > 0 && (
                                             <button
                                                 onClick={() => { setSelectedMemberForRole(member.user_id); setShowAssignRoleModal(true); }}
                                                 className="p-2 text-gray-400 hover:text-[#EC1D99] hover:bg-[#EC1D99]/10 rounded-full transition-colors"

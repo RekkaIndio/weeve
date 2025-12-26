@@ -43,7 +43,7 @@ export default function GroupDetailsPage() {
             // Fetch group info
             const { data: groupData, error: groupError } = await supabase
                 .from('groups')
-                .select('*, owner:owner_id(is_verified, verification_tier)')
+                .select('*, owner:owner_id(is_verified, verification_tier, is_brand, brand_verified)')
                 .eq('id', id)
                 .single();
 
@@ -61,9 +61,10 @@ export default function GroupDetailsPage() {
 
             setGroup(groupData);
             if (groupData.owner) {
+                const owner = groupData.owner as any;
                 setOwnerVerification({
-                    isVerified: (groupData.owner as any).is_verified,
-                    tier: (groupData.owner as any).verification_tier
+                    isVerified: owner.is_verified || owner.is_brand,
+                    tier: owner.verification_tier || (owner.is_brand ? 'gold' : null)
                 });
             }
 

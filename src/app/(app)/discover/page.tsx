@@ -9,6 +9,7 @@ import { rankStories } from '@/lib/discovery/core';
 
 
 import MediaWithFallback from "@/app/components/MediaWithFallback";
+import VerificationBadge from "@/app/components/VerificationBadge";
 import { searchUsers, fetchPublicUsers, sendFriendRequest, Friend as FriendType } from '@/lib/friends';
 
 import { supabase } from '@/lib/supabase';
@@ -248,8 +249,8 @@ function DiscoverContent() {
                 memberCount: 1,
                 isPrivate: groupData.is_private,
                 isMember: true,
-                ownerIsVerified: currentUser.isVerified,
-                ownerVerificationTier: currentUser.verificationTier
+                ownerIsVerified: currentUser.isVerified || currentUser.isBrand,
+                ownerVerificationTier: currentUser.verificationTier || (currentUser.isBrand ? 'gold' : null)
             };
             addGroup(newGroup);
 
@@ -436,7 +437,12 @@ function DiscoverContent() {
                                                                     className="w-12 h-12 rounded-full bg-gray-800 ring-2 ring-gray-800"
                                                                 />
                                                                 <div>
-                                                                    <h4 className="font-bold text-sm line-clamp-1">{group.name}</h4>
+                                                                    <div className="flex items-center gap-1">
+                                                                        <h4 className="font-bold text-sm line-clamp-1">{group.name}</h4>
+                                                                        {group.ownerIsVerified && (
+                                                                            <VerificationBadge isVerified={true} tier={group.ownerVerificationTier} size="sm" />
+                                                                        )}
+                                                                    </div>
                                                                     <p className="text-[10px] text-gray-500">{group.memberCount} members</p>
                                                                 </div>
                                                             </Link>
@@ -465,7 +471,12 @@ function DiscoverContent() {
                                                                 className="w-12 h-12 rounded-full bg-gray-800 ring-2 ring-gray-800"
                                                             />
                                                             <div>
-                                                                <h4 className="font-bold text-sm line-clamp-1">{group.name}</h4>
+                                                                <div className="flex items-center gap-1">
+                                                                    <h4 className="font-bold text-sm line-clamp-1">{group.name}</h4>
+                                                                    {group.ownerIsVerified && (
+                                                                        <VerificationBadge isVerified={true} tier={group.ownerVerificationTier} size="sm" />
+                                                                    )}
+                                                                </div>
                                                                 <p className="text-[10px] text-gray-500">{group.memberCount} members</p>
                                                             </div>
                                                             <span className="text-[10px] font-medium text-[#EC1D99] bg-[#EC1D99]/10 border border-[#EC1D99]/20 px-2 py-0.5 rounded-full mt-1">
