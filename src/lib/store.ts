@@ -231,6 +231,10 @@ interface AppState {
     savedStoryIds: string[];
     toggleStorySave: (storyId: string) => Promise<void>;
     fetchSavedStories: () => Promise<void>;
+
+    // Reported Stories (Local Only)
+    reportedStoryIds: string[];
+    reportStory: (storyId: string) => void;
 }
 
 export const useStore = create<AppState>()(
@@ -244,6 +248,11 @@ export const useStore = create<AppState>()(
             profileUpdateInProgress: false,
             isStoriesLoading: false,
             savedStoryIds: [],
+            reportedStoryIds: [],
+
+            reportStory: (storyId) =>
+                set((state) => ({ reportedStoryIds: [...state.reportedStoryIds, storyId] })),
+
 
             fetchSavedStories: async () => {
                 const { currentUser } = get();
@@ -592,6 +601,7 @@ export const useStore = create<AppState>()(
                 groups: [], 
                 friends: [], 
                 savedStoryIds: [],
+                reportedStoryIds: [],
                 activeWeeveId: null,
             }),
 

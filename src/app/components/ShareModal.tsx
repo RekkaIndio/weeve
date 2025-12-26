@@ -822,6 +822,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                     {/* Report */}
                                     <button
                                         onClick={() => {
+                                            useStore.getState().reportStory(story.id);
                                             toast.success("Thanks for reporting. We will review this content shortly.");
                                             handleClose();
                                         }}
