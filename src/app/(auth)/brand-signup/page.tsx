@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
 import Link from "next/link";
 import { Building2, Globe, Mail, Lock, ArrowRight, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { BLOCKED_DOMAINS } from "@/lib/blocked-domains";
 
 export default function BrandSignUpPage() {
     const router = useRouter();
@@ -105,34 +106,13 @@ export default function BrandSignUpPage() {
         return () => clearTimeout(timeoutId);
     }, [websiteUrl]);
 
-    // List of consumer email domains that are NOT allowed for brand accounts
-    const CONSUMER_EMAIL_DOMAINS = [
-        'gmail.com', 'googlemail.com',
-        'hotmail.com', 'hotmail.co.uk', 'hotmail.fr', 'hotmail.de', 'hotmail.it', 'hotmail.es',
-        'outlook.com', 'outlook.co.uk', 'outlook.fr', 'outlook.de',
-        'live.com', 'live.co.uk', 'live.fr',
-        'msn.com',
-        'yahoo.com', 'yahoo.co.uk', 'yahoo.fr', 'yahoo.de', 'yahoo.it', 'yahoo.es', 'yahoo.ca', 'yahoo.in',
-        'ymail.com',
-        'aol.com', 'aol.co.uk',
-        'icloud.com', 'me.com', 'mac.com',
-        'protonmail.com', 'proton.me',
-        'zoho.com',
-        'mail.com',
-        'gmx.com', 'gmx.net', 'gmx.de',
-        'yandex.com', 'yandex.ru',
-        'inbox.com',
-        'fastmail.com', 'fastmail.fm',
-        'tutanota.com', 'tutanota.de', 'tutamail.com',
-        'hey.com',
-        'pm.me',
-    ];
+
 
     const isBusinessEmail = (email: string): boolean => {
         const emailLower = email.toLowerCase().trim();
         const domain = emailLower.split('@')[1];
         if (!domain) return false;
-        return !CONSUMER_EMAIL_DOMAINS.includes(domain);
+        return !BLOCKED_DOMAINS.includes(domain);
     };
 
     const handleStep1Submit = () => {
