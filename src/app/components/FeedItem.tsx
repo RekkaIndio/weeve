@@ -10,7 +10,7 @@ if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoR
 
 import { Story, useStore, Contribution, isSlotImmutable, isBrandPost, getSlotProgress } from "@/lib/store";
 import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
-import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search, GitBranch, Plus, ExternalLink } from "lucide-react";
+import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search, GitBranch, Plus, ExternalLink, ChevronDown } from "lucide-react";
 import { searchUsers } from "@/lib/friends";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -100,6 +100,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     const [showTutorialTooltip, setShowTutorialTooltip] = useState(false);
     const [showMonetizationModal, setShowMonetizationModal] = useState<'confirm' | 'insufficient' | null>(null);
     const [isAvatarsExpanded, setIsAvatarsExpanded] = useState(false);
+    const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
     // Weeve details editing state
     const [showWeeveDetailsModal, setShowWeeveDetailsModal] = useState(false);
@@ -1592,9 +1593,33 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                     </button>
                 )}
 
-                <p className="text-sm text-gray-200 mb-6 line-clamp-2 max-w-[85%]">
-                    {story.description}
-                </p>
+                {story.description && (
+                    <div className="mb-2 max-w-[85%]">
+                        <p className={`text-sm text-gray-200 ${isDescriptionExpanded ? '' : 'line-clamp-1'}`}>
+                            {story.description}
+                        </p>
+                        {story.description.length > 50 && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsDescriptionExpanded(!isDescriptionExpanded);
+                                }}
+                                className="flex items-center gap-0.5 text-xs text-gray-400 hover:text-white transition-colors mt-1"
+                            >
+                                <span>{isDescriptionExpanded ? 'Show less' : 'Show more'}</span>
+                                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDescriptionExpanded ? 'rotate-180' : ''}`} />
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                {/* Timestamp */}
+                {story.created_at && (
+                    <span className="text-xs text-gray-400 mb-4 block">
+                        {formatRelativeTime(new Date(story.created_at).getTime())}
+                    </span>
+                )}
 
 
                 <div className="flex items-center mb-3 w-fit">
