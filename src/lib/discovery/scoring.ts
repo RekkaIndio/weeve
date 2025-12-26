@@ -20,9 +20,9 @@ export function calculatePaymentScore(story: Story): number {
     'canon-7': 800,    // 7 day visibility
     'canon-3': 600,    // 3 day visibility
     'canon-1': 400,    // 1 day visibility
-    'seed-14': 500,    // Seed posts rank lower than Canon
-    'seed-7': 400,
-    'seed-3': 300,
+    'seed-14': 800,    // Increased visibility for long-running seeds
+    'seed-7': 600,
+    'seed-3': 400,
     'seed-1': 200,
   };
 
@@ -56,6 +56,16 @@ export function calculateUrgencyScore(story: Story): number {
   if (hoursRemaining < 24) return 180;        // 🔥 Very urgent - <1 day
   if (hoursRemaining < 48) return 150;        // ⚡ Urgent - <2 days
   if (hoursRemaining < 72) return 100;        // ⏰ Soon - <3 days
+
+  // NEW: Boost Seed posts that have open slots (Opportunity Urgency)
+  // This helps "get content on there as quickly as possible"
+  if (story.postType === 'seed') {
+    const progress = getSlotProgress(story);
+    // If < 80% full, boost it to encourage participation
+    if (progress && !progress.isComplete && progress.percentage < 80) {
+      return 160; // High urgency to fill slots
+    }
+  }
 
   return 50; // Plenty of time remaining
 }

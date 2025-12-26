@@ -2062,7 +2062,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             {contributions.length > 0 && ((stitchMode !== null && !showStitchMenu) || imageToCrop) && !activeElementId && (
                 <StitchContextThumbnails
                     contributions={contributions}
-                    className={imageToCrop ? 'bottom-36' : 'bottom-4'}
+                    className={imageToCrop ? 'bottom-36' : 'bottom-24'}
                 />
             )}
         </div >
