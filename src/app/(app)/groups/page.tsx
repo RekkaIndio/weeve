@@ -1,8 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, X, Lock, Globe, Share2, BookOpen } from "lucide-react";
+import { Users, Plus, X, Search } from "lucide-react";
 import { supabase } from '@/lib/supabase';
-import type { Database } from '@/lib/database.types';
 import { useAuth } from '@/app/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -10,10 +9,7 @@ import NotificationBell from "@/app/components/NotificationBell";
 import { useStore } from '@/lib/store';
 import { fetchGroups as fetchGroupsData } from '@/lib/data';
 import GroupShareModal from '@/app/components/GroupShareModal';
-import SearchBar from '@/app/components/SearchBar';
-import VerificationBadge from '@/app/components/VerificationBadge';
-
-type GroupRow = Database['public']['Tables']['groups']['Row'];
+import GroupCard from './GroupCard';
 
 export default function GroupsPage() {
     const { user } = useAuth();
@@ -31,12 +27,7 @@ export default function GroupsPage() {
     useEffect(() => {
         let isActive = true;
 
-        // Don't fetch until user is available - this prevents the session check
-        // timeout issue in production where the initial fetch happens before auth completes
-        if (!user) {
-            // If no user yet, just show loading - AuthProvider will redirect if truly not logged in
-            return;
-        }
+        if (!user) return;
 
         loadGroups(isActive);
         return () => {
@@ -46,20 +37,16 @@ export default function GroupsPage() {
 
     const loadGroups = async (isActive: boolean = true) => {
         if (!user?.id) {
-            console.warn('[GroupsPage] loadGroups called without user ID, skipping');
             setLoading(false);
             return;
         }
 
         try {
-            // If we already have groups in the store, don't show loading spinner
             if (groups.length > 0 && isActive) {
                 setLoading(false);
             }
 
-            console.log('[GroupsPage] Fetching groups for user:', user.id);
             const fetchedGroups = await fetchGroupsData(user.id);
-            console.log('[GroupsPage] Fetched', fetchedGroups.length, 'groups');
 
             if (isActive) {
                 setGroups(fetchedGroups);
@@ -80,7 +67,6 @@ export default function GroupsPage() {
 
         setCreating(true);
         try {
-            // 1. Create the group
             const { data: groupData, error: groupError } = await supabase
                 .from('groups')
                 .insert({
@@ -96,7 +82,6 @@ export default function GroupsPage() {
 
             if (groupError) throw groupError;
 
-            // 2. Add creator as admin member
             const { error: memberError } = await supabase
                 .from('group_members')
                 .insert({
@@ -112,7 +97,7 @@ export default function GroupsPage() {
             setNewGroupName('');
             setNewGroupDesc('');
             setIsPrivate(false);
-            loadGroups(); // Refresh list
+            loadGroups();
         } catch (error) {
             console.error('Error creating group:', error);
             toast.error('Failed to create group');
@@ -128,7 +113,6 @@ export default function GroupsPage() {
         }
 
         try {
-            // Check if already a member
             const { data: existingMember } = await supabase
                 .from('group_members')
                 .select('id')
@@ -142,12 +126,10 @@ export default function GroupsPage() {
             }
 
             if (isPrivate) {
-                // For now, just show a message. In future, implement request system.
                 toast.info('This group is private. You need an invite to join.');
                 return;
             }
 
-            // Join public group
             const { error } = await supabase
                 .from('group_members')
                 .insert({
@@ -158,7 +140,6 @@ export default function GroupsPage() {
 
             if (error) throw error;
 
-            // Update member count locally or refetch
             toast.success(`Joined ${groupName}!`);
             loadGroups();
             router.push(`/groups/${groupId}`);
@@ -168,186 +149,177 @@ export default function GroupsPage() {
         }
     };
 
+    const handleShareGroup = (group: any) => {
+        setShareGroup({
+            id: group.id,
+            name: group.name,
+            description: group.description,
+            isPrivate: group.isPrivate
+        });
+    };
+
+    const filteredGroups = groups.filter(group =>
+        group.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (group.description && group.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+
     return (
-        <div className="min-h-screen bg-black text-white p-4 pb-24">
-            <div className="flex justify-between items-center mb-6 gap-3">
-                <h1 className="text-2xl font-bold font-poppins">Groups</h1>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => setShowCreateGroup(true)}
-                        className="flex items-center gap-1 text-sm bg-[#EC1D99] px-3 py-1.5 rounded-full hover:bg-[#d61a88] transition-colors"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Create
-                    </button>
-                    {user && (
-                        <NotificationBell
-                            userId={user.id}
-                            className="bg-gray-900/80 border border-gray-800"
-                            badgeClassName="bg-[#EC1D99]"
-                        />
-                    )}
-                </div>
-            </div>
+        <div className="min-h-screen bg-black text-white p-4 md:p-6 pb-24">
+            <div className="max-w-7xl mx-auto space-y-6">
+                {/* Header Section */}
+                <div className="flex justify-between items-center gap-4">
+                    <h1 className="text-3xl font-bold font-poppins tracking-tight">Groups</h1>
 
-            <div className="mb-6">
-                <SearchBar
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    placeholder="Search groups..."
-                />
-            </div>
-
-            {/* Show groups immediately from cache, will refresh in background */}
-            {groups.length === 0 && loading ? (
-                <div className="flex justify-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 gap-3">
-                    {groups
-                        .filter(group =>
-                            group.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            (group.description && group.description.toLowerCase().includes(searchQuery.toLowerCase()))
-                        )
-                        .map(group => (
-                            <div
-                                key={group.id}
-                                onClick={() => router.push(`/groups/${group.id}`)}
-                                className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-4 hover:border-gray-700 transition-colors cursor-pointer"
-                            >
-                                <img src={group.avatar || ''} alt={group.name} className="w-12 h-12 rounded-full bg-gray-800" />
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-base">{group.name}</h3>
-                                    <p className="text-xs text-gray-400 line-clamp-1">{group.description}</p>
-                                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                                        <Users className="w-3 h-3" />
-                                        <span>{group.memberCount || 0} members</span>
-                                        <span className="text-gray-700">•</span>
-                                        <BookOpen className="w-3 h-3" />
-                                        <span>{group.storyCount || 0} stories</span>
-                                        {group.isPrivate ? (
-                                            <span className="flex items-center gap-1 bg-gray-800 px-1.5 rounded text-[10px]">
-                                                <Lock className="w-2 h-2" /> Private
-                                            </span>
-                                        ) : (
-                                            <span className="flex items-center gap-1 bg-gray-800 px-1.5 rounded text-[10px]">
-                                                <Globe className="w-2 h-2" /> Public
-                                            </span>
-                                        )}
-                                        {group.ownerIsVerified && (
-                                            <VerificationBadge
-                                                isVerified={true}
-                                                tier={group.ownerVerificationTier}
-                                                size="sm"
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShareGroup({
-                                                id: group.id,
-                                                name: group.name,
-                                                description: group.description,
-                                                isPrivate: group.isPrivate
-                                            });
-                                        }}
-                                        className="p-2 text-gray-400 hover:text-[#EC1D99] hover:bg-gray-800 rounded-full transition-colors"
-                                        aria-label="Share group"
-                                    >
-                                        <Share2 className="w-4 h-4" />
-                                    </button>
-                                    {!group.isMember && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleJoinGroup(group.id, group.isPrivate, group.name);
-                                            }}
-                                            className="text-xs font-medium text-[#EC1D99] border border-[#EC1D99] px-3 py-1 rounded-full hover:bg-[#EC1D99] hover:text-white transition-colors"
-                                        >
-                                            Join
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-
-                    {groups.length === 0 && (
-                        <div className="text-center py-16 text-gray-500">
-                            <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                            <p className="text-lg font-medium">No groups yet</p>
-                            <p className="text-sm mt-2">Create your first group to get started</p>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Create Group Modal */}
-            {showCreateGroup && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                    <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
+                    <div className="flex items-center gap-3">
                         <button
-                            onClick={() => setShowCreateGroup(false)}
-                            className="absolute right-4 top-4 text-gray-400 hover:text-white"
+                            onClick={() => setShowCreateGroup(true)}
+                            className="flex items-center gap-2 bg-[#EC1D99] hover:bg-[#d61a88] text-white px-4 py-2 rounded-full font-semibold transition-all shadow-lg shadow-[#EC1D99]/20 active:scale-95 text-sm"
                         >
-                            <X className="w-5 h-5" />
+                            <Plus className="w-4 h-4" />
+                            Create
                         </button>
-                        <h2 className="text-xl font-bold mb-4">Create New Group</h2>
-                        <form onSubmit={handleCreateGroup} className="space-y-4">
-                            <div>
-                                <label className="block text-sm text-gray-400 mb-1">Group Name</label>
-                                <input
-                                    type="text"
-                                    value={newGroupName}
-                                    onChange={(e) => setNewGroupName(e.target.value)}
-                                    className="w-full bg-black border border-gray-800 rounded-lg p-3 focus:border-[#EC1D99] focus:outline-none transition-colors"
-                                    placeholder="e.g. Photography Lovers"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm text-gray-400 mb-1">Description</label>
-                                <textarea
-                                    value={newGroupDesc}
-                                    onChange={(e) => setNewGroupDesc(e.target.value)}
-                                    className="w-full bg-black border border-gray-800 rounded-lg p-3 focus:border-[#EC1D99] focus:outline-none transition-colors h-24 resize-none"
-                                    placeholder="What is this group about?"
-                                />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    id="isPrivate"
-                                    checked={isPrivate}
-                                    onChange={(e) => setIsPrivate(e.target.checked)}
-                                    className="w-4 h-4 rounded border-gray-800 bg-black text-[#EC1D99] focus:ring-[#EC1D99]"
-                                />
-                                <label htmlFor="isPrivate" className="text-sm text-gray-400 select-none">
-                                    Private Group (Invite only)
-                                </label>
-                            </div>
-                            <button
-                                type="submit"
-                                disabled={creating}
-                                className="w-full bg-[#EC1D99] hover:bg-[#d61a88] text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50"
-                            >
-                                {creating ? 'Creating...' : 'Create Group'}
-                            </button>
-                        </form>
+
+                        {user && (
+                            <NotificationBell
+                                userId={user.id}
+                                className="bg-[#121212] border border-gray-800 w-10 h-10"
+                                badgeClassName="bg-[#EC1D99]"
+                            />
+                        )}
                     </div>
                 </div>
-            )}
 
-            {/* Share Group Modal */}
-            {shareGroup && (
-                <GroupShareModal
-                    group={shareGroup}
-                    onClose={() => setShareGroup(null)}
-                />
-            )}
+                {/* Search Section */}
+                <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-5 w-5 text-gray-500 group-focus-within:text-[#EC1D99] transition-colors" />
+                    </div>
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="block w-full pl-10 pr-3 py-3 border border-gray-800 rounded-xl leading-5 bg-[#121212] text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-all font-medium sm:text-sm"
+                        placeholder="Search for groups..."
+                    />
+                </div>
+
+                {/* Groups Grid */}
+                {groups.length === 0 && loading ? (
+                    <div className="flex justify-center py-24">
+                        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#EC1D99]"></div>
+                    </div>
+                ) : (
+                    <>
+                        {filteredGroups.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {filteredGroups.map(group => (
+                                    <GroupCard
+                                        key={group.id}
+                                        group={group}
+                                        onJoin={handleJoinGroup}
+                                        onShare={handleShareGroup}
+                                        onClick={(id) => router.push(`/groups/${id}`)}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-20 bg-[#121212] rounded-3xl border border-gray-800/50 text-center">
+                                <div className="bg-gray-800/50 p-4 rounded-full mb-4">
+                                    <Users className="w-8 h-8 text-gray-400" />
+                                </div>
+                                <h3 className="text-xl font-semibold text-white mb-2">
+                                    {searchQuery ? 'No groups found' : 'No groups yet'}
+                                </h3>
+                                <p className="text-gray-500 max-w-sm mx-auto mb-6">
+                                    {searchQuery
+                                        ? `We couldn't find any groups matching "${searchQuery}"`
+                                        : "Be the first to create a community and invite others to join."}
+                                </p>
+                                {!searchQuery && (
+                                    <button
+                                        onClick={() => setShowCreateGroup(true)}
+                                        className="text-[#EC1D99] font-medium hover:underline"
+                                    >
+                                        Create a new group
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* Create Group Modal */}
+                {showCreateGroup && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                        <div className="bg-[#121212] border border-gray-800 rounded-2xl w-full max-w-md p-6 relative shadow-2xl animate-in zoom-in-95 duration-200">
+                            <button
+                                onClick={() => setShowCreateGroup(false)}
+                                className="absolute right-4 top-4 text-gray-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded-full"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+
+                            <h2 className="text-xl font-bold mb-1">Create New Group</h2>
+                            <p className="text-sm text-gray-500 mb-6">Build a space for your community</p>
+
+                            <form onSubmit={handleCreateGroup} className="space-y-5">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Group Name</label>
+                                    <input
+                                        type="text"
+                                        value={newGroupName}
+                                        onChange={(e) => setNewGroupName(e.target.value)}
+                                        className="w-full bg-black/50 border border-gray-800 rounded-xl p-3 focus:border-[#EC1D99] focus:outline-none focus:ring-1 focus:ring-[#EC1D99] transition-all text-white placeholder-gray-600"
+                                        placeholder="e.g. Photography Lovers"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Description</label>
+                                    <textarea
+                                        value={newGroupDesc}
+                                        onChange={(e) => setNewGroupDesc(e.target.value)}
+                                        className="w-full bg-black/50 border border-gray-800 rounded-xl p-3 focus:border-[#EC1D99] focus:outline-none focus:ring-1 focus:ring-[#EC1D99] transition-all h-28 resize-none text-white placeholder-gray-600"
+                                        placeholder="What is this group about?"
+                                    />
+                                </div>
+
+                                <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-800 bg-black/30 cursor-pointer hover:border-gray-700 transition-colors">
+                                    <div className="relative flex items-center mt-1">
+                                        <input
+                                            type="checkbox"
+                                            checked={isPrivate}
+                                            onChange={(e) => setIsPrivate(e.target.checked)}
+                                            className="w-4 h-4 rounded border-gray-600 bg-transparent text-[#EC1D99] focus:ring-[#EC1D99] focus:ring-offset-0 focus:ring-offset-transparent"
+                                        />
+                                    </div>
+                                    <div>
+                                        <span className="block text-sm font-medium text-white">Private Group</span>
+                                        <span className="block text-xs text-gray-500">Only people with an invite link can join this group.</span>
+                                    </div>
+                                </label>
+
+                                <button
+                                    type="submit"
+                                    disabled={creating}
+                                    className="w-full bg-[#EC1D99] hover:bg-[#d61a88] text-white font-bold py-3.5 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EC1D99]/20 active:scale-[0.99]"
+                                >
+                                    {creating ? 'Creating Group...' : 'Create Group'}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* Share Group Modal */}
+                {shareGroup && (
+                    <GroupShareModal
+                        group={shareGroup}
+                        onClose={() => setShareGroup(null)}
+                    />
+                )}
+            </div>
         </div>
     );
 }
