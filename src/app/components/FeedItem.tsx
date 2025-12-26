@@ -107,6 +107,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     const [weeveDescription, setWeeveDescription] = useState('');
     const [pendingParticipantId, setPendingParticipantId] = useState<string | null>(null);
     const [isCreatingWeeve, setIsCreatingWeeve] = useState(false);
+    const [isForkingBrandPost, setIsForkingBrandPost] = useState(false);
 
     const deductTokens = useStore((state) => state.deductTokens);
 
@@ -193,6 +194,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     const toggleStoryLike = useStore((state) => state.toggleStoryLike);
     const addStoryComment = useStore((state) => state.addStoryComment);
     const forkStory = useStore((state) => state.forkStory);
+    const forkBrandPost = useStore((state) => state.forkBrandPost);
     const currentUser = useStore((state) => state.currentUser);
     const friends = useStore((state) => state.friends);
     const fetchFriends = useStore((state) => state.fetchFriends);
@@ -1376,26 +1378,47 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                 )}
 
                 {/* Weeve Button for Brand/Seed posts */}
-                {['canon', 'seed'].includes(story.postType || '') && story.status !== 'completed' && (() => {
+                {['canon', 'seed'].includes(story.postType || '') && (() => {
                     const isCreator = currentUser?.id === story.creatorId;
-                    const hasUserContributed = story.contributions?.some(c => c.userId === currentUser?.id);
-
-                    // Brand owners cannot weave to their own posts
-                    // Public users: can only contribute if they haven't already
-                    const canWeeve = !isCreator && !hasUserContributed;
+                    // Show Weeve button for all non-creators viewing Canon/Seed posts
+                    // This allows users to create their own version even when viewing someone else's fork
+                    const canWeeve = !isCreator && currentUser;
 
                     return canWeeve ? (
                         <div className="flex flex-col items-center gap-0.5 relative">
                             <button
                                 type="button"
-                                onClick={() => {
-                                    // Navigate to the story (behaves like normal weeve)
-                                    router.push(`/story/${story.id}`);
+                                disabled={isForkingBrandPost}
+                                onClick={async () => {
+                                    if (isForkingBrandPost) return;
+                                    setIsForkingBrandPost(true);
+                                    try {
+                                        // If viewing a fork, fork from the ORIGINAL Canon
+                                        // If viewing original, fork from this story
+                                        const originalCanonId = story.forkedFromStoryId || story.id;
+                                        const result = await forkBrandPost(originalCanonId);
+                                        if (result.success && result.storyId) {
+                                            // Navigate to the user's fork
+                                            router.push(`/story/${result.storyId}`);
+                                        } else {
+                                            console.error('[FeedItem] Failed to fork brand post:', result.error);
+                                            alert(result.error || 'Failed to create your version. Please try again.');
+                                        }
+                                    } catch (err) {
+                                        console.error('[FeedItem] Error forking brand post:', err);
+                                        alert('An error occurred. Please try again.');
+                                    } finally {
+                                        setIsForkingBrandPost(false);
+                                    }
                                 }}
-                                className="w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-[#EC1D99] text-[#EC1D99] transition-all hover:bg-[#EC1D99] hover:text-white hover:scale-110 active:scale-95"
+                                className={`w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-[#EC1D99] text-[#EC1D99] transition-all hover:bg-[#EC1D99] hover:text-white hover:scale-110 active:scale-95 ${isForkingBrandPost ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 aria-label="Weeve to brand story"
                             >
-                                <span className="font-black text-lg">W</span>
+                                {isForkingBrandPost ? (
+                                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    <span className="font-black text-lg">W</span>
+                                )}
                             </button>
                             <span className="text-xs font-bold text-[#EC1D99]">Weeve</span>
                         </div>

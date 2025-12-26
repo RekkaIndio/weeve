@@ -224,6 +224,7 @@ interface AppState {
     logoutUser: () => void;
     fetchFriends: () => Promise<void>;
     forkStory: (originalStoryId: string, slotIndices: number[], newParticipantId: string, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
+    forkBrandPost: (originalStoryId: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     fetchStories: () => Promise<void>;
     setProfileUpdateInProgress: (value: boolean) => void;
 
@@ -825,6 +826,238 @@ export const useStore = create<AppState>()(
                 }
             },
 
+            /**
+             * Fork a brand post (Canon/Seed) for the current user.
+             * This creates a personal copy of the Canon/Seed so each user can complete it independently.
+             * The brand's immutable content is copied, and the user is set up to add their own content.
+             */
+            forkBrandPost: async (originalStoryId: string) => {
+                const { currentUser } = get();
+                if (!currentUser) return { success: false, error: "User not logged in" };
+
+                try {
+                    // 1. Fetch original story details
+                    const { data: originalStory, error: fetchError } = await supabase
+                        .from('stories')
+                        .select(`
+                            *,
+                            contributions (*),
+                            story_participants (*)
+                        `)
+                        .eq('id', originalStoryId)
+                        .single();
+
+                    if (fetchError || !originalStory) {
+                        console.error('[forkBrandPost] Error fetching original story:', fetchError);
+                        return { success: false, error: `Failed to fetch original story: ${fetchError?.message || 'Unknown error'}` };
+                    }
+
+                    // Verify this is a brand post
+                    const postType = originalStory.post_type as 'canon' | 'seed' | 'normal';
+                    if (postType !== 'canon' && postType !== 'seed') {
+                        return { success: false, error: 'This is not a brand post' };
+                    }
+                    
+                    // DEBUG: Log what we're forking from
+                    console.log('[forkBrandPost] Forking from story:', {
+                        id: originalStory.id,
+                        title: originalStory.title,
+                        postType,
+                        canonSlots: originalStory.canon_slots,
+                        forkedFromStoryId: originalStory.forked_from_story_id,
+                        contributionCount: originalStory.contributions?.length,
+                        contributions: (originalStory.contributions || []).map((c: any) => ({
+                            userId: c.user_id,
+                            userName: c.user_name,
+                            timestamp: c.timestamp,
+                            decodedPosition: c.timestamp >= 1000000 && c.timestamp < 100000000 
+                                ? Math.floor(c.timestamp / 1000000) - 1 
+                                : 'unknown'
+                        }))
+                    });
+
+                    // Check if user already has a fork of this Canon
+                    const { data: existingForks } = await supabase
+                        .from('stories')
+                        .select('id')
+                        .eq('forked_from_story_id', originalStoryId)
+                        .eq('creator_id', currentUser.id)
+                        .limit(1);
+
+                    if (existingForks && existingForks.length > 0) {
+                        // User already has a fork, return it
+                        console.log('[forkBrandPost] User already has a fork:', existingForks[0].id);
+                        return { success: true, storyId: existingForks[0].id };
+                    }
+
+                    // 2. Determine which slots are immutable (brand content)
+                    const canonSlots: number[] = originalStory.canon_slots || [];
+                    const immutableSlots = postType === 'seed' ? [0] : canonSlots;
+                    console.log('[forkBrandPost] Immutable slots:', immutableSlots);
+
+                    // 3. Create new story (fork)
+                    const { data: newStoryData, error: createError } = await supabase
+                        .from('stories')
+                        .insert({
+                            title: originalStory.title,
+                            description: originalStory.description,
+                            creator_id: currentUser.id,
+                            mode: 'invite',
+                            visibility: 'private', // Start as private until completed
+                            status: 'active',
+                            max_weeves: originalStory.max_weeves,
+                            cover_image: originalStory.cover_image,
+                            theme: originalStory.theme,
+                            hashtags: originalStory.hashtags,
+                            post_type: postType,
+                            canon_slots: originalStory.canon_slots,
+                            brand_id: originalStory.brand_id || originalStory.creator_id,
+                            forked_from_story_id: originalStoryId,
+                            current_turn_user_id: currentUser.id
+                        })
+                        .select()
+                        .single();
+
+                    if (createError || !newStoryData) {
+                        console.error('[forkBrandPost] Error creating fork:', createError);
+                        return { success: false, error: `Failed to create fork: ${createError?.message || 'Unknown error'}` };
+                    }
+
+                    const newStoryId = newStoryData.id;
+                    console.log('[forkBrandPost] Created fork with id:', newStoryId);
+
+                    // 4. Copy immutable contributions (brand content)
+                    // IMPORTANT: We decode the actual slot position from the timestamp
+                    // Timestamps are encoded as (position + 1) * 1000000
+                    const contributionsToCopy: any[] = [];
+                    (originalStory.contributions || []).forEach((c: any) => {
+                        // Decode position from timestamp
+                        let contributionPosition: number;
+                        if (c.timestamp >= 1000000 && c.timestamp < 100000000) {
+                            contributionPosition = Math.floor(c.timestamp / 1000000) - 1;
+                        } else {
+                            // Fallback: try to infer from order (less reliable)
+                            contributionPosition = -1;
+                        }
+                        
+                        console.log('[forkBrandPost] Checking contribution:', {
+                            timestamp: c.timestamp,
+                            decodedPosition: contributionPosition,
+                            immutableSlots,
+                            isImmutable: immutableSlots.includes(contributionPosition)
+                        });
+                        
+                        // Copy only contributions that are in immutable slots
+                        if (immutableSlots.includes(contributionPosition)) {
+                            contributionsToCopy.push({
+                                story_id: newStoryId,
+                                user_id: c.user_id,
+                                user_name: c.user_name,
+                                content: c.content,
+                                media_type: c.media_type,
+                                media_url: c.media_url,
+                                timestamp: c.timestamp, // Preserve original timestamp/position
+                                text_style: c.text_style,
+                                approval_status: 'approved'
+                            });
+                        }
+                    });
+                    
+                    console.log('[forkBrandPost] Copying contributions:', contributionsToCopy.length, 'of', (originalStory.contributions || []).length);
+
+                    if (contributionsToCopy.length > 0) {
+                        const { error: contributionsError } = await supabase
+                            .from('contributions')
+                            .insert(contributionsToCopy);
+
+                        if (contributionsError) {
+                            console.error('[forkBrandPost] Error copying contributions:', contributionsError);
+                            // Continue anyway - user can still add their content
+                        }
+                    }
+
+                    // NOTE: We do NOT add the user as a separate participant here.
+                    // For forked Canon posts, the user fills the open slot (non-reserved position)
+                    // which is determined by canonSlots. They interact via the "Your turn" open slot.
+
+                    // 5. Fetch the complete new story and add to store
+                    const { data: completeStory } = await supabase
+                        .from('stories')
+                        .select(`
+                            *,
+                            contributions (*),
+                            story_participants (
+                                *,
+                                profiles:user_id (id, name, avatar, is_influencer)
+                            ),
+                            story_likes (user_id),
+                            story_comments (*)
+                        `)
+                        .eq('id', newStoryId)
+                        .single();
+
+                    if (completeStory) {
+                        const participants = (completeStory.story_participants || []).map((sp: any) => {
+                            const profile = sp.profiles || { name: 'Unknown', avatar: '' };
+                            return {
+                                id: sp.user_id,
+                                name: profile.name,
+                                avatar: profile.avatar,
+                                tokens: 0,
+                                isInfluencer: profile.is_influencer,
+                                status: sp.status as 'accepted' | 'waiting' | 'declined' | undefined,
+                                position: sp.position,
+                            };
+                        });
+
+                        const contributions = (completeStory.contributions || []).map((c: any) => ({
+                            id: c.id,
+                            userId: c.user_id,
+                            userName: c.user_name,
+                            content: c.content,
+                            mediaType: c.media_type,
+                            mediaUrl: c.media_url,
+                            timestamp: c.timestamp,
+                            textStyle: c.text_style,
+                        }));
+
+                        const newStory: Story = {
+                            id: completeStory.id,
+                            title: completeStory.title,
+                            description: completeStory.description,
+                            creatorId: completeStory.creator_id,
+                            visibility: completeStory.visibility,
+                            mode: completeStory.mode ?? 'invite',
+                            status: completeStory.status,
+                            currentTurnUserId: completeStory.current_turn_user_id,
+                            contributions,
+                            participants,
+                            maxWeeves: completeStory.max_weeves,
+                            coverImage: completeStory.cover_image,
+                            theme: completeStory.theme,
+                            likes: 0,
+                            likedBy: [],
+                            comments: [],
+                            created_at: completeStory.created_at,
+                            updated_at: completeStory.updated_at,
+                            hashtags: completeStory.hashtags,
+                            forkedFromStoryId: completeStory.forked_from_story_id,
+                            postType: completeStory.post_type ?? 'normal',
+                            canonSlots: completeStory.canon_slots,
+                            brandId: completeStory.brand_id,
+                        };
+
+                        set((state) => ({ stories: [newStory, ...state.stories] }));
+                    }
+
+                    return { success: true, storyId: newStoryId };
+
+                } catch (err: any) {
+                    console.error('[forkBrandPost] Unexpected error:', err);
+                    return { success: false, error: `Unexpected error: ${err?.message || err}` };
+                }
+            },
+
             fetchStories: async () => {
                 const { currentUser, isStoriesLoading } = get();
 
@@ -948,8 +1181,14 @@ export const useStore = create<AppState>()(
                                 const hasContributions = s.contributions && s.contributions.length > 0;
                                 const isParticipant = currentUserId && (s.story_participants ?? []).some((p: any) => p.user_id === currentUserId);
                                 // Show brand posts to their creators even without contributions so they can add content
-                                const isBrandPostCreator = currentUserId && (s.post_type === 'canon' || s.post_type === 'seed') && s.creator_id === currentUserId;
-                                return hasContributions || isParticipant || isBrandPostCreator;
+                                const isBrandPost = s.post_type === 'canon' || s.post_type === 'seed';
+                                const isBrandPostCreator = currentUserId && isBrandPost && s.creator_id === currentUserId;
+                                
+                                // Show ORIGINAL brand posts (not forks) to everyone even without contributions
+                                // This allows users to see and fork Canon posts as soon as they're created
+                                const isOriginalBrandPost = isBrandPost && !s.forked_from_story_id;
+                                
+                                return hasContributions || isParticipant || isBrandPostCreator || isOriginalBrandPost;
                             }
 
                             // For private stories, hide those where the current user is a waiting participant

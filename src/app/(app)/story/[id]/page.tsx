@@ -49,7 +49,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
 
 function StoryPageContent({ storyId }: { storyId: string }) {
     const router = useRouter();
-    const { stories, currentUser, addContribution, fetchStories, addStory } = useStore();
+    const { stories, currentUser, addContribution, fetchStories, addStory, forkBrandPost } = useStore();
 
     const story = stories.find((s) => s.id === storyId);
 
@@ -111,6 +111,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const [mediaSourcePicker, setMediaSourcePicker] = useState<{ type: 'video' | 'image' } | null>(null);
     const [stitchMode, setStitchMode] = useState<'video' | 'image' | 'text' | 'drawing' | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [isForkingBrandPost, setIsForkingBrandPost] = useState(false);
     const uploadStartTimeRef = useRef<number | null>(null);
 
     // Safety mechanism: Reset stuck upload state when app resumes from background
@@ -1824,6 +1825,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     }}
                 />
             )}
+
             {/* Creation Overlays */}
             {showStitchMenu && (
                 <StitchMenu

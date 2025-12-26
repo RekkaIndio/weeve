@@ -120,16 +120,20 @@ export function rankStories(
   
   switch (context.variant) {
     case 'canon':
-      filteredStories = stories.filter(s => s.postType === 'canon');
+      // Only show original Canon posts (not user forks)
+      filteredStories = stories.filter(s => s.postType === 'canon' && !s.forkedFromStoryId);
       break;
     case 'seed':
-      filteredStories = stories.filter(s => s.postType === 'seed');
+      // Only show original Seed posts (not user forks)
+      filteredStories = stories.filter(s => s.postType === 'seed' && !s.forkedFromStoryId);
       break;
     case 'open-slots':
-      filteredStories = stories.filter(s => isBrandPost(s) && needsContributors(s));
+      // Only original brand posts with open slots
+      filteredStories = stories.filter(s => isBrandPost(s) && needsContributors(s) && !s.forkedFromStoryId);
       break;
     case 'all':
-      filteredStories = stories.filter(s => isBrandPost(s));
+      // Only original brand posts
+      filteredStories = stories.filter(s => isBrandPost(s) && !s.forkedFromStoryId);
       break;
   }
 

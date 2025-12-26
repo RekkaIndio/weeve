@@ -44,21 +44,29 @@ export function StoryTimeline({
                         // HANDLE OPEN/RESERVED SLOTS (No Participant assigned)
                         if (!participant) {
                             const isReserved = story.postType === 'canon' && story.canonSlots?.includes(entry.position);
-                            // For Canon, if it's reserved, it belongs to the Creator (Brand)
+                            // For Canon, if it's reserved, it belongs to the ORIGINAL Creator (Brand)
                             // If I am the Creator, it's MY turn.
                             // If I am NOT the Creator, it's "Reserved".
 
                             const isCreator = currentUser?.id === story.creatorId;
-                            const isReservedForMe = isReserved && isCreator;
+
+                            // IMPORTANT: For FORKED brand posts, the fork creator is NOT the brand
+                            // They should be allowed to stitch on open slots
+                            const isForkedBrandPost = (story.postType === 'canon' || story.postType === 'seed') && !!story.forkedFromStoryId;
+                            const isOriginalBrandOwner = isCreator && !isForkedBrandPost;
+
+                            const isReservedForMe = isReserved && isOriginalBrandOwner;
 
                             // Brand Owner should not be prompted to stitch on Open slots
-                            const isBrandOwnerOnOpenSlot = isCreator && !isReserved;
+                            // BUT fork creators CAN stitch on their fork's open slots
+                            const isBrandOwnerOnOpenSlot = isOriginalBrandOwner && !isReserved;
 
                             const isNextSequentialSlot = entry.position === contributions.length;
 
                             // BRAND POST SPECIAL HANDLING
                             // For brand posts, public users who haven't contributed yet can add to any OPEN slot
                             // OPEN = not reserved AND previous slots are filled (sequential requirement)
+                            // For FORKED brand posts, the fork creator is treated as a public user
                             const isBrandPost = story.postType === 'canon' || story.postType === 'seed';
                             const hasUserContributed = story.contributions?.some(c => c.userId === currentUser?.id);
 
@@ -73,7 +81,9 @@ export function StoryTimeline({
                                         return false;
                                     }));
 
-                            const canPublicUserAdd = isBrandPost && !isCreator && !hasUserContributed && !isReserved && previousSlotsFilled;
+                            // Fork creators can add to open slots just like public users
+                            const canForkCreatorAdd = isForkedBrandPost && isCreator && !hasUserContributed && !isReserved && previousSlotsFilled;
+                            const canPublicUserAdd = isBrandPost && !isOriginalBrandOwner && !hasUserContributed && !isReserved && previousSlotsFilled;
 
                             // Check if user can add to this slot
                             // For normal stories: use isMyTurn logic
@@ -81,7 +91,7 @@ export function StoryTimeline({
                             // Note: We use isMyTurn passed from parent, but refine it for specific slot logic
                             const userHasWaitingSlot = story.participants.some(p => p.id === currentUser?.id && p.status === 'waiting');
                             const canAddNormalStory = !isBrandPost && isMyTurn && !userHasWaitingSlot && !isStoryComplete && isNextSequentialSlot;
-                            const canAdd = canAddNormalStory || canPublicUserAdd || isReservedForMe;
+                            const canAdd = canAddNormalStory || canPublicUserAdd || canForkCreatorAdd || isReservedForMe;
 
                             if (canAdd && !isBrandOwnerOnOpenSlot) {
                                 return (
@@ -109,25 +119,25 @@ export function StoryTimeline({
                             return (
                                 <button
                                     key={`open-${entry.position}`}
-                                    disabled={!isReservedForMe && !canPublicUserAdd && !(!isReserved && isNextSequentialSlot)}
+                                    disabled={!isReservedForMe && !canPublicUserAdd && !canForkCreatorAdd && !(!isReserved && isNextSequentialSlot)}
                                     onClick={() => {
-                                        if (isReservedForMe || canPublicUserAdd || (!isReserved && isNextSequentialSlot)) {
+                                        if (isReservedForMe || canPublicUserAdd || canForkCreatorAdd || (!isReserved && isNextSequentialSlot)) {
                                             try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
                                             onAddWeeve();
                                         }
                                     }}
-                                    className={`flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none ${isReservedForMe || canPublicUserAdd || (!isReserved && isNextSequentialSlot) ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
+                                    className={`flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none ${isReservedForMe || canPublicUserAdd || canForkCreatorAdd || (!isReserved && isNextSequentialSlot) ? 'cursor-pointer' : 'cursor-default opacity-80'}`}
                                     style={timelineItemSnapStyle}
                                 >
                                     <div
-                                        className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center transition-all shrink-0 ${isReservedForMe ? 'border-[#EC1D99] bg-[#EC1D99]/10' : isReserved ? 'border-purple-500/50 bg-purple-500/10' : canPublicUserAdd ? 'border-[#EC1D99] bg-[#EC1D99]/10' : 'border-gray-600 bg-white/5'}`}
+                                        className={`w-12 h-12 rounded-full border-2 border-dashed flex items-center justify-center transition-all shrink-0 ${isReservedForMe ? 'border-[#EC1D99] bg-[#EC1D99]/10' : isReserved ? 'border-purple-500/50 bg-purple-500/10' : (canPublicUserAdd || canForkCreatorAdd) ? 'border-[#EC1D99] bg-[#EC1D99]/10' : 'border-gray-600 bg-white/5'}`}
                                     >
-                                        <span className={`text-[10px] font-bold ${isReservedForMe || canPublicUserAdd ? 'text-[#EC1D99]' : 'text-gray-400'}`}>
-                                            {isReservedForMe ? 'YOU' : isReserved ? 'BRAND' : canPublicUserAdd ? '+' : 'OPEN'}
+                                        <span className={`text-[10px] font-bold ${isReservedForMe || canPublicUserAdd || canForkCreatorAdd ? 'text-[#EC1D99]' : 'text-gray-400'}`}>
+                                            {isReservedForMe ? 'YOU' : isReserved ? 'BRAND' : (canPublicUserAdd || canForkCreatorAdd) ? '+' : 'OPEN'}
                                         </span>
                                     </div>
-                                    <span className={`text-[10px] font-medium max-w-[64px] truncate ${isReservedForMe || canPublicUserAdd ? 'text-[#EC1D99]' : 'text-gray-400'}`}>
-                                        {isReservedForMe ? 'Reserved' : isReserved ? 'Reserved' : canPublicUserAdd ? 'Your turn' : 'Open'}
+                                    <span className={`text-[10px] font-medium max-w-[64px] truncate ${isReservedForMe || canPublicUserAdd || canForkCreatorAdd ? 'text-[#EC1D99]' : 'text-gray-400'}`}>
+                                        {isReservedForMe ? 'Reserved' : isReserved ? 'Reserved' : (canPublicUserAdd || canForkCreatorAdd) ? 'Your turn' : 'Open'}
                                     </span>
                                     <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
                                 </button>
@@ -232,7 +242,9 @@ export function StoryTimeline({
                             <span className="text-[10px] text-gray-300 font-medium max-w-[64px] truncate" title={displayName}>
                                 {displayName.split(' ').slice(0, 2).join(' ')}
                             </span>
-                            <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {occurrence}</span>
+                            <span className="text-[9px] uppercase tracking-wide text-gray-600">
+                                Part {(story.postType === 'canon' || story.postType === 'seed') ? (index !== undefined ? index + 1 : occurrence) : occurrence}
+                            </span>
                             {/* Only show "Their turn" for other users - current user sees the + button with "Your turn" */}
                             {isCurrentTurn && contribution.userId !== currentUser?.id && (
                                 <span className="text-[10px] text-[#EC1D99] font-semibold">
