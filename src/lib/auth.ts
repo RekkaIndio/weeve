@@ -401,6 +401,43 @@ export async function checkDisplayNameAvailability(name: string, excludeUserId?:
 }
 
 /**
+ * Check if a brand website is available (not already registered)
+ */
+export async function checkBrandWebsiteAvailability(websiteUrl: string, excludeUserId?: string): Promise<{ available: boolean; error: Error | null }> {
+    try {
+        if (!websiteUrl.trim()) {
+            return { available: false, error: null };
+        }
+
+        // Normalize URL for consistent checking (remove protocol, www, trailing slash)
+        // This should match the normalization used during signup
+        let normalized = websiteUrl.trim();
+        if (!normalized.startsWith('http://') && !normalized.startsWith('https://')) {
+            normalized = 'https://' + normalized;
+        }
+
+        let query = supabase
+            .from('profiles')
+            .select('user_id')
+            .eq('brand_website', normalized)
+            .eq('is_brand', true);
+
+        if (excludeUserId) {
+            query = query.neq('user_id', excludeUserId);
+        }
+
+        const { data, error } = await query.maybeSingle();
+
+        if (error) throw error;
+
+        return { available: !data, error: null };
+    } catch (error) {
+        console.error('[Auth] Check brand website availability error:', error);
+        return { available: false, error: error as Error };
+    }
+}
+
+/**
  * Update user profile
  */
 export async function updateUserProfile(

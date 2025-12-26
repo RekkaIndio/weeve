@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signUp } from "@/lib/auth";
+import { signUp, checkDisplayNameAvailability, checkBrandWebsiteAvailability } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
 import Link from "next/link";
-import { Building2, Globe, Mail, Lock, ArrowRight, CheckCircle2, Eye, EyeOff } from "lucide-react";
+import { Building2, Globe, Mail, Lock, ArrowRight, CheckCircle2, Eye, EyeOff, X, Loader2, AlertCircle } from "lucide-react";
 import { BLOCKED_DOMAINS } from "@/lib/blocked-domains";
 
 export default function BrandSignUpPage() {
@@ -25,6 +25,12 @@ export default function BrandSignUpPage() {
     const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
     const [faviconLoading, setFaviconLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+
+    // Validation State
+    const [checkingBrandName, setCheckingBrandName] = useState(false);
+    const [brandNameAvailable, setBrandNameAvailable] = useState<boolean | null>(null);
+    const [checkingWebsite, setCheckingWebsite] = useState(false);
+    const [websiteAvailable, setWebsiteAvailable] = useState<boolean | null>(null);
 
     // Store ref code from URL parameter
     useEffect(() => {
@@ -66,6 +72,59 @@ export default function BrandSignUpPage() {
             return null;
         }
     };
+
+    // Check Brand Name Availability
+    useEffect(() => {
+        const trimmedName = brandName.trim();
+        if (!trimmedName) {
+            setBrandNameAvailable(null);
+            return;
+        }
+
+        const checkName = async () => {
+            setCheckingBrandName(true);
+            try {
+                const { available, error } = await checkDisplayNameAvailability(trimmedName);
+                if (error) throw error;
+                setBrandNameAvailable(available);
+            } catch (err) {
+                console.error('Error checking brand name:', err);
+                setBrandNameAvailable(null);
+            } finally {
+                setCheckingBrandName(false);
+            }
+        };
+
+        const timeoutId = setTimeout(checkName, 500);
+        return () => clearTimeout(timeoutId);
+    }, [brandName]);
+
+    // Check Website Availability
+    useEffect(() => {
+        const trimmedUrl = websiteUrl.trim();
+        // Basic length check to avoid checking empty/short inputs
+        if (trimmedUrl.length < 4) {
+            setWebsiteAvailable(null);
+            return;
+        }
+
+        const checkWebsite = async () => {
+            setCheckingWebsite(true);
+            try {
+                const { available, error } = await checkBrandWebsiteAvailability(trimmedUrl);
+                if (error) throw error;
+                setWebsiteAvailable(available);
+            } catch (err) {
+                console.error('Error checking website:', err);
+                setWebsiteAvailable(null);
+            } finally {
+                setCheckingWebsite(false);
+            }
+        };
+
+        const timeoutId = setTimeout(checkWebsite, 500);
+        return () => clearTimeout(timeoutId);
+    }, [websiteUrl]);
 
     // Debounced favicon fetch when website URL changes
     useEffect(() => {
@@ -128,6 +187,24 @@ export default function BrandSignUpPage() {
             setError("Please enter a valid website URL");
             return;
         }
+
+        // Validation Checks
+        if (checkingBrandName || checkingWebsite) {
+            // Silently wait or show global loading? 
+            // For now, let's just return to prevent moving forward while checking
+            return;
+        }
+
+        if (brandNameAvailable === false) {
+            setError("Brand name is already taken");
+            return;
+        }
+
+        if (websiteAvailable === false) {
+            setError("Website is already registered");
+            return;
+        }
+
         setError("");
         setStep(2);
     };
@@ -307,63 +384,109 @@ export default function BrandSignUpPage() {
                     {step === 1 ? (
                         <>
                             {/* Brand Name - Show favicon if available */}
-                            <div className="relative">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
-                                    {faviconUrl ? (
-                                        <img
-                                            src={faviconUrl}
-                                            alt="Brand favicon"
-                                            className="w-6 h-6 rounded object-contain"
-                                        />
-                                    ) : faviconLoading ? (
-                                        <div className="w-6 h-6 rounded bg-gray-600 animate-pulse" />
-                                    ) : (
-                                        <Building2 className="w-5 h-5 text-gray-400" />
-                                    )}
+                            <div className="space-y-1">
+                                <div className="relative">
+                                    <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">
+                                        {faviconUrl ? (
+                                            <img
+                                                src={faviconUrl}
+                                                alt="Brand favicon"
+                                                className="w-6 h-6 rounded object-contain"
+                                            />
+                                        ) : faviconLoading ? (
+                                            <div className="w-6 h-6 rounded bg-gray-600 animate-pulse" />
+                                        ) : (
+                                            <Building2 className="w-5 h-5 text-gray-400" />
+                                        )}
+                                    </div>
+                                    <input
+                                        type="text"
+                                        className={`w-full rounded-lg bg-white/10 border pl-12 pr-10 py-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 transition-all ${brandNameAvailable === false
+                                            ? 'border-red-500 focus:ring-red-500/50 focus:border-red-500'
+                                            : brandNameAvailable === true
+                                                ? 'border-green-500/50 focus:ring-green-500/50 focus:border-green-500'
+                                                : 'border-white/20 focus:ring-[#EC1D99]/50 focus:border-[#EC1D99]'
+                                            }`}
+                                        placeholder="Brand Name"
+                                        value={brandName}
+                                        onChange={(e) => setBrandName(e.target.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleStep1Submit()}
+                                    />
+                                    {/* Brand Name Status Icon */}
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                                        {brandName && (
+                                            checkingBrandName ? (
+                                                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                                            ) : brandNameAvailable === true ? (
+                                                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                            ) : brandNameAvailable === false ? (
+                                                <X className="w-5 h-5 text-red-500" />
+                                            ) : null
+                                        )}
+                                    </div>
                                 </div>
-                                <input
-                                    type="text"
-                                    className="w-full rounded-lg bg-white/10 border border-white/20 pl-12 pr-6 py-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]/50 focus:border-[#EC1D99] transition-all"
-                                    placeholder="Brand Name"
-                                    value={brandName}
-                                    onChange={(e) => setBrandName(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && handleStep1Submit()}
-                                />
+                                {brandNameAvailable === false && (
+                                    <p className="text-xs text-red-400 ml-1">
+                                        This brand name is already taken. Please choose another.
+                                    </p>
+                                )}
                             </div>
 
                             {/* Website URL with https:// prefix - always visible */}
-                            <div className="relative">
-                                {/* Always show https:// prefix with z-10 to stay above input */}
-                                <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 z-10 pointer-events-none">
-                                    {faviconUrl ? (
-                                        <img
-                                            src={faviconUrl}
-                                            alt="Website favicon"
-                                            className="w-5 h-5 rounded object-contain"
-                                        />
-                                    ) : faviconLoading ? (
-                                        <div className="w-5 h-5 rounded bg-gray-600 animate-pulse" />
-                                    ) : null}
-                                    <span className="text-sm text-gray-400 font-mono">https://</span>
-                                </div>
-                                <input
-                                    type="text"
-                                    className={`w-full rounded-lg bg-white/10 border border-white/20 py-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]/50 focus:border-[#EC1D99] transition-all ${faviconUrl || faviconLoading ? 'pl-[130px]' : 'pl-[90px]'} ${faviconUrl ? 'pr-12' : 'pr-6'}`}
-                                    placeholder="yourbrand.com"
-                                    value={websiteUrl}
-                                    onChange={(e) => {
-                                        // Strip https:// or http:// if user pastes full URL
-                                        let value = e.target.value;
-                                        value = value.replace(/^https?:\/\//i, '');
-                                        setWebsiteUrl(value);
-                                    }}
-                                    onKeyPress={(e) => e.key === 'Enter' && handleStep1Submit()}
-                                />
-                                {/* Show green checkmark when favicon is found */}
-                                {faviconUrl && (
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10">
-                                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                            <div className="space-y-1">
+                                <div className="relative">
+                                    {/* Always show https:// prefix with z-10 to stay above input */}
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 z-10 pointer-events-none">
+                                        {faviconUrl ? (
+                                            <img
+                                                src={faviconUrl}
+                                                alt="Website favicon"
+                                                className="w-5 h-5 rounded object-contain"
+                                            />
+                                        ) : faviconLoading ? (
+                                            <div className="w-5 h-5 rounded bg-gray-600 animate-pulse" />
+                                        ) : null}
+                                        <span className="text-sm text-gray-400 font-mono">https://</span>
                                     </div>
+                                    <input
+                                        type="text"
+                                        className={`w-full rounded-lg bg-white/10 border py-4 text-white placeholder-gray-400 focus:outline-none focus:ring-2 transition-all ${faviconUrl || faviconLoading ? 'pl-[130px]' : 'pl-[90px]'} pr-10 ${websiteAvailable === false
+                                            ? 'border-red-500 focus:ring-red-500/50 focus:border-red-500'
+                                            : websiteAvailable === true
+                                                ? 'border-green-500/50 focus:ring-green-500/50 focus:border-green-500'
+                                                : 'border-white/20 focus:ring-[#EC1D99]/50 focus:border-[#EC1D99]'
+                                            }`}
+                                        placeholder="yourbrand.com"
+                                        value={websiteUrl}
+                                        onChange={(e) => {
+                                            // Strip https:// or http:// if user pastes full URL
+                                            let value = e.target.value;
+                                            value = value.replace(/^https?:\/\//i, '');
+                                            setWebsiteUrl(value);
+                                        }}
+                                        onKeyPress={(e) => e.key === 'Enter' && handleStep1Submit()}
+                                    />
+                                    {/* Website Status Icon */}
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10">
+                                        {websiteUrl && (
+                                            checkingWebsite ? (
+                                                <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                                            ) : websiteAvailable === true ? (
+                                                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                            ) : websiteAvailable === false ? (
+                                                <X className="w-5 h-5 text-red-500" />
+                                            ) : faviconUrl ? (
+                                                // If we have favicon (valid site) but waiting on DB check
+                                                // Show nothing until DB check is done
+                                                null
+                                            ) : null
+                                        )}
+                                    </div>
+                                </div>
+                                {websiteAvailable === false && (
+                                    <p className="text-xs text-red-400 ml-1">
+                                        This website is already registered. Please login instead.
+                                    </p>
                                 )}
                             </div>
 
@@ -388,10 +511,20 @@ export default function BrandSignUpPage() {
 
                             <button
                                 onClick={handleStep1Submit}
-                                className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#EC1D99] to-purple-600 text-white py-4 font-bold text-lg transition-all hover:opacity-90 active:scale-95 shadow-lg shadow-[#EC1D99]/30"
+                                disabled={checkingBrandName || checkingWebsite || brandNameAvailable === false || websiteAvailable === false}
+                                className="w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#EC1D99] to-purple-600 text-white py-4 font-bold text-lg transition-all hover:opacity-90 active:scale-95 shadow-lg shadow-[#EC1D99]/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                             >
-                                Continue
-                                <ArrowRight className="w-5 h-5" />
+                                {checkingBrandName || checkingWebsite ? (
+                                    <>
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        Checking...
+                                    </>
+                                ) : (
+                                    <>
+                                        Continue
+                                        <ArrowRight className="w-5 h-5" />
+                                    </>
+                                )}
                             </button>
                         </>
                     ) : (

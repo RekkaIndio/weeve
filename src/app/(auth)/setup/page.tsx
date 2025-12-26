@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createUserProfile } from "@/lib/auth";
+import { createUserProfile, checkDisplayNameAvailability } from "@/lib/auth";
 import { processReferralCode } from "@/lib/referral";
 import { useAuth } from "@/app/components/AuthProvider";
 import { capturePhoto } from "@/lib/camera";
@@ -42,19 +42,11 @@ export default function SetupPage() {
         const checkUsername = async () => {
             setCheckingUsername(true);
             try {
-                // Use exact match with case-insensitive comparison
-                const { data, error } = await supabase
-                    .from('profiles')
-                    .select('user_id')
-                    .eq('name', trimmedName)
-                    .maybeSingle();
+                // Use shared availability check
+                const { available, error } = await checkDisplayNameAvailability(trimmedName);
 
-                if (error && error.code !== 'PGRST116') {
-                    // PGRST116 is "no rows returned" which is fine
-                    throw error;
-                }
-
-                setUsernameAvailable(!data);
+                if (error) throw error;
+                setUsernameAvailable(available);
             } catch (err) {
                 console.error('[Setup] Error checking username:', err);
                 setUsernameAvailable(null);
