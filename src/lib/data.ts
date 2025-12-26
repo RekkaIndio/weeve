@@ -981,15 +981,16 @@ export async function fetchGroups(userId?: string): Promise<Group[]> {
         }
 
         // Query groups with timeout to avoid stuck UI when network or backend is slow
+        // Join with profiles to get owner verification status
         const runQuery = async (timeoutMs: number) => {
             const groupsQueryPromise = supabase
                 .from('groups')
-                .select('*')
+                .select('*, owner:owner_id(is_verified, verification_tier)')
                 .order('created_at', { ascending: false });
             
             return Promise.race([
                 groupsQueryPromise,
-                new Promise<{ data: GroupRow[] | null; error: any }>((resolve) => 
+                new Promise<{ data: any[] | null; error: any }>((resolve) => 
                     setTimeout(() => resolve({ data: null, error: new Error(`Groups query timeout (${timeoutMs}ms)`) }), timeoutMs)
                 ),
             ]);
@@ -997,7 +998,8 @@ export async function fetchGroups(userId?: string): Promise<Group[]> {
         
         // Attempt 1: 20s timeout
         let result = await runQuery(20000);
-        let { data, error } = result as { data: GroupRow[] | null; error: any };
+        type GroupWithOwner = GroupRow & { owner?: { is_verified: boolean; verification_tier: 'bronze' | 'silver' | 'gold' | null } | null };
+        let { data, error } = result as { data: GroupWithOwner[] | null; error: any };
 
         // Attempt 2: Auto-recovery on error
         if (error) {
@@ -1034,6 +1036,25 @@ export async function fetchGroups(userId?: string): Promise<Group[]> {
             }
         }
 
+        // Fetch story counts per group
+        let storyCountMap: Record<string, number> = {};
+        const groupIds = (data ?? []).map(g => g.id);
+        if (groupIds.length > 0) {
+            const { data: storyCounts } = await supabase
+                .from('stories')
+                .select('group_id')
+                .in('group_id', groupIds);
+            
+            if (storyCounts) {
+                storyCountMap = storyCounts.reduce((acc: Record<string, number>, s: { group_id: string | null }) => {
+                    if (s.group_id) {
+                        acc[s.group_id] = (acc[s.group_id] || 0) + 1;
+                    }
+                    return acc;
+                }, {} as Record<string, number>);
+            }
+        }
+
         return (data ?? []).map((group): Group => ({
             id: group.id,
             name: group.name,
@@ -1042,6 +1063,9 @@ export async function fetchGroups(userId?: string): Promise<Group[]> {
             memberCount: group.member_count,
             isPrivate: group.is_private,
             isMember: membershipMap[group.id] || false,
+            storyCount: storyCountMap[group.id] || 0,
+            ownerIsVerified: group.owner?.is_verified ?? false,
+            ownerVerificationTier: group.owner?.verification_tier ?? null,
         }));
     } catch (error) {
         console.error('Unexpected error fetching groups:', error);

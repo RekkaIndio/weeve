@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, X, Lock, Globe, Share2 } from "lucide-react";
+import { Users, Plus, X, Lock, Globe, Share2, BookOpen } from "lucide-react";
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/lib/database.types';
 import { useAuth } from '@/app/components/AuthProvider';
@@ -11,6 +11,7 @@ import { useStore } from '@/lib/store';
 import { fetchGroups as fetchGroupsData } from '@/lib/data';
 import GroupShareModal from '@/app/components/GroupShareModal';
 import SearchBar from '@/app/components/SearchBar';
+import VerificationBadge from '@/app/components/VerificationBadge';
 
 type GroupRow = Database['public']['Tables']['groups']['Row'];
 
@@ -222,6 +223,9 @@ export default function GroupsPage() {
                                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
                                         <Users className="w-3 h-3" />
                                         <span>{group.memberCount || 0} members</span>
+                                        <span className="text-gray-700">•</span>
+                                        <BookOpen className="w-3 h-3" />
+                                        <span>{group.storyCount || 0} stories</span>
                                         {group.isPrivate ? (
                                             <span className="flex items-center gap-1 bg-gray-800 px-1.5 rounded text-[10px]">
                                                 <Lock className="w-2 h-2" /> Private
@@ -230,6 +234,13 @@ export default function GroupsPage() {
                                             <span className="flex items-center gap-1 bg-gray-800 px-1.5 rounded text-[10px]">
                                                 <Globe className="w-2 h-2" /> Public
                                             </span>
+                                        )}
+                                        {group.ownerIsVerified && (
+                                            <VerificationBadge
+                                                isVerified={true}
+                                                tier={group.ownerVerificationTier}
+                                                size="sm"
+                                            />
                                         )}
                                     </div>
                                 </div>

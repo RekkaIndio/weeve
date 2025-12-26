@@ -3,11 +3,12 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
-import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera, Share2, Image as ImageIcon, X } from 'lucide-react';
+import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera, Share2, Image as ImageIcon, X, Crown, Shield, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { capturePhoto } from '@/lib/camera';
 import GroupShareModal from '@/app/components/GroupShareModal';
+import VerificationBadge from '@/app/components/VerificationBadge';
 
 export default function GroupDetailsPage() {
     const params = useParams();
@@ -26,6 +27,9 @@ export default function GroupDetailsPage() {
     const [activeTab, setActiveTab] = useState<'stories' | 'members'>('stories');
     const [showShareModal, setShowShareModal] = useState(false);
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+    const [groupRoles, setGroupRoles] = useState<any[]>([]);
+    const [memberRoles, setMemberRoles] = useState<any[]>([]);
+    const [ownerVerification, setOwnerVerification] = useState<{ isVerified: boolean; tier: 'bronze' | 'silver' | 'gold' | null }>({ isVerified: false, tier: null });
 
     useEffect(() => {
         if (id) fetchGroupDetails();
@@ -36,9 +40,10 @@ export default function GroupDetailsPage() {
             setLoading(true); // Explicitly set loading at start
 
             // Fetch group info
+            // Fetch group info
             const { data: groupData, error: groupError } = await supabase
                 .from('groups')
-                .select('*')
+                .select('*, owner:owner_id(is_verified, verification_tier)')
                 .eq('id', id)
                 .single();
 
@@ -55,6 +60,12 @@ export default function GroupDetailsPage() {
             }
 
             setGroup(groupData);
+            if (groupData.owner) {
+                setOwnerVerification({
+                    isVerified: (groupData.owner as any).is_verified,
+                    tier: (groupData.owner as any).verification_tier
+                });
+            }
 
             // Fetch members
             const { data: membersData, error: membersError } = await supabase
@@ -83,19 +94,42 @@ export default function GroupDetailsPage() {
                 setIsOwner(groupData.owner_id === user.id);
             }
 
-            // Fetch group stories
-            const { data: storiesData, error: storiesError } = await supabase
-                .from('stories')
-                .select('*')
-                .eq('group_id', id)
-                .order('created_at', { ascending: false });
+            // Fetch group stories - only for members of private groups or any visitor for public groups
+            const memberRecord = membersData?.find((m: any) => m.user_id === user?.id);
+            const userIsMember = memberRecord?.status === 'active';
+            const canViewStories = !groupData.is_private || userIsMember;
 
-            if (storiesError) {
-                console.error('Error fetching group stories:', storiesError);
-                // Don't throw here - stories are not critical for page load
+            if (canViewStories) {
+                const { data: storiesData, error: storiesError } = await supabase
+                    .from('stories')
+                    .select('*')
+                    .eq('group_id', id)
+                    .order('created_at', { ascending: false });
+
+                if (storiesError) {
+                    console.error('Error fetching group stories:', storiesError);
+                    // Don't throw here - stories are not critical for page load
+                } else {
+                    setStories(storiesData || []);
+                }
             } else {
-                setStories(storiesData || []);
+                // Non-member of private group - don't show stories
+                setStories([]);
             }
+
+            // Fetch custom roles for this group
+            const { data: rolesData } = await supabase
+                .from('group_roles')
+                .select('*')
+                .eq('group_id', id);
+            setGroupRoles(rolesData || []);
+
+            // Fetch member role assignments
+            const { data: memberRolesData } = await supabase
+                .from('member_roles')
+                .select('*, role:role_id(*)')
+                .eq('group_id', id);
+            setMemberRoles(memberRolesData || []);
         } catch (error) {
             console.error('Error fetching group details:', error);
             toast.error('Failed to load group details');
@@ -205,6 +239,24 @@ export default function GroupDetailsPage() {
         }
     };
 
+    const handleCancelRequest = async () => {
+        if (!user) return;
+        try {
+            const { error } = await supabase
+                .from('group_members')
+                .delete()
+                .eq('group_id', id)
+                .eq('user_id', user.id);
+
+            if (error) throw error;
+            toast.success('Request cancelled');
+            setHasPendingRequest(false);
+        } catch (error) {
+            console.error('Error cancelling request:', error);
+            toast.error('Failed to cancel request');
+        }
+    };
+
 
     // Only show loading spinner on initial load with no cached data
     if (loading && !group) return (
@@ -276,24 +328,39 @@ export default function GroupDetailsPage() {
                     <div className="flex items-center gap-1">
                         {group.is_private ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
                         <span>{group.is_private ? 'Private' : 'Public'}</span>
+                        {ownerVerification.isVerified && (
+                            <VerificationBadge
+                                isVerified={true}
+                                tier={ownerVerification.tier}
+                                size="sm"
+                                className="ml-1"
+                            />
+                        )}
                     </div>
                 </div>
 
             </div>
 
             {/* Actions */}
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center gap-3 mb-6">
                 {!isMember ? (
-                    <button
-                        onClick={handleJoin}
-                        disabled={hasPendingRequest}
-                        className={`px-8 py-2 rounded-full font-bold transition-colors ${hasPendingRequest
-                            ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                            : 'bg-[#EC1D99] text-white hover:bg-[#d61a88]'
-                            }`}
-                    >
-                        {hasPendingRequest ? 'Request Sent' : (group.is_private ? 'Request to Join' : 'Join Group')}
-                    </button>
+                    <>
+                        {hasPendingRequest ? (
+                            <button
+                                onClick={handleCancelRequest}
+                                className="px-8 py-2 rounded-full font-bold transition-colors border border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-500 hover:bg-red-500/10"
+                            >
+                                Cancel Request
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleJoin}
+                                className="px-8 py-2 rounded-full font-bold transition-colors bg-[#EC1D99] text-white hover:bg-[#d61a88]"
+                            >
+                                {group.is_private ? 'Request to Join' : 'Join Group'}
+                            </button>
+                        )}
+                    </>
                 ) : (
                     <Link
                         href={`/create-story?groupId=${id}`}
@@ -340,7 +407,25 @@ export default function GroupDetailsPage() {
                 {activeTab === 'stories' ? (
                     /* Stories Tab */
                     <div>
-                        {stories.length > 0 ? (
+                        {/* Show restricted message for non-members of private groups */}
+                        {group.is_private && !isMember ? (
+                            <div className="text-center py-12 bg-gray-900/30 rounded-xl border border-gray-800">
+                                <Lock className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+                                <p className="text-gray-400 font-medium mb-2">Members Only</p>
+                                <p className="text-gray-500 text-sm mb-4">Join this group to see stories</p>
+                                {!hasPendingRequest && (
+                                    <button
+                                        onClick={handleJoin}
+                                        className="px-6 py-2 bg-[#EC1D99] text-white rounded-full text-sm font-bold hover:bg-[#d61a88] transition-colors"
+                                    >
+                                        Request to Join
+                                    </button>
+                                )}
+                                {hasPendingRequest && (
+                                    <p className="text-xs text-gray-600">Your request is pending approval</p>
+                                )}
+                            </div>
+                        ) : stories.length > 0 ? (
                             <div className="grid grid-cols-2 gap-3">
                                 {stories.map((story) => (
                                     <Link
@@ -371,19 +456,61 @@ export default function GroupDetailsPage() {
                 ) : (
                     /* Members Tab */
                     <div className="space-y-3">
-                        {members.filter(m => m.status === 'active').map((member) => (
-                            <div key={member.id} className="flex items-center gap-3 bg-gray-900/50 p-3 rounded-xl">
-                                <img
-                                    src={member.profiles?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.user_id}`}
-                                    alt={member.profiles?.name}
-                                    className="w-10 h-10 rounded-full bg-gray-800"
-                                />
-                                <div className="flex-1">
-                                    <p className="font-medium">{member.profiles?.name || 'Unknown User'}</p>
-                                    <p className="text-xs text-gray-500 capitalize">{member.role}</p>
+                        {members.filter(m => m.status === 'active').map((member) => {
+                            const isGroupOwner = member.user_id === group.owner_id;
+                            const isGroupAdmin = member.role === 'admin' && !isGroupOwner;
+                            const customRoles = memberRoles
+                                .filter(mr => mr.user_id === member.user_id)
+                                .map(mr => mr.role)
+                                .filter(Boolean);
+
+                            return (
+                                <div key={member.id} className="flex items-center gap-3 bg-gray-900/50 p-3 rounded-xl">
+                                    <Link href={`/profile/${member.user_id}`} className="flex items-center gap-3 flex-1 hover:opacity-80 transition-opacity">
+                                        <img
+                                            src={member.profiles?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.user_id}`}
+                                            alt={member.profiles?.name}
+                                            className="w-10 h-10 rounded-full bg-gray-800"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <p className="font-medium">{member.profiles?.name || 'Unknown User'}</p>
+                                                {isGroupOwner && (
+                                                    <div className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 rounded-full border border-yellow-500/40">
+                                                        <Crown className="w-3 h-3 text-yellow-500" />
+                                                        <span className="text-[10px] font-bold text-yellow-500 uppercase">Owner</span>
+                                                    </div>
+                                                )}
+                                                {isGroupAdmin && (
+                                                    <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-500/20 rounded-full border border-purple-500/40">
+                                                        <Shield className="w-3 h-3 text-purple-400" />
+                                                        <span className="text-[10px] font-bold text-purple-400 uppercase">Admin</span>
+                                                    </div>
+                                                )}
+                                                {/* Custom role badges */}
+                                                {customRoles.map((role: any) => (
+                                                    <div
+                                                        key={role.id}
+                                                        className="flex items-center gap-1 px-2 py-0.5 rounded-full"
+                                                        style={{ backgroundColor: `${role.color}20`, border: `1px solid ${role.color}40` }}
+                                                    >
+                                                        {role.badge_url ? (
+                                                            <img src={role.badge_url} alt={role.name} className="w-3 h-3 rounded-full object-cover" />
+                                                        ) : (
+                                                            <Tag className="w-3 h-3" style={{ color: role.color }} />
+                                                        )}
+                                                        <span className="text-[10px] font-bold uppercase" style={{ color: role.color }}>{role.name}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {!isGroupOwner && !isGroupAdmin && customRoles.length === 0 && (
+                                                <p className="text-xs text-gray-500 capitalize">{member.role}</p>
+                                            )}
+                                        </div>
+                                    </Link>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

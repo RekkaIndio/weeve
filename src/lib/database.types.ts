@@ -416,6 +416,92 @@ export interface Database {
                     }
                 ]
             }
+            group_roles: {
+                Row: {
+                    id: string
+                    group_id: string
+                    name: string
+                    badge_url: string | null
+                    color: string
+                    permissions: Json
+                    display_order: number
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    group_id: string
+                    name: string
+                    badge_url?: string | null
+                    color?: string
+                    permissions?: Json
+                    display_order?: number
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    group_id?: string
+                    name?: string
+                    badge_url?: string | null
+                    color?: string
+                    permissions?: Json
+                    display_order?: number
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "group_roles_group_id_fkey"
+                        columns: ["group_id"]
+                        referencedRelation: "groups"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            member_roles: {
+                Row: {
+                    id: string
+                    group_id: string
+                    user_id: string
+                    role_id: string
+                    assigned_at: string
+                    assigned_by: string | null
+                }
+                Insert: {
+                    id?: string
+                    group_id: string
+                    user_id: string
+                    role_id: string
+                    assigned_at?: string
+                    assigned_by?: string | null
+                }
+                Update: {
+                    id?: string
+                    group_id?: string
+                    user_id?: string
+                    role_id?: string
+                    assigned_at?: string
+                    assigned_by?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "member_roles_group_id_fkey"
+                        columns: ["group_id"]
+                        referencedRelation: "groups"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "member_roles_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    },
+                    {
+                        foreignKeyName: "member_roles_role_id_fkey"
+                        columns: ["role_id"]
+                        referencedRelation: "group_roles"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
             friendships: {
                 Row: {
                     id: string

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from 'react';
-import { X, Share2, MessageCircle, Send, Check, Copy, Search as SearchIcon, Users } from 'lucide-react';
+import { X, MessageCircle, Send, Check, Copy, Search as SearchIcon, Users, QrCode } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { searchUsers } from '@/lib/friends';
 import { notifyGroupInvite } from '@/lib/notifications';
@@ -48,6 +48,7 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
     const [selectedRecipients, setSelectedRecipients] = useState<Map<string, Recipient>>(new Map());
     const [sending, setSending] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [showQR, setShowQR] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [searching, setSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<Recipient[]>([]);
@@ -133,10 +134,48 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
 
     const handleCopyLink = async () => {
         try {
-            await navigator.clipboard.writeText(groupUrl);
-            setCopied(true);
-            toast.success('Link copied to clipboard!');
-            setTimeout(() => setCopied(false), 2000);
+            // Try navigator.clipboard first (works on HTTPS or localhost)
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                try {
+                    await navigator.clipboard.writeText(groupUrl);
+                    setCopied(true);
+                    toast.success('Link copied to clipboard!');
+                    setTimeout(() => setCopied(false), 2000);
+                    return;
+                } catch (clipboardError) {
+                    // Clipboard API failed (can happen on some mobile browsers), try fallback
+                    console.warn('Clipboard API failed, trying fallback:', clipboardError);
+                }
+            }
+
+            // Fallback: create a temporary textarea and use execCommand
+            const textArea = document.createElement('textarea');
+            textArea.value = groupUrl;
+            textArea.style.position = 'fixed';
+            textArea.style.top = '0';
+            textArea.style.left = '0';
+            textArea.style.width = '2em';
+            textArea.style.height = '2em';
+            textArea.style.padding = '0';
+            textArea.style.border = 'none';
+            textArea.style.outline = 'none';
+            textArea.style.boxShadow = 'none';
+            textArea.style.background = 'transparent';
+            textArea.style.opacity = '0';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+
+            if (successful) {
+                setCopied(true);
+                toast.success('Link copied to clipboard!');
+                setTimeout(() => setCopied(false), 2000);
+            } else {
+                throw new Error('execCommand copy failed');
+            }
         } catch (error) {
             console.error('Copy failed:', error);
             toast.error('Failed to copy link');
@@ -166,6 +205,30 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
             const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
             await openUrl(whatsappUrl);
             toast.success('Opening WhatsApp...');
+        }
+    };
+
+    const handleTelegramShare = async () => {
+        try {
+            const { Capacitor } = await import('@capacitor/core');
+            const isNative = Capacitor.isNativePlatform();
+
+            // Telegram share URL
+            const telegramUrl = isNative
+                ? `tg://msg_url?url=${encodeURIComponent(groupUrl)}&text=${encodeURIComponent(`Join "${group.name}" on Weeve!`)}`
+                : `https://t.me/share/url?url=${encodeURIComponent(groupUrl)}&text=${encodeURIComponent(`Join "${group.name}" on Weeve!`)}`;
+
+            if (isNative) {
+                window.location.href = telegramUrl;
+            } else {
+                await openUrl(telegramUrl);
+            }
+            toast.success('Opening Telegram...');
+        } catch (e) {
+            // Fallback to web URL
+            const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(groupUrl)}&text=${encodeURIComponent(`Join "${group.name}" on Weeve!`)}`;
+            await openUrl(telegramUrl);
+            toast.success('Opening Telegram...');
         }
     };
 
@@ -414,20 +477,10 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
                 >
                     {/* Quick Share - moved to footer */}
                     <div className="pb-3">
-                        <div className="grid grid-cols-3 gap-3">
-                            <button
-                                onClick={handleDeviceShare}
-                                className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
-                            >
-                                <div className="w-10 h-10 rounded-full bg-[#EC1D99]/20 flex items-center justify-center">
-                                    <Share2 className="w-5 h-5 text-[#EC1D99]" />
-                                </div>
-                                <span className="text-xs text-white">Device</span>
-                            </button>
-
+                        <div className="grid grid-cols-4 gap-2">
                             <button
                                 onClick={handleWhatsAppShare}
-                                className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
+                                className="flex flex-col items-center gap-2 p-2 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
                             >
                                 <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
                                     <MessageCircle className="w-5 h-5 text-green-500" />
@@ -436,8 +489,28 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
                             </button>
 
                             <button
+                                onClick={handleTelegramShare}
+                                className="flex flex-col items-center gap-2 p-2 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
+                            >
+                                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                    <Send className="w-5 h-5 text-blue-500" />
+                                </div>
+                                <span className="text-xs text-white">Telegram</span>
+                            </button>
+
+                            <button
+                                onClick={() => setShowQR(!showQR)}
+                                className="flex flex-col items-center gap-2 p-2 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
+                            >
+                                <div className={`w-10 h-10 rounded-full ${showQR ? 'bg-purple-500/20' : 'bg-white/10'} flex items-center justify-center`}>
+                                    <QrCode className={`w-5 h-5 ${showQR ? 'text-purple-500' : 'text-white'}`} />
+                                </div>
+                                <span className={`text-xs ${showQR ? 'text-purple-500' : 'text-white'}`}>QR Code</span>
+                            </button>
+
+                            <button
                                 onClick={handleCopyLink}
-                                className="flex flex-col items-center gap-2 p-3 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
+                                className="flex flex-col items-center gap-2 p-2 bg-gray-800 hover:bg-gray-750 rounded-xl transition-colors"
                             >
                                 <div className={`w-10 h-10 rounded-full ${copied ? 'bg-green-500/20' : 'bg-white/10'} flex items-center justify-center`}>
                                     {copied ? (
@@ -451,6 +524,20 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
                                 </span>
                             </button>
                         </div>
+
+                        {/* QR Code Display */}
+                        {showQR && (
+                            <div className="mt-4 flex flex-col items-center">
+                                <div className="bg-white p-3 rounded-xl">
+                                    <img
+                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(groupUrl)}`}
+                                        alt="QR Code for group"
+                                        className="w-[150px] h-[150px]"
+                                    />
+                                </div>
+                                <p className="text-xs text-gray-400 mt-2">Scan to join the group</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

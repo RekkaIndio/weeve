@@ -8,6 +8,7 @@ import { notifyStoryShared } from '@/lib/notifications';
 import { buildPublicUrl } from '@/lib/url';
 import { toast } from 'sonner';
 import { useVideoStitcher } from '@/hooks/useVideoStitcher';
+import { supabase } from '@/lib/supabase';
 
 interface ShareModalProps {
     story: Story;
@@ -55,6 +56,39 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const [isSaved, setIsSaved] = useState(false);
     const [lastAction, setLastAction] = useState<'save' | 'share' | null>(null);
     const [isHighQualityExport, setIsHighQualityExport] = useState(false);
+    const [groupInfo, setGroupInfo] = useState<{ avatar?: string; name?: string } | null>(null);
+
+    // Fetch group info when modal opens if story belongs to a group
+    useEffect(() => {
+        const fetchGroupInfo = async () => {
+            if (!story.groupId) {
+                setGroupInfo(null);
+                return;
+            }
+
+            try {
+                const { data: groupData, error } = await supabase
+                    .from('groups')
+                    .select('avatar, name')
+                    .eq('id', story.groupId)
+                    .single();
+
+                if (error) throw error;
+
+                if (groupData) {
+                    setGroupInfo({
+                        avatar: groupData.avatar,
+                        name: groupData.name
+                    });
+                }
+            } catch (e) {
+                console.warn('Failed to fetch group info for watermark:', e);
+                setGroupInfo(null);
+            }
+        };
+
+        fetchGroupInfo();
+    }, [story.groupId]);
 
     // Automatically save video when stitching completes after a save action
     useEffect(() => {
@@ -647,7 +681,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                             } else {
                                                 // Trigger Stitch if not ready
                                                 if (stitchingState === 'idle' || stitchingState === 'error') {
-                                                    stitchStory(story);
+                                                    stitchStory(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
                                                     toast.loading('Preparing video for Instagram...');
                                                 } else {
                                                     toast.info('Video is processing...');
@@ -669,7 +703,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                                 handleShareFile('other');
                                             } else {
                                                 if (stitchingState === 'idle' || stitchingState === 'error') {
-                                                    stitchStory(story);
+                                                    stitchStory(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
                                                     toast.loading('Preparing video for TikTok...');
                                                 } else {
                                                     toast.info('Video is processing...');
@@ -717,7 +751,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                                 onClick={() => {
                                                     setIsHighQualityExport(true);
                                                     setLastAction('save');
-                                                    stitchStory(story, { highQuality: true });
+                                                    stitchStory(story, { highQuality: true, groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
                                                     toast.loading('Preparing high-quality export (this may take a moment)...');
                                                 }}
                                                 disabled={stitchingState !== 'idle' && stitchingState !== 'error' && stitchingState !== 'complete'}
@@ -756,7 +790,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                                         } else {
                                                             setIsHighQualityExport(false);
                                                             setLastAction('save');
-                                                            stitchStory(story);
+                                                            stitchStory(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
                                                         }
                                                     }}
                                                     disabled={isProcessing}

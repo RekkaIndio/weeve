@@ -42,6 +42,9 @@ export interface Group {
     memberCount: number;
     isPrivate: boolean;
     isMember?: boolean;
+    storyCount?: number;
+    ownerIsVerified?: boolean;
+    ownerVerificationTier?: 'bronze' | 'silver' | 'gold' | null;
 }
 
 export type MediaType = 'video' | 'image' | 'text' | 'drawing';
@@ -888,10 +891,37 @@ export const useStore = create<AppState>()(
                          return;
                     }
 
+                    // Fetch user's group memberships for filtering group content
+                    // Group content should only be visible to members on the main feed
+                    const currentUserId = get()?.currentUser?.id;
+                    let userGroupIds = new Set<string>();
+                    if (currentUserId) {
+                        try {
+                            const { data: membershipData } = await supabase
+                                .from('group_members')
+                                .select('group_id')
+                                .eq('user_id', currentUserId)
+                                .eq('status', 'active');
+                            
+                            if (membershipData) {
+                                userGroupIds = new Set(membershipData.map((m: { group_id: string }) => m.group_id));
+                            }
+                            console.log(`[Store] User is member of ${userGroupIds.size} groups`);
+                        } catch (err) {
+                            console.warn('[Store] Failed to fetch group memberships:', err);
+                        }
+                    }
+
                     const formattedStories: Story[] = storiesData
                         // Filter out stories we don't want on the public feed
                         .filter((s: any) => {
-                            const currentUserId = get()?.currentUser?.id;
+                            // Group content check - only show if user is a member of the group
+                            // This applies to both public and private groups
+                            if (s.group_id) {
+                                if (!currentUserId || !userGroupIds.has(s.group_id)) {
+                                    return false; // User is not a member of this group
+                                }
+                            }
 
                             // For public stories, only show if they have at least 1 contribution OR the current user is a participant
                             if (s.visibility === 'public') {

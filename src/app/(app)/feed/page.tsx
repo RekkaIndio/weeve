@@ -14,7 +14,7 @@ export default function Home() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
-  const { stories, fetchStories, currentUser, setGroups, fetchFriends, isStoriesLoading } = useStore();
+  const { stories, fetchStories, currentUser, setGroups, fetchFriends, isStoriesLoading, groups } = useStore();
   const [showOnboardingOverlay, setShowOnboardingOverlay] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -110,6 +110,15 @@ export default function Home() {
 
   // Filter stories based on active tab
   const filteredStories = stories.filter(story => {
+    // Group content check - only show if user is a member of the group
+    // This is a secondary safeguard (primary filter is in fetchStories)
+    if (story.groupId) {
+      const isMemberOfGroup = groups.some(g => g.id === story.groupId);
+      if (!isMemberOfGroup) {
+        return false;
+      }
+    }
+
     // Global filter: Private stories should only be visible to participants
     if (story.visibility === 'private') {
       if (!currentUser) return false;

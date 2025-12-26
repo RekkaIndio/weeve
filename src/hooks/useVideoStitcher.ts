@@ -3,7 +3,7 @@ import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { Story, Contribution, useStore } from '@/lib/store';
 import { toast } from 'sonner';
-import { createImageFromText, createWatermarkImage } from '@/lib/mediaUtils';
+import { createImageFromText, createWatermarkImage, createGroupWatermarkImage } from '@/lib/mediaUtils';
 
 export type StitchingState = 'idle' | 'loading-ffmpeg' | 'downloading-assets' | 'stitching' | 'complete' | 'error';
 
@@ -67,7 +67,7 @@ export function useVideoStitcher() {
     const lastProgressValueRef = useRef<number>(0);
     const progressWatchdogRef = useRef<number | null>(null);
 
-    const stitchStory = useCallback(async (story: Story, options?: { highQuality?: boolean }) => {
+    const stitchStory = useCallback(async (story: Story, options?: { highQuality?: boolean; groupAvatarUrl?: string; groupName?: string }) => {
         if (!story.contributions || story.contributions.length === 0) {
             toast.error('No clips to stitch');
             return;
@@ -367,6 +367,7 @@ export function useVideoStitcher() {
 
             // 4. Concat VIDEO
             // Generate watermark with creator's username
+            let hasGroupWatermark = false;
             try {
                 const creator = story.participants.find(p => p.id === story.creatorId);
                 const creatorName = creator ? (creator.name || creator.inviteCode || 'Weeve') : 'Weeve';
@@ -415,6 +416,22 @@ export function useVideoStitcher() {
                 }
             }
 
+            // Generate group watermark if this is a group story
+            if (options?.groupAvatarUrl) {
+                try {
+                    const groupWatermarkBlob = await createGroupWatermarkImage(
+                        options.groupAvatarUrl,
+                        options.groupName
+                    );
+                    await ffmpeg.writeFile('group_watermark.png', new Uint8Array(await groupWatermarkBlob.arrayBuffer()));
+                    cleanupFiles.push('group_watermark.png');
+                    hasGroupWatermark = true;
+                } catch (e) {
+                    console.warn('Failed to create group watermark:', e);
+                    // Continue without group watermark
+                }
+            }
+
             const concatListV = intermediateVideoFiles.map(f => `file '${f}'`).join('\n');
             await ffmpeg.writeFile('concat_v.txt', concatListV);
             cleanupFiles.push('concat_v.txt');
@@ -431,15 +448,27 @@ export function useVideoStitcher() {
                 // Overlay Logic:
                 // Use 'watermark.png' which is already sized by canvas
                 // Overlay bottom-right with 20px padding (main_w-overlay_w-20:main_h-overlay_h-20)
-                // We typically don't need to scale the canvas generated image, but let's ensure it's not huge.
-                // It shouldn't be given the font size of 24px (~40px height).
-                const filter = `[0:v][2:v]overlay=main_w-overlay_w-20:main_h-overlay_h-20[vout]`;
+                // If group watermark exists, add it to top-left with 20px padding
+                
+                // Build filter based on whether we have group watermark
+                let filter: string;
+                let inputs: string[];
+                
+                if (hasGroupWatermark) {
+                    // Chain overlay: first add group watermark (top-left), then creator watermark (bottom-right)
+                    // Input order: 0=video, 1=audio, 2=creator_watermark, 3=group_watermark
+                    filter = `[0:v][3:v]overlay=20:20[v1];[v1][2:v]overlay=main_w-overlay_w-20:main_h-overlay_h-20[vout]`;
+                    inputs = ['final_v.mp4', 'final_a.m4a', 'watermark.png', 'group_watermark.png'];
+                } else {
+                    // Standard single overlay
+                    filter = `[0:v][2:v]overlay=main_w-overlay_w-20:main_h-overlay_h-20[vout]`;
+                    inputs = ['final_v.mp4', 'final_a.m4a', 'watermark.png'];
+                }
+                
                 try {
-                    await execWithRetry([
+                    const ffmpegArgs = [
                         '-loglevel', 'error',
-                        '-i', 'final_v.mp4',
-                        '-i', 'final_a.m4a',
-                        '-i', 'watermark.png',
+                        ...inputs.flatMap(f => ['-i', f]),
                         '-filter_complex', filter,
                         '-map', '[vout]',
                         '-map', '1:a',
@@ -453,7 +482,8 @@ export function useVideoStitcher() {
                         '-threads', '1',
                         '-y',
                         'output.mp4'
-                    ], 1);
+                    ];
+                    await execWithRetry(ffmpegArgs, 1);
                 } catch (overlayErr) {
                     console.warn('Overlay merge failed, attempting merge without watermark:', overlayErr);
                     try {

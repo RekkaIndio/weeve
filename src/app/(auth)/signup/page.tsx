@@ -214,7 +214,7 @@ export default function SignUpPage() {
                     )}
 
                     {/* Social Logins */}
-                    <div className="w-full">
+                    {/* <div className="w-full">
                         <button
                             onClick={handleGoogleSignUp}
                             disabled={loading || socialLoading === "google"}
@@ -234,7 +234,7 @@ export default function SignUpPage() {
                         <div className="flex-grow border-t border-white/20"></div>
                         <span className="flex-shrink-0 mx-4 text-gray-400 text-sm">Or continue with email</span>
                         <div className="flex-grow border-t border-white/20"></div>
-                    </div>
+                    </div> */}
 
                     <input
                         type="email"

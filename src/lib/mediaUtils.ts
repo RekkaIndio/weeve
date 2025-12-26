@@ -237,3 +237,90 @@ export async function createWatermarkImage(
         }, 'image/png');
     });
 }
+
+/**
+ * Creates a group avatar watermark image for the top-left corner of videos.
+ * Shows a circular group avatar with the group name next to it.
+ * Returns a Blob of the PNG image.
+ */
+export async function createGroupWatermarkImage(
+    groupAvatarUrl: string,
+    groupName?: string
+): Promise<Blob> {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not get canvas context');
+
+    // Load Group Avatar
+    const groupImg = new Image();
+    await new Promise((resolve, reject) => {
+        groupImg.onload = resolve;
+        groupImg.onerror = reject;
+        groupImg.crossOrigin = 'anonymous';
+        groupImg.src = groupAvatarUrl;
+    });
+
+    // Layout dimensions
+    const avatarSize = 80;
+    const padding = 20;
+    const fontSize = 32;
+    
+    // Measure group name if provided
+    ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+    const textWidth = groupName ? ctx.measureText(groupName).width : 0;
+    const textPadding = groupName ? 16 : 0;
+    
+    // Canvas size
+    const totalWidth = avatarSize + textPadding + textWidth + padding * 2;
+    const totalHeight = avatarSize + padding * 2;
+    
+    canvas.width = totalWidth;
+    canvas.height = totalHeight;
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Shadow settings for depth
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
+    
+    // Draw circular group avatar
+    const avatarX = padding;
+    const avatarY = padding;
+    
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(groupImg, avatarX, avatarY, avatarSize, avatarSize);
+    ctx.restore();
+    
+    // Draw white border around avatar
+    ctx.beginPath();
+    ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.stroke();
+    
+    // Draw group name if provided
+    if (groupName) {
+        ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#FFFFFF';
+        const textX = avatarX + avatarSize + textPadding;
+        const textY = avatarY + avatarSize / 2;
+        ctx.fillText(groupName, textX, textY);
+    }
+    
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+            if (blob) resolve(blob);
+            else reject(new Error('Canvas to Blob failed for group watermark'));
+        }, 'image/png');
+    });
+}
