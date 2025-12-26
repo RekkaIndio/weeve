@@ -85,6 +85,7 @@ export interface StoryComment {
     userName: string;
     content: string;
     timestamp: number;
+    parentCommentId?: string | null;
 }
 
 export interface Story {
@@ -220,7 +221,7 @@ interface AppState {
     setStories: (stories: Story[]) => void;
     setGroups: (groups: Group[]) => void;
     toggleStoryLike: (storyId: string) => Promise<void>;
-    addStoryComment: (storyId: string, content: string) => Promise<void>;
+    addStoryComment: (storyId: string, content: string, parentCommentId?: string) => Promise<void>;
     logoutUser: () => void;
     fetchFriends: () => Promise<void>;
     forkStory: (originalStoryId: string, slotIndices: number[], newParticipantId: string, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
@@ -528,7 +529,7 @@ export const useStore = create<AppState>()(
                 });
             },
 
-            addStoryComment: async (storyId, content) => {
+            addStoryComment: async (storyId, content, parentCommentId) => {
                 const trimmed = content.trim();
                 if (!trimmed) return;
 
@@ -545,6 +546,7 @@ export const useStore = create<AppState>()(
                         user_name: currentUser.name,
                         content: trimmed,
                         timestamp,
+                        parent_comment_id: parentCommentId || null,
                     })
                     .select()
                     .single();
@@ -560,23 +562,44 @@ export const useStore = create<AppState>()(
                     userName: insertedComment.user_name,
                     content: insertedComment.content,
                     timestamp: insertedComment.timestamp ?? timestamp,
+                    parentCommentId: insertedComment.parent_comment_id,
                 };
 
-                // Send comment notification to story creator
+                // Send notification
                 const state = get();
                 const story = state.stories.find((s) => s.id === storyId);
-                if (story && story.creatorId !== currentUser.id) {
-                    import('./notifications').then(({ notifyStoryComment }) => {
-                        notifyStoryComment(
-                            storyId,
-                            story.title,
-                            story.creatorId,
-                            currentUser.name,
-                            trimmed
-                        ).catch(err => {
-                            console.error('Failed to send comment notification:', err);
-                        });
-                    }).catch(err => console.error('Failed to import notifications:', err));
+                
+                if (story) {
+                    // If this is a reply, notify the parent comment author
+                    if (parentCommentId) {
+                        const parentComment = story.comments.find(c => c.id === parentCommentId);
+                        if (parentComment && parentComment.userId !== currentUser.id) {
+                            import('./notifications').then(({ notifyCommentReply }) => {
+                                notifyCommentReply(
+                                    storyId,
+                                    story.title,
+                                    parentComment.userId,
+                                    currentUser.name,
+                                    trimmed
+                                ).catch(err => {
+                                    console.error('Failed to send reply notification:', err);
+                                });
+                            }).catch(err => console.error('Failed to import notifications:', err));
+                        }
+                    } else if (story.creatorId !== currentUser.id) {
+                        // Top-level comment: notify story creator
+                        import('./notifications').then(({ notifyStoryComment }) => {
+                            notifyStoryComment(
+                                storyId,
+                                story.title,
+                                story.creatorId,
+                                currentUser.name,
+                                trimmed
+                            ).catch(err => {
+                                console.error('Failed to send comment notification:', err);
+                            });
+                        }).catch(err => console.error('Failed to import notifications:', err));
+                    }
                 }
 
                 set((state) => {

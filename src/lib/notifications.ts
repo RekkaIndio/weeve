@@ -290,6 +290,27 @@ export const notifyStoryComment = async (
 };
 
 /**
+ * Notify comment author of a reply to their comment
+ */
+export const notifyCommentReply = async (
+    storyId: string,
+    storyTitle: string,
+    parentCommentUserId: string,
+    replierName: string,
+    replyText: string
+) => {
+    await createNotification({
+        user_id: parentCommentUserId,
+        type: 'story_commented',
+        title: 'New Reply 💬',
+        message: `${replierName} replied to your comment on "${storyTitle}": ${replyText.substring(0, 50)}${replyText.length > 50 ? '...' : ''}`,
+        data: { story_id: storyId },
+        action_url: `/story/${storyId}`,
+        read: false,
+    });
+};
+
+/**
  * Notify user of group invite
  */
 export const notifyGroupInvite = async (

@@ -223,6 +223,7 @@ const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
             userName: comment.user_name,
             content: comment.content,
             timestamp: Number(comment.timestamp ?? Date.now()),
+            parentCommentId: comment.parent_comment_id ?? undefined,
         }));
 
     return {

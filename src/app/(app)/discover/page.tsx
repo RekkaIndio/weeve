@@ -654,15 +654,209 @@ function DiscoverContent() {
                                 ))}
                             </>
                         ) : (
-                            <div className="col-span-2 text-center py-12 space-y-3">
-                                <Search className="w-12 h-12 text-gray-700 mx-auto" />
-                                <p className="text-gray-400">{`No stories found matching "${searchQuery}"`}</p>
-                                <Link
-                                    href="/create-story"
-                                    className="inline-block text-[#EC1D99] text-sm font-medium hover:underline"
-                                >
-                                    {`Create a story about "${searchQuery}" →`}
-                                </Link>
+                            <div className="col-span-2">
+                                {/* Contextual empty state based on feed type */}
+                                {searchQuery.trim() ? (
+                                    // Search with no results - show trending as fallback
+                                    <div className="space-y-6">
+                                        <div className="text-center py-6">
+                                            <p className="text-gray-400 text-sm">{`No exact matches for "${searchQuery}"`}</p>
+                                        </div>
+                                        {trendingStories.length > 0 && (
+                                            <div>
+                                                <h3 className="text-sm font-bold text-gray-400 mb-3">✨ Discover trending stories instead</h3>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {trendingStories.slice(0, 4).map((story, idx) => (
+                                                        <Link
+                                                            key={story.id}
+                                                            href={`/story/${story.id}`}
+                                                            className="relative rounded-xl overflow-hidden group aspect-square"
+                                                        >
+                                                            <MediaWithFallback
+                                                                src={story.coverImage || story.contributions[0]?.mediaUrl}
+                                                                alt={story.title}
+                                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                            />
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
+                                                                <h3 className="font-bold text-sm line-clamp-2">{story.title}</h3>
+                                                            </div>
+                                                            <div className="absolute inset-0 ring-1 ring-inset ring-white/5 rounded-xl group-hover:ring-[#EC1D99]/50 transition-all" />
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : feedType === 'seeds' ? (
+                                    // Seeds tab empty - show info about brand partnerships
+                                    <div className="py-8 space-y-6">
+                                        <div className="text-center space-y-4">
+                                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#EC1D99]/20 to-purple-500/20 flex items-center justify-center mx-auto">
+                                                <span className="text-3xl">🌱</span>
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-lg">Brand Seeds Coming Soon</h3>
+                                                <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">
+                                                    Seed posts are brand-initiated stories where you can add your creative spin and earn rewards.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {trendingStories.length > 0 && (
+                                            <div>
+                                                <h3 className="text-sm font-bold text-gray-400 mb-3">🔥 Trending stories you might like</h3>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {trendingStories.slice(0, 4).map((story) => (
+                                                        <Link
+                                                            key={story.id}
+                                                            href={`/story/${story.id}`}
+                                                            className="relative rounded-xl overflow-hidden group aspect-square"
+                                                        >
+                                                            <MediaWithFallback
+                                                                src={story.coverImage || story.contributions[0]?.mediaUrl}
+                                                                alt={story.title}
+                                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                            />
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
+                                                                <h3 className="font-bold text-sm line-clamp-2">{story.title}</h3>
+                                                            </div>
+                                                            <div className="absolute inset-0 ring-1 ring-inset ring-white/5 rounded-xl group-hover:ring-[#EC1D99]/50 transition-all" />
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : feedType === 'canon' ? (
+                                    // Canon tab empty - show info about brand canon posts
+                                    <div className="py-8 space-y-6">
+                                        <div className="text-center space-y-4">
+                                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#EC1D99]/20 to-amber-500/20 flex items-center justify-center mx-auto">
+                                                <span className="text-3xl">🎬</span>
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-lg">Brand Canon Stories</h3>
+                                                <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">
+                                                    Canon posts are premium brand narratives. Check back soon for collaborative storytelling opportunities!
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {trendingStories.length > 0 && (
+                                            <div>
+                                                <h3 className="text-sm font-bold text-gray-400 mb-3">🔥 Trending stories you might like</h3>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {trendingStories.slice(0, 4).map((story) => (
+                                                        <Link
+                                                            key={story.id}
+                                                            href={`/story/${story.id}`}
+                                                            className="relative rounded-xl overflow-hidden group aspect-square"
+                                                        >
+                                                            <MediaWithFallback
+                                                                src={story.coverImage || story.contributions[0]?.mediaUrl}
+                                                                alt={story.title}
+                                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                            />
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
+                                                                <h3 className="font-bold text-sm line-clamp-2">{story.title}</h3>
+                                                            </div>
+                                                            <div className="absolute inset-0 ring-1 ring-inset ring-white/5 rounded-xl group-hover:ring-[#EC1D99]/50 transition-all" />
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : feedType === 'friends' ? (
+                                    // Friends tab empty - encourage adding friends
+                                    <div className="py-8 space-y-6">
+                                        <div className="text-center space-y-4">
+                                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#EC1D99]/20 to-pink-500/20 flex items-center justify-center mx-auto">
+                                                <Heart className="w-8 h-8 text-[#EC1D99]" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-lg">No Friend Stories Yet</h3>
+                                                <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">
+                                                    Follow more creators to see their stories here!
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => setViewMode('people')}
+                                                className="inline-flex items-center gap-2 bg-[#EC1D99] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#d61a88] transition-colors"
+                                            >
+                                                <Users className="w-4 h-4" />
+                                                Find People to Follow
+                                            </button>
+                                        </div>
+                                        {trendingStories.length > 0 && (
+                                            <div>
+                                                <h3 className="text-sm font-bold text-gray-400 mb-3">🔥 Popular creators are posting</h3>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {trendingStories.slice(0, 4).map((story) => (
+                                                        <Link
+                                                            key={story.id}
+                                                            href={`/story/${story.id}`}
+                                                            className="relative rounded-xl overflow-hidden group aspect-square"
+                                                        >
+                                                            <MediaWithFallback
+                                                                src={story.coverImage || story.contributions[0]?.mediaUrl}
+                                                                alt={story.title}
+                                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                            />
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
+                                                                <h3 className="font-bold text-sm line-clamp-2">{story.title}</h3>
+                                                            </div>
+                                                            <div className="absolute inset-0 ring-1 ring-inset ring-white/5 rounded-xl group-hover:ring-[#EC1D99]/50 transition-all" />
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    // Default empty state - show trending
+                                    <div className="py-8 space-y-6">
+                                        {trendingStories.length > 0 ? (
+                                            <div>
+                                                <h3 className="text-sm font-bold text-gray-400 mb-3">✨ Discover what&apos;s trending</h3>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {trendingStories.slice(0, 6).map((story) => (
+                                                        <Link
+                                                            key={story.id}
+                                                            href={`/story/${story.id}`}
+                                                            className="relative rounded-xl overflow-hidden group aspect-square"
+                                                        >
+                                                            <MediaWithFallback
+                                                                src={story.coverImage || story.contributions[0]?.mediaUrl}
+                                                                alt={story.title}
+                                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                            />
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
+                                                                <h3 className="font-bold text-sm line-clamp-2">{story.title}</h3>
+                                                            </div>
+                                                            <div className="absolute inset-0 ring-1 ring-inset ring-white/5 rounded-xl group-hover:ring-[#EC1D99]/50 transition-all" />
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center space-y-4">
+                                                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#EC1D99]/20 to-purple-500/20 flex items-center justify-center mx-auto">
+                                                    <Sparkles className="w-8 h-8 text-[#EC1D99]" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold text-lg">Start Your Story</h3>
+                                                    <p className="text-gray-400 text-sm mt-1">Be the first to create something amazing!</p>
+                                                </div>
+                                                <Link
+                                                    href="/create-story"
+                                                    className="inline-flex items-center gap-2 bg-[#EC1D99] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#d61a88] transition-colors"
+                                                >
+                                                    <Plus className="w-4 h-4" />
+                                                    Create Story
+                                                </Link>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

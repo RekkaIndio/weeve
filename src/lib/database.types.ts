@@ -264,6 +264,7 @@ export interface Database {
                     user_name: string
                     content: string
                     timestamp: number
+                    parent_comment_id: string | null
                     created_at: string
                 }
                 Insert: {
@@ -273,6 +274,7 @@ export interface Database {
                     user_name: string
                     content: string
                     timestamp?: number
+                    parent_comment_id?: string | null
                     created_at?: string
                 }
                 Update: {
@@ -282,6 +284,7 @@ export interface Database {
                     user_name?: string
                     content?: string
                     timestamp?: number
+                    parent_comment_id?: string | null
                     created_at?: string
                 }
                 Relationships: [
@@ -296,6 +299,12 @@ export interface Database {
                         columns: ["user_id"]
                         referencedRelation: "profiles"
                         referencedColumns: ["user_id"]
+                    },
+                    {
+                        foreignKeyName: "story_comments_parent_comment_id_fkey"
+                        columns: ["parent_comment_id"]
+                        referencedRelation: "story_comments"
+                        referencedColumns: ["id"]
                     }
                 ]
             }

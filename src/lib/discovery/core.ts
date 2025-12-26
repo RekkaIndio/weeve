@@ -124,8 +124,14 @@ export function rankStories(
       filteredStories = stories.filter(s => s.postType === 'canon' && !s.forkedFromStoryId);
       break;
     case 'seed':
-      // Only show original Seed posts (not user forks)
-      filteredStories = stories.filter(s => s.postType === 'seed' && !s.forkedFromStoryId);
+      // Only show original Seed posts (not user forks) that have the brand's first slot filled
+      // Seed posts have slot 0 as the brand's immutable slot, so they need at least 1 contribution
+      filteredStories = stories.filter(s => 
+        s.postType === 'seed' && 
+        !s.forkedFromStoryId && 
+        s.contributions && 
+        s.contributions.length > 0
+      );
       break;
     case 'open-slots':
       // Only original brand posts with open slots

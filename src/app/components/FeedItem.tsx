@@ -73,6 +73,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     const [isVisible, setIsVisible] = useState(false);
     const [isCommentsOpen, setIsCommentsOpen] = useState(false);
     const [commentText, setCommentText] = useState("");
+    const [replyingToId, setReplyingToId] = useState<string | null>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const bufferVideoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -263,6 +264,25 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
     const sortedComments = useMemo(() => {
         return comments.slice().sort((a, b) => a.timestamp - b.timestamp);
     }, [comments]);
+
+    // Organize comments into threads: top-level comments with their replies grouped
+    const organizedComments = useMemo(() => {
+        const topLevel = sortedComments.filter(c => !c.parentCommentId);
+        const repliesMap = new Map<string, typeof sortedComments>();
+
+        sortedComments.forEach(c => {
+            if (c.parentCommentId) {
+                const existing = repliesMap.get(c.parentCommentId) || [];
+                existing.push(c);
+                repliesMap.set(c.parentCommentId, existing);
+            }
+        });
+
+        return topLevel.map(parent => ({
+            ...parent,
+            replies: repliesMap.get(parent.id) || []
+        }));
+    }, [sortedComments]);
 
     const isLiked = useMemo(() => {
         if (!currentUser) return false;
@@ -992,9 +1012,12 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         event.preventDefault();
         const trimmed = commentText.trim();
         if (!trimmed) return;
-        await addStoryComment(story.id, trimmed);
+        // If replying, pass the parent comment ID (flatten to single level)
+        const parentId = replyingToId || undefined;
+        await addStoryComment(story.id, trimmed, parentId);
         setCommentText("");
-    }, [addStoryComment, commentText, story.id]);
+        setReplyingToId(null);
+    }, [addStoryComment, commentText, story.id, replyingToId]);
 
     const getAvatarForUser = useCallback((userId: string, fallbackName: string) => {
         const participant = participantsMap.get(userId);
@@ -1797,52 +1820,113 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                 </button>
                             </div>
                             <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-                                {sortedComments.length === 0 ? (
+                                {organizedComments.length === 0 ? (
                                     <p className="text-sm text-gray-400">Be the first to start the conversation.</p>
                                 ) : (
-                                    sortedComments.map((comment) => {
+                                    organizedComments.map((comment) => {
                                         const avatar = getAvatarForUser(comment.userId, comment.userName);
                                         return (
-                                            <div key={comment.id} className="flex items-start gap-3">
-                                                <img src={avatar} alt={comment.userName} className="w-9 h-9 rounded-full border border-white/10 object-cover" />
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-sm font-semibold text-white">{comment.userName}</span>
-                                                        {(() => {
-                                                            const participant = story.participants.find(p => p.id === comment.userId);
-                                                            return participant && (
-                                                                <VerificationBadge
-                                                                    isVerified={participant.isVerified || false}
-                                                                    tier={participant.verificationTier}
-                                                                    size="sm"
-                                                                />
-                                                            );
-                                                        })()}
-                                                        <span className="text-xs text-gray-400">{formatRelativeTime(comment.timestamp)}</span>
+                                            <div key={comment.id} className="space-y-3">
+                                                {/* Parent comment */}
+                                                <div className="flex items-start gap-3">
+                                                    <img src={avatar} alt={comment.userName} className="w-9 h-9 rounded-full border border-white/10 object-cover" />
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-sm font-semibold text-white">{comment.userName}</span>
+                                                            {(() => {
+                                                                const participant = story.participants.find(p => p.id === comment.userId);
+                                                                return participant && (
+                                                                    <VerificationBadge
+                                                                        isVerified={participant.isVerified || false}
+                                                                        tier={participant.verificationTier}
+                                                                        size="sm"
+                                                                    />
+                                                                );
+                                                            })()}
+                                                            <span className="text-xs text-gray-400">{formatRelativeTime(comment.timestamp)}</span>
+                                                        </div>
+                                                        <div className="flex items-start justify-between gap-2 mt-1">
+                                                            <p className="text-sm text-gray-200 flex-1">{comment.content}</p>
+                                                            {story.allowComments !== false && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setReplyingToId(comment.id);
+                                                                        setCommentText('');
+                                                                    }}
+                                                                    className="text-xs text-gray-400 hover:text-[#EC1D99] transition-colors flex-shrink-0"
+                                                                >
+                                                                    Reply
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <p className="text-sm text-gray-200 mt-1">{comment.content}</p>
                                                 </div>
+                                                {/* Replies */}
+                                                {comment.replies && comment.replies.length > 0 && (
+                                                    <div className="ml-12 space-y-3 border-l-2 border-white/10 pl-4">
+                                                        {comment.replies.map((reply) => {
+                                                            const replyAvatar = getAvatarForUser(reply.userId, reply.userName);
+                                                            return (
+                                                                <div key={reply.id} className="flex items-start gap-3">
+                                                                    <img src={replyAvatar} alt={reply.userName} className="w-7 h-7 rounded-full border border-white/10 object-cover" />
+                                                                    <div className="flex-1">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <span className="text-sm font-semibold text-white">{reply.userName}</span>
+                                                                            {(() => {
+                                                                                const participant = story.participants.find(p => p.id === reply.userId);
+                                                                                return participant && (
+                                                                                    <VerificationBadge
+                                                                                        isVerified={participant.isVerified || false}
+                                                                                        tier={participant.verificationTier}
+                                                                                        size="sm"
+                                                                                    />
+                                                                                );
+                                                                            })()}
+                                                                            <span className="text-xs text-gray-400">{formatRelativeTime(reply.timestamp)}</span>
+                                                                        </div>
+                                                                        <p className="text-sm text-gray-200 mt-1">{reply.content}</p>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })
                                 )}
                             </div>
                             {story.allowComments !== false ? (
-                                <form onSubmit={handleCommentSubmit} className="flex items-center gap-3">
-                                    <input
-                                        type="text"
-                                        value={commentText}
-                                        onChange={(event) => setCommentText(event.target.value)}
-                                        placeholder="Add a comment..."
-                                        className="flex-1 rounded-full bg-white/10 border border-white/20 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]"
-                                    />
-                                    <button
-                                        type="submit"
-                                        disabled={!commentText.trim()}
-                                        className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${commentText.trim() ? "bg-[#EC1D99] text-white" : "bg-gray-700 text-gray-400"}`}
-                                    >
-                                        Send
-                                    </button>
+                                <form onSubmit={handleCommentSubmit} className="flex flex-col gap-2">
+                                    {replyingToId && (
+                                        <div className="flex items-center justify-between text-xs text-gray-400 px-1">
+                                            <span>Replying to {organizedComments.find(c => c.id === replyingToId)?.userName || 'comment'}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setReplyingToId(null)}
+                                                className="text-gray-500 hover:text-white transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="text"
+                                            value={commentText}
+                                            onChange={(event) => setCommentText(event.target.value)}
+                                            placeholder={replyingToId ? "Write a reply..." : "Add a comment..."}
+                                            className="flex-1 rounded-full bg-white/10 border border-white/20 px-4 py-2 text-sm text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#EC1D99]"
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={!commentText.trim()}
+                                            className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${commentText.trim() ? "bg-[#EC1D99] text-white" : "bg-gray-700 text-gray-400"}`}
+                                        >
+                                            Send
+                                        </button>
+                                    </div>
                                 </form>
                             ) : (
                                 <div className="text-center py-3 px-4 bg-gray-800/50 rounded-lg">
