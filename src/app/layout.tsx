@@ -40,6 +40,7 @@ import AuthProvider from "./components/AuthProvider";
 import StoreInitializer from "./components/StoreInitializer";
 import InviteHandler from "./components/InviteHandler";
 import CrashlyticsInitializer from "./components/CrashlyticsInitializer";
+import PushNotificationInitializer from "./components/PushNotificationInitializer";
 
 import { Toaster } from 'sonner';
 
@@ -57,6 +58,7 @@ export default function RootLayout({
           <StoreInitializer />
           <InviteHandler />
           <CrashlyticsInitializer />
+          <PushNotificationInitializer />
           {children}
           <Toaster richColors position="top-center" />
         </AuthProvider>
