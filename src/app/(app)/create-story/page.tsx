@@ -364,7 +364,36 @@ function CreateStoryContent() {
 
       addStory(newStory);
 
+      // Handle Group Notifications
+      if (groupId && groupInfo) {
+        // Fetch group members to notify
+        const { data: groupMembers, error: membersError } = await supabase
+          .from('group_members')
+          .select('user_id')
+          .eq('group_id', groupId)
+          .eq('status', 'active')
+          .neq('user_id', currentUser.id); // Exclude the creator
+
+        if (!membersError && groupMembers && groupMembers.length > 0) {
+          const memberIds = groupMembers.map((m: { user_id: string }) => m.user_id);
+
+          import('@/lib/notifications').then(({ notifyGroupNewStory }) => {
+            notifyGroupNewStory(
+              groupId,
+              groupInfo.name,
+              newStoryId,
+              data.title,
+              currentUser.name,
+              memberIds
+            ).catch(err => {
+              console.error('Failed to send group notifications:', err);
+            });
+          }).catch(err => console.error('Failed to import notifications:', err));
+        }
+      }
+
       // Ensure the server story list is up-to-date before routing so the story page can rely on fresh DB data
+
       try {
         await fetchStories();
       } catch (err) {

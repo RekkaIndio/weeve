@@ -354,6 +354,36 @@ export const notifyGroupUpdate = async (groupId: string, groupName: string, memb
 };
 
 /**
+ * Notify group members of a new story
+ */
+export const notifyGroupNewStory = async (
+    groupId: string,
+    groupName: string,
+    storyId: string,
+    storyTitle: string,
+    creatorName: string,
+    memberIds: string[]
+) => {
+    const notifications = memberIds.map(userId => ({
+        user_id: userId,
+        type: 'group_update' as NotificationType,
+        title: 'New Group Story 📖',
+        message: `${creatorName} added "${storyTitle}" to ${groupName}`,
+        data: { group_id: groupId, story_id: storyId },
+        action_url: `/story/${storyId}`, // Direct link to story, but context is group
+        read: false,
+    }));
+
+    const { error } = await supabase
+        .from('notifications')
+        .insert(notifications);
+
+    if (error) {
+        console.error('Error creating group new story notifications:', error);
+    }
+};
+
+/**
  * Notify story creator that a participant has left
  */
 export const notifyParticipantLeft = async (
