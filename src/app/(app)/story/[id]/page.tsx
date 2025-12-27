@@ -1798,7 +1798,17 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                             </div>
                         </div>
                     ) : (
-                        <div className="text-gray-500">No segments yet. Be the first!</div>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white px-6 text-center">
+                            <div className="w-20 h-20 rounded-full bg-[#EC1D99]/10 flex items-center justify-center mb-6 animate-pulse">
+                                <Sparkles className="w-10 h-10 text-[#EC1D99]" />
+                            </div>
+                            <h3 className="text-2xl font-bold bg-gradient-to-br from-white to-gray-400 bg-clip-text text-transparent mb-3">
+                                Start the Story
+                            </h3>
+                            <p className="text-gray-400 max-w-sm leading-relaxed">
+                                Be the first to add a weeve and set the direction for what comes next.
+                            </p>
+                        </div>
                     )
                 )
                 }

@@ -196,7 +196,7 @@ export default function LoginPage() {
             </div>
 
             {/* Login Form */}
-            <div className="relative z-10 w-full max-w-md px-6 flex flex-col items-center">
+            <div className="relative z-10 w-full max-w-xl px-6 flex flex-col items-center">
                 <div className="mb-6">
                     <img
                         src="/weeve-logo.png"

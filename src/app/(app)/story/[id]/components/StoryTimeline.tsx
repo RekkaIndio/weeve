@@ -381,7 +381,7 @@ export function StoryTimeline({
 
             {!hasContributions && (
                 <div className="text-xs text-gray-500 px-2 pb-2">
-                    No stitches yet. Be the first to add one!
+                    No weeves yet. Be the first to add one!
                 </div>
             )}
 
