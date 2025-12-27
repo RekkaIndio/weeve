@@ -3,8 +3,8 @@
 // Requires:
 // - FIREBASE_SERVICE_ACCOUNT in secrets (JSON string)
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import { JWT } from 'https://esm.sh/google-auth-library@9.0.0'
+import { createClient } from 'npm:@supabase/supabase-js@2.39.3'
+import { JWT } from 'npm:google-auth-library@9.0.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
