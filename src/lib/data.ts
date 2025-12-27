@@ -187,6 +187,7 @@ const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
             const profile = participant.user;
             const userId = profile?.user_id ?? participant.user_id;
             const name = profile?.name ?? participant.user_id;
+            // console.log('[Data] Mapping participant:', name, 'Position:', participant.position);
             return {
                 id: userId,
                 name,
@@ -195,6 +196,7 @@ const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
                 isInfluencer: profile?.is_influencer ?? undefined,
                 interactionCost: profile?.interaction_cost ?? undefined,
                 inviteCode: profile?.invite_code ?? undefined,
+                position: participant.position,
             };
         });
 

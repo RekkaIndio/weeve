@@ -1342,69 +1342,78 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                 </div>
 
                 {/* Weeve Button */}
-                {(story.visibility === 'public' || (story.visibility === 'private' && isParticipant)) && !['canon', 'seed'].includes(story.postType || '') && (
-                    <div className="flex flex-col items-center gap-0.5 relative">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                if (story.monetizationCost && story.monetizationCost > 0) {
-                                    if ((currentUser?.tokens || 0) < story.monetizationCost) {
-                                        setShowMonetizationModal('insufficient');
+                {/* Only show fork button for:
+                    - Private storiesyou're part of
+                    - Public 'invite' mode stories (traditional private-style stories that are public)
+                    - NOT for public 'open' mode stories (these allow direct contribution to open slots)
+                    - NOT for Canon/Seed posts (these have their own fork UI)
+                */}
+                {(story.visibility === 'public' || (story.visibility === 'private' && isParticipant))
+                    && !['canon', 'seed'].includes(story.postType || '')
+                    && (story.mode !== 'open' || (story.contributions?.length || 0) >= (story.maxWeeves || 3)) // Hide fork button for open mode stories UNLESS they are full/complete
+                    && (
+                        <div className="flex flex-col items-center gap-0.5 relative">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (story.monetizationCost && story.monetizationCost > 0) {
+                                        if ((currentUser?.tokens || 0) < story.monetizationCost) {
+                                            setShowMonetizationModal('insufficient');
+                                        } else {
+                                            setShowMonetizationModal('confirm');
+                                        }
                                     } else {
-                                        setShowMonetizationModal('confirm');
-                                    }
-                                } else {
 
-                                    setIsForking(!isForking);
-                                    if (showTutorialTooltip) {
-                                        handleTooltipDismiss();
+                                        setIsForking(!isForking);
+                                        if (showTutorialTooltip) {
+                                            handleTooltipDismiss();
+                                        }
                                     }
+                                }}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center border border-white/20 transition-all ${showTutorialTooltip
+                                    ? "bg-[#EC1D99] text-white scale-110 animate-pulse ring-4 ring-[#EC1D99]/50"
+                                    : isForking
+                                        ? "bg-[#EC1D99] text-white scale-110"
+                                        : "bg-gray-800/50 backdrop-blur-sm text-[#EC1D99]"
+                                    }`}
+                                aria-label="Fork story"
+                            >
+                                <span className="font-black text-lg">W</span>
+                            </button>
+                            <span className={`text-xs font-bold ${showTutorialTooltip ? 'text-[#EC1D99]' : ''}`}>
+                                {story.monetizationCost && story.monetizationCost > 0
+                                    ? `💎 ${story.monetizationCost}`
+                                    : 'Weeve'
                                 }
-                            }}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center border border-white/20 transition-all ${showTutorialTooltip
-                                ? "bg-[#EC1D99] text-white scale-110 animate-pulse ring-4 ring-[#EC1D99]/50"
-                                : isForking
-                                    ? "bg-[#EC1D99] text-white scale-110"
-                                    : "bg-gray-800/50 backdrop-blur-sm text-[#EC1D99]"
-                                }`}
-                            aria-label="Fork story"
-                        >
-                            <span className="font-black text-lg">W</span>
-                        </button>
-                        <span className={`text-xs font-bold ${showTutorialTooltip ? 'text-[#EC1D99]' : ''}`}>
-                            {story.monetizationCost && story.monetizationCost > 0
-                                ? `💎 ${story.monetizationCost}`
-                                : 'Weeve'
-                            }
-                        </span>
+                            </span>
 
-                        {/* Tutorial Tooltip */}
-                        {showTutorialTooltip && (
-                            <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 w-64 animate-in fade-in slide-in-from-right-5 duration-300">
-                                <div className="bg-[#EC1D99] text-white p-4 rounded-2xl shadow-2xl relative">
-                                    <button
-                                        type="button"
-                                        onClick={handleTooltipDismiss}
-                                        className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-                                    >
-                                        <span className="text-xs">✕</span>
-                                    </button>
-                                    <div className="mb-2">
-                                        <span className="text-2xl">👆</span>
-                                    </div>
-                                    <h4 className="font-bold text-lg mb-1">Click Here!</h4>
-                                    <p className="text-sm text-white/90 leading-snug">
-                                        Tap the <strong>Weeve button</strong> to add your parts to the story.
-                                    </p>
-                                    {/* Arrow pointing to button */}
-                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full">
-                                        <div className="w-0 h-0 border-t-8 border-t-transparent border-b-8 border-b-transparent border-l-8 border-l-[#EC1D99]"></div>
+                            {/* Tutorial Tooltip */}
+                            {showTutorialTooltip && (
+                                <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 w-64 animate-in fade-in slide-in-from-right-5 duration-300">
+                                    <div className="bg-[#EC1D99] text-white p-4 rounded-2xl shadow-2xl relative">
+                                        <button
+                                            type="button"
+                                            onClick={handleTooltipDismiss}
+                                            className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                                        >
+                                            <span className="text-xs">✕</span>
+                                        </button>
+                                        <div className="mb-2">
+                                            <span className="text-2xl">👆</span>
+                                        </div>
+                                        <h4 className="font-bold text-lg mb-1">Click Here!</h4>
+                                        <p className="text-sm text-white/90 leading-snug">
+                                            Tap the <strong>Weeve button</strong> to add your parts to the story.
+                                        </p>
+                                        {/* Arrow pointing to button */}
+                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full">
+                                            <div className="w-0 h-0 border-t-8 border-t-transparent border-b-8 border-b-transparent border-l-8 border-l-[#EC1D99]"></div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-                )}
+                            )}
+                        </div>
+                    )}
 
                 {/* Weeve Button for Brand/Seed posts */}
                 {['canon', 'seed'].includes(story.postType || '') && (() => {

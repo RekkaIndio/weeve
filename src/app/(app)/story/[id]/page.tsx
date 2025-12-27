@@ -166,6 +166,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const stickerLastTapRef = useRef<{ id: string; time: number } | null>(null);
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const [hasMovedInCurrentEdit, setHasMovedInCurrentEdit] = useState(false);
+    // Track which slot position the user chose to contribute to (crucial for users with multiple slots)
+    const [targetSlotPosition, setTargetSlotPosition] = useState<number | null>(null);
 
     // Reset move tracking when entering edit mode
     useEffect(() => {
@@ -220,10 +222,12 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     // If not, treat the story as "complete" for display purposes so they see the normal post view
     // EXCEPTION: Brand posts (canon/seed) allow public users to weave, so don't mark as complete
     const isBrandPost = story?.postType === 'canon' || story?.postType === 'seed';
+    const isPublicOpenStory = story?.visibility === 'public' && story?.mode === 'open';
     const isUserInvolvedInStory = currentUser && story && (
         story.creatorId === currentUser.id ||
         story.participants.some(p => p.id === currentUser.id) ||
-        isBrandPost  // Brand posts are always "open" for public users to weave
+        isBrandPost || // Brand posts are always "open" for public users to weave
+        isPublicOpenStory // Public open stories are "open" for everyone to weave
     );
 
     const isStoryComplete = story?.status === 'completed' || isAtCapacity || !isUserInvolvedInStory;
@@ -489,14 +493,18 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         });
 
         // Get participants with status 'waiting' who haven't contributed yet
-        const contributors = new Set(contributions.map(c => c.userId));
+        // IMPORTANT: Check if the POSITION has a contribution, not just if the USER has contributed
+        // This allows the same user to have multiple slots
+        const contributionPositions = new Set(
+            contributions
+                .filter(c => c.timestamp >= 1000000 && c.timestamp < 100000000)
+                .map(c => Math.floor(c.timestamp / 1000000) - 1)
+        );
         const allParticipants = story?.participants ?? [];
-
-
 
         // For forked stories (private visibility), show empty slot for participants with status='waiting'
         // even if hasContributed is true (because contributions might have been copied from original)
-        // For regular stories, show empty slot if participant hasn't contributed
+        // For regular stories, show empty slot if participant hasn't contributed TO THAT POSITION
         const isForkedStory = story?.visibility === 'private';
         let waitingParticipants = allParticipants.filter(p => {
             const hasPosition = p.position !== undefined && p.position !== null;
@@ -504,8 +512,9 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 // For forked stories, show slot for waiting participants regardless of contribution status
                 return true;
             }
-            // For regular stories, show if no contribution and has position
-            return !contributors.has(p.id) && hasPosition;
+            // For regular stories, show if THIS POSITION has no contribution
+            // Check position-specific contribution, not user-level
+            return hasPosition && !contributionPositions.has(p.position as number);
         });
 
         // If the story is complete or at capacity, do not display waiting slots — play like a normal completed post
@@ -1345,14 +1354,27 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             const nextTurnUpdate = willComplete ? null : computedNextTurnUserId;
 
             // Calculate timestamp based on slot position for proper ordering
-            // If user has a waiting slot (forked story), use their position to determine timestamp
-            // Position 0 = 1000000, Position 1 = 2000000, etc.
-            // This ensures their contribution appears in the correct slot
+            // For open mode stories (public/brand), use assigned position for ALL participants
+            // Position 0 = 1000000,Position 1 = 2000000, etc.
+            // This ensures contributions appear in the correct slot
             let contributionTimestamp = Date.now();
-            if (currentUserParticipant?.status === 'waiting' && typeof currentUserParticipant.position === 'number') {
-                // Use position-based timestamp: (position + 1) * 1000000
-                contributionTimestamp = (currentUserParticipant.position + 1) * 1000000;
+            const isOpenModeStory = story.mode === 'open';
 
+            // Determine position to use for timestamp
+            // 1. Use targetSlotPosition if explicitly set (highest priority, handles new users & multi-slot)
+            // 2. Use currentUserParticipant.position if available (fallback for existing participants)
+            let positionToUse: number | null = targetSlotPosition;
+
+            if (positionToUse === null && currentUserParticipant && typeof currentUserParticipant.position === 'number') {
+                positionToUse = currentUserParticipant.position;
+            }
+
+            if (positionToUse !== null) {
+                // For open mode: always use position-based timestamp
+                // For invite mode: only use position-based timestamp if waiting (forked stories)
+                if (isOpenModeStory || (currentUserParticipant?.status === 'waiting')) {
+                    contributionTimestamp = (positionToUse + 1) * 1000000;
+                }
             }
 
             const { contribution } = await createStoryContribution({
@@ -1818,8 +1840,12 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     participantMap={participantMap}
                     participantsWithoutContributions={participantsWithoutContributions}
                     onContributionSelect={handleContributionSelect}
-                    onAddWeeve={() => {
+                    onAddWeeve={(slotPosition?: number) => {
                         try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
+                        // Store the target position so we know which slot to fill
+                        if (typeof slotPosition === 'number') {
+                            setTargetSlotPosition(slotPosition);
+                        }
                         setShowStitchMenu(true);
                         setShowOnboardingTutorial(false);
                     }}

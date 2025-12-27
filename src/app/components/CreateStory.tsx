@@ -36,7 +36,8 @@ const StorySlotItem = ({
   onRemove,
   onFill,
   isLast,
-  isReordering
+  isReordering,
+  isLocked = false
 }: {
   slot: StorySlot;
   index: number;
@@ -45,6 +46,7 @@ const StorySlotItem = ({
   onFill: (idx: number) => void;
   isLast: boolean;
   isReordering: boolean;
+  isLocked?: boolean;
 }) => {
   const controls = useDragControls();
   const participant = slot.friend;
@@ -64,13 +66,15 @@ const StorySlotItem = ({
         {/* Avatar/Slot Circle */}
         <div
           onClick={() => {
-            if (isEmpty && !isReordering) onFill(index);
+            if (isEmpty && !isReordering && !isLocked) onFill(index);
           }}
-          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all select-none relative bg-gray-800 ${isReordering && participant
-            ? "ring-2 ring-yellow-400 cursor-grab active:cursor-grabbing transform scale-105"
-            : participant
-              ? "ring-2 ring-[#EC1D99] ring-offset-2 ring-offset-black"
-              : "cursor-pointer hover:scale-105"
+          className={`w-14 h-14 rounded-full flex items-center justify-center transition-all select-none relative bg-gray-800 ${isLocked
+              ? "ring-2 ring-gray-600 cursor-not-allowed opacity-75"
+              : isReordering && participant
+                ? "ring-2 ring-yellow-400 cursor-grab active:cursor-grabbing transform scale-105"
+                : participant
+                  ? "ring-2 ring-[#EC1D99] ring-offset-2 ring-offset-black"
+                  : "cursor-pointer hover:scale-105"
             }`}
         >
           {participant ? (
@@ -86,8 +90,8 @@ const StorySlotItem = ({
             </div>
           )}
 
-          {/* Remove Button (Hide during reorder) */}
-          {participant && !isReordering && (
+          {/* Remove Button (Hide during reorder or if locked) */}
+          {participant && !isReordering && !isLocked && (
             <div
               className="absolute -bottom-1 -right-1 w-5 h-5 bg-red-500/80 rounded-full flex items-center justify-center cursor-pointer z-10 hidden group-hover:flex"
               onClick={(e) => {
@@ -99,10 +103,19 @@ const StorySlotItem = ({
             </div>
           )}
 
+          {/* Lock Icon for locked slots */}
+          {isLocked && (
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-gray-600 rounded-full flex items-center justify-center z-10">
+              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+          )}
+
         </div>
 
-        {/* Remove via main click */}
-        {participant && !isReordering && (
+        {/* Remove via main click (disabled if locked) */}
+        {participant && !isReordering && !isLocked && (
           <button
             className="absolute inset-0 w-full h-full opacity-0 z-0"
             onClick={() => onRemove(participant.id, index)}
@@ -154,6 +167,14 @@ export interface CreateStoryFormState {
   visibilityDays?: number; // Brand post visibility duration (1, 3, 7, 14 days)
   scheduledFor?: string; // ISO date string for scheduled posts
   productUrl?: string; // Product URL for brand posts
+
+  // Public story slot selection fields
+  selectedSlotIndices?: number[]; // For public stories: which slots the creator selected to fill
+  slotMedia?: Record<number, {
+    type: 'video' | 'image' | 'text' | 'drawing';
+    url: string;
+    thumbnailUrl?: string;
+  }>; // Media uploaded for each selected slot
 }
 
 interface CreateStoryProps {
@@ -194,16 +215,19 @@ const CreateStory = ({
 
   const handleBack = onBack ?? (() => router.back());
 
-  // Initialize slots
+  // Initialize slots - creator is ALWAYS in slot 1 (index 0)
   const [slots, setSlots] = useState<StorySlot[]>(() => {
-    // Determine initial length (default 2 based on default inviteCount=1 -> 2 slots)
-    const initialParticipants = currentUser
-      ? [{ id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }, ...Array(1).fill(null)]
-      : Array(2).fill(null);
+    // Start with 2 empty slots (based on default inviteCount=1 -> 2 total slots)
+    const initialParticipants = Array(2).fill(null);
 
-    return initialParticipants.map(friend => ({
+    return initialParticipants.map((_, index) => ({
       id: generateId(),
-      friend: friend
+      // Creator is always in first slot
+      friend: index === 0 && currentUser ? {
+        id: currentUser.id,
+        name: currentUser.name,
+        avatar: currentUser.avatar
+      } : null
     }));
   });
 
@@ -283,6 +307,16 @@ const CreateStory = ({
   const [slotToFill, setSlotToFill] = useState<number | null>(null);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
+
+  // For public stories with slot selection, track which slots the creator wants to fill
+  // Initialize with [0] since creator is always in slot 1
+  const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([0]);
+  const [slotMedia, setSlotMedia] = useState<Record<number, {
+    type: 'video' | 'image' | 'text' | 'drawing';
+    url: string;
+    thumbnailUrl?: string;
+  }>>({});
+  const [uploadingSlotIndex, setUploadingSlotIndex] = useState<number | null>(null);
 
   // Handle invite query param
   useEffect(() => {
@@ -551,16 +585,44 @@ const CreateStory = ({
 
     const activeParticipants = slots.map(s => s.friend).filter(p => p !== null);
 
-    // For normal stories, all slots must be filled with invited friends
-    // For Brand Canon/Seed stories, empty slots are allowed (they are open for public)
+    // Determine story type first
     const isBrandPost = formState.postType === 'canon' || formState.postType === 'seed';
+    const isPublicStoryWithSlotSelection = formState.visibility === 'public' && !isBrandPost;
 
-    if (!isBrandPost && activeParticipants.length !== slots.length) {
-      setError("Please fill all empty slots before creating the story");
+    // Check if current user is in at least one slot
+    const userInSlots = slots.some(s => s.friend?.id === currentUser?.id);
+    if (!userInSlots && !isBrandPost) {
+      setError("You must add yourself to at least one slot");
       if (participantsRef.current) {
         participantsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
       return;
+    }
+
+    // Validation logic differs based on story type:
+    // 1. Brand posts (Canon/Seed): empty slots allowed (they are open for public)
+    // 2. Public stories with slot selection: creator must select slots and upload media
+    // 3. Private stories: all slots must be filled with invited friends
+
+    if (isPublicStoryWithSlotSelection) {
+      // Public story validation: must select at least 1 slot
+      // Media will be added after creation using existing contribution flow
+      if (selectedSlotIndices.length === 0) {
+        setError("Please select at least one slot to fill for your public story");
+        if (participantsRef.current) {
+          participantsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+    } else if (!isBrandPost) {
+      // Private story validation: all slots must be filled with invited friends
+      if (activeParticipants.length !== slots.length) {
+        setError("Please fill all empty slots before creating the story");
+        if (participantsRef.current) {
+          participantsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
     }
 
     // Check if brand post requires payment
@@ -582,7 +644,9 @@ const CreateStory = ({
       // Construct the data expected by parent from our slots
       const submissionData: CreateStoryFormState = {
         ...formState,
-        orderedParticipants: slots.map(s => s.friend)
+        orderedParticipants: slots.map(s => s.friend),
+        // Include slot selection data for public stories
+        selectedSlotIndices: isPublicStoryWithSlotSelection ? selectedSlotIndices : undefined,
       };
 
       // Create the story and get the story ID
@@ -881,7 +945,7 @@ const CreateStory = ({
 
   // Render Section 2: Contributors
   const renderContributorsSection = () => (
-    <div className="space-y-6" ref={participantsRef}>
+    <div className="space-y-6 overflow-visible" ref={participantsRef}>
       <div className="text-left mb-6">
         <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
           <Users className="w-5 h-5 text-[#EC1D99]" />
@@ -1291,6 +1355,7 @@ const CreateStory = ({
               </div>
             </div>
 
+
             {/* Improved Slots Visualization */}
             <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
               <div className="flex items-center justify-between mb-3">
@@ -1326,10 +1391,40 @@ const CreateStory = ({
                       slot={slot}
                       index={idx}
                       isCurrentUser={isCurrentUser}
+                      isLocked={formState.visibility === 'public' && idx === 0} // Lock slot 1 for public stories
                       onRemove={handleRemoveFriend}
                       onFill={(i) => {
-                        setSlotToFill(i);
-                        setShowFriendDropdown(true);
+                        // For public stories, add current user to slot instead of opening friends picker
+                        if (formState.visibility === 'public' && currentUser) {
+                          const newSlots = [...slots];
+                          const isCurrentUserInSlot = newSlots[i].friend?.id === currentUser.id;
+
+                          if (isCurrentUserInSlot) {
+                            // Prevent removing current user from slot 1 (index 0) - they must always be there
+                            if (i === 0) {
+                              return; // Don't allow removal from slot 1
+                            }
+                            // Remove current user from this slot
+                            newSlots[i] = { ...newSlots[i], friend: null };
+                          } else {
+                            // Add current user to this slot
+                            newSlots[i] = {
+                              ...newSlots[i],
+                              friend: { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }
+                            };
+                          }
+                          setSlots(newSlots);
+
+                          // Update selectedSlotIndices based on slots with current user
+                          const userSlotIndices = newSlots
+                            .map((slot, idx) => slot.friend?.id === currentUser.id ? idx : -1)
+                            .filter(idx => idx !== -1);
+                          setSelectedSlotIndices(userSlotIndices);
+                        } else {
+                          // For private stories, open friends picker
+                          setSlotToFill(i);
+                          setShowFriendDropdown(true);
+                        }
                       }}
                       isLast={idx === slots.length - 1}
                       isReordering={isReordering}
@@ -1342,15 +1437,15 @@ const CreateStory = ({
         )
       }
 
-      {/* Friend Picker - Hidden for brand users since their posts are public */}
+      {/* Friend Picker - Available for both public and private stories (brand users use slot system) */}
       {
         !currentUser?.isBrand && formState.postType !== 'seed' && formState.postType !== 'canon' && (
-          <div className="relative">
-            <div className="flex justify-between items-center mb-2">
+          <div className="relative mb-24">
+            <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
                 <label
                   htmlFor="friends-input"
-                  className="block text-sm font-medium text-gray-300 font-sans"
+                  className="block text-sm font-semibold text-white font-sans"
                 >
                   Search Friends
                 </label>
@@ -1362,7 +1457,7 @@ const CreateStory = ({
                       setIsLoading(false);
                       toast.success("Friends list refreshed");
                     }}
-                    className="text-xs text-[#EC1D99] hover:text-[#D41C84] transition-colors"
+                    className="text-xs text-[#EC1D99] hover:text-[#D41C84] transition-colors font-medium"
                     type="button"
                   >
                     Refresh
@@ -1396,23 +1491,31 @@ const CreateStory = ({
                 disabled={
                   !slots.some(s => s.friend === null)
                 }
-                className="w-full px-4 py-4 bg-gray-900 border border-gray-800 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white placeholder-gray-600 disabled:opacity-50 disabled:cursor-not-allowed font-sans"
+                className="w-full px-4 py-4 bg-gray-800/50 border border-gray-700/50 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white placeholder-gray-500 disabled:opacity-50 disabled:cursor-not-allowed font-sans backdrop-blur-sm"
               />
+
 
               {/* Friend Avatar Popup */}
               {showFriendDropdown && (
                 <div
                   role="dialog"
                   aria-label="Select a friend"
-                  className="absolute top-full left-0 right-0 mt-2 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl z-20 max-h-64 overflow-y-auto p-3"
+                  className="absolute top-full left-0 right-0 mt-3 bg-gray-900/95 backdrop-blur-md border-2 border-gray-700/50 rounded-2xl shadow-2xl z-50 max-h-96 overflow-y-auto p-4"
                 >
+                  {/* Dropdown Header */}
+                  <div className="mb-3 pb-2 border-b border-gray-700/50">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                      Select Friends to Add
+                    </h3>
+                  </div>
+
                   {isSearching ? (
                     <div className="flex items-center justify-center py-4 text-gray-400">
                       <Loader className="w-5 h-5 animate-spin mr-2" />
                       <span>Searching...</span>
                     </div>
                   ) : filteredFriends.length > 0 ? (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
                       {filteredFriends.map((friend) => {
                         const canAddToStory = friend.isFriend || friend.id === currentUser?.id;
                         const showFriendRequestButton = !friend.isFriend &&
@@ -1519,7 +1622,7 @@ const CreateStory = ({
 
   // Render Section 3: Finishing Touches (Advanced Settings only now)
   const renderFinishingTouchesSection = () => (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-8">
       <div className="text-left mb-2">
         <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
           <Hash className="w-5 h-5 text-[#EC1D99]" />
@@ -1745,8 +1848,8 @@ const CreateStory = ({
         )}
       </header>
 
-      <main className="flex-1 px-4 py-8 pb-32 overflow-y-auto hidden-scrollbar">
-        <div className="max-w-xl mx-auto space-y-8">
+      <main className="flex-1 px-4 py-8 pb-32 overflow-y-auto overflow-x-hidden hidden-scrollbar">
+        <div className="max-w-xl mx-auto space-y-8 overflow-visible">
 
           {/* Error Message */}
           {error && (
@@ -1768,7 +1871,7 @@ const CreateStory = ({
           </div>
 
           {/* Section 2: Participants */}
-          <div className="bg-gray-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-sm shadow-xl">
+          <div className={`bg-gray-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-sm shadow-xl transition-all duration-300 ${showFriendDropdown ? 'pb-96' : 'pb-6'}`}>
             {renderContributorsSection()}
           </div>
 
