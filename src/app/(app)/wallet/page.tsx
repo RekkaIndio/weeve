@@ -10,9 +10,9 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 // Stripe Payment Links
 // TODO: Replace with production links when ready
 const PAYMENT_LINKS = {
-    TOKENS_100: 'https://buy.stripe.com/test_14AeVcdtk88qbN4bZ32Nq00', // Test link provided
-    TOKENS_550: 'https://buy.stripe.com/14A3cu1KCdsKdVc4wB2Nq01', // Prod link (placeholder for now)
-    TOKENS_1000: 'https://buy.stripe.com/28E8wO2OG4We2cugfj2Nq02', // Prod link (placeholder for now)
+    TOKENS_100: 'https://buy.stripe.com/test_00w7sKcmB8pQ95lf0m2oE0a',
+    TOKENS_550: 'https://buy.stripe.com/test_bJe6oGcmB8pQa9p6tQ2oE08',
+    TOKENS_1000: 'https://buy.stripe.com/test_aFa14m2M15dEbdtbOa2oE09',
 };
 
 export default function WalletPage() {
@@ -178,7 +178,7 @@ export default function WalletPage() {
                     {/* Quick Info */}
                     <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 mb-6">
                         <p className="text-sm text-gray-300">
-                            <span className="font-semibold text-blue-400">💡 Did you know?</span> You can earn tokens by creating monetized stories! 
+                            <span className="font-semibold text-blue-400">💡 Did you know?</span> You can earn tokens by creating monetized stories!
                             <Link href="/earnings" className="text-[#EC1D99] hover:underline ml-1">
                                 View your earnings →
                             </Link>

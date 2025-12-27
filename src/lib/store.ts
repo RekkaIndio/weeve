@@ -216,7 +216,7 @@ interface AppState {
     setActiveWeeve: (id: string | null) => void;
     addGroup: (group: Group) => void;
     addTokens: (amount: number) => void;
-    deductTokens: (amount: number) => boolean;
+    deductTokens: (amount: number, recipientId?: string) => boolean;
     setCurrentUser: (user: User | null) => void;
     setStories: (stories: Story[]) => void;
     setGroups: (groups: Group[]) => void;
@@ -440,15 +440,61 @@ export const useStore = create<AppState>()(
                     };
                 }),
 
-            deductTokens: (amount) => {
+            deductTokens: (amount, recipientId) => {
                 const state = get();
                 if (state.currentUser && state.currentUser.tokens >= amount) {
+                    const originalTokens = state.currentUser.tokens;
+                    
+                    // Optimistic update
                     set((state) => ({
                         currentUser: state.currentUser ? {
                             ...state.currentUser,
                             tokens: state.currentUser.tokens - amount,
                         } : null,
                     }));
+
+                    // Persist to backend using Transactional RPCs
+                    (async () => {
+                        try {
+                            let rpcError;
+                            
+                            if (recipientId) {
+                                // Transfer to another user (P2P)
+                                const { error } = await supabase.rpc('transfer_tokens', {
+                                    p_from_user_id: state.currentUser!.id,
+                                    p_to_user_id: recipientId,
+                                    p_token_amount: amount
+                                });
+                                rpcError = error;
+                            } else {
+                                // Burn / Platform Fee
+                                const { error } = await supabase.rpc('deduct_tokens', {
+                                    p_user_id: state.currentUser!.id,
+                                    p_token_amount: amount,
+                                    p_description: 'Feature usage / Burn'
+                                });
+                                rpcError = error;
+                            }
+
+                            if (rpcError) {
+                                console.error('Token transaction failed:', rpcError);
+                                throw rpcError;
+                            }
+                        } catch (err) {
+                            console.error('Failed to process token transaction:', err);
+                            // Revert on error
+                            set((state) => ({
+                                currentUser: state.currentUser ? {
+                                    ...state.currentUser,
+                                    tokens: originalTokens,
+                                } : null,
+                            }));
+                            
+                            // Optional: Show toast error to user
+                            // toast.error('Transaction failed');
+                        }
+                    })();
+
                     return true;
                 }
                 return false;

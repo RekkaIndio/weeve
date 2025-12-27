@@ -165,6 +165,7 @@ interface CreateStoryProps {
     name: string;
     avatar?: string;
     tokens: number;
+    isInfluencer?: boolean;
     // Brand account fields
     isBrand?: boolean;
     brandSubscriptionStatus?: 'none' | 'active' | 'expired';
@@ -1589,6 +1590,54 @@ const CreateStory = ({
                     How long each participant has to add their part
                   </p>
                 </div>
+
+                {currentUser?.isInfluencer && (
+                  <>
+                    <div className="h-px bg-white/5" />
+
+                    {/* Monetization Cost */}
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <label htmlFor="monetization-cost" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 font-sans pl-1">
+                          Entry Fee
+                        </label>
+                        <div className="text-right">
+                          <div className="text-[#EC1D99] font-bold text-lg font-sans">
+                            {formState.monetizationCost ? `${formState.monetizationCost} Tokens` : 'Free'}
+                          </div>
+                          {formState.monetizationCost ? (
+                            <div className="text-xs text-gray-500 font-normal">
+                              ≈ ${(formState.monetizationCost * 0.10).toFixed(2)} USD
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="relative group px-1">
+                        <input
+                          id="monetization-cost"
+                          type="range"
+                          min="0"
+                          max="500" // 500 tokens = $50
+                          step="5"
+                          value={formState.monetizationCost ?? 0}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            setFormState(prev => ({ ...prev, monetizationCost: val === 0 ? undefined : val }));
+                          }}
+                          className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-[#EC1D99]"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500 mt-2 font-sans font-medium">
+                          <span>Free</span>
+                          <span>500 Tokens</span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-4 px-1">
+                        Earn tokens when people join your story. Set a fee in tokens.
+                      </p>
+                    </div>
+                  </>
+                )}
 
                 <div className="h-px bg-white/5" />
               </>

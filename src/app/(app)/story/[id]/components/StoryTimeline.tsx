@@ -243,7 +243,7 @@ export function StoryTimeline({
                                 {displayName.split(' ').slice(0, 2).join(' ')}
                             </span>
                             <span className="text-[9px] uppercase tracking-wide text-gray-600">
-                                Part {(story.postType === 'canon' || story.postType === 'seed') ? (index !== undefined ? index + 1 : occurrence) : occurrence}
+                                Part {entry.position !== undefined ? entry.position + 1 : ((story.postType === 'canon' || story.postType === 'seed') ? (index !== undefined ? index + 1 : occurrence) : occurrence)}
                             </span>
                             {/* Only show "Their turn" for other users - current user sees the + button with "Your turn" */}
                             {isCurrentTurn && contribution.userId !== currentUser?.id && (

@@ -1371,7 +1371,12 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                         >
                             <span className="font-black text-lg">W</span>
                         </button>
-                        <span className={`text-xs font-bold ${showTutorialTooltip ? 'text-[#EC1D99]' : ''}`}>Weeve</span>
+                        <span className={`text-xs font-bold ${showTutorialTooltip ? 'text-[#EC1D99]' : ''}`}>
+                            {story.monetizationCost && story.monetizationCost > 0
+                                ? `💎 ${story.monetizationCost}`
+                                : 'Weeve'
+                            }
+                        </span>
 
                         {/* Tutorial Tooltip */}
                         {showTutorialTooltip && (
@@ -1474,24 +1479,35 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                 <div className="w-16 h-16 rounded-full bg-[#EC1D99]/20 flex items-center justify-center mx-auto mb-4">
                                     <span className="text-3xl">💎</span>
                                 </div>
-                                <h3 className="text-xl font-bold text-white mb-2">Premium Story</h3>
-                                <p className="text-gray-300 mb-2">
-                                    This story requires payment to contribute:
+                                <h3 className="text-xl font-bold text-white mb-2">Contribute to this Story</h3>
+                                <p className="text-gray-300 mb-4 text-sm">
+                                    Support the creator and add your own twist!
                                 </p>
-                                <div className="bg-[#EC1D99]/10 border border-[#EC1D99]/20 rounded-xl p-4 mb-4">
+                                <div className="bg-[#EC1D99]/10 border border-[#EC1D99]/20 rounded-xl p-4 mb-3">
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="text-sm text-gray-300">Cost to Contribute</span>
+                                        <span className="text-sm text-gray-300">Entry Fee</span>
                                         <span className="text-xl font-bold text-[#EC1D99]">{story.monetizationCost} tokens</span>
                                     </div>
                                     <div className="text-right">
                                         <span className="text-sm text-gray-400">≈ ${((story.monetizationCost || 0) * 0.10).toFixed(2)} USD</span>
                                     </div>
                                 </div>
+                                {/* Fee breakdown */}
+                                <div className="bg-black/20 rounded-xl p-3 mb-3 text-xs text-gray-400 space-y-1">
+                                    <div className="flex items-center justify-between">
+                                        <span>Creator receives (70%)</span>
+                                        <span className="text-green-400 font-semibold">{((story.monetizationCost || 0) * 0.7).toFixed(1)} tokens</span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span>Platform fee (30%)</span>
+                                        <span className="text-gray-500">{((story.monetizationCost || 0) * 0.3).toFixed(1)} tokens</span>
+                                    </div>
+                                </div>
                                 <div className="bg-black/30 rounded-xl p-4 mb-6 flex items-center justify-between">
                                     <span className="text-sm text-gray-400">Your Balance</span>
                                     <div className="text-right">
                                         <div className="text-lg font-bold text-white">{currentUser?.tokens || 0} tokens</div>
-                                        <div className="text-xs text-gray-400">${((currentUser?.tokens || 0) * 0.10).toFixed(2)}</div>
+                                        <div className="text-xs text-gray-500">After: {(currentUser?.tokens || 0) - (story.monetizationCost || 0)} tokens</div>
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
@@ -1503,7 +1519,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                     </button>
                                     <button
                                         onClick={() => {
-                                            if (story.monetizationCost && deductTokens(story.monetizationCost)) {
+                                            if (story.monetizationCost && deductTokens(story.monetizationCost, story.creatorId)) {
                                                 setShowMonetizationModal(null);
                                                 setIsForking(true);
                                                 if (showTutorialTooltip) {
@@ -1511,20 +1527,20 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                                 }
                                             }
                                         }}
-                                        className="flex-1 py-3 px-4 rounded-xl bg-[#EC1D99] text-white font-semibold hover:bg-[#d61a88] transition-colors"
+                                        className="flex-1 py-3 px-4 rounded-xl bg-[#EC1D99] text-white font-semibold hover:bg-[#d61a88] transition-colors shadow-lg shadow-[#EC1D99]/20"
                                     >
-                                        Confirm
+                                        Pay {story.monetizationCost} Tokens & Weeve
                                     </button>
                                 </div>
                             </>
                         ) : (
                             <>
-                                <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-                                    <span className="text-3xl">🚫</span>
+                                <div className="w-16 h-16 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-3xl">💎</span>
                                 </div>
-                                <h3 className="text-xl font-bold text-white mb-2">Insufficient Tokens</h3>
-                                <p className="text-gray-300 mb-4">
-                                    You don&apos;t have enough tokens to contribute to this story.
+                                <h3 className="text-xl font-bold text-white mb-2">Get More Tokens</h3>
+                                <p className="text-gray-300 mb-4 text-sm">
+                                    You need a few more tokens to contribute to this story.
                                 </p>
                                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-3">
                                     <div className="flex items-center justify-between mb-1">
@@ -1568,7 +1584,8 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                         )}
                     </div>
                 </div>
-            )}
+            )
+            }
             <div className="absolute bottom-0 left-0 right-0 p-6 pb-6 text-white z-10">
                 <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md flex items-center gap-2 flex-wrap">
                     {/* Clickable title for brand posts with product URLs */}
@@ -1595,6 +1612,12 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                     {story.postType === 'seed' && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/30 text-green-300 rounded-full text-xs font-medium" title="Seed Post - First slot is immutable">
                             🌱 Seed
+                        </span>
+                    )}
+                    {/* Monetization badge for paid stories */}
+                    {story.monetizationCost && story.monetizationCost > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 text-yellow-300 rounded-full text-xs font-medium border border-yellow-500/30" title={`Entry fee: ${story.monetizationCost} ${story.monetizationCost === 1 ? 'token' : 'tokens'}`}>
+                            💎 {story.monetizationCost} {story.monetizationCost === 1 ? 'token' : 'tokens'}
                         </span>
                     )}
                 </h2>
@@ -2121,7 +2144,10 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                                                                                 </>
                                                                             )}
                                                                             {index === 1 && (
-                                                                                <UserPlus className="w-12 h-12 text-gray-500" />
+                                                                                <>
+                                                                                    <UserPlus className="w-12 h-12 text-gray-500 mb-4" />
+                                                                                    <p className="text-gray-400 text-xs mt-2">Part 2</p>
+                                                                                </>
                                                                             )}
                                                                         </>
                                                                     ) : (

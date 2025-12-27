@@ -37,6 +37,8 @@ export interface AuthUser {
     isBrand?: boolean;
     brandWebsite?: string;
     brandSubscriptionStatus?: 'none' | 'active' | 'expired';
+    isInfluencer?: boolean;
+    interactionCost?: number | null;
 }
 
 /**
@@ -205,7 +207,7 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
     try {
         const { data, error } = await supabase
             .from('profiles')
-            .select('user_id, name, avatar, tagline, tokens, invite_code, is_private, onboarding_step, completed_onboarding, last_name_change_at, is_brand, brand_website, brand_subscription_status')
+            .select('user_id, name, avatar, tagline, tokens, invite_code, is_private, onboarding_step, completed_onboarding, last_name_change_at, is_brand, brand_website, brand_subscription_status, is_influencer, interaction_cost')
             .eq('user_id', userId)
             .maybeSingle();
 
@@ -229,6 +231,8 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
             isBrand: data.is_brand || false,
             brandWebsite: data.brand_website || undefined,
             brandSubscriptionStatus: data.brand_subscription_status || 'none',
+            isInfluencer: data.is_influencer || false,
+            interactionCost: data.interaction_cost || null,
         };
     } catch (error) {
         console.error('[Auth] Get profile error:', error);
@@ -245,7 +249,7 @@ export async function fetchProfileWithAccessToken(accessToken: string, userId: s
         if (!accessToken) return null;
         const restUrl = new URL(`${SUPABASE_URL}/rest/v1/profiles`);
         restUrl.searchParams.set('user_id', `eq.${encodeURIComponent(userId)}`);
-        restUrl.searchParams.set('select', 'user_id,name,avatar,tagline,tokens,invite_code,is_private,onboarding_step,completed_onboarding,last_name_change_at,is_brand,brand_website,brand_subscription_status');
+        restUrl.searchParams.set('select', 'user_id,name,avatar,tagline,tokens,invite_code,is_private,onboarding_step,completed_onboarding,last_name_change_at,is_brand,brand_website,brand_subscription_status,is_influencer,interaction_cost');
 
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -286,6 +290,8 @@ export async function fetchProfileWithAccessToken(accessToken: string, userId: s
             isBrand: row.is_brand || false,
             brandWebsite: row.brand_website || undefined,
             brandSubscriptionStatus: row.brand_subscription_status || 'none',
+            isInfluencer: row.is_influencer || false,
+            interactionCost: row.interaction_cost || null,
         };
     } catch (err) {
         console.warn('[Auth] fetchProfileWithAccessToken error:', err);
@@ -492,7 +498,7 @@ export async function checkBrandWebsiteAvailability(websiteUrl: string, excludeU
  */
 export async function updateUserProfile(
     userId: string,
-    updates: Partial<{ name: string; avatar: string | null; tagline: string | null; tokens: number; isPrivate: boolean }>
+    updates: Partial<{ name: string; avatar: string | null; tagline: string | null; tokens: number; isPrivate: boolean; isInfluencer: boolean; interactionCost: number | null }>
 ): Promise<{ data: ProfileRow | null; error: Error | null }> {
     try {
         // Convert camelCase to snake_case for database
@@ -502,6 +508,8 @@ export async function updateUserProfile(
         if (updates.tagline !== undefined) dbUpdates.tagline = updates.tagline ?? null;
         if (updates.tokens !== undefined) dbUpdates.tokens = updates.tokens;
         if (updates.isPrivate !== undefined) dbUpdates.is_private = updates.isPrivate;
+        if (updates.isInfluencer !== undefined) dbUpdates.is_influencer = updates.isInfluencer;
+        if (updates.interactionCost !== undefined) dbUpdates.interaction_cost = updates.interactionCost;
 
         if (Object.keys(dbUpdates).length === 0) {
             return { data: null, error: null };

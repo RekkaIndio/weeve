@@ -15,7 +15,7 @@ export function StitchMenu({ onOptionSelect, onClose }: StitchMenuProps) {
                 <X className="w-8 h-8" />
             </button>
 
-            <h2 className="text-xl font-bold mb-8">How do you want to stitch?</h2>
+            <h2 className="text-xl font-bold mb-8">How do you want to Weeve?</h2>
 
             <div className="flex gap-6 mb-8">
                 <button

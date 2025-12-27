@@ -1095,12 +1095,14 @@ export default function ProfilePage() {
             {/* Header */}
             <div className="p-4 flex justify-end items-center">
                 <div className="flex items-center gap-4">
-                    {/* Wallet Link - HIDDEN
-                    <Link href="/wallet" className="flex items-center gap-1 bg-gray-800 px-3 py-1.5 rounded-full">
-                        <Wallet className="w-4 h-4 text-[#EC1D99]" />
-                        <span className="text-sm font-bold">{currentUser.tokens}</span>
-                    </Link>
-                    */}
+                    {/* Wallet Link - Only for regular users */}
+                    {!currentUser.isBrand && (
+                        <Link href="/wallet" className="flex items-center gap-1 bg-gray-800 px-3 py-1.5 rounded-full hover:bg-gray-700 transition-colors">
+                            <Wallet className="w-4 h-4 text-[#EC1D99]" />
+                            <span className="text-sm font-bold text-[#EC1D99]">{currentUser.tokens}</span>
+                        </Link>
+                    )}
+
                     <button onClick={() => setShowInviteModal(true)} className="text-white hover:text-gray-300 transition-colors">
                         <UserPlus className="w-6 h-6" />
                     </button>
@@ -1638,53 +1640,55 @@ export default function ProfilePage() {
             </div>
 
             {/* Invite Modal */}
-            {showInviteModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowInviteModal(false)}>
-                    <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-xs p-6 relative" onClick={e => e.stopPropagation()}>
-                        <button
-                            onClick={() => setShowInviteModal(false)}
-                            className="absolute top-3 right-3 text-gray-400 hover:text-white"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
-
-                        <div className="text-center mb-6">
-                            <div className="w-12 h-12 bg-[#EC1D99]/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                                <UserPlus className="w-6 h-6 text-[#EC1D99]" />
-                            </div>
-                            <h3 className="text-xl font-bold text-white mb-1">Invite Friends</h3>
-                            <p className="text-sm text-gray-400">Share your unique link to earn rewards when friends join!</p>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-xs text-gray-500 ml-1 mb-1 block">Your Invite Link</label>
-                                <div className="flex items-center gap-2 bg-black rounded-lg p-1 border border-gray-800">
-                                    <input
-                                        readOnly
-                                        value={inviteLink}
-                                        className="bg-transparent text-sm text-gray-300 px-2 py-1.5 w-full focus:outline-none"
-                                    />
-                                    <button
-                                        onClick={handleCopyLink}
-                                        className={`p-2 rounded-md transition-colors ${copied ? 'bg-green-500/20 text-green-500' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-                                    >
-                                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                                    </button>
-                                </div>
-                            </div>
-
+            {
+                showInviteModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowInviteModal(false)}>
+                        <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-xs p-6 relative" onClick={e => e.stopPropagation()}>
                             <button
-                                onClick={handleNativeShare}
-                                className="w-full bg-[#EC1D99] hover:bg-[#EC1D99]/90 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
+                                onClick={() => setShowInviteModal(false)}
+                                className="absolute top-3 right-3 text-gray-400 hover:text-white"
                             >
-                                <Share2 className="w-4 h-4" />
-                                Share Link
+                                <X className="w-5 h-5" />
                             </button>
+
+                            <div className="text-center mb-6">
+                                <div className="w-12 h-12 bg-[#EC1D99]/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <UserPlus className="w-6 h-6 text-[#EC1D99]" />
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-1">Invite Friends</h3>
+                                <p className="text-sm text-gray-400">Share your unique link to earn rewards when friends join!</p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs text-gray-500 ml-1 mb-1 block">Your Invite Link</label>
+                                    <div className="flex items-center gap-2 bg-black rounded-lg p-1 border border-gray-800">
+                                        <input
+                                            readOnly
+                                            value={inviteLink}
+                                            className="bg-transparent text-sm text-gray-300 px-2 py-1.5 w-full focus:outline-none"
+                                        />
+                                        <button
+                                            onClick={handleCopyLink}
+                                            className={`p-2 rounded-md transition-colors ${copied ? 'bg-green-500/20 text-green-500' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+                                        >
+                                            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button
+                                    onClick={handleNativeShare}
+                                    className="w-full bg-[#EC1D99] hover:bg-[#EC1D99]/90 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
+                                >
+                                    <Share2 className="w-4 h-4" />
+                                    Share Link
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
 
             {/* Avatar Picker Modal */}

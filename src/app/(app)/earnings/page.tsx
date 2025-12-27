@@ -23,8 +23,9 @@ interface PayoutRequest {
 }
 
 const TOKEN_VALUE = 0.10;
+const PAYOUT_RATIO = 0.70; // 70% to user
 const MIN_PAYOUT_TOKENS = 500;
-const MIN_PAYOUT_USD = 50;
+const MIN_PAYOUT_USD = MIN_PAYOUT_TOKENS * TOKEN_VALUE * PAYOUT_RATIO;
 
 export default function EarningsPage() {
     const router = useRouter();
@@ -111,7 +112,7 @@ export default function EarningsPage() {
         }
 
         if (tokens < MIN_PAYOUT_TOKENS) {
-            toast.error(`Minimum payout is ${MIN_PAYOUT_TOKENS} tokens ($${MIN_PAYOUT_USD})`);
+            toast.error(`Minimum payout is ${MIN_PAYOUT_TOKENS} tokens ($${MIN_PAYOUT_USD.toFixed(2)})`);
             return;
         }
 
@@ -149,7 +150,7 @@ export default function EarningsPage() {
             setShowPayoutModal(false);
             setPayoutAmount('');
             setPaymentEmail('');
-            
+
             // Refresh data
             fetchEarningsData();
             fetchPayoutRequests();
@@ -186,6 +187,8 @@ export default function EarningsPage() {
             case 'failed':
             case 'cancelled':
                 return 'text-red-400 bg-red-500/10';
+            case 'paid':
+                return 'text-green-400 bg-green-500/10';
             default:
                 return 'text-gray-400 bg-gray-500/10';
         }
@@ -199,8 +202,8 @@ export default function EarningsPage() {
         );
     }
 
-    const availableUSD = (earnings?.earnedTokens || 0) * TOKEN_VALUE;
-    const totalEarnedUSD = (earnings?.totalEarned || 0) * TOKEN_VALUE;
+    const availableUSD = (earnings?.earnedTokens || 0) * TOKEN_VALUE * PAYOUT_RATIO;
+    const totalEarnedUSD = (earnings?.totalEarned || 0) * TOKEN_VALUE * PAYOUT_RATIO;
     const canRequestPayout = (earnings?.earnedTokens || 0) >= MIN_PAYOUT_TOKENS;
 
     return (
@@ -231,15 +234,17 @@ export default function EarningsPage() {
                             <div className="text-2xl font-semibold text-green-400">
                                 ${availableUSD.toFixed(2)} USD
                             </div>
+                            <div className="text-xs text-gray-400 mt-1">
+                                After 30% platform fee
+                            </div>
                         </div>
                         <button
                             onClick={() => setShowPayoutModal(true)}
                             disabled={!canRequestPayout}
-                            className={`w-full mt-4 py-3 rounded-xl font-bold transition-colors ${
-                                canRequestPayout
+                            className={`w-full mt-4 py-3 rounded-xl font-bold transition-colors ${canRequestPayout
                                     ? 'bg-[#EC1D99] hover:bg-[#d61a88] text-white'
                                     : 'bg-gray-800 text-gray-500 cursor-not-allowed'
-                            }`}
+                                }`}
                         >
                             {canRequestPayout ? 'Request Payout' : `Minimum ${MIN_PAYOUT_TOKENS} tokens required`}
                         </button>
@@ -270,7 +275,7 @@ export default function EarningsPage() {
                                     {(earnings?.totalEarned || 0) - (earnings?.earnedTokens || 0)}
                                 </div>
                                 <div className="text-sm text-gray-400">
-                                    ${(((earnings?.totalEarned || 0) - (earnings?.earnedTokens || 0)) * TOKEN_VALUE).toFixed(2)}
+                                    ${(((earnings?.totalEarned || 0) - (earnings?.earnedTokens || 0)) * TOKEN_VALUE * PAYOUT_RATIO).toFixed(2)}
                                 </div>
                             </div>
                         </div>
@@ -284,8 +289,9 @@ export default function EarningsPage() {
                                 <p className="font-semibold text-blue-400 mb-1">How Earnings Work</p>
                                 <ul className="space-y-1 text-xs">
                                     <li>• Earn tokens when users pay to contribute to your stories</li>
-                                    <li>• 1 token = $0.10 USD</li>
-                                    <li>• Minimum payout: {MIN_PAYOUT_TOKENS} tokens (${MIN_PAYOUT_USD})</li>
+                                    <li>• 1 token = $0.10 USD (Purchase Value)</li>
+                                    <li>• Payout Rate: 70% (You) / 30% (Platform fee)</li>
+                                    <li>• Minimum payout: {MIN_PAYOUT_TOKENS} tokens (${MIN_PAYOUT_USD.toFixed(2)})</li>
                                     <li>• Payouts processed via PayPal within 3-5 business days</li>
                                 </ul>
                             </div>
@@ -347,7 +353,7 @@ export default function EarningsPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-6">
                     <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 w-full max-w-md">
                         <h3 className="text-xl font-bold mb-4">Request Payout</h3>
-                        
+
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-gray-300 mb-2">
                                 Token Amount
@@ -363,7 +369,7 @@ export default function EarningsPage() {
                             />
                             {payoutAmount && (
                                 <div className="mt-2 text-sm text-gray-400">
-                                    ≈ ${(parseInt(payoutAmount) * TOKEN_VALUE).toFixed(2)} USD
+                                    ≈ ${(parseInt(payoutAmount) * TOKEN_VALUE * PAYOUT_RATIO).toFixed(2)} USD (after 30% fee)
                                 </div>
                             )}
                         </div>
