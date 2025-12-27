@@ -57,6 +57,15 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const [lastAction, setLastAction] = useState<'save' | 'share' | null>(null);
     const [isHighQualityExport, setIsHighQualityExport] = useState(false);
     const [groupInfo, setGroupInfo] = useState<{ avatar?: string; name?: string } | null>(null);
+    const [preparingToastId, setPreparingToastId] = useState<string | number | null>(null);
+
+    // Dismiss the "Preparing..." toast when video is ready or stitching completes/errors
+    useEffect(() => {
+        if (preparingToastId && (videoUrl || stitchingState === 'complete' || stitchingState === 'error')) {
+            toast.dismiss(preparingToastId);
+            setPreparingToastId(null);
+        }
+    }, [videoUrl, stitchingState, preparingToastId]);
 
     // Fetch group info when modal opens if story belongs to a group
     useEffect(() => {
@@ -682,8 +691,9 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                                 // Trigger Stitch if not ready
                                                 if (stitchingState === 'idle' || stitchingState === 'error') {
                                                     stitchStory(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
-                                                    toast.loading('Preparing video for Instagram...');
-                                                } else {
+                                                    const id = toast.loading('Preparing video for Instagram...');
+                                                    setPreparingToastId(id);
+                                                } else if (!preparingToastId) {
                                                     toast.info('Video is processing...');
                                                 }
                                             }
@@ -704,8 +714,9 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                             } else {
                                                 if (stitchingState === 'idle' || stitchingState === 'error') {
                                                     stitchStory(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
-                                                    toast.loading('Preparing video for TikTok...');
-                                                } else {
+                                                    const id = toast.loading('Preparing video for TikTok...');
+                                                    setPreparingToastId(id);
+                                                } else if (!preparingToastId) {
                                                     toast.info('Video is processing...');
                                                 }
                                             }
@@ -752,7 +763,8 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                                     setIsHighQualityExport(true);
                                                     setLastAction('save');
                                                     stitchStory(story, { highQuality: true, groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
-                                                    toast.loading('Preparing high-quality export (this may take a moment)...');
+                                                    const id = toast.loading('Preparing high-quality export (this may take a moment)...');
+                                                    setPreparingToastId(id);
                                                 }}
                                                 disabled={stitchingState !== 'idle' && stitchingState !== 'error' && stitchingState !== 'complete'}
                                                 className="w-full flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-yellow-600 to-yellow-800 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"

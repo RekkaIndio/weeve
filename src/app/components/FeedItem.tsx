@@ -22,6 +22,8 @@ import VideoThumbnail from "./VideoThumbnail";
 interface FeedItemProps {
     story: Story;
     initialContributionId?: string;
+    /** When provided, overrides IntersectionObserver for playback control. Use for overlay/modal feeds. */
+    isActive?: boolean;
 }
 
 const formatRelativeTime = (timestamp: number) => {
@@ -65,12 +67,14 @@ const formatRelativeTime = (timestamp: number) => {
     return `${Math.max(0, deltaYears)}y ago`;
 };
 
-export default function FeedItem({ story, initialContributionId }: FeedItemProps) {
+export default function FeedItem({ story, initialContributionId, isActive }: FeedItemProps) {
     const router = useRouter();
 
     const [currentIndex, setCurrentIndex] = useState(0);
     const initialSet = useRef(false);
     const [isVisible, setIsVisible] = useState(false);
+    // When isActive prop is provided, use it to control playback; otherwise fall back to IntersectionObserver
+    const effectiveIsVisible = isActive !== undefined ? isActive : isVisible;
     const [isCommentsOpen, setIsCommentsOpen] = useState(false);
     const [commentText, setCommentText] = useState("");
     const [replyingToId, setReplyingToId] = useState<string | null>(null);
@@ -524,19 +528,19 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         if (videoReadyRef.current.get(mediaUrl || '') && video.readyState >= 2) {
             setIsVideoVisible(true);
             // If we're visible, try to play right away (muted to satisfy autoplay rules)
-            if (isVisible) {
+            if (effectiveIsVisible) {
                 video.muted = false;
                 video.play().catch(() => null);
             }
         } else {
             setIsVideoVisible(false);
         }
-    }, [mediaType, mediaUrl, isVisible]);
+    }, [mediaType, mediaUrl, effectiveIsVisible]);
 
     // If the document visibility changes (e.g., returning from a Create Story page), try to resume playback
     useEffect(() => {
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible' && isVisible && mediaType === 'video' && videoRef.current) {
+            if (document.visibilityState === 'visible' && effectiveIsVisible && mediaType === 'video' && videoRef.current) {
                 const video = videoRef.current;
                 if (videoReadyRef.current.get(mediaUrl || '') && video.paused) {
                     video.muted = false;
@@ -546,7 +550,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, [isVisible, mediaType, mediaUrl]);
+    }, [effectiveIsVisible, mediaType, mediaUrl]);
 
     // Show tutorial tooltip for onboarding story (only first time)
     useEffect(() => {
@@ -874,7 +878,9 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
             ([entry]) => {
                 setIsVisible(entry.isIntersecting);
                 // When becoming visible, try to play or restore ready state from cache
-                if (entry.isIntersecting && mediaType === 'video') {
+                // BUT only if isActive is NOT provided (i.e., not controlled by parent)
+                // When isActive is provided, playback is controlled via effectiveIsVisible
+                if (entry.isIntersecting && mediaType === 'video' && isActive === undefined) {
                     try {
                         const cachedReady = videoReadyRef.current.get(mediaUrl || '') ?? false;
                         const preloaded = videoPreloadCache.current.get(mediaUrl || '');
@@ -916,7 +922,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
 
     // Handle auto-advancement and playback
     useEffect(() => {
-        if (!hasContributions || !isVisible || isCommentsOpen) {
+        if (!hasContributions || !effectiveIsVisible || isCommentsOpen) {
             // Pause video if not visible
             if (videoRef.current) {
                 videoRef.current.pause();
@@ -983,7 +989,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
         return () => {
             if (timeoutId) clearTimeout(timeoutId);
         };
-    }, [currentIndex, displayOrderedContributions.length, mediaType, isVisible, hasContributions, isCommentsOpen, isVideoReady, mediaUrl]);
+    }, [currentIndex, displayOrderedContributions.length, mediaType, effectiveIsVisible, hasContributions, isCommentsOpen, isVideoReady, mediaUrl]);
 
     const handleVideoEnded = () => {
         // Efficiently loop single videos without triggering a state update cycle
@@ -1216,7 +1222,7 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
 
                             // Manually play the video after it's loaded to avoid browser play button
                             const video = e.currentTarget;
-                            if (isVisible) {
+                            if (effectiveIsVisible) {
                                 video.play().catch((err) => {
 
                                 });
@@ -1341,6 +1347,21 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                     <span className="text-xs font-bold">Save</span>
                 </div>
 
+                {/* Share Button */}
+                <div className="flex flex-col items-center gap-1">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setIsShareModalOpen(true);
+                        }}
+                        className="w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-white/20 transition-colors text-white hover:scale-110 active:scale-95"
+                        aria-label="Share"
+                    >
+                        <Share2 className="w-5 h-5" />
+                    </button>
+                    <span className="text-xs font-bold font-poppins drop-shadow-md">Share</span>
+                </div>
+
                 {/* Weeve Button */}
                 {/* Only show fork button for:
                     - Private storiesyou're part of
@@ -1462,21 +1483,6 @@ export default function FeedItem({ story, initialContributionId }: FeedItemProps
                         </div>
                     ) : null;
                 })()}
-
-                {/* Share Button */}
-                <div className="flex flex-col items-center gap-1">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setIsShareModalOpen(true);
-                        }}
-                        className="w-10 h-10 rounded-full bg-gray-800/50 backdrop-blur-sm flex items-center justify-center border border-white/20 transition-colors text-white hover:scale-110 active:scale-95"
-                        aria-label="Share"
-                    >
-                        <Share2 className="w-5 h-5" />
-                    </button>
-                    <span className="text-xs font-bold font-poppins drop-shadow-md">Share</span>
-                </div>
             </div>
 
             {/* Monetization Modal */}

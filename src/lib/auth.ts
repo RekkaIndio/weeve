@@ -498,7 +498,7 @@ export async function checkBrandWebsiteAvailability(websiteUrl: string, excludeU
  */
 export async function updateUserProfile(
     userId: string,
-    updates: Partial<{ name: string; avatar: string | null; tagline: string | null; tokens: number; isPrivate: boolean; isInfluencer: boolean; interactionCost: number | null }>
+    updates: Partial<{ name: string; avatar: string | null; tagline: string | null; tokens: number; isPrivate: boolean; isInfluencer: boolean; interactionCost: number | null; preferences: Record<string, any> }>
 ): Promise<{ data: ProfileRow | null; error: Error | null }> {
     try {
         // Convert camelCase to snake_case for database
@@ -510,6 +510,7 @@ export async function updateUserProfile(
         if (updates.isPrivate !== undefined) dbUpdates.is_private = updates.isPrivate;
         if (updates.isInfluencer !== undefined) dbUpdates.is_influencer = updates.isInfluencer;
         if (updates.interactionCost !== undefined) dbUpdates.interaction_cost = updates.interactionCost;
+        if (updates.preferences !== undefined) dbUpdates.preferences = updates.preferences;
 
         if (Object.keys(dbUpdates).length === 0) {
             return { data: null, error: null };

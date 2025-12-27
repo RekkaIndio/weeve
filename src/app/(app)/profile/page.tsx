@@ -1259,6 +1259,8 @@ export default function ProfilePage() {
                             onClick={() => {
                                 setEditName(currentUser.name);
                                 setEditAvatar(currentUser.avatar || '');
+                                setEditTagline(currentUser.tagline || '');
+                                setEditWebsite(currentUser.website || (currentUser.preferences as any)?.website || '');
                                 setIsEditing(true);
                             }}
                             className="w-full bg-white text-black font-bold py-2 rounded-lg text-sm text-center hover:bg-gray-200 transition-colors"
