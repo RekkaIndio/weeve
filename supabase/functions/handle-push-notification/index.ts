@@ -1,10 +1,9 @@
+
 // Supabase Edge Function to send push notifications via FCM V1
-//
-// Requires:
-// - FIREBASE_SERVICE_ACCOUNT in secrets (JSON string)
+// Uses 'jose' for robust, dependency-free JWT signing in Deno Edge Runtime
 
 import { createClient } from 'npm:@supabase/supabase-js@2.39.3'
-import { JWT } from 'npm:google-auth-library@9.0.0'
+import { SignJWT, importPKCS8 } from 'npm:jose@5.2.3'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,13 +19,39 @@ interface Notification {
 }
 
 async function getAccessToken(serviceAccount: any) {
-  const client = new JWT({
-    email: serviceAccount.client_email,
-    key: serviceAccount.private_key,
-    scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
-  })
-  const res = await client.authorize()
-  return res.access_token
+  try {
+    const algorithm = 'RS256'
+    const pkcs8 = serviceAccount.private_key
+    const privateKey = await importPKCS8(pkcs8, algorithm)
+
+    const jwt = await new SignJWT({
+      scope: 'https://www.googleapis.com/auth/firebase.messaging'
+    })
+      .setProtectedHeader({ alg: algorithm })
+      .setIssuer(serviceAccount.client_email)
+      .setAudience(serviceAccount.token_uri)
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(privateKey)
+
+    const params = new URLSearchParams()
+    params.append('grant_type', 'urn:ietf:params:oauth:grant-type:jwt-bearer')
+    params.append('assertion', jwt)
+
+    const res = await fetch(serviceAccount.token_uri, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: params
+    })
+
+    const data = await res.json()
+    return data.access_token
+  } catch (err) {
+    console.error('Error generating access token:', err)
+    throw err
+  }
 }
 
 async function sendFCMV1(accessToken: string, projectId: string, token: string, notification: Notification) {
