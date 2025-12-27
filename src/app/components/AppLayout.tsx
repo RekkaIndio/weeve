@@ -6,16 +6,13 @@ import { Home, PlusSquare, User, Users, Compass } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAuth } from "./AuthProvider";
 import NotificationBell from "./NotificationBell";
-import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useDataRefresh } from "@/hooks/useDataRefresh";
 
-
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+    const { user } = useAuth();
+    useDataRefresh(); // Global data refresh hook for keeping data up-to-date
     const pathname = usePathname();
     const { currentUser, stories } = useStore();
-    const { user } = useAuth();
-    usePushNotifications();
-    useDataRefresh(); // Global data refresh hook for keeping data up-to-date
 
 
     // Calculate if it's user's turn in any story

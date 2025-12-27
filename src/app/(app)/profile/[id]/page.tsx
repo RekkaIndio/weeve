@@ -341,7 +341,12 @@ export default function UserProfilePage() {
         }
     };
 
-    const userStories = stories.filter(s => s.participants.some(p => p.id === user?.id));
+    // Only show stories where this user has actually contributed content
+    // (not just being listed as a participant with no contributions yet)
+    const userStories = stories.filter(s =>
+        s.participants.some(p => p.id === user?.id) &&
+        s.contributions.some(c => c.userId === user?.id)
+    );
 
     // Separate featured stories (only for brand profiles)
     const featuredStories = userStories.filter(s => s.isFeatured && user?.isBrand);

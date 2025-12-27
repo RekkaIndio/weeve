@@ -41,35 +41,31 @@ async function verifyPushFlow() {
     console.log(`✅ Found ${profiles.length} user(s) with push tokens:`);
     profiles.forEach(p => console.log(`   - ${p.name} (ID: ${p.user_id}): ${p.push_token.substring(0, 10)}...`));
 
-    // 2. Trigger Test Notification
-    const targetUser = profiles[0];
-    console.log(`\n2. Triggering test notification for: ${targetUser.name}...`);
+    // 2. Trigger Test Notification for ALL users (to ensure we hit the active device)
+    console.log(`\n2. Triggering test notification for all ${profiles.length} users...`);
 
-    const { data: notif, error: notifError } = await supabase
-        .from('notifications')
-        .insert({
-            user_id: targetUser.user_id,
-            type: 'friend_request',
-            title: 'Test Notification 🚀',
-            message: `This is a test notification sent at ${new Date().toLocaleTimeString()}`,
-            data: { sender_id: 'system_test' },
-            read: false
-        })
-        .select()
-        .single();
+    for (const targetUser of profiles) {
+        console.log(`   ➡ Sending to: ${targetUser.name} (${targetUser.push_token.substring(0, 8)}...)`);
+        
+        const { error: notifError } = await supabase
+            .from('notifications')
+            .insert({
+                user_id: targetUser.user_id,
+                type: 'friend_request',
+                title: 'Test Notification 🚀',
+                message: `Test for ${targetUser.name} sent at ${new Date().toLocaleTimeString()}`,
+                data: { sender_id: 'system_test' },
+                read: false
+            });
 
-    if (notifError) {
-        console.error('❌ Failed to insert notification:', notifError.message);
-        // Special check for RLS
-        if (notifError.code === '42501') {
-             console.log('   -> Hint: This might be RLS (Row Level Security) blocking the insert. Try running with SERVICE_ROLE_KEY.');
+        if (notifError) {
+            console.error(`      ❌ Failed: ${notifError.message}`);
+        } else {
+            console.log(`      ✅ Sent!`);
         }
-        return;
     }
 
-    console.log('✅ Notification inserted into Database!');
-    console.log('   ID:', notif.id);
-    console.log('\n⏳ Now check your phone! (And check Supabase Edge Function logs if nothing arrives)');
+    console.log('\n⏳ Check your phone! One of these should have come through.');
 }
 
 verifyPushFlow();
