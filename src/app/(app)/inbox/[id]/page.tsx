@@ -8,6 +8,7 @@ import { getMessages, sendMessage, subscribeToMessages, markAsRead, MessageWithS
 import { ArrowLeft, Send } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useKeyboard } from '@/hooks/useKeyboard';
 
 export default function ConversationPage() {
     const params = useParams();
@@ -93,6 +94,18 @@ export default function ConversationPage() {
 
     if (!user) return null;
 
+    const isKeyboardOpen = useKeyboard();
+
+    // Auto-scroll to bottom when keyboard opens
+    useEffect(() => {
+        if (isKeyboardOpen) {
+            // Wait for layout transition (200ms) to complete before scrolling
+            setTimeout(() => {
+                scrollToBottom();
+            }, 250);
+        }
+    }, [isKeyboardOpen]);
+
     return (
         <div className="fixed inset-0 bg-black text-white flex flex-col z-40">
             {/* Header */}
@@ -109,8 +122,8 @@ export default function ConversationPage() {
                 </div>
             </div>
 
-            {/* Messages Area - scrollable, with bottom padding for input */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
+            {/* Messages Area - flex-1 to take available space */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {loading ? (
                     <div className="flex justify-center pt-10">
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
@@ -160,11 +173,11 @@ export default function ConversationPage() {
                         );
                     })
                 )}
-                <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} className="h-4" /> {/* Spacer to ensure last message isn't flush */}
             </div>
 
-            {/* Input Area - fixed at bottom, flush against bottom nav */}
-            <div className="absolute bottom-[4.5rem] left-0 right-0 p-4 bg-[#121212] border-t border-gray-800">
+            {/* Input Area - regular flex item, pushes up from bottom naturally */}
+            <div className={`shrink-0 p-4 bg-[#121212] border-t border-gray-800 transition-all duration-200 ${!isKeyboardOpen ? 'pb-[calc(4.5rem+env(safe-area-inset-bottom))]' : ''}`}>
                 <form onSubmit={handleSend} className="flex gap-2 items-end max-w-md mx-auto">
                     <input
                         type="text"

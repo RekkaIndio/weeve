@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "./AuthProvider";
 import NotificationBell from "./NotificationBell";
 import { useDataRefresh } from "@/hooks/useDataRefresh";
+import { useKeyboard } from "@/hooks/useKeyboard";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { user } = useAuth();
@@ -38,7 +39,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const hideBottomNav = pathname === "/create-story";
     // Also hide nav during initial load when there are no stories yet (prevents flash)
     const isInitialLoad = pathname === "/feed" && stories.length === 0;
-    const showNavigation = !!user && !hideBottomNav && !isInitialLoad;
+    const isKeyboardOpen = useKeyboard();
+    const showNavigation = !!user && !hideBottomNav && !isInitialLoad && !isKeyboardOpen;
 
     return (
         <div className="flex justify-center min-h-[100dvh] bg-black text-white">
