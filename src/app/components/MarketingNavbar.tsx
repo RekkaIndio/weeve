@@ -35,7 +35,8 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                     transition={{ delay: 0.1 }}
                     className="hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2"
                 >
-                    <Link href="/brands" className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
+                    {/* Hidden for now - will be re-enabled later */}
+                    {/* <Link href="/brands" className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
                         For Brands
                     </Link>
                     <Link href="/influencers" className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
@@ -43,7 +44,7 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                     </Link>
                     <Link href="/communities" className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
                         For Communities
-                    </Link>
+                    </Link> */}
                 </motion.div>
 
                 <motion.div
@@ -87,7 +88,8 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                         className="md:hidden border-t border-white/10 bg-black/95 backdrop-blur-xl overflow-hidden"
                     >
                         <div className="px-6 py-4 space-y-4">
-                            <Link
+                            {/* Hidden for now - will be re-enabled later */}
+                            {/* <Link
                                 href="/brands"
                                 onClick={() => setMobileMenuOpen(false)}
                                 className="block text-base font-medium text-gray-400 hover:text-white transition-colors py-2"
@@ -107,7 +109,7 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                                 className="block text-base font-medium text-gray-400 hover:text-white transition-colors py-2"
                             >
                                 For Communities
-                            </Link>
+                            </Link> */}
 
                             <Link
                                 href="/login"
