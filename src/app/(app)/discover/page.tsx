@@ -428,6 +428,13 @@ function DiscoverContent() {
 
             const query = searchQuery.toLowerCase();
 
+            // EXCLUDE empty brand "waiting" posts from all public results
+            // If it's a brand post (canon/seed) but has 0 contributions, hide it
+            // unless we are in a "waiting" context (which is handled by profile/waiting tab, not here)
+            if ((!story.contributions || story.contributions.length === 0)) {
+                return false;
+            }
+
             // Search in title
             if (story.title.toLowerCase().includes(query)) return true;
 
@@ -880,10 +887,10 @@ function DiscoverContent() {
                             </div>
 
                             {/* Filter for Seed posts that are active */}
-                            {stories.filter(s => s.postType === 'seed' && s.status === 'active').length > 0 ? (
+                            {stories.filter(s => s.postType === 'seed' && s.status === 'active' && s.contributions && s.contributions.length > 0).length > 0 ? (
                                 <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4">
                                     {stories
-                                        .filter(s => s.postType === 'seed' && s.status === 'active')
+                                        .filter(s => s.postType === 'seed' && s.status === 'active' && s.contributions && s.contributions.length > 0)
                                         // Sort by recency and remaining slots
                                         .sort((a, b) => {
                                             const dateA = new Date(a.created_at || 0).getTime();
@@ -989,7 +996,7 @@ function DiscoverContent() {
 
                     {/* Featured Canons Section - ONLY in 'For You' or 'Trending' */}
                     {!searchQuery.trim() && (feedType === 'forYou' || feedType === 'trending') && (
-                        stories.some(s => s.postType === 'canon' && s.status === 'active') && (
+                        stories.some(s => s.postType === 'canon' && s.status === 'active' && s.contributions && s.contributions.length > 0) && (
                             <div className="mb-8 mt-4">
                                 <div className="flex items-center gap-2 mb-4">
                                     <Clapperboard className="w-5 h-5 text-amber-400" />
@@ -1003,7 +1010,7 @@ function DiscoverContent() {
 
                                 <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4">
                                     {stories
-                                        .filter(s => s.postType === 'canon' && s.status === 'active')
+                                        .filter(s => s.postType === 'canon' && s.status === 'active' && s.contributions && s.contributions.length > 0)
                                         .sort((a, b) => (b.likes || 0) - (a.likes || 0)) // Sort Canons by popularity
                                         .slice(0, 10)
                                         .map((story) => (

@@ -349,6 +349,12 @@ function filterByFeedType(stories: Story[], context: FeedContext): Story[] {
       const friendIds = new Set(friends?.map(f => f.id) || []);
       return friendIds.has(story.creatorId);
     }
+
+    // GENERAL SAFETY: Filter out empty brand posts (Waiting for Brand) from specific feeds
+    // These should only be visible on the specific "Waiting" tab on profile
+    if (isBrandPost(story) && (!story.contributions || story.contributions.length === 0)) {
+        return false;
+    }
     
     return true;
   });

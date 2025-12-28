@@ -120,8 +120,13 @@ export function rankStories(
   
   switch (context.variant) {
     case 'canon':
-      // Only show original Canon posts (not user forks)
-      filteredStories = stories.filter(s => s.postType === 'canon' && !s.forkedFromStoryId);
+      // Only show original Canon posts (not user forks) that have content
+      filteredStories = stories.filter(s => 
+        s.postType === 'canon' && 
+        !s.forkedFromStoryId &&
+        s.contributions && 
+        s.contributions.length > 0
+      );
       break;
     case 'seed':
       // Only show original Seed posts (not user forks) that have the brand's first slot filled
