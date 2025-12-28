@@ -710,6 +710,11 @@ function DiscoverContent() {
                                             alt={story.title}
                                             className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
                                         />
+                                        {story.forkedFromStoryId && (
+                                            <div className="absolute top-2 right-2 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-full border border-white/10">
+                                                <GitBranch className="w-3 h-3 text-[#EC1D99]" />
+                                            </div>
+                                        )}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
                                             {group && (
                                                 <div className="flex items-center gap-1.5 mb-2 bg-black/40 backdrop-blur-sm p-1.5 rounded-full w-fit max-w-[90%]">
@@ -971,6 +976,11 @@ function DiscoverContent() {
                                             alt={story.title}
                                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                         />
+                                        {story.forkedFromStoryId && (
+                                            <div className="absolute top-2 right-2 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-full border border-white/10">
+                                                <GitBranch className="w-3 h-3 text-[#EC1D99]" />
+                                            </div>
+                                        )}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
                                         <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-2xl group-hover:ring-[#EC1D99]/50 transition-all" />
                                         <div className="absolute bottom-0 left-0 right-0 p-3">
@@ -1210,6 +1220,11 @@ function DiscoverContent() {
                                             alt={story.title}
                                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                         />
+                                        {story.forkedFromStoryId && (
+                                            <div className="absolute top-2 right-2 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-full border border-white/10">
+                                                <GitBranch className="w-3 h-3 text-[#EC1D99]" />
+                                            </div>
+                                        )}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
                                             <h3 className="font-bold text-sm line-clamp-2 mb-1">{story.title}</h3>
                                             <div className="flex items-center gap-1 text-xs text-gray-300">
@@ -1254,6 +1269,11 @@ function DiscoverContent() {
                                                                 alt={story.title}
                                                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                             />
+                                                            {story.forkedFromStoryId && (
+                                                                <div className="absolute top-2 right-2 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-full border border-white/10">
+                                                                    <GitBranch className="w-3 h-3 text-[#EC1D99]" />
+                                                                </div>
+                                                            )}
                                                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
                                                                 <h3 className="font-bold text-sm line-clamp-2">{story.title}</h3>
                                                             </div>
@@ -1293,6 +1313,11 @@ function DiscoverContent() {
                                                                 alt={story.title}
                                                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                             />
+                                                            {story.forkedFromStoryId && (
+                                                                <div className="absolute top-2 right-2 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-full border border-white/10">
+                                                                    <GitBranch className="w-3 h-3 text-[#EC1D99]" />
+                                                                </div>
+                                                            )}
                                                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
                                                                 <h3 className="font-bold text-sm line-clamp-2">{story.title}</h3>
                                                             </div>
@@ -1378,6 +1403,11 @@ function DiscoverContent() {
                                                                 alt={story.title}
                                                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                             />
+                                                            {story.forkedFromStoryId && (
+                                                                <div className="absolute top-2 right-2 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-full border border-white/10">
+                                                                    <GitBranch className="w-3 h-3 text-[#EC1D99]" />
+                                                                </div>
+                                                            )}
                                                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
                                                                 <h3 className="font-bold text-sm line-clamp-2">{story.title}</h3>
                                                             </div>
@@ -1406,6 +1436,11 @@ function DiscoverContent() {
                                                                 alt={story.title}
                                                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                             />
+                                                            {story.forkedFromStoryId && (
+                                                                <div className="absolute top-2 right-2 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-full border border-white/10">
+                                                                    <GitBranch className="w-3 h-3 text-[#EC1D99]" />
+                                                                </div>
+                                                            )}
                                                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
                                                                 <h3 className="font-bold text-sm line-clamp-2">{story.title}</h3>
                                                             </div>
