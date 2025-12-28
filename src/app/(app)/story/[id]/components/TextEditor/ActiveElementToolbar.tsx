@@ -1,4 +1,4 @@
-import { Type, Edit2, AlignLeft, Trash, X } from "lucide-react";
+import { Type, Trash, Check, Palette, AlignCenter } from "lucide-react";
 import { type TextElement } from "@/lib/store";
 
 interface ActiveElementToolbarProps {
@@ -20,12 +20,14 @@ export function ActiveElementToolbar({
 }: ActiveElementToolbarProps) {
     if (!activeElement) return null;
 
-    // Determine default icon for alignment button based on current state would be nice, 
-    // but the original code just uses AlignLeft in the toolbar button (line 2577)
+    // If a submenu is active (font, color, bg, align, size), hide the toolbar to reduce clutter
+    if (activeMenu) return null;
 
     return (
-        <div className="absolute top-[45%] left-0 right-0 flex flex-col items-center justify-center z-[70] pointer-events-auto">
-            <div className="flex items-center gap-3 mb-4 bg-black/60 backdrop-blur-md px-6 py-3 rounded-full border border-white/10 shadow-2xl animate-in zoom-in duration-200">
+        <div className="absolute bottom-20 left-0 right-0 flex items-center justify-center gap-3 z-[70] pointer-events-auto animate-in fade-in zoom-in-95 duration-150">
+            {/* Simple compact toolbar */}
+            <div className="flex items-center gap-2 bg-black/70 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-2xl">
+                {/* Add Text */}
                 <button
                     onClick={(e) => {
                         e.preventDefault();
@@ -33,95 +35,65 @@ export function ActiveElementToolbar({
                         onAddText();
                     }}
                     className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
-                    aria-label="Add more text"
+                    aria-label="Add text"
                 >
                     <Type className="w-5 h-5" />
                 </button>
-                <div className="w-px h-6 bg-white/20 mx-1" />
+
+                {/* Style (opens color/font options) */}
                 <button
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        onSetActiveMenu(activeMenu === 'font' ? null : 'font');
+                        onSetActiveMenu('color');
                     }}
-                    className={`p-2 rounded-full transition-colors ${activeMenu === 'font' ? 'bg-white text-black' : 'hover:bg-white/10 text-white'}`}
+                    className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                    aria-label="Style"
                 >
-                    <span className="font-serif font-bold text-lg leading-none">Ag</span>
+                    <Palette className="w-5 h-5" />
                 </button>
-                <div className="w-px h-6 bg-white/20 mx-1" />
+
+                {/* Align */}
                 <button
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        onSetActiveMenu(activeMenu === 'color' ? null : 'color');
+                        onSetActiveMenu('align');
                     }}
-                    className={`p-2 rounded-full transition-colors ${activeMenu === 'color' ? 'bg-white text-black' : 'hover:bg-white/10 text-white'}`}
+                    className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                    aria-label="Align"
                 >
-                    <div
-                        className="w-5 h-5 rounded-full border-2 border-current"
-                        style={{ backgroundColor: activeElement.style.textColor }}
-                    />
+                    <AlignCenter className="w-5 h-5" />
                 </button>
+
+                <div className="w-px h-5 bg-white/20" />
+
+                {/* Delete */}
                 <button
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        onSetActiveMenu(activeMenu === 'bg' ? null : 'bg');
+                        onDelete();
                     }}
-                    className={`p-2 rounded-full transition-colors ${activeMenu === 'bg' ? 'bg-white text-black' : 'hover:bg-white/10 text-white'}`}
+                    className="p-2 rounded-full hover:bg-red-500/20 text-red-400 transition-colors"
+                    aria-label="Delete"
                 >
-                    <div className="w-5 h-5 rounded border border-current flex items-center justify-center">
-                        <span className="text-[10px] font-bold">BG</span>
-                    </div>
+                    <Trash className="w-5 h-5" />
                 </button>
-                <div className="w-px h-6 bg-white/20 mx-1" />
+
+                {/* Done */}
                 <button
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        onSetActiveMenu(activeMenu === 'align' ? null : 'align');
+                        onDone();
                     }}
-                    className={`p-2 rounded-full transition-colors ${activeMenu === 'align' ? 'bg-white text-black' : 'hover:bg-white/10 text-white'}`}
+                    className="p-2 rounded-full bg-[#EC1D99] hover:bg-[#D41884] text-white transition-colors"
+                    aria-label="Done"
                 >
-                    <AlignLeft className="w-5 h-5" />
-                </button>
-                <button
-                    onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onSetActiveMenu(activeMenu === 'size' ? null : 'size');
-                    }}
-                    className={`p-2 rounded-full transition-colors ${activeMenu === 'size' ? 'bg-white text-black' : 'hover:bg-white/10 text-white'}`}
-                >
-                    <Edit2 className="w-5 h-5" />
+                    <Check className="w-5 h-5" />
                 </button>
             </div>
-
-            {/* Actions: Delete and Done */}
-            {/* Delete Button */}
-            <button
-                onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onDelete();
-                }}
-                className="flex flex-col items-center gap-1 drop-shadow-md text-red-400 hover:text-red-300"
-            >
-                <Trash className="w-6 h-6" />
-                <span className="text-[10px] font-bold shadow-black text-shadow">Delete</span>
-            </button>
-
-            {/* Done Button */}
-            <button
-                onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onDone();
-                }}
-                className="mt-4 w-8 h-8 flex items-center justify-center bg-white rounded-full text-black shadow-lg hover:bg-gray-200"
-            >
-                <X className="w-5 h-5" />
-            </button>
         </div>
     );
 }

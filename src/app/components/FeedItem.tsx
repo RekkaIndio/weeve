@@ -10,7 +10,7 @@ if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoR
 
 import { Story, useStore, Contribution, isSlotImmutable, isBrandPost, getSlotProgress } from "@/lib/store";
 import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
-import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search, GitBranch, Plus, ExternalLink, ChevronDown } from "lucide-react";
+import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search, GitBranch, Plus, ExternalLink, ChevronDown, Lock } from "lucide-react";
 import { searchUsers } from "@/lib/friends";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1299,6 +1299,25 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/90 pointer-events-none" />
 
+            {/* Top Overlay - Weeve Context */}
+            {story.forkedFromStoryId && (
+                <div className="absolute top-0 left-0 right-0 z-20 flex justify-center pt-[calc(env(safe-area-inset-top)+3.5rem)] pointer-events-none">
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/story/${story.forkedFromStoryId}`);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full text-xs text-gray-200 hover:bg-black/60 hover:text-white transition-all border border-white/10 pointer-events-auto shadow-lg"
+                    >
+                        <GitBranch className="w-3 h-3 text-[#EC1D99]" />
+                        <span className="opacity-80">Weeve of</span>
+                        <span className="font-bold text-white max-w-[150px] truncate">
+                            {originalStoryTitle || 'Original'}
+                        </span>
+                    </button>
+                </div>
+            )}
+
             {/* Right Sidebar Actions - Vertically Aligned */}
             <div className="absolute right-4 bottom-4 flex flex-col items-center gap-4 text-white z-20">
                 {/* Like Button */}
@@ -1666,22 +1685,7 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                     )}
                 </h2>
 
-                {/* Weeve of indicator for forked stories */}
-                {story.forkedFromStoryId && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/story/${story.forkedFromStoryId}`);
-                        }}
-                        className="flex items-center gap-1.5 text-xs text-gray-300 hover:text-[#EC1D99] transition-colors mb-2"
-                    >
-                        <GitBranch className="w-3 h-3" />
-                        <span>Weeve of:</span>
-                        <span className="font-medium text-[#EC1D99] truncate max-w-[150px]">
-                            {originalStoryTitle || 'Original'}
-                        </span>
-                    </button>
-                )}
+
 
                 {story.description && (
                     <div className="mb-2 max-w-[85%]">
@@ -2072,6 +2076,9 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                             const isPrev = offset === -1 || (currentIndex === 0 && index === maxSlots - 1);
                                             const isNext = offset === 1 || (currentIndex === maxSlots - 1 && index === 0);
 
+                                            // Check if slot is immutable (locked by brand)
+                                            const isLocked = isSlotImmutable(story, index);
+
                                             // Determine position and styling
                                             let transform = '';
                                             let zIndex = 0;
@@ -2114,6 +2121,9 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                                             e.stopPropagation();
 
                                                             if (isActive) {
+                                                                // Prevent selection/deselection of locked slots
+                                                                if (isLocked) return;
+
                                                                 // Toggle slot selection
                                                                 setSelectedSlots(prev => {
                                                                     if (prev.includes(index)) {
@@ -2126,9 +2136,14 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                                                 setCurrentSlotIndex(index);
                                                             }
                                                         }}
-                                                        className={`relative group ${isActive ? 'cursor-pointer' : 'cursor-pointer'}`}
+                                                        className={`relative group ${isActive ? (isLocked ? 'cursor-default' : 'cursor-pointer') : 'cursor-pointer'}`}
                                                     >
-                                                        <div className={`w-64 h-64 rounded-3xl border-2 overflow-hidden transition-all bg-gray-800 relative ${selectedSlots.includes(index) ? 'border-[#EC1D99] border-solid' : 'border-dashed border-white/30 hover:border-[#EC1D99]'}`}>
+                                                        <div className={`w-64 h-64 rounded-3xl border-2 overflow-hidden transition-all bg-gray-800 relative ${isLocked
+                                                            ? 'border-gray-600/50 opacity-90'
+                                                            : selectedSlots.includes(index)
+                                                                ? 'border-[#EC1D99] border-solid'
+                                                                : 'border-dashed border-white/30 hover:border-[#EC1D99]'
+                                                            }`}>
                                                             {contribution || p ? (
                                                                 contribution ? (
                                                                     <>
@@ -2210,8 +2225,18 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                                                     </div>
                                                                 </div>
                                                             )}
+
+                                                            {/* Locked Indicator */}
+                                                            {isLocked && (
+                                                                <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-20">
+                                                                    <div className="bg-black/60 rounded-full p-3 backdrop-blur-sm border border-white/20">
+                                                                        <Lock className="w-8 h-8 text-white/70" />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
                                                             {/* Overlay Icon for active slot */}
-                                                            {isActive && !selectedSlots.includes(index) && (
+                                                            {isActive && !selectedSlots.includes(index) && !isLocked && (
                                                                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
                                                                     <div className="bg-[#EC1D99] rounded-full p-3 shadow-lg">
                                                                         <UserPlus className="w-6 h-6 text-white" />
@@ -2220,7 +2245,9 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                                             )}
                                                         </div>
                                                         {isActive && (
-                                                            <span className="text-sm text-gray-300 font-medium mt-3 block">Slot {index + 1} of {maxSlots}</span>
+                                                            <span className="text-sm text-gray-300 font-medium mt-3 block">
+                                                                {isLocked ? "Fixed Slot (Brand Content)" : `Slot ${index + 1} of ${maxSlots}`}
+                                                            </span>
                                                         )}
                                                     </button>
                                                 </div>

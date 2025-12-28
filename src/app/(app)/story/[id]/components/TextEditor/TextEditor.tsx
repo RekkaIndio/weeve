@@ -16,6 +16,7 @@ interface TextEditorProps {
     onSetActiveMenu: (menu: string | null) => void;
     onSetHasMovedInCurrentEdit: (moved: boolean) => void;
     onUpdateStyle: (key: keyof TextStyle, value: any) => void;
+    onUpdateContent: (id: string, content: string) => void;
     onDeleteElement: (id: string) => void;
     onAddText: () => void;
 }
@@ -33,6 +34,7 @@ export function TextEditor({
     onSetActiveMenu,
     onSetHasMovedInCurrentEdit,
     onUpdateStyle,
+    onUpdateContent,
     onDeleteElement,
     onAddText
 }: TextEditorProps) {
@@ -59,7 +61,7 @@ export function TextEditor({
                         className={`pointer-events-auto select-none absolute touch-none ${isEditing ? 'z-[60]' : 'z-30 hover:z-40'}`}
                         style={{
                             left: showCentered ? '50%' : 0,
-                            top: showCentered ? '20%' : 0, // 30% down is a good "above keyboard" spot usually
+                            top: showCentered ? '20%' : 0,
                             transform: showCentered
                                 ? 'translate3d(-50%, 0, 0)'
                                 : `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
@@ -76,14 +78,12 @@ export function TextEditor({
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className="relative group flex flex-col items-center">
-                            {/* Drag Handle (Visible in Edit Mode + View Mode?) */}
-                            {/* User asked for handle on top. Useful for Edit Mode. */}
+                            {/* Drag Handle (Visible in Edit Mode) */}
                             {isEditing && (
                                 <div
                                     className="mb-2 px-3 py-1 bg-white/20 rounded-full backdrop-blur-md cursor-grab active:cursor-grabbing hover:bg-white/30 transition-colors pointer-events-auto"
                                     onPointerDown={(e) => {
-                                        // Specific handle for dragging when in edit mode
-                                        e.stopPropagation(); // prevent exiting edit mode
+                                        e.stopPropagation();
                                         onDragStart(e, element.id);
                                     }}
                                 >
@@ -94,7 +94,7 @@ export function TextEditor({
                             {/* Text Content */}
                             <div
                                 className={`
-                                    relative px-5 py-4 min-w-[50px] text-center
+                                    relative px-5 py-4 min-w-[200px] max-w-[80vw] text-center
                                     ${isEditing ? 'ring-2 ring-[#EC1D99] shadow-[0_0_0_4px_rgba(236,29,153,0.3)]' : 'hover:ring-1 hover:ring-white/30'}
                                     transition-all duration-200 rounded-3xl
                                 `}
@@ -104,9 +104,8 @@ export function TextEditor({
                                     color: element.style.textColor,
                                     textAlign: element.style.textAlign,
                                     backgroundColor: element.style.backgroundColor === 'transparent'
-                                        ? (isEditing ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.3)') // increased visibility while editing
+                                        ? (isEditing ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.3)')
                                         : element.style.backgroundColor,
-                                    whiteSpace: 'pre-wrap', // Preserve line breaks
                                     backdropFilter: 'blur(4px)',
                                     cursor: isEditing ? 'text' : 'pointer',
                                 }}
@@ -114,12 +113,31 @@ export function TextEditor({
                                     e.stopPropagation();
                                     if (!isEditing) {
                                         onSetActiveElementId(element.id);
-                                        // justSelectedRef.current = true; // Handled in parent usually, or we assume parent won't clear immediately
-                                        // setTimeout(() => justSelectedRef.current = false, 100);
                                     }
                                 }}
                             >
-                                {element.content || (isEditing ? "Type something..." : "")}
+                                {isEditing ? (
+                                    <textarea
+                                        autoFocus
+                                        value={element.content}
+                                        onChange={(e) => onUpdateContent(element.id, e.target.value)}
+                                        onPointerDown={(e) => e.stopPropagation()}
+                                        placeholder="Type something..."
+                                        className="w-full bg-transparent border-none outline-none resize-none text-inherit"
+                                        style={{
+                                            fontFamily: 'inherit',
+                                            fontSize: 'inherit',
+                                            color: 'inherit',
+                                            textAlign: element.style.textAlign as any,
+                                            minHeight: '1.5em',
+                                        }}
+                                        rows={3}
+                                    />
+                                ) : (
+                                    <span style={{ whiteSpace: 'pre-wrap' }}>
+                                        {element.content || ''}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -145,6 +163,7 @@ export function TextEditor({
                 activeMenu={activeMenu}
                 activeElement={activeElement}
                 onUpdateStyle={onUpdateStyle}
+                onCloseMenu={() => onSetActiveMenu(null)}
             />
         </>
     );

@@ -1,5 +1,5 @@
 import { Plus } from "lucide-react";
-import { type Story, type User, type Contribution } from "@/lib/store";
+import { type Story, type User, type Contribution, isSlotImmutable } from "@/lib/store";
 import type { TimelineEntry } from "../types";
 
 interface StoryTimelineProps {
@@ -44,7 +44,7 @@ export function StoryTimeline({
 
                         // HANDLE OPEN/RESERVED SLOTS (No Participant assigned)
                         if (!participant) {
-                            const isReserved = story.postType === 'canon' && story.canonSlots?.includes(entry.position);
+                            const isReserved = isSlotImmutable(story, entry.position);
                             // For Canon, if it's reserved, it belongs to the ORIGINAL Creator (Brand)
                             // If I am the Creator, it's MY turn.
                             // If I am NOT the Creator, it's "Reserved".

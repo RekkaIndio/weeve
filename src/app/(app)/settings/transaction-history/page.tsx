@@ -15,7 +15,7 @@ interface Transaction {
     payment_status: string;
     payment_completed_at: string;
     created_at: string;
-    stripe_payment_id?: string;
+    payment_id?: string;
 }
 
 export default function TransactionHistoryPage() {
@@ -31,7 +31,7 @@ export default function TransactionHistoryPage() {
             try {
                 const { data, error } = await supabase
                     .from('stories')
-                    .select('id, title, post_type, visibility_days, payment_status, payment_completed_at, created_at, stripe_payment_id')
+                    .select('id, title, post_type, visibility_days, payment_status, payment_completed_at, created_at, revolut_payment_id')
                     .eq('creator_id', currentUser.id)
                     .in('post_type', ['seed', 'canon'])
                     .order('created_at', { ascending: false });
@@ -182,7 +182,7 @@ export default function TransactionHistoryPage() {
                 {transactions.length > 0 && (
                     <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 mt-6">
                         <p className="text-xs text-gray-400 leading-relaxed">
-                            <strong className="text-gray-300">Need receipts?</strong> Your Stripe payment receipts were sent to your email.
+                            <strong className="text-gray-300">Need receipts?</strong> Your payment receipts were sent to your email.
                             For accounting purposes, you can download them from your email or contact support for assistance.
                         </p>
                     </div>

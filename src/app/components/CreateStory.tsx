@@ -9,7 +9,7 @@ import { searchUsers, addFriend, sendFriendRequest } from "@/lib/friends";
 import { searchHashtags } from "@/lib/hashtags";
 import { toast } from "sonner";
 import { getPrice, formatPrice, getAvailableSlotCounts } from "@/lib/brand-pricing";
-import { getPaymentLink } from "@/lib/stripe-payment-links";
+import { getPaymentLink } from "@/lib/revolut-payment-links";
 
 export interface Friend {
   id: string;
@@ -653,16 +653,16 @@ const CreateStory = ({
       // Create the story and get the story ID
       const storyId = await onCreateStory(submissionData);
 
-      // For brand posts requiring payment, redirect to Stripe
+      // For brand posts requiring payment, redirect to Revolut
       if (requiresPayment && formState.visibilityDays) {
-        const paymentLink = getPaymentLink(
+        const paymentLink = await getPaymentLink(
           formState.postType as 'seed' | 'canon',
           formState.visibilityDays,
           storyId
         );
 
         if (paymentLink) {
-          // Redirect to Stripe payment page
+          // Redirect to Revolut payment page
           window.location.href = paymentLink;
           // Note: loading state will persist during redirect, which is desired
         } else {

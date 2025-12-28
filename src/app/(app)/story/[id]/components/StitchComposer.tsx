@@ -45,6 +45,7 @@ interface StitchComposerProps {
     onSetActiveMenu: (menu: string | null) => void;
     onSetHasMovedInCurrentEdit: (moved: boolean) => void;
     onUpdateTextStyle: (key: keyof TextStyle, value: any) => void;
+    onUpdateTextContent: (id: string, content: string) => void;
     onDeleteTextElement: (id: string) => void;
 }
 
@@ -79,6 +80,7 @@ export function StitchComposer({
     onSetActiveMenu,
     onSetHasMovedInCurrentEdit,
     onUpdateTextStyle,
+    onUpdateTextContent,
     onDeleteTextElement
 }: StitchComposerProps) {
     if (!isComposerOpen) return null;
@@ -122,6 +124,7 @@ export function StitchComposer({
                     onSetActiveMenu={onSetActiveMenu}
                     onSetHasMovedInCurrentEdit={onSetHasMovedInCurrentEdit}
                     onUpdateStyle={onUpdateTextStyle}
+                    onUpdateContent={onUpdateTextContent}
                     onDeleteElement={onDeleteTextElement}
                     onAddText={onAddText}
                 />
@@ -136,7 +139,7 @@ export function StitchComposer({
                 />
             )}
 
-            {stitchMode === 'image' && showStickerPanel && mediaDraft?.previewUrl && (
+            {(stitchMode === 'image' || stitchMode === 'drawing') && showStickerPanel && (
                 <StickerPanel
                     onSelectSticker={onSelectSticker}
                     currentStickersCount={photoStickers.length}

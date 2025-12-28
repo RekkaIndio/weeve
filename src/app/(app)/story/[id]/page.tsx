@@ -509,6 +509,20 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         let waitingParticipants = allParticipants.filter(p => {
             const hasPosition = p.position !== undefined && p.position !== null;
             if (isForkedStory && p.status === 'waiting' && hasPosition) {
+                // Fix: If the participant has already contributed to this position,
+                // do not show them as waiting (show the contribution instead)
+                const hasContributedToPos = contributions.some(c =>
+                    c.userId === p.id &&
+                    (c.timestamp >= 1000000 && c.timestamp < 100000000
+                        ? (Math.floor(c.timestamp / 1000000) - 1) === p.position
+                        : false
+                    )
+                );
+
+                if (hasContributedToPos) {
+                    return false;
+                }
+
                 // For forked stories, show slot for waiting participants regardless of contribution status
                 return true;
             }
@@ -1903,8 +1917,13 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 }}
                 onAddText={addTextElement}
                 onToggleStickers={() => {
-                    setShowStickerPanel(!showStickerPanel);
+                    const opening = !showStickerPanel;
+                    setShowStickerPanel(opening);
                     setShowPhotoFilterPanel(false);
+                    // Close text menus when opening sticker panel (mutual exclusivity)
+                    if (opening) {
+                        setActiveMenu(null);
+                    }
                 }}
                 onClearStickers={() => setPhotoStickers([])}
                 onSetPhotoStickers={setPhotoStickers}
@@ -1924,9 +1943,20 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 onDragMove={handleDragMove}
                 onDragEnd={handleDragEnd}
                 onSetActiveElementId={setActiveElementId}
-                onSetActiveMenu={setActiveMenu}
+                onSetActiveMenu={(menu) => {
+                    setActiveMenu(menu);
+                    // Close sticker panel when opening a text menu (mutual exclusivity)
+                    if (menu !== null) {
+                        setShowStickerPanel(false);
+                    }
+                }}
                 onSetHasMovedInCurrentEdit={setHasMovedInCurrentEdit}
                 onUpdateTextStyle={updateTextStyle}
+                onUpdateTextContent={(id, content) => {
+                    setTextElements(prev => prev.map(el =>
+                        el.id === id ? { ...el, content } : el
+                    ));
+                }}
                 onDeleteTextElement={(id) => {
                     setTextElements(prev => prev.filter(el => el.id !== id));
                     setActiveElementId(null);
@@ -2098,7 +2128,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             {contributions.length > 0 && ((stitchMode !== null && !showStitchMenu) || imageToCrop) && !activeElementId && (
                 <StitchContextThumbnails
                     contributions={contributions}
-                    className={imageToCrop ? 'bottom-36' : 'bottom-24'}
+                    className={imageToCrop ? 'bottom-36' : 'bottom-[70px]'}
                 />
             )}
         </div >

@@ -28,7 +28,16 @@ export type NotificationType =
     | 'new_follower'
     | 'group_join_request'
     | 'group_request_approved'
-    | 'group_request_declined';
+    | 'group_request_declined'
+    | 'new_message'
+    | 'content_approved'
+    | 'content_rejected'
+    | 'story_approved'
+    | 'story_rejected'
+    | 'content_submitted_for_review'
+    | 'story_submitted_for_review'
+    | 'story_comment'
+    | 'share';
 
 export interface Notification {
     id: string;
@@ -487,6 +496,26 @@ export const notifyNewFollower = async (followerId: string, followedId: string) 
         message: `${follower.name} started following you`,
         data: { follower_id: followerId },
         action_url: `/profile/${followerId}`,
+        read: false,
+    });
+};
+
+/**
+ * Notify user of a new message
+ */
+export const notifyNewMessage = async (
+    conversationId: string,
+    recipientId: string,
+    senderName: string,
+    messagePreview: string
+) => {
+    await createNotification({
+        user_id: recipientId,
+        type: 'new_message',
+        title: 'New Message 💬',
+        message: `${senderName}: ${messagePreview.substring(0, 50)}${messagePreview.length > 50 ? '...' : ''}`,
+        data: { conversation_id: conversationId },
+        action_url: `/inbox/${conversationId}`,
         read: false,
     });
 };

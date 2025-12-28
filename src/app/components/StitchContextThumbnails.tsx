@@ -48,14 +48,7 @@ export default function StitchContextThumbnails({ contributions, onThumbnailClic
 
     return (
         <>
-            <div className={`fixed left-0 right-0 z-[100] pointer-events-auto ${className || 'bottom-16'}`}>
-                {/* Label */}
-                <div className="px-4 pb-2">
-                    <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-                        Story so far ({contributions.length} {contributions.length === 1 ? 'part' : 'parts'})
-                    </span>
-                </div>
-
+            <div className={`fixed left-0 right-0 z-[100] pointer-events-auto ${className || 'bottom-[70px]'}`}>
                 {/* Thumbnail strip - horizontal scrolling */}
                 <div
                     className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-hide"
@@ -65,7 +58,7 @@ export default function StitchContextThumbnails({ contributions, onThumbnailClic
                         <button
                             key={contribution.id}
                             onClick={() => handleClick(contribution, index)}
-                            className="shrink-0 relative w-14 h-14 rounded-xl overflow-hidden border-2 border-white/20 hover:border-[#EC1D99]/60 active:scale-95 transition-all bg-gray-800 group"
+                            className="shrink-0 relative w-14 h-14 rounded-xl overflow-hidden border-2 border-[#EC1D99]/70 hover:border-[#EC1D99] active:scale-95 transition-all bg-gray-800 group"
                         >
                             {/* Thumbnail content */}
                             {contribution.mediaUrl && (contribution.mediaType === 'image' || contribution.mediaType === 'drawing') ? (

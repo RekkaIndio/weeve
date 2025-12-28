@@ -2,18 +2,17 @@
 
 import { useStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Coins, TrendingUp } from 'lucide-react';
+import { ChevronLeft, Coins, TrendingUp, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, useCallback, useRef } from 'react';
 
-// Stripe Payment Links
-// TODO: Replace with production links when ready
-const PAYMENT_LINKS = {
-    TOKENS_100: 'https://buy.stripe.com/test_00w7sKcmB8pQ95lf0m2oE0a',
-    TOKENS_550: 'https://buy.stripe.com/test_bJe6oGcmB8pQa9p6tQ2oE08',
-    TOKENS_1000: 'https://buy.stripe.com/test_aFa14m2M15dEbdtbOa2oE09',
-};
+// Token package configuration (matches server-side)
+const TOKEN_PACKAGES = [
+    { key: 'TOKENS_100', tokens: 100, price: '£1.00', name: 'Starter Pack', emoji: '🪙' },
+    { key: 'TOKENS_550', tokens: 550, price: '£5.00', name: 'Standard Pack', emoji: '💰', popular: true },
+    { key: 'TOKENS_1000', tokens: 1000, price: '£10.00', name: 'Pro Pack', emoji: '💎' },
+];
 
 export default function WalletPage() {
     const router = useRouter();
@@ -21,6 +20,7 @@ export default function WalletPage() {
     const [mounted, setMounted] = useState(false);
     const [balance, setBalance] = useState(currentUser?.tokens || 0);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [purchasingPackage, setPurchasingPackage] = useState<string | null>(null);
     const userIdRef = useRef(currentUser?.id);
 
     // Update ref when user changes
@@ -129,12 +129,35 @@ export default function WalletPage() {
         router.back();
     };
 
-    const handlePurchase = (link: string) => {
+    const handlePurchase = async (packageKey: string) => {
         if (!currentUser) return;
-        // Append client_reference_id to the URL to track which user made the purchase
-        const url = new URL(link);
-        url.searchParams.append('client_reference_id', currentUser.id);
-        window.location.href = url.toString();
+
+        setPurchasingPackage(packageKey);
+
+        try {
+            // Create a Revolut checkout session
+            const response = await fetch('/api/create-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    packageKey,
+                    userId: currentUser.id,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to create payment session');
+            }
+
+            const { checkoutUrl } = await response.json();
+
+            // Redirect to Revolut checkout
+            window.location.href = checkoutUrl;
+        } catch (error) {
+            console.error('[Wallet] Payment error:', error);
+            setPurchasingPackage(null);
+            // TODO: Show error toast
+        }
     };
 
     if (!mounted) return null;
@@ -188,69 +211,43 @@ export default function WalletPage() {
                     <h2 className="text-xl font-bold text-white mb-4 font-sans">Top Up Tokens</h2>
 
                     <div className="space-y-4">
-                        {/* 100 Tokens */}
-                        <button
-                            onClick={() => handlePurchase(PAYMENT_LINKS.TOKENS_100)}
-                            className="w-full bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-[#EC1D99] rounded-xl p-4 flex items-center justify-between transition-all group"
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20 group-hover:scale-110 transition-transform">
-                                    <span className="text-xl">🪙</span>
+                        {TOKEN_PACKAGES.map((pkg) => (
+                            <button
+                                key={pkg.key}
+                                onClick={() => handlePurchase(pkg.key)}
+                                disabled={purchasingPackage !== null}
+                                className={`w-full bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-[#EC1D99] rounded-xl p-4 flex items-center justify-between transition-all group relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${pkg.key === 'TOKENS_1000' ? 'bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700' : ''}`}
+                            >
+                                {pkg.popular && (
+                                    <div className="absolute top-0 right-0 bg-[#EC1D99] text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">
+                                        POPULAR
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20 group-hover:scale-110 transition-transform">
+                                        <span className="text-xl">{pkg.emoji}</span>
+                                    </div>
+                                    <div className="text-left">
+                                        <h3 className="font-bold text-white font-sans">{pkg.tokens} Tokens</h3>
+                                        <p className="text-sm text-gray-400">{pkg.name} • {pkg.price}</p>
+                                    </div>
                                 </div>
-                                <div className="text-left">
-                                    <h3 className="font-bold text-white font-sans">100 Tokens</h3>
-                                    <p className="text-sm text-gray-400">Starter Pack</p>
+                                <div className={`px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 ${pkg.key === 'TOKENS_1000' ? 'bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/20' : 'bg-white text-black'}`}>
+                                    {purchasingPackage === pkg.key ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            <span>Loading...</span>
+                                        </>
+                                    ) : (
+                                        'Buy'
+                                    )}
                                 </div>
-                            </div>
-                            <div className="bg-white text-black px-4 py-2 rounded-full font-bold text-sm">
-                                Buy
-                            </div>
-                        </button>
-
-                        {/* 550 Tokens */}
-                        <button
-                            onClick={() => handlePurchase(PAYMENT_LINKS.TOKENS_550)}
-                            className="w-full bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-[#EC1D99] rounded-xl p-4 flex items-center justify-between transition-all group relative overflow-hidden"
-                        >
-                            <div className="absolute top-0 right-0 bg-[#EC1D99] text-white text-[10px] font-bold px-2 py-1 rounded-bl-lg">
-                                POPULAR
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20 group-hover:scale-110 transition-transform">
-                                    <span className="text-xl">💰</span>
-                                </div>
-                                <div className="text-left">
-                                    <h3 className="font-bold text-white font-sans">550 Tokens</h3>
-                                    <p className="text-sm text-gray-400">Standard Pack</p>
-                                </div>
-                            </div>
-                            <div className="bg-white text-black px-4 py-2 rounded-full font-bold text-sm">
-                                Buy
-                            </div>
-                        </button>
-
-                        {/* 1000 Tokens */}
-                        <button
-                            onClick={() => handlePurchase(PAYMENT_LINKS.TOKENS_1000)}
-                            className="w-full bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 border border-gray-800 hover:border-[#EC1D99] rounded-xl p-4 flex items-center justify-between transition-all group"
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center border border-yellow-500/20 group-hover:scale-110 transition-transform">
-                                    <span className="text-xl">💎</span>
-                                </div>
-                                <div className="text-left">
-                                    <h3 className="font-bold text-white font-sans">1000 Tokens</h3>
-                                    <p className="text-sm text-gray-400">Pro Pack</p>
-                                </div>
-                            </div>
-                            <div className="bg-[#EC1D99] text-white px-4 py-2 rounded-full font-bold text-sm shadow-lg shadow-[#EC1D99]/20">
-                                Buy
-                            </div>
-                        </button>
+                            </button>
+                        ))}
                     </div>
 
                     <p className="text-center text-xs text-gray-600 mt-8">
-                        Secured by Stripe. Tokens are added to your account immediately after payment.
+                        Secured by Revolut. Tokens are added to your account immediately after payment.
                     </p>
                 </div>
             </main>

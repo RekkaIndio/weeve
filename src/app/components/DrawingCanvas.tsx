@@ -222,8 +222,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                     ref={containerRef}
                     className="relative bg-gray-800 rounded-lg overflow-hidden"
                     style={{
-                        width: '100%',
-                        maxWidth: '540px',
+                        height: '100%',
                         aspectRatio: `${TARGET_WIDTH} / ${TARGET_HEIGHT}`,
                         margin: '0 auto',
                     }}

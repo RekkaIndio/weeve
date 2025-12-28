@@ -15,6 +15,7 @@ import type { Database } from "@/lib/database.types";
 import AestheticFallback from "@/app/components/AestheticFallback";
 import VideoThumbnail from "@/app/components/VideoThumbnail";
 import VerificationBadge from "@/app/components/VerificationBadge";
+import { formatCount } from "@/lib/format";
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -432,6 +433,7 @@ export default function ProfilePage() {
 
     // Invite Modal State
     const [showInviteModal, setShowInviteModal] = useState(false);
+    const [showAvatarModal, setShowAvatarModal] = useState(false);
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
     const [copied, setCopied] = useState(false);
 
@@ -1118,7 +1120,7 @@ export default function ProfilePage() {
                     {/* Avatar */}
                     <div
                         className="relative flex-shrink-0 group cursor-pointer"
-                        onClick={isEditing ? handleAvatarClick : undefined}
+                        onClick={isEditing ? handleAvatarClick : () => setShowAvatarModal(true)}
                     >
                         <img
                             src={isEditing ? editAvatar : currentUser.avatar}
@@ -1242,31 +1244,19 @@ export default function ProfilePage() {
                         {/* Stats - Compact Row */}
                         <div className="flex items-center justify-between py-3 border-y border-gray-800 mb-4">
                             <div className="flex-1 text-center">
-                                <div className="font-bold text-base">{totalLikes}</div>
+                                <div className="font-bold text-base">{formatCount(totalLikes)}</div>
                                 <div className="text-xs text-gray-500">Likes</div>
                             </div>
                             <Link href="/profile/followers" className="flex-1 text-center hover:opacity-80 transition-opacity cursor-pointer">
-                                <div className="font-bold text-base">{followerCount}</div>
+                                <div className="font-bold text-base">{formatCount(followerCount)}</div>
                                 <div className="text-xs text-gray-500">Followers</div>
                             </Link>
                             <Link href="/profile/following" className="flex-1 text-center hover:opacity-80 transition-opacity cursor-pointer">
-                                <div className="font-bold text-base">{followingCount}</div>
+                                <div className="font-bold text-base">{formatCount(followingCount)}</div>
                                 <div className="text-xs text-gray-500">Following</div>
                             </Link>
                         </div>
 
-                        <button
-                            onClick={() => {
-                                setEditName(currentUser.name);
-                                setEditAvatar(currentUser.avatar || '');
-                                setEditTagline(currentUser.tagline || '');
-                                setEditWebsite(currentUser.website || (currentUser.preferences as any)?.website || '');
-                                setIsEditing(true);
-                            }}
-                            className="w-full bg-white text-black font-bold py-2 rounded-lg text-sm text-center hover:bg-gray-200 transition-colors"
-                        >
-                            Edit Profile
-                        </button>
                     </>
                 )}
             </div>
@@ -1640,6 +1630,30 @@ export default function ProfilePage() {
                     </>
                 )}
             </div>
+
+            {/* Avatar Full Size Modal */}
+            {showAvatarModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+                    onClick={() => setShowAvatarModal(false)}
+                >
+                    <button
+                        onClick={() => setShowAvatarModal(false)}
+                        className="absolute top-4 right-4 text-white/80 hover:text-white z-10"
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+                    <img
+                        src={currentUser.avatar}
+                        alt={currentUser.name}
+                        className="max-w-[90vw] max-h-[90vh] rounded-2xl object-contain"
+                        onClick={(e) => e.stopPropagation()}
+                        onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser.name}`;
+                        }}
+                    />
+                </div>
+            )}
 
             {/* Invite Modal */}
             {

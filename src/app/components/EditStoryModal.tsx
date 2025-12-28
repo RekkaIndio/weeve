@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Search, Plus, Trash2, SkipForward } from 'lucide-react';
-import { Story, User, useStore } from '@/lib/store';
+import { X, Search, Plus, Trash2, SkipForward, Lock } from 'lucide-react';
+import { Story, User, useStore, isSlotImmutable } from '@/lib/store';
 import { skipTurn } from '@/lib/stories';
 import { toast } from 'sonner';
 
@@ -32,6 +32,16 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
 
     const handleRemoveParticipant = (userId: string) => {
         if (userId === currentUser?.id) return; // Can't remove self
+
+        // Defensive check for immutable slots
+        const participant = participants.find(p => p.id === userId);
+        if (participant && typeof participant.position === 'number') {
+            if (isSlotImmutable(story, participant.position)) {
+                toast.error("Cannot remove brand content");
+                return;
+            }
+        }
+
         setParticipants(participants.filter(p => p.id !== userId));
     };
 
@@ -145,6 +155,8 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
                                 const isCreator = story.creatorId === currentUser?.id;
                                 const canSkip = isCreator && isCurrentTurnUser && story.status === 'active';
 
+                                const isLocked = typeof participant.position === 'number' && isSlotImmutable(story, participant.position);
+
                                 return (
                                     <div
                                         key={participant.id}
@@ -161,6 +173,7 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
                                                     {participant.name}
                                                     {participant.id === currentUser?.id && <span className="text-gray-500 text-xs ml-2">(You)</span>}
                                                     {isCurrentTurnUser && <span className="text-[#EC1D99] text-xs ml-2">• Current Turn</span>}
+                                                    {isLocked && <span className="text-gray-500 text-xs ml-2 bg-gray-700 px-1.5 py-0.5 rounded">Fixed</span>}
                                                 </p>
                                             </div>
                                         </div>
@@ -178,11 +191,15 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
                                             )}
                                             {participant.id !== currentUser?.id && (
                                                 <button
-                                                    onClick={() => handleRemoveParticipant(participant.id)}
-                                                    className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                                                    title="Remove from story"
+                                                    onClick={() => !isLocked && handleRemoveParticipant(participant.id)}
+                                                    disabled={isLocked}
+                                                    className={`p-2 rounded-lg transition-colors ${isLocked
+                                                            ? 'text-gray-600 cursor-not-allowed'
+                                                            : 'text-gray-500 hover:text-red-500 hover:bg-red-500/10'
+                                                        }`}
+                                                    title={isLocked ? "Fixed brand content cannot be removed" : "Remove from story"}
                                                 >
-                                                    <Trash2 className="w-5 h-5" />
+                                                    {isLocked ? <Lock className="w-4 h-4" /> : <Trash2 className="w-5 h-5" />}
                                                 </button>
                                             )}
                                         </div>

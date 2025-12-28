@@ -38,10 +38,10 @@ export function EditorCanvas({
 
     if (stitchMode === 'video' && mediaDraft?.previewUrl) {
         return (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-8 pt-12 pb-32">
+            <div className="absolute inset-0 pointer-events-none">
                 <video
                     src={mediaDraft.previewUrl}
-                    className="max-h-[70vh] w-auto rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] pointer-events-auto"
+                    className="absolute inset-0 w-full h-full object-cover pointer-events-auto"
                     autoPlay
                     playsInline
                     loop
@@ -56,47 +56,45 @@ export function EditorCanvas({
 
     if (stitchMode === 'image' && mediaDraft?.previewUrl) {
         return (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none px-8 pt-12 pb-32">
-                <div className="relative max-h-[70vh]">
-                    <img
-                        src={mediaDraft.previewUrl}
-                        alt="Selected media preview"
-                        className="max-h-[70vh] w-auto rounded-3xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)] object-contain pointer-events-auto transition-all duration-300"
-                        style={{ filter: PHOTO_FILTERS.find(f => f.id === photoFilter)?.filter || 'none' }}
+            <div className="absolute inset-0 pointer-events-none">
+                <img
+                    src={mediaDraft.previewUrl}
+                    alt="Selected media preview"
+                    className="absolute inset-0 w-full h-full object-cover pointer-events-auto transition-all duration-300"
+                    style={{ filter: PHOTO_FILTERS.find(f => f.id === photoFilter)?.filter || 'none' }}
+                />
+                {/* Stickers Overlay */}
+                {photoStickers.map((sticker) => (
+                    <DraggableSticker
+                        key={sticker.id}
+                        id={sticker.id}
+                        emoji={sticker.emoji}
+                        initialX={sticker.x}
+                        initialY={sticker.y}
+                        initialScale={sticker.scale}
+                        isDragging={draggingStickerId === sticker.id}
+                        onDragStart={onSetDraggingStickerId}
+                        onDragEnd={() => onSetDraggingStickerId(null)}
+                        onUpdate={(id, updates) => {
+                            onSetPhotoStickers(photoStickers.map(s =>
+                                s.id === id ? { ...s, ...updates } : s
+                            ));
+                        }}
+                        onDelete={(id) => {
+                            onSetPhotoStickers(photoStickers.filter(s => s.id !== id));
+                        }}
                     />
-                    {/* Stickers Overlay */}
-                    {photoStickers.map((sticker) => (
-                        <DraggableSticker
-                            key={sticker.id}
-                            id={sticker.id}
-                            emoji={sticker.emoji}
-                            initialX={sticker.x}
-                            initialY={sticker.y}
-                            initialScale={sticker.scale}
-                            isDragging={draggingStickerId === sticker.id}
-                            onDragStart={onSetDraggingStickerId}
-                            onDragEnd={() => onSetDraggingStickerId(null)}
-                            onUpdate={(id, updates) => {
-                                onSetPhotoStickers(photoStickers.map(s =>
-                                    s.id === id ? { ...s, ...updates } : s
-                                ));
-                            }}
-                            onDelete={(id) => {
-                                onSetPhotoStickers(photoStickers.filter(s => s.id !== id));
-                            }}
-                        />
-                    ))}
-                </div>
+                ))}
             </div>
         );
     }
 
     if (stitchMode === 'drawing') {
         return (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-auto px-4 pt-20 pb-32">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-auto px-8 pt-12 pb-32">
                 <DrawingCanvas
                     ref={drawingCanvasRef}
-                    className="w-full max-w-md"
+                    className="max-h-[70vh] w-auto"
                     onAddText={onAddText}
                     onToggleStickers={onToggleStickers}
                     isStickerPanelOpen={showStickerPanel}

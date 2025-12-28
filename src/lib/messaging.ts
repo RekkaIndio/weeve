@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { Database } from './database.types';
+import { notifyNewMessage } from './notifications';
 
 type Conversation = Database['public']['Tables']['conversations']['Row'];
 type Message = Database['public']['Tables']['messages']['Row'];
@@ -203,7 +204,37 @@ export async function sendMessage(conversationId: string, senderId: string, cont
         .update({
             last_read_at: new Date().toISOString()
         })
-        .match({ conversation_id: conversationId, user_id: senderId });    
+        .match({ conversation_id: conversationId, user_id: senderId });
+
+    // 4. Send notification to recipient(s)
+    try {
+        // Get sender's name
+        const { data: senderProfile } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('user_id', senderId)
+            .single();
+
+        // Get recipient's user_id from the sender's participant record (other_user_id)
+        const { data: senderParticipant } = await supabase
+            .from('conversation_participants')
+            .select('other_user_id')
+            .eq('conversation_id', conversationId)
+            .eq('user_id', senderId)
+            .single();
+
+        if (senderParticipant?.other_user_id && senderProfile?.name) {
+            await notifyNewMessage(
+                conversationId,
+                senderParticipant.other_user_id,
+                senderProfile.name,
+                content
+            );
+        }
+    } catch (notifyError) {
+        // Don't fail the message send if notification fails
+        console.error('[sendMessage] Error sending notification:', notifyError);
+    }
 
     return message;
 }
