@@ -155,7 +155,7 @@ export default function MessagesTab({ onNewMessage }: MessagesTabProps) {
                                             alt={otherParticipant.name}
                                             width={48}
                                             height={48}
-                                            className="rounded-full bg-gray-800 object-cover"
+                                            className="rounded-full bg-gray-800 object-cover w-12 h-12"
                                         />
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -213,7 +213,7 @@ export default function MessagesTab({ onNewMessage }: MessagesTabProps) {
                                             <Image
                                                 src={u.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${u.user_id}`}
                                                 alt={u.name}
-                                                width={40} height={40} className="rounded-full bg-gray-800"
+                                                width={40} height={40} className="rounded-full bg-gray-800 object-cover w-10 h-10"
                                             />
                                             <div>
                                                 <div className="font-medium">{u.name}</div>
@@ -235,7 +235,7 @@ export default function MessagesTab({ onNewMessage }: MessagesTabProps) {
                                             <Image
                                                 src={friend.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${friend.id}`}
                                                 alt={friend.name}
-                                                width={40} height={40} className="rounded-full bg-gray-800"
+                                                width={40} height={40} className="rounded-full bg-gray-800 object-cover w-10 h-10"
                                             />
                                             <div className="font-medium">{friend.name}</div>
                                         </div>
