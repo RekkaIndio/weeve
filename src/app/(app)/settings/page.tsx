@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3, Receipt } from "lucide-react";
+import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3, Receipt, DollarSign } from "lucide-react";
+import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { signOut, updateUserProfile } from "@/lib/auth";
 import { setLatestSession } from "@/lib/auth-session";
@@ -17,11 +18,54 @@ export default function SettingsPage() {
     // Null = loading, true = google-only, false = not google-only
     const [isGoogleOnly, setIsGoogleOnly] = useState<boolean | null>(null);
 
+    const [monetizationEnabled, setMonetizationEnabled] = useState(true);
+
     useEffect(() => {
-        if (currentUser?.isPrivate !== undefined) {
-            setIsPrivate(currentUser.isPrivate);
+        if (currentUser?.preferences?.monetization_enabled !== undefined) {
+            setMonetizationEnabled(currentUser.preferences.monetization_enabled);
+        } else {
+            // Default to true if not set
+            setMonetizationEnabled(true);
         }
-    }, [currentUser?.isPrivate]);
+    }, [currentUser?.preferences]);
+
+    const handleMonetizationToggle = async () => {
+        if (!currentUser || isUpdating) return;
+
+        setIsUpdating(true);
+        const newValue = !monetizationEnabled;
+
+        try {
+            // Merge with existing preferences
+            const currentPrefs = currentUser.preferences || {};
+            const newPrefs = { ...currentPrefs, monetization_enabled: newValue };
+
+            const { error } = await updateUserProfile(currentUser.id, {
+                preferences: newPrefs,
+                isInfluencer: newValue
+            });
+            if (error) throw error;
+
+            setMonetizationEnabled(newValue);
+            // Update local store optimistically
+            setCurrentUser({
+                ...currentUser,
+                preferences: newPrefs,
+                isInfluencer: newValue
+            });
+
+            if (!newValue) {
+                toast.success("Monetization features hidden");
+            } else {
+                toast.success("Monetization features enabled");
+            }
+        } catch (err) {
+            console.error('[Settings] Failed to update monetization preference:', err);
+            toast.error("Failed to update settings");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
 
     useEffect(() => {
         (async () => {
@@ -106,6 +150,7 @@ export default function SettingsPage() {
             title: "Account",
             items: [
                 { label: "Edit Profile", icon: User, action: () => router.push('/settings/edit-profile') },
+                { label: "Monetization Features", icon: DollarSign, toggle: true, toggleValue: monetizationEnabled, onToggle: handleMonetizationToggle },
                 { label: "Analytics", icon: BarChart3, action: () => router.push('/settings/analytics') },
                 { label: "Change Password", icon: Lock, action: () => router.push('/settings/change-password') },
             ]
@@ -188,7 +233,7 @@ export default function SettingsPage() {
                             {section.title}
                         </h3>
                         <div className="bg-gray-900 rounded-xl overflow-hidden">
-                            {section.items.filter(item => !(isGoogleOnly && item.label === 'Change Password')).map((item, itemIdx) => (
+                            {section.items.filter(item => !(isGoogleOnly && item.label === 'Change Password')).map((item: any, itemIdx) => (
                                 <div
                                     key={itemIdx}
                                     className={`flex items-center justify-between p-4 ${itemIdx !== section.items.length - 1 ? 'border-b border-gray-800' : ''
@@ -207,15 +252,21 @@ export default function SettingsPage() {
                                             type="button"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                if (item.label === "Account Privacy") {
+                                                if (item.onToggle) {
+                                                    item.onToggle();
+                                                } else if (item.label === "Account Privacy") {
                                                     handlePrivacyToggle();
                                                 }
                                             }}
-                                            disabled={isUpdating && item.label === "Account Privacy"}
-                                            className={`relative w-12 h-6 transition duration-200 ease-in-out rounded-full overflow-hidden ${item.label === "Account Privacy" && isPrivate ? 'bg-[#EC1D99]' : 'bg-gray-700'
-                                                } ${isUpdating && item.label === "Account Privacy" ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                            disabled={(isUpdating && item.label === "Account Privacy") || (isUpdating && item.label === "Monetization Features")}
+                                            className={`relative w-12 h-6 transition duration-200 ease-in-out rounded-full overflow-hidden ${item.label === "Account Privacy" ? (isPrivate ? 'bg-[#EC1D99]' : 'bg-gray-700') :
+                                                item.label === "Monetization Features" ? (monetizationEnabled ? 'bg-[#EC1D99]' : 'bg-gray-700') :
+                                                    'bg-gray-700'
+                                                } ${isUpdating && (item.label === "Account Privacy" || item.label === "Monetization Features") ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                                         >
-                                            <span className={`absolute top-1 ${item.label === "Account Privacy" && isPrivate ? 'left-7' : 'left-1'
+                                            <span className={`absolute top-1 ${item.label === "Account Privacy" ? (isPrivate ? 'left-7' : 'left-1') :
+                                                item.label === "Monetization Features" ? (monetizationEnabled ? 'left-7' : 'left-1') :
+                                                    'left-1'
                                                 } bg-white w-4 h-4 rounded-full transition-all duration-200`}></span>
                                         </button>
                                     ) : (
@@ -255,3 +306,4 @@ export default function SettingsPage() {
         </div>
     );
 }
+

@@ -103,7 +103,7 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
     const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
     const [showTutorialTooltip, setShowTutorialTooltip] = useState(false);
-    const [showMonetizationModal, setShowMonetizationModal] = useState<'confirm' | 'insufficient' | null>(null);
+    const [showMonetizationModal, setShowMonetizationModal] = useState<'confirm' | 'insufficient' | 'enable_required' | null>(null);
     const [isAvatarsExpanded, setIsAvatarsExpanded] = useState(false);
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
@@ -1372,13 +1372,16 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                 {(story.visibility === 'public' || (story.visibility === 'private' && isParticipant))
                     && !['canon', 'seed'].includes(story.postType || '')
                     && (story.mode !== 'open' || (story.contributions?.length || 0) >= (story.maxWeeves || 3)) // Hide fork button for open mode stories UNLESS they are full/complete
+                    && (!story.monetizationCost || story.monetizationCost <= 0 || true)
                     && (
                         <div className="flex flex-col items-center gap-0.5 relative">
                             <button
                                 type="button"
                                 onClick={() => {
                                     if (story.monetizationCost && story.monetizationCost > 0) {
-                                        if ((currentUser?.tokens || 0) < story.monetizationCost) {
+                                        if (currentUser?.preferences?.monetization_enabled === false) {
+                                            setShowMonetizationModal('enable_required');
+                                        } else if ((currentUser?.tokens || 0) < story.monetizationCost) {
                                             setShowMonetizationModal('insufficient');
                                         } else {
                                             setShowMonetizationModal('confirm');
@@ -1593,6 +1596,32 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                         className="flex-1 py-3 px-4 rounded-xl bg-[#EC1D99] text-white font-semibold hover:bg-[#d61a88] transition-colors flex items-center justify-center"
                                     >
                                         Get Tokens
+                                    </Link>
+                                </div>
+                            </>
+                        )}
+
+                        {showMonetizationModal === 'enable_required' && (
+                            <>
+                                <div className="w-16 h-16 rounded-full bg-[#EC1D99]/20 flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-3xl">⚙️</span>
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">Enable Monetization</h3>
+                                <p className="text-gray-300 mb-6 text-sm">
+                                    This story requires a token contribution. Please enable monetization features in your settings to proceed.
+                                </p>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowMonetizationModal(null)}
+                                        className="flex-1 py-3 px-4 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <Link
+                                        href="/settings"
+                                        className="flex-1 py-3 px-4 rounded-xl bg-[#EC1D99] text-white font-semibold hover:bg-[#d61a88] transition-colors flex items-center justify-center"
+                                    >
+                                        Go to Settings
                                     </Link>
                                 </div>
                             </>

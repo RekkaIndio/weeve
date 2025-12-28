@@ -46,7 +46,31 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="w-full max-w-md bg-black h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-800 safe-area-pt">
 
                 {showHomeNotification && (
-                    <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-2 flex justify-end pointer-events-none">
+                    <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-2 flex justify-end gap-3 pointer-events-none">
+                        <Link
+                            href="/inbox"
+                            className="relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/70 border border-white/10 backdrop-blur-md shadow-md transition-transform hover:scale-105 pointer-events-auto"
+                        >
+                            <span className="sr-only">Messages</span>
+                            {/* Using MessageCircle from lucide, need to import it if not present, but AppLayout imports generic lucide-react. 
+                                Wait, AppLayout imports: Home, PlusSquare, User, Users, Compass. I need MessageCircle. 
+                                I will add MessageCircle to imports as well.
+                             */}
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="20"
+                                height="20"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="text-white"
+                            >
+                                <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+                            </svg>
+                        </Link>
                         <NotificationBell
                             userId={currentUser?.id}
                             className="bg-black/70 border border-white/10 backdrop-blur-md shadow-lg pointer-events-auto"

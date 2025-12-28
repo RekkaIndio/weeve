@@ -797,6 +797,108 @@ export interface Database {
                     }
                 ]
             }
+
+            conversations: {
+                Row: {
+                    id: string
+                    created_at: string
+                    updated_at: string
+                    last_message_at: string
+                    last_message_preview: string | null
+                }
+                Insert: {
+                    id?: string
+                    created_at?: string
+                    updated_at?: string
+                    last_message_at?: string
+                    last_message_preview?: string | null
+                }
+                Update: {
+                    id?: string
+                    created_at?: string
+                    updated_at?: string
+                    last_message_at?: string
+                    last_message_preview?: string | null
+                }
+                Relationships: []
+            }
+            conversation_participants: {
+                Row: {
+                    id: string
+                    conversation_id: string
+                    user_id: string
+                    last_read_at: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    conversation_id: string
+                    user_id: string
+                    last_read_at?: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    conversation_id?: string
+                    user_id?: string
+                    last_read_at?: string
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "conversation_participants_conversation_id_fkey"
+                        columns: ["conversation_id"]
+                        referencedRelation: "conversations"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "conversation_participants_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
+            messages: {
+                Row: {
+                    id: string
+                    conversation_id: string
+                    sender_id: string
+                    content: string
+                    created_at: string
+                    is_read: boolean
+                }
+                Insert: {
+                    id?: string
+                    conversation_id: string
+                    sender_id: string
+                    content: string
+                    created_at?: string
+                    is_read?: boolean
+                }
+                Update: {
+                    id?: string
+                    conversation_id?: string
+                    sender_id?: string
+                    content?: string
+                    created_at?: string
+                    is_read?: boolean
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "messages_conversation_id_fkey"
+                        columns: ["conversation_id"]
+                        referencedRelation: "conversations"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "messages_sender_id_fkey"
+                        columns: ["sender_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
             support_email_queue: {
                 Row: {
                     id: string

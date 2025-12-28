@@ -69,12 +69,12 @@ const StorySlotItem = ({
             if (isEmpty && !isReordering && !isLocked) onFill(index);
           }}
           className={`w-14 h-14 rounded-full flex items-center justify-center transition-all select-none relative bg-gray-800 ${isLocked
-              ? "ring-2 ring-gray-600 cursor-not-allowed opacity-75"
-              : isReordering && participant
-                ? "ring-2 ring-yellow-400 cursor-grab active:cursor-grabbing transform scale-105"
-                : participant
-                  ? "ring-2 ring-[#EC1D99] ring-offset-2 ring-offset-black"
-                  : "cursor-pointer hover:scale-105"
+            ? "ring-2 ring-gray-600 cursor-not-allowed opacity-75"
+            : isReordering && participant
+              ? "ring-2 ring-yellow-400 cursor-grab active:cursor-grabbing transform scale-105"
+              : participant
+                ? "ring-2 ring-[#EC1D99] ring-offset-2 ring-offset-black"
+                : "cursor-pointer hover:scale-105"
             }`}
         >
           {participant ? (
@@ -190,6 +190,7 @@ interface CreateStoryProps {
     // Brand account fields
     isBrand?: boolean;
     brandSubscriptionStatus?: 'none' | 'active' | 'expired';
+    preferences?: Record<string, any>;
   };
   onDeductTokens?: (amount: number) => boolean;
   groupId?: string;
@@ -1694,7 +1695,7 @@ const CreateStory = ({
                   </p>
                 </div>
 
-                {currentUser?.isInfluencer && (
+                {currentUser?.isInfluencer && currentUser?.preferences?.monetization_enabled !== false && (
                   <>
                     <div className="h-px bg-white/5" />
 

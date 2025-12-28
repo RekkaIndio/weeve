@@ -39,6 +39,10 @@ export interface AuthUser {
     brandSubscriptionStatus?: 'none' | 'active' | 'expired';
     isInfluencer?: boolean;
     interactionCost?: number | null;
+    preferences?: {
+        monetization_enabled?: boolean;
+        [key: string]: any;
+    };
 }
 
 /**
@@ -207,7 +211,7 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
     try {
         const { data, error } = await supabase
             .from('profiles')
-            .select('user_id, name, avatar, tagline, tokens, invite_code, is_private, onboarding_step, completed_onboarding, last_name_change_at, is_brand, brand_website, brand_subscription_status, is_influencer, interaction_cost')
+            .select('user_id, name, avatar, tagline, tokens, invite_code, is_private, onboarding_step, completed_onboarding, last_name_change_at, is_brand, brand_website, brand_subscription_status, is_influencer, interaction_cost, preferences')
             .eq('user_id', userId)
             .maybeSingle();
 
@@ -233,6 +237,7 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
             brandSubscriptionStatus: data.brand_subscription_status || 'none',
             isInfluencer: data.is_influencer || false,
             interactionCost: data.interaction_cost || null,
+            preferences: data.preferences as any || {},
         };
     } catch (error) {
         console.error('[Auth] Get profile error:', error);
@@ -249,7 +254,8 @@ export async function fetchProfileWithAccessToken(accessToken: string, userId: s
         if (!accessToken) return null;
         const restUrl = new URL(`${SUPABASE_URL}/rest/v1/profiles`);
         restUrl.searchParams.set('user_id', `eq.${encodeURIComponent(userId)}`);
-        restUrl.searchParams.set('select', 'user_id,name,avatar,tagline,tokens,invite_code,is_private,onboarding_step,completed_onboarding,last_name_change_at,is_brand,brand_website,brand_subscription_status,is_influencer,interaction_cost');
+        restUrl.searchParams.set('select', 'user_id,name,avatar,tagline,tokens,invite_code,is_private,onboarding_step,completed_onboarding,last_name_change_at,is_brand,brand_website,brand_subscription_status,is_influencer,interaction_cost,preferences');
+
 
         const controller = new AbortController();
         const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -292,6 +298,7 @@ export async function fetchProfileWithAccessToken(accessToken: string, userId: s
             brandSubscriptionStatus: row.brand_subscription_status || 'none',
             isInfluencer: row.is_influencer || false,
             interactionCost: row.interaction_cost || null,
+            preferences: row.preferences || {},
         };
     } catch (err) {
         console.warn('[Auth] fetchProfileWithAccessToken error:', err);

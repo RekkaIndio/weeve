@@ -17,7 +17,6 @@ export default function EditProfilePage() {
     const [name, setName] = useState(currentUser?.name || "");
     const [tagline, setTagline] = useState(currentUser?.tagline || "");
     const [avatar, setAvatar] = useState(currentUser?.avatar || "");
-    const [isInfluencer, setIsInfluencer] = useState(currentUser?.isInfluencer || false);
     const [interactionCost, setInteractionCost] = useState(currentUser?.interactionCost?.toString() || "");
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -164,7 +163,7 @@ export default function EditProfilePage() {
                 name: name.trim(),
                 tagline: tagline.trim() || null,
                 avatar: avatar || null,
-                isInfluencer,
+
                 interactionCost: null, // Feature removed
             });
 
@@ -206,7 +205,7 @@ export default function EditProfilePage() {
                 name: name.trim(),
                 tagline: tagline.trim() || undefined,
                 avatar: avatar || undefined,
-                isInfluencer,
+
                 interactionCost: undefined, // Feature removed
             });
 
@@ -415,28 +414,7 @@ export default function EditProfilePage() {
                         </p>
                     </div>
 
-                    {/* Monetization Settings */}
-                    <div className="pt-4 border-t border-gray-800">
-                        <label className="flex items-center justify-between mb-4 cursor-pointer group">
-                            <div>
-                                <div className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">
-                                    Monetize
-                                </div>
-                                <div className="text-xs text-gray-600">
-                                    Enable monetization features (e.g. Story Entry Fees)
-                                </div>
-                            </div>
-                            <div className="relative">
-                                <input
-                                    type="checkbox"
-                                    checked={isInfluencer}
-                                    onChange={(e) => setIsInfluencer(e.target.checked)}
-                                    className="sr-only peer"
-                                />
-                                <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#EC1D99]/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#EC1D99]"></div>
-                            </div>
-                        </label>
-                    </div>
+
 
                     <div className="pt-4">
                         <button
