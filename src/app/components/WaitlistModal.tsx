@@ -18,21 +18,33 @@ export default function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
         e.preventDefault();
         setLoading(true);
 
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+            const response = await fetch('/api/waitlist', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
 
-        // Here you would normally send to your backend/Supabase
+            if (!response.ok) {
+                throw new Error('Failed to join waitlist');
+            }
 
+            setSubmitted(true);
+            setLoading(false);
 
-        setSubmitted(true);
-        setLoading(false);
-
-        // Reset after 3 seconds
-        setTimeout(() => {
-            setEmail("");
-            setSubmitted(false);
-            onClose();
-        }, 3000);
+            // Reset after 3 seconds
+            setTimeout(() => {
+                setEmail("");
+                setSubmitted(false);
+                onClose();
+            }, 3000);
+        } catch (error) {
+            console.error('Error joining waitlist:', error);
+            alert('Failed to join waitlist. Please try again.');
+            setLoading(false);
+        }
     };
 
     return (

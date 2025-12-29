@@ -97,6 +97,18 @@ export default function SignUpPage() {
             if (authError) throw authError;
             if (!user) throw new Error('Signup failed');
 
+            // Send Welcome Email
+            try {
+                await fetch('/api/auth/welcome', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email }),
+                });
+            } catch (emailError) {
+                console.error('Failed to send welcome email:', emailError);
+                // Don't block signup if email fails
+            }
+
             // AuthProvider will redirect to /setup for new users
 
         } catch (error) {

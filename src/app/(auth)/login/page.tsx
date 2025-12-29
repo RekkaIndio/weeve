@@ -272,6 +272,12 @@ export default function LoginPage() {
                         </button>
                     </div>
 
+                    <div className="flex justify-end">
+                        <a href="/forgot-password" className="text-sm text-gray-400 hover:text-white transition-colors">
+                            Forgot Password?
+                        </a>
+                    </div>
+
                     <button
                         onClick={handleEmailLogin}
                         disabled={loading}
