@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     if (payload.event === 'ORDER_COMPLETED' && payload.data) {
         const order = payload.data;
         const merchantRef = order.merchant_order_ext_ref;
-        const amount = order.order_amount?.value;
+        const amount = order.order_amount?.value ?? order.amount;
 
         if (!merchantRef) {
             console.error('[Revolut Webhook] No merchant_order_ext_ref in order');
@@ -72,6 +72,10 @@ export async function POST(req: Request) {
             }
 
             // Determine tokens to add based on amount
+            if (amount === undefined) {
+                console.error('[Revolut Webhook] No amount in order');
+                return NextResponse.json({ error: 'Missing amount' }, { status: 400 });
+            }
             const tokensToAdd = getTokensForAmount(amount);
 
             if (tokensToAdd <= 0) {

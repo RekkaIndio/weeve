@@ -5,16 +5,19 @@
 
 export interface RevolutOrder {
   id: string;
-  public_id: string;
-  type: 'PAYMENT';
-  state: 'PENDING' | 'PROCESSING' | 'AUTHORISED' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
+  token: string;  // Used for checkout URL
+  public_id?: string;  // Optional, for backwards compatibility
+  type: 'payment' | 'PAYMENT';
+  state: 'pending' | 'PENDING' | 'PROCESSING' | 'AUTHORISED' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
   created_at: string;
   updated_at: string;
   completed_at?: string;
   description?: string;
   merchant_order_ext_ref?: string;
   customer_email?: string;
-  order_amount: {
+  amount?: number;  // Amount in minor units
+  currency?: string;
+  order_amount?: {
     value: number;
     currency: string;
   };
@@ -28,6 +31,7 @@ export interface CreateOrderParams {
   merchantOrderExtRef?: string; // Our reference ID (user_id or story_id)
   customerEmail?: string;
   metadata?: Record<string, string>;
+  redirectUrl?: string; // URL to redirect after successful payment
 }
 
 const REVOLUT_API_BASE = {
@@ -69,6 +73,7 @@ export async function createOrder(params: CreateOrderParams): Promise<RevolutOrd
       merchant_order_ext_ref: params.merchantOrderExtRef,
       customer_email: params.customerEmail,
       metadata: params.metadata,
+      redirect_url: params.redirectUrl,
     }),
   });
 
@@ -118,7 +123,7 @@ export async function getCheckoutUrl(orderId: string): Promise<string> {
     ? 'https://checkout.revolut.com'
     : 'https://sandbox-checkout.revolut.com';
   
-  return `${checkoutBase}/pay/${orderId}`;
+  return `${checkoutBase}/payment-link/${orderId}`;
 }
 
 /**

@@ -34,9 +34,15 @@ export const BRAND_POST_PRICING: Record<string, { amount: number; currency: stri
  */
 export async function createTokenPurchaseLink(
   packageKey: keyof typeof TOKEN_PACKAGES,
-  userId: string
+  userId: string,
+  baseUrl?: string
 ): Promise<string> {
   const pkg = TOKEN_PACKAGES[packageKey];
+  
+  // Construct redirect URL back to wallet with success indicator
+  const redirectUrl = baseUrl 
+    ? `${baseUrl}/wallet?payment=success`
+    : undefined;
   
   const order = await createOrder({
     amount: pkg.amount,
@@ -49,9 +55,10 @@ export async function createTokenPurchaseLink(
       package: packageKey,
       tokens: pkg.tokens.toString(),
     },
+    redirectUrl,
   });
 
-  return getCheckoutUrl(order.public_id);
+  return getCheckoutUrl(order.token);
 }
 
 /**
@@ -90,7 +97,7 @@ export async function getPaymentLink(
       },
     });
 
-    return getCheckoutUrl(order.public_id);
+    return getCheckoutUrl(order.token);
   } catch (error) {
     console.error('[Revolut] Failed to create payment link:', error);
     return null;

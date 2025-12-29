@@ -33,7 +33,7 @@ export default function PartnershipPage() {
                     <section>
                         <h2 className="text-xl font-bold text-white mb-3">1. Engagement & Licence</h2>
                         <p className="leading-relaxed">
-                            Weeve Inc. (“Weeve” or “Company”) grants Partner a limited, non-exclusive, non-transferable, and revocable licence to access and use the Weeve platform solely to create, manage, and publish content through a Brand Account, subject to this Agreement and Weeve’s Community Guidelines.
+                            Weeve (“Weeve” or “Company”) grants Partner a limited, non-exclusive, non-transferable, and revocable licence to access and use the Weeve platform solely to create, manage, and publish content through a Brand Account, subject to this Agreement and Weeve’s Community Guidelines.
                         </p>
                     </section>
 
@@ -71,7 +71,7 @@ export default function PartnershipPage() {
                     <section>
                         <h2 className="text-xl font-bold text-white mb-3">6. Indemnification</h2>
                         <p className="leading-relaxed">
-                            Partner agrees to indemnify and hold harmless Weeve Inc. from claims arising from Partner’s content, breach of this Agreement, or violation of third-party rights.
+                            Partner agrees to indemnify and hold harmless Weeve from claims arising from Partner’s content, breach of this Agreement, or violation of third-party rights.
                         </p>
                     </section>
 
