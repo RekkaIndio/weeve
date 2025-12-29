@@ -10,6 +10,7 @@ interface WaitlistModalProps {
 }
 
 export default function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
+    const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [submitted, setSubmitted] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -24,7 +25,7 @@ export default function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ email }),
+                body: JSON.stringify({ email, name: name.trim() || undefined }),
             });
 
             if (!response.ok) {
@@ -36,6 +37,7 @@ export default function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
 
             // Reset after 3 seconds
             setTimeout(() => {
+                setName("");
                 setEmail("");
                 setSubmitted(false);
                 onClose();
@@ -95,6 +97,15 @@ export default function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
 
                                         {/* Form */}
                                         <form onSubmit={handleSubmit} className="space-y-4">
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    value={name}
+                                                    onChange={(e) => setName(e.target.value)}
+                                                    placeholder="What should we call you? (optional)"
+                                                    className="w-full px-4 py-3 bg-black border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:outline-none focus:border-[#EC1D99] transition-colors"
+                                                />
+                                            </div>
                                             <div>
                                                 <input
                                                     type="email"

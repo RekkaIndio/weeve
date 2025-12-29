@@ -3,7 +3,7 @@ import { sendEmail } from '@/lib/mailgun';
 
 export async function POST(request: Request) {
   try {
-    const { email } = await request.json();
+    const { email, name } = await request.json();
 
     if (!email) {
       return NextResponse.json(
@@ -12,11 +12,13 @@ export async function POST(request: Request) {
       );
     }
 
+    const nameText = name ? ` (${name})` : '';
+    
     await sendEmail({
       to: 'jamie@tryweeve.com',
       subject: 'New Waitlist Signup',
-      text: `New user joined the waitlist: ${email}`,
-      html: `<p>New user joined the waitlist: <strong>${email}</strong></p>`,
+      text: `New user joined the waitlist: ${email}${nameText}`,
+      html: `<p>New user joined the waitlist: <strong>${email}</strong>${name ? ` - ${name}` : ''}</p>`,
     });
 
     return NextResponse.json({ success: true }, { status: 200 });
