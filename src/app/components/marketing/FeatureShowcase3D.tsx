@@ -2,7 +2,7 @@
 
 import { motion, useScroll, useTransform, useSpring, AnimatePresence } from "framer-motion";
 import { useRef, useState } from "react";
-import { Zap, Shield, Users, Globe, Smartphone, Layers, Palette, Eye, LucideIcon } from "lucide-react";
+import { GitFork, Shield, Users, Globe, MessageCircle, Layers, Palette, PenTool, LucideIcon } from "lucide-react";
 
 export default function FeatureShowcase3D() {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -37,10 +37,10 @@ export default function FeatureShowcase3D() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <FeatureCard
-                        title="Real-Time Sync"
-                        desc="Updates happen instantly across all devices. No refreshing needed."
-                        icon={Zap}
-                        color="from-yellow-400 to-orange-500"
+                        title="Fork & Remix"
+                        desc="Take any story and make it your own. Build on what inspires you."
+                        icon={GitFork}
+                        color="from-pink-400 to-rose-500"
                         delay={0.1}
                     />
                     <FeatureCard
@@ -51,9 +51,9 @@ export default function FeatureShowcase3D() {
                         delay={0.2}
                     />
                     <FeatureCard
-                        title="Global Format"
-                        desc="Share seamlessly with friends anywhere in the world."
-                        icon={Globe}
+                        title="Story Threads"
+                        desc="Continue stories together. Each friend adds their chapter."
+                        icon={MessageCircle}
                         color="from-blue-400 to-cyan-500"
                         delay={0.3}
                     />
@@ -72,16 +72,16 @@ export default function FeatureShowcase3D() {
                         delay={0.5}
                     />
                     <FeatureCard
-                        title="Mobile First"
-                        desc="Optimized for touch, gestures, and one-handed use."
-                        icon={Smartphone}
+                        title="Pass the Pen"
+                        desc="Invite friends to add their part. True collaborative creation."
+                        icon={PenTool}
                         color="from-indigo-400 to-violet-500"
                         delay={0.6}
                     />
                     <FeatureCard
-                        title="No Algorithms"
-                        desc="You see what your friends post. Chronological. Pure."
-                        icon={Eye}
+                        title="Global Format"
+                        desc="Share seamlessly with friends anywhere in the world."
+                        icon={Globe}
                         color="from-teal-400 to-green-500"
                         delay={0.7}
                     />

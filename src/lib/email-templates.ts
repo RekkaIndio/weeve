@@ -106,3 +106,20 @@ export const generateEmailHtml = ({
 </html>
   `;
 };
+
+export const generateWaitlistConfirmationEmail = (name?: string): string => {
+  const greeting = name ? `Hey ${name}!` : 'Hey there!';
+  
+  return generateEmailHtml({
+    title: "You're on the list! 🎉",
+    previewText: "Thanks for joining the Weeve waitlist - we can't wait to have you!",
+    content: [
+      greeting,
+      "Thanks for joining the Weeve waitlist! We're thrilled to have you as one of our early supporters.",
+      "Weeve is a collaborative storytelling platform where creators remix and build on each other's work. We're putting the finishing touches on something special, and you'll be among the first to experience it.",
+      "We'll send you an exclusive invite as soon as we're ready to launch. In the meantime, feel free to reply to this email if you have any questions or ideas you'd like to share!",
+    ],
+    buttonText: "Learn More",
+    buttonUrl: "https://tryweeve.com",
+  });
+};
