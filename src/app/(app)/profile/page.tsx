@@ -1097,13 +1097,13 @@ export default function ProfilePage() {
             {/* Header */}
             <div className="p-4 flex justify-end items-center">
                 <div className="flex items-center gap-4">
-                    {/* Wallet Link - Only for regular users and if monetization is enabled */}
-                    {!currentUser.isBrand && currentUser.preferences?.monetization_enabled !== false && (
+                    {/* Wallet Link - HIDDEN: Monetization features temporarily disabled */}
+                    {/* {!currentUser.isBrand && currentUser.preferences?.monetization_enabled !== false && (
                         <Link href="/wallet" className="flex items-center gap-1 bg-gray-800 px-3 py-1.5 rounded-full hover:bg-gray-700 transition-colors">
                             <Wallet className="w-4 h-4 text-[#EC1D99]" />
                             <span className="text-sm font-bold text-[#EC1D99]">{currentUser.tokens}</span>
                         </Link>
-                    )}
+                    )} */}
 
                     <button onClick={() => setShowInviteModal(true)} className="text-white hover:text-gray-300 transition-colors">
                         <UserPlus className="w-6 h-6" />

@@ -1695,12 +1695,13 @@ const CreateStory = ({
                   </p>
                 </div>
 
-                {currentUser?.isInfluencer && currentUser?.preferences?.monetization_enabled !== false && (
+                {/* HIDDEN: Monetization features temporarily disabled */}
+                {/* {currentUser?.isInfluencer && currentUser?.preferences?.monetization_enabled !== false && (
                   <>
                     <div className="h-px bg-white/5" />
 
                     {/* Monetization Cost */}
-                    <div>
+                {/* <div>
                       <div className="flex items-center justify-between mb-4">
                         <label htmlFor="monetization-cost" className="block text-xs font-semibold uppercase tracking-wider text-gray-400 font-sans pl-1">
                           Entry Fee
@@ -1741,7 +1742,7 @@ const CreateStory = ({
                       </p>
                     </div>
                   </>
-                )}
+                )} */}
 
                 <div className="h-px bg-white/5" />
               </>

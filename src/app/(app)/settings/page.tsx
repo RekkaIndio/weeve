@@ -150,7 +150,8 @@ export default function SettingsPage() {
             title: "Account",
             items: [
                 { label: "Edit Profile", icon: User, action: () => router.push('/settings/edit-profile') },
-                { label: "Monetization Features", icon: DollarSign, toggle: true, toggleValue: monetizationEnabled, onToggle: handleMonetizationToggle },
+                // HIDDEN: Monetization features temporarily disabled
+                // { label: "Monetization Features", icon: DollarSign, toggle: true, toggleValue: monetizationEnabled, onToggle: handleMonetizationToggle },
                 { label: "Analytics", icon: BarChart3, action: () => router.push('/settings/analytics') },
                 { label: "Change Password", icon: Lock, action: () => router.push('/settings/change-password') },
             ]
