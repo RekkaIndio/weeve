@@ -340,7 +340,7 @@ export default function SignUpPage() {
                         </a>
                     </p>
 
-                    <p className="mt-4 text-center text-sm text-gray-400">
+                    {/* <p className="mt-4 text-center text-sm text-gray-400">
                         Are you a brand?{" "}
                         <a
                             href="/brand-signup"
@@ -348,7 +348,7 @@ export default function SignUpPage() {
                         >
                             Create a Brand Account
                         </a>
-                    </p>
+                    </p> */}
                 </div>
             </div>
 
