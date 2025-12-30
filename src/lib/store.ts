@@ -758,10 +758,6 @@ export const useStore = create<AppState>()(
                         (a: any, b: any) => a.timestamp - b.timestamp
                     );
                     
-                    console.log('[forkStory] Original contributions:', sortedContributions.length);
-                    console.log('[forkStory] slotIndices (to exclude):', slotIndices);
-                    console.log('[forkStory] contributionIdsToExclude:', contributionIdsToExclude);
-                    
                     // 4. Copy contributions EXCEPT those that should be excluded
                     // If contributionIdsToExclude is provided, use that; otherwise fall back to slotIndices
                     const excludeIds = new Set(contributionIdsToExclude || []);
@@ -773,8 +769,6 @@ export const useStore = create<AppState>()(
                         const shouldExclude = excludeIds.size > 0 
                             ? excludeIds.has(c.id)
                             : slotIndices.includes(originalIndex);
-                        
-                        console.log(`[forkStory] Contribution ${originalIndex}: id=${c.id}, exclude=${shouldExclude}`);
                         
                         if (!shouldExclude) {
                             keptUserIds.add(c.user_id);
@@ -793,9 +787,6 @@ export const useStore = create<AppState>()(
                             });
                         }
                     });
-                    
-                    console.log('[forkStory] Contributions to copy:', contributionsToCopy.length);
-
                     // 5. Build a map of slot index → user ID from contributions (this is the TRUE slot mapping)
                     // This tells us which user owns which slot based on contribution order
                     const slotToUserMap = new Map<number, string>();
@@ -860,14 +851,10 @@ export const useStore = create<AppState>()(
                     });
 
                     const participantsToInsert = Array.from(participantsMap.values());
-                    console.log('[forkStory] About to insert participants:', JSON.stringify(participantsToInsert, null, 2));
-
 
                     const { error: participantsError } = await supabase
                         .from('story_participants')
                         .insert(participantsToInsert);
-
-                    console.log('[forkStory] Participants insert completed, error:', participantsError?.message || 'none');
 
                     if (participantsError) {
                          console.error('[forkStory] Error adding participants:', participantsError);
@@ -877,13 +864,10 @@ export const useStore = create<AppState>()(
                     }
 
                     // 6. Insert the copied contributions
-                    console.log('[forkStory] About to insert contributions:', contributionsToCopy.length);
                     if (contributionsToCopy.length > 0) {
                         const { error: contributionsError } = await supabase
                             .from('contributions')
                             .insert(contributionsToCopy);
-
-                        console.log('[forkStory] Contributions insert completed, error:', contributionsError?.message || 'none');
 
                         if (contributionsError) {
                             console.error('[forkStory] Error copying contributions:', contributionsError);
@@ -891,9 +875,7 @@ export const useStore = create<AppState>()(
                     }
 
                     // Return success - the story page will fetch the story data when it loads
-                    console.log('[forkStory] Fork completed successfully, storyId:', newStoryId);
                     return { success: true, storyId: newStoryId };
-
                 } catch (err: any) {
                     console.error('Unexpected error in forkStory:', err);
                     return { success: false, error: `Unexpected error: ${err?.message || err}` };
@@ -931,24 +913,6 @@ export const useStore = create<AppState>()(
                     if (postType !== 'canon' && postType !== 'seed') {
                         return { success: false, error: 'This is not a brand post' };
                     }
-                    
-                    // DEBUG: Log what we're forking from
-                    console.log('[forkBrandPost] Forking from story:', {
-                        id: originalStory.id,
-                        title: originalStory.title,
-                        postType,
-                        canonSlots: originalStory.canon_slots,
-                        forkedFromStoryId: originalStory.forked_from_story_id,
-                        contributionCount: originalStory.contributions?.length,
-                        contributions: (originalStory.contributions || []).map((c: any) => ({
-                            userId: c.user_id,
-                            userName: c.user_name,
-                            timestamp: c.timestamp,
-                            decodedPosition: c.timestamp >= 1000000 && c.timestamp < 100000000 
-                                ? Math.floor(c.timestamp / 1000000) - 1 
-                                : 'unknown'
-                        }))
-                    });
 
                     // Check if user already has a fork of this Canon
                     const { data: existingForks } = await supabase
@@ -960,14 +924,11 @@ export const useStore = create<AppState>()(
 
                     if (existingForks && existingForks.length > 0) {
                         // User already has a fork, return it
-                        console.log('[forkBrandPost] User already has a fork:', existingForks[0].id);
                         return { success: true, storyId: existingForks[0].id };
                     }
 
-                    // 2. Determine which slots are immutable (brand content)
                     const canonSlots: number[] = originalStory.canon_slots || [];
                     const immutableSlots = postType === 'seed' ? [0] : canonSlots;
-                    console.log('[forkBrandPost] Immutable slots:', immutableSlots);
 
                     // 3. Create new story (fork)
                     const { data: newStoryData, error: createError } = await supabase
@@ -998,7 +959,6 @@ export const useStore = create<AppState>()(
                     }
 
                     const newStoryId = newStoryData.id;
-                    console.log('[forkBrandPost] Created fork with id:', newStoryId);
 
                     // 4. Copy immutable contributions (brand content)
                     // IMPORTANT: We decode the actual slot position from the timestamp
@@ -1013,13 +973,6 @@ export const useStore = create<AppState>()(
                             // Fallback: try to infer from order (less reliable)
                             contributionPosition = -1;
                         }
-                        
-                        console.log('[forkBrandPost] Checking contribution:', {
-                            timestamp: c.timestamp,
-                            decodedPosition: contributionPosition,
-                            immutableSlots,
-                            isImmutable: immutableSlots.includes(contributionPosition)
-                        });
                         
                         // Copy only contributions that are in immutable slots
                         if (immutableSlots.includes(contributionPosition)) {
@@ -1036,9 +989,6 @@ export const useStore = create<AppState>()(
                             });
                         }
                     });
-                    
-                    console.log('[forkBrandPost] Copying contributions:', contributionsToCopy.length, 'of', (originalStory.contributions || []).length);
-
                     if (contributionsToCopy.length > 0) {
                         const { error: contributionsError } = await supabase
                             .from('contributions')
@@ -1138,7 +1088,6 @@ export const useStore = create<AppState>()(
 
                 // Deduplicate: Don't fetch if already fetching
                 if (isStoriesLoading) {
-                    console.log('[Store] fetchStories skipped - already loading');
                     return;
                 }
 
@@ -1193,7 +1142,6 @@ export const useStore = create<AppState>()(
                         ]);
                         
                         if (!refreshError) {
-                            console.log('[Store] Session refreshed, retrying fetchStories (attempt 2)...');
                             result = await runQuery(20000); // Give it more time on retry
                             storiesData = (result as any).data;
                             error = (result as any).error;
@@ -1207,10 +1155,7 @@ export const useStore = create<AppState>()(
                         return;
                     }
 
-                    // Log data reception for debugging
-                    console.log(`[Store] fetchStories received ${storiesData?.length || 0} raw stories (page ${page})`);
                     if (!storiesData) { // Allow empty array, but check for null/undefined
-                         console.warn('[Store] fetchStories: No data returned from Supabase query'); 
                          return;
                     }
 
@@ -1232,7 +1177,6 @@ export const useStore = create<AppState>()(
                             if (membershipData) {
                                 userGroupIds = new Set(membershipData.map((m: { group_id: string }) => m.group_id));
                             }
-                            console.log(`[Store] User is member of ${userGroupIds.size} groups`);
                         } catch (err) {
                             console.warn('[Store] Failed to fetch group memberships:', err);
                         }
@@ -1409,7 +1353,6 @@ export const useStore = create<AppState>()(
             fetchMoreStories: async () => {
                 const { hasMoreStories, isStoriesLoading } = get();
                 if (!hasMoreStories || isStoriesLoading) {
-                    console.log('[Store] fetchMoreStories skipped - no more stories or already loading');
                     return;
                 }
                 await get().fetchStories(false);

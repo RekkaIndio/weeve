@@ -156,7 +156,6 @@ export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise
  */
 export async function signOut(): Promise<{ error: Error | null }> {
     try {
-        console.log('[Auth] Signing out...');
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
         
@@ -173,7 +172,6 @@ export async function signOut(): Promise<{ error: Error | null }> {
                     }
                 }
                 keysToRemove.forEach(key => {
-                    console.log('[Auth] Clearing localStorage key:', key);
                     window.localStorage.removeItem(key);
                 });
             } catch (e) {
@@ -181,7 +179,6 @@ export async function signOut(): Promise<{ error: Error | null }> {
             }
         }
         
-        console.log('[Auth] Sign out complete');
         return { error: null };
     } catch (error) {
         console.error('[Auth] Signout error:', error);
@@ -362,7 +359,6 @@ export async function createUserProfile(
             // Check if it's a unique constraint violation on the name
             // Postgres error code 23505 = unique_violation
             if (result.error?.code === '23505' && (result.error?.message?.includes('unique_display_name') || result.error?.message?.includes('name'))) {
-                console.log(`[Auth] Name collision for "${currentName}". Retrying with suffix...`);
                 // Append random 4 characters
                 currentName = `${name.slice(0, 20)}_${Math.random().toString(36).substr(2, 4)}`;
                 lastError = result.error;

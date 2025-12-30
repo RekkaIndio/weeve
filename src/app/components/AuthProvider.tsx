@@ -44,7 +44,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // ---------------------------------------------------------------------------
     const syncProfile = useCallback(async (authUser: SupabaseUser, sessionValues?: { access_token: string }) => {
         try {
-            console.log('[AuthProvider] Syncing profile for:', authUser.id);
 
             // 1. Try to fetch existing profile
             let profile = await getUserProfile(authUser.id);
@@ -71,7 +70,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             // 3. If STILL not found, and we are in a session, we might need to create it (auto-create for OAuth)
             // Note: Email/Password flow usually creates profile at signup. OAuth might not.
             if (!profile) {
-                console.log('[AuthProvider] No profile found. Attempting auto-creation/recovery...');
                 const candidateName = authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'User';
                 const candidateAvatar = authUser.user_metadata?.picture || authUser.user_metadata?.avatar;
 
@@ -152,7 +150,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                         }
                     }
                     if (keysToRemove.length > 0) {
-                        console.log('[AuthProvider] Clearing potentially corrupted session keys:', keysToRemove);
                         keysToRemove.forEach(key => window.localStorage.removeItem(key));
                     }
                 } catch (e) {
@@ -162,13 +159,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         };
 
         const initialize = async () => {
-            console.log('[AuthProvider] Starting initialization...');
             const initStartTime = Date.now();
 
             try {
                 // 1. Get initial session with timeout protection
                 // Reduced to 8s to prevent long waits in production
-                console.log('[AuthProvider] Fetching session...');
                 const sessionPromise = supabase.auth.getSession();
                 const timeoutPromise = new Promise<{ data: { session: null }, error: Error, timedOut: true }>((resolve) => {
                     setTimeout(() => {
@@ -182,8 +177,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 const error = result?.error;
                 const timedOut = result?.timedOut;
 
-                console.log('[AuthProvider] Session fetch completed in', Date.now() - initStartTime, 'ms, hasSession:', !!session?.user, 'timedOut:', !!timedOut);
-
                 if (error || timedOut) {
                     console.warn('[AuthProvider] Session fetch error/timeout:', error?.message);
                     // Clear potentially corrupted session data that might be causing hangs
@@ -196,7 +189,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
                     // Perform Profile Sync with shorter timeout (5s)
                     try {
-                        console.log('[AuthProvider] Syncing profile...');
                         const syncPromise = syncProfile(session.user, { access_token: session.access_token });
                         const syncTimeout = new Promise<null>((resolve) => {
                             setTimeout(() => {
@@ -205,13 +197,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                             }, 5000);
                         });
                         await Promise.race([syncPromise, syncTimeout]);
-                        console.log('[AuthProvider] Profile sync completed in', Date.now() - initStartTime, 'ms');
                     } catch (syncErr) {
                         console.warn('[AuthProvider] syncProfile error during init:', syncErr);
                     }
                 } else {
                     // No session or timed out
-                    console.log('[AuthProvider] No session, clearing user state');
                     setUser(null);
                     setLatestSession(null);
                     logoutUser();
@@ -232,7 +222,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             } finally {
                 initCompleted = true;
                 if (mounted) {
-                    console.log('[AuthProvider] Initialization complete, total time:', Date.now() - initStartTime, 'ms');
                     setLoading(false);
                 }
             }
@@ -256,8 +245,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         let subscription: { unsubscribe: () => void } | null = null;
         try {
             const { data } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-                console.log('[AuthProvider] Auth Change:', event);
-
                 if (!mounted) return;
 
                 if (session?.user) {
@@ -326,7 +313,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
         // If NOT logged in and on a private route -> Login
         if (!user && !isPublicRoute(currentPath)) {
-            console.log('[AuthProvider] Protected route, redirecting to login');
             router.replace('/login');
             return;
         }
@@ -337,15 +323,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
             // If needs onboarding and NOT there -> Go there
             if (needsOnboarding && !currentPath.startsWith('/onboarding') && currentPath !== '/login') {
-                // Check local storage dismissal for safety?
-                console.log('[AuthProvider] Needs onboarding, redirecting');
                 router.replace('/onboarding/welcome');
                 return;
             }
 
             // If fully onboarded and on Public/Auth route -> Go Feed
             if (!needsOnboarding && isPublicRoute(currentPath) && currentPath !== '/auth/callback') {
-                console.log('[AuthProvider] Redirecting to feed');
                 router.replace('/feed');
                 // router.refresh(); // Optional, but helps if feed data is stale
             }
@@ -363,8 +346,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         if (!Capacitor.isNativePlatform()) return;
 
         App.addListener('appUrlOpen', async ({ url }) => {
-            console.log('[AuthProvider] Deep link:', url);
-
             // Handle Stripe
             if (url.includes('payment-success')) {
                 // Navigate internally
@@ -404,8 +385,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                         if (error) throw error;
 
                         if (data?.session) {
-                            console.log('[AuthProvider] Manual session usage from deep link exchange');
-
                             // Wrap in timeout to break out of native event loop and ensure React updates flushes
                             setTimeout(async () => {
                                 // Force state update immediately
@@ -423,7 +402,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                 }
 
                                 // FORCE navigation to break any "stuck" UI state
-                                console.log('[AuthProvider] Force redirecting to feed');
                                 router.push('/feed');
                                 router.refresh();
                             }, 50);
@@ -461,10 +439,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                     if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
 
                                     if (data?.session) {
-                                        console.log('[AuthProvider] Manual session usage from deep link (implicit)');
                                         setUser(data.session.user);
                                         setLatestSession(data.session);
-
                                         try {
                                             const syncPromise = syncProfile(data.session.user, { access_token: data.session.access_token });
                                             const syncTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000));
@@ -475,7 +451,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                     }
 
                                     // FORCE navigation
-                                    console.log('[AuthProvider] Force redirecting to feed (implicit)');
                                     router.push('/feed');
                                     router.refresh();
                                 } catch (innerErr) {

@@ -11,7 +11,6 @@ export function storeReferralCode(code: string): void {
     if (typeof window === 'undefined') return;
     try {
         localStorage.setItem(REFERRAL_CODE_KEY, code);
-        console.log('[Referral] Stored referral code:', code);
     } catch (error) {
         console.warn('[Referral] Failed to store referral code:', error);
     }
@@ -37,7 +36,6 @@ export function clearReferralCode(): void {
     if (typeof window === 'undefined') return;
     try {
         localStorage.removeItem(REFERRAL_CODE_KEY);
-        console.log('[Referral] Cleared referral code');
     } catch (error) {
         console.warn('[Referral] Failed to clear referral code:', error);
     }
@@ -59,11 +57,8 @@ export async function processReferralCode(userId: string): Promise<boolean> {
         const referrerCode = getStoredReferralCode();
         
         if (!referrerCode) {
-            console.log('[Referral] No referral code to process');
             return false;
         }
-
-        console.log('[Referral] Processing referral code:', referrerCode);
 
         // Look up referrer by their invite code
         const { data: referrer, error: lookupError } = await supabase
@@ -93,7 +88,6 @@ export async function processReferralCode(userId: string): Promise<boolean> {
             .maybeSingle();
 
         if (existingFriendship) {
-            console.log('[Referral] Already friends with referrer, skipping');
             clearReferralCode();
             return true; // Already connected, still a success
         }
@@ -103,8 +97,6 @@ export async function processReferralCode(userId: string): Promise<boolean> {
         
         // Clear the code after successful processing
         clearReferralCode();
-        
-        console.log('[Referral] Successfully connected user', userId, 'with referrer', referrer.user_id);
         return true;
     } catch (error) {
         console.error('[Referral] Failed to process referral code:', error);

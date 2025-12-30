@@ -30,7 +30,6 @@ export async function POST(req: Request) {
             console.error('[Revolut Webhook] Signature verification failed');
             return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
         }
-        console.log('[Revolut Webhook] Signature verified successfully');
     } else if (!webhookSecret) {
         console.warn('[Revolut Webhook] ⚠️ REVOLUT_WEBHOOK_SECRET not set - skipping signature verification. Set this in production!');
     } else if (!signature) {
@@ -44,8 +43,6 @@ export async function POST(req: Request) {
         console.error('[Revolut Webhook] Failed to parse payload:', err);
         return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
-
-    console.log('[Revolut Webhook] Received event:', payload.event, 'Order:', payload.order_id);
 
     // Handle ORDER_COMPLETED event
     if (payload.event === 'ORDER_COMPLETED' && payload.data) {
@@ -83,8 +80,6 @@ export async function POST(req: Request) {
                 return NextResponse.json({ error: 'Invalid payment amount' }, { status: 400 });
             }
 
-            console.log(`[Revolut Webhook] Processing token purchase: User ${userId}, Amount ${amount}, Tokens ${tokensToAdd}`);
-
             // Use atomic RPC function to add tokens
             const { data, error } = await supabaseAdmin.rpc('add_tokens', {
                 p_user_id: userId,
@@ -104,9 +99,6 @@ export async function POST(req: Request) {
                 return NextResponse.json({ error: 'Failed to add tokens' }, { status: 500 });
             }
 
-            const result = typeof data === 'string' ? JSON.parse(data) : data;
-            console.log(`[Revolut Webhook] Successfully added ${tokensToAdd} tokens to user ${userId}. New balance: ${result.new_balance}`);
-
         } else if (type === 'brand') {
             // Brand post payment flow
             const storyId = rest[0];
@@ -115,8 +107,6 @@ export async function POST(req: Request) {
                 console.error('[Revolut Webhook] No story ID in merchant reference');
                 return NextResponse.json({ error: 'Invalid reference format' }, { status: 400 });
             }
-
-            console.log(`[Revolut Webhook] Processing brand post payment for story: ${storyId}`);
 
             // Update story payment status
             const { error } = await supabaseAdmin
@@ -133,7 +123,6 @@ export async function POST(req: Request) {
                 return NextResponse.json({ error: 'Failed to update story' }, { status: 500 });
             }
 
-            console.log(`[Revolut Webhook] Successfully marked story ${storyId} as paid`);
         } else {
             console.warn('[Revolut Webhook] Unknown reference type:', type);
         }

@@ -84,7 +84,6 @@ export async function createOrder(params: CreateOrderParams): Promise<RevolutOrd
   }
 
   const order = await response.json() as RevolutOrder;
-  console.log('[Revolut] Order created:', order.id, order.public_id);
   
   return order;
 }
