@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Weeve",
-  description: "Weeve - share short-form moments",
+  description: "Weeve - Social Media Reimagined",
   icons: {
     icon: '/weeve-logo.png',
     shortcut: '/weeve-logo.png',
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'Weeve',
-    description: 'Weeve - share short-form moments',
+    description: 'Weeve - Social Media Reimagined',
     images: ['/weeve-logo.png'],
   },
 };
