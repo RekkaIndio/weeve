@@ -88,11 +88,11 @@ export default function LoginPage() {
 
 
 
-            // Manually set the session if needed, though supabase client usually handles this
-            if (session) {
-                const { error: sessionError } = await supabase.auth.setSession(session);
-                if (sessionError) console.error('[Login] Error setting session:', sessionError);
-            }
+            // Manually set the session is not needed as signIn handles it
+            // if (session) {
+            //    const { error: sessionError } = await supabase.auth.setSession(session);
+            //    if (sessionError) console.error('[Login] Error setting session:', sessionError);
+            // }
 
             // AuthProvider will handle redirect to /feed once session is detected
             // router.push('/feed'); 

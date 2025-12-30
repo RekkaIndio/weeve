@@ -126,7 +126,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
         } catch (err) {
             console.error('[AuthProvider] Sync Profile Error:', err);
-            return null;
+            // Fallback: Set a temporary user so the app doesn't crash or get stuck on login
+            const tempUser = {
+                id: authUser.id,
+                name: authUser.user_metadata?.name || 'User',
+                avatar: authUser.user_metadata?.picture,
+                tokens: 0
+            };
+            setCurrentUser(tempUser);
+            return tempUser;
         }
     }, [setCurrentUser]);
 

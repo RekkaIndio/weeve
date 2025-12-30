@@ -130,19 +130,17 @@ export const markAllAsRead = async (userId: string): Promise<boolean> => {
 /**
  * Create a notification
  */
-export const createNotification = async (notification: Omit<Notification, 'id' | 'created_at'>): Promise<Notification | null> => {
-    const { data, error } = await supabase
+export const createNotification = async (notification: Omit<Notification, 'id' | 'created_at'>): Promise<boolean> => {
+    const { error } = await supabase
         .from('notifications')
-        .insert(notification)
-        .select()
-        .single();
+        .insert(notification);
 
     if (error) {
         console.error('Error creating notification:', error);
-        return null;
+        return false;
     }
 
-    return data as Notification;
+    return true;
 };
 
 /**
