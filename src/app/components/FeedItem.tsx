@@ -1886,7 +1886,9 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsCommentsOpen(false)} />
                     <div className="relative bg-black/90 text-white rounded-t-3xl p-6 pb-8 max-h-[50%] flex flex-col gap-4">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold">Comments</h3>
+                            <h3 className="text-lg font-semibold">
+                                Comments <span className="text-gray-400 text-sm font-normal ml-1">({story.comments.length})</span>
+                            </h3>
                             <button
                                 type="button"
                                 onClick={() => setIsCommentsOpen(false)}
@@ -1984,8 +1986,8 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                                                             type="button"
                                                                             onClick={() => toggleCommentLike(story.id, reply.id)}
                                                                             className={`flex items-center gap-1 text-xs transition-colors flex-shrink-0 ${currentUser && reply.likedBy?.includes(currentUser.id)
-                                                                                    ? 'text-[#EC1D99]'
-                                                                                    : 'text-gray-400 hover:text-[#EC1D99]'
+                                                                                ? 'text-[#EC1D99]'
+                                                                                : 'text-gray-400 hover:text-[#EC1D99]'
                                                                                 }`}
                                                                         >
                                                                             <Heart className={`w-3 h-3 ${currentUser && reply.likedBy?.includes(currentUser.id) ? 'fill-current' : ''}`} />
