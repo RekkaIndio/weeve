@@ -1,5 +1,6 @@
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase";
 import type { Session, User } from "@supabase/supabase-js";
+import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from "@capacitor/core";
 import { addFriend } from "./friends";
 import type { Database } from "./database.types";
@@ -178,7 +179,21 @@ export async function signOut(): Promise<{ error: Error | null }> {
                 console.warn('[Auth] Failed to clear localStorage:', e);
             }
         }
-        
+
+        // Also clear Capacitor Preferences for native persistence
+        const isCapacitor = Capacitor.isNativePlatform();
+        if (isCapacitor) {
+            try {
+                const { keys } = await Preferences.keys();
+                const keysToRemove = keys.filter((k: string) => k.includes('supabase') || k.includes('sb-'));
+                for (const key of keysToRemove) {
+                    await Preferences.remove({ key });
+                }
+            } catch (e) {
+                console.warn('[Auth] Failed to clear Preferences:', e);
+            }
+        }
+
         return { error: null };
     } catch (error) {
         console.error('[Auth] Signout error:', error);

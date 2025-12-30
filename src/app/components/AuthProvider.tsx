@@ -146,97 +146,67 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         let mounted = true;
         let initCompleted = false;
 
-        // Helper to clear potentially corrupted session data from localStorage
-        const clearCorruptedSessions = () => {
-            if (typeof window !== 'undefined' && window.localStorage) {
-                try {
-                    const keysToRemove: string[] = [];
-                    for (let i = 0; i < window.localStorage.length; i++) {
-                        const key = window.localStorage.key(i);
-                        if (key && (key.includes('supabase') || key.includes('sb-'))) {
-                            keysToRemove.push(key);
-                        }
-                    }
-                    if (keysToRemove.length > 0) {
-                        keysToRemove.forEach(key => window.localStorage.removeItem(key));
-                    }
-                } catch (e) {
-                    console.warn('[AuthProvider] Failed to clear localStorage:', e);
-                }
-            }
-        };
-
         const initialize = async () => {
             const initStartTime = Date.now();
 
             try {
-                // 1. Get initial session with timeout protection
-                // Reduced to 8s to prevent long waits in production
-                const sessionPromise = supabase.auth.getSession();
-                const timeoutPromise = new Promise<{ data: { session: null }, error: Error, timedOut: true }>((resolve) => {
-                    setTimeout(() => {
-                        console.warn('[AuthProvider] getSession timed out after 8 seconds');
-                        resolve({ data: { session: null }, error: new Error('Session fetch timed out'), timedOut: true });
-                    }, 8000);
-                });
-
-                const result = await Promise.race([sessionPromise, timeoutPromise]) as any;
-                const session = result?.data?.session;
-                const error = result?.error;
-                const timedOut = result?.timedOut;
-
-                if (error || timedOut) {
-                    console.warn('[AuthProvider] Session fetch error/timeout:', error?.message);
-                    // Clear potentially corrupted session data that might be causing hangs
-                    clearCorruptedSessions();
-                }
+                // 1. Get initial session
+                console.log('[AuthProvider] Getting session...');
+                const { data: { session }, error } = await supabase.auth.getSession();
 
                 if (session?.user) {
+                    // OPTIMISTIC LOGIN: Set state immediately
+                    console.log('[AuthProvider] Session found, setting optimistic user');
                     setUser(session.user);
                     setLatestSession(session);
 
-                    // Perform Profile Sync with shorter timeout (5s)
-                    try {
-                        const syncPromise = syncProfile(session.user, { access_token: session.access_token });
-                        const syncTimeout = new Promise<null>((resolve) => {
-                            setTimeout(() => {
-                                console.warn('[AuthProvider] syncProfile timed out after 5 seconds');
-                                resolve(null);
-                            }, 5000);
-                        });
-                        await Promise.race([syncPromise, syncTimeout]);
-                    } catch (syncErr) {
-                        console.warn('[AuthProvider] syncProfile error during init:', syncErr);
-                    }
+                    // Create minimal temp user to unblock routing immediately
+                    const optimisticUser = {
+                        id: session.user.id,
+                        name: session.user.user_metadata?.name || 'User',
+                        avatar: session.user.user_metadata?.picture,
+                        tokens: 0,
+                        completedOnboarding: true // Assume true safely, sync will correct
+                    };
+
+                    // Only set optimistic user if store is empty
+                    // We check mounting because we want to avoid overwriting if re-renders happen
+                    // but on init it's fine.
+                    setCurrentUser(optimisticUser as any);
+
+                    // Release UI Block
+                    setLoading(false);
+
+                    // BACKGROUND Sync: Fetch full profile
+                    syncProfile(session.user, { access_token: session.access_token }).catch(err => {
+                        console.warn('[AuthProvider] Background sync failed:', err);
+                    });
                 } else {
-                    // No session or timed out
+                    // No session
+                    console.log('[AuthProvider] No session found');
                     setUser(null);
                     setLatestSession(null);
                     logoutUser();
-
-                    // Clear any potentially corrupt session storage
-                    if (typeof window !== 'undefined') {
-                        try {
-                            sessionStorage.removeItem('weeve_oauth_in_progress');
-                        } catch (e) { }
-                    }
+                    setLoading(false);
                 }
             } catch (initErr) {
                 console.error('[AuthProvider] Initialize error:', initErr);
-                // Fail gracefully - treat as no session
                 setUser(null);
                 setLatestSession(null);
                 logoutUser();
+                setLoading(false);
             } finally {
                 initCompleted = true;
-                if (mounted) {
-                    setLoading(false);
+                if (mounted && loading) {
+                    // extra safety: if we didn't set loading false above
+                    // but we might have set it in the if block. 
+                    // If we did, React handles the duplicate set.
+                    // If we didn't (error path), we do it here.
                 }
             }
         };
 
         // Master timeout: GUARANTEE that loading ends within 12 seconds no matter what
-        // This prevents the app from ever getting stuck on the loading screen
         const masterTimeout = setTimeout(() => {
             if (!initCompleted && mounted) {
                 console.error('[AuthProvider] MASTER TIMEOUT: Forcing loading to end after 12 seconds');
@@ -253,23 +223,38 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         let subscription: { unsubscribe: () => void } | null = null;
         try {
             const { data } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
+                console.log('[AuthProvider] onAuthStateChange:', event, session?.user?.id);
                 if (!mounted) return;
 
                 if (session?.user) {
                     setUser(session.user);
                     setLatestSession(session);
 
-                    // On SIGN_IN, we might need to sync profile again (with timeout)
+                    // On SIGN_IN, we might need to sync profile again
                     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-                        try {
-                            const syncPromise = syncProfile(session.user, { access_token: session.access_token });
-                            const syncTimeout = new Promise<null>((resolve) => setTimeout(() => {
-                                console.warn('[AuthProvider] onAuthStateChange syncProfile timed out');
-                                resolve(null);
-                            }, 10000));
-                            await Promise.race([syncPromise, syncTimeout]);
-                        } catch (syncErr) {
-                            console.warn('[AuthProvider] onAuthStateChange syncProfile error:', syncErr);
+                        // OPTIMISTIC: Update UI first
+                        const optimisticUser = {
+                            id: session.user.id,
+                            name: session.user.user_metadata?.name || 'User',
+                            avatar: session.user.user_metadata?.picture,
+                            tokens: 0,
+                            completedOnboarding: true // Assume true
+                        };
+
+                        // Prevent overwriting if we already have data
+                        if (!currentUser) {
+                            setCurrentUser(optimisticUser as any);
+                        }
+
+                        // Background Sync
+                        syncProfile(session.user, { access_token: session.access_token }).catch(err => {
+                            console.warn('[AuthProvider] Background sync error:', err);
+                        });
+
+                        // Explicit Navigation check (safe to do since state is updated)
+                        if (event === 'SIGNED_IN') {
+                            router.replace('/feed');
+                            router.refresh();
                         }
                     }
 
@@ -318,9 +303,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         if (loading) return;
 
         const currentPath = pathname || '';
+        console.log('[AuthProvider] Route Check:', {
+            hasUser: !!user,
+            hasCurrentUser: !!currentUser,
+            path: currentPath,
+            isPublic: isPublicRoute(currentPath)
+        });
 
         // If NOT logged in and on a private route -> Login
         if (!user && !isPublicRoute(currentPath)) {
+            console.log('[AuthProvider] Redirecting to /login (Protected Route)');
             router.replace('/login');
             return;
         }
@@ -337,6 +329,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
             // If fully onboarded and on Public/Auth route -> Go Feed
             if (!needsOnboarding && isPublicRoute(currentPath) && currentPath !== '/auth/callback') {
+                console.log('[AuthProvider] Redirecting to /feed (Authenticated on Public Route)');
                 router.replace('/feed');
                 // router.refresh(); // Optional, but helps if feed data is stale
             }
@@ -344,9 +337,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     }, [user, currentUser, loading, pathname, router]);
 
 
-    // ---------------------------------------------------------------------------
-    // Capacitor / Native Handlers
-    // ---------------------------------------------------------------------------
     // ---------------------------------------------------------------------------
     // Capacitor / Native Handlers
     // ---------------------------------------------------------------------------

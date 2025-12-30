@@ -94,8 +94,10 @@ export default function LoginPage() {
             //    if (sessionError) console.error('[Login] Error setting session:', sessionError);
             // }
 
-            // AuthProvider will handle redirect to /feed once session is detected
-            // router.push('/feed'); 
+            // AuthProvider Should handle redirect, but we force it here to be safe and avoid "double login" feeling
+            console.log('[Login] Login successful, redirecting to feed...');
+            router.push('/feed');
+            router.refresh();
 
         } catch (error) {
             console.error('[Login] Error:', error);

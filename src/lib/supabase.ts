@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { Capacitor } from '@capacitor/core'
+import { Preferences } from '@capacitor/preferences'
 import { Database } from './database.types'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -54,8 +55,37 @@ try {
     _supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
         auth: {
             persistSession: true,
-            autoRefreshToken: true, // Enable auto-refresh to ensure requests don't hang on expired tokens
+            autoRefreshToken: true,
             detectSessionInUrl: !Capacitor.isNativePlatform(),
+            storage: {
+                getItem: async (key: string) => {
+                    try {
+                        console.log('[Supabase] GetItem:', key);
+                        const { value } = await Preferences.get({ key });
+                        console.log('[Supabase] GetItem result:', key, !!value);
+                        return value;
+                    } catch (error) {
+                        console.error('[Supabase] GetItem error:', error);
+                        return null;
+                    }
+                },
+                setItem: async (key: string, value: string) => {
+                    try {
+                        console.log('[Supabase] SetItem:', key);
+                        await Preferences.set({ key, value });
+                    } catch (error) {
+                        console.error('[Supabase] SetItem error:', error);
+                    }
+                },
+                removeItem: async (key: string) => {
+                    try {
+                        console.log('[Supabase] RemoveItem:', key);
+                        await Preferences.remove({ key });
+                    } catch (error) {
+                        console.error('[Supabase] RemoveItem error:', error);
+                    }
+                },
+            },
         },
     });
 } catch (err) {
