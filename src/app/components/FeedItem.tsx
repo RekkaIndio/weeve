@@ -1935,7 +1935,7 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                                 </div>
                                                 {/* Replies */}
                                                 {comment.replies && comment.replies.length > 0 && (
-                                                    <div className="ml-12 space-y-3 border-l-2 border-white/10 pl-4">
+                                                    <div className="ml-11 space-y-3 border-l-2 border-white/20 pl-4 mt-2">
                                                         {comment.replies.map((reply) => {
                                                             const replyAvatar = getAvatarForUser(reply.userId, reply.userName);
                                                             return (

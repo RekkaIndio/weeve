@@ -1334,7 +1334,8 @@ export const useStore = create<AppState>()(
                             userId: cm.user_id,
                             userName: cm.user_name || cm.profiles?.name || 'Unknown',
                             content: cm.content,
-                            timestamp: cm.timestamp
+                            timestamp: cm.timestamp,
+                            parentCommentId: cm.parent_comment_id
                         }));
 
                         // Map likes
