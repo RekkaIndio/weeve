@@ -9,117 +9,122 @@ export interface Friend extends User {
 }
 
 export const fetchPublicUsers = async (currentUserId: string, limit = 50): Promise<Friend[]> => {
-    // Return a list of public profiles (is_private = false), excluding current user
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .neq('user_id', currentUserId)
-        .eq('is_private', false)
-        .limit(limit);
+    // Run all queries in parallel to eliminate N+1 pattern
+    const [profilesResult, friendshipsResult, sentRequestsResult, receivedRequestsResult] = await Promise.all([
+        // Query 1: Get public profiles
+        supabase
+            .from('profiles')
+            .select('*')
+            .neq('user_id', currentUserId)
+            .eq('is_private', false)
+            .limit(limit),
+        
+        // Query 2: Get friendships
+        supabase
+            .from('friendships')
+            .select('friend_id')
+            .eq('user_id', currentUserId),
+        
+        // Query 3: Get sent friend requests
+        supabase
+            .from('friend_requests')
+            .select('receiver_id')
+            .eq('sender_id', currentUserId)
+            .eq('status', 'pending'),
+        
+        // Query 4: Get received friend requests
+        supabase
+            .from('friend_requests')
+            .select('sender_id')
+            .eq('receiver_id', currentUserId)
+            .eq('status', 'pending')
+    ]);
 
-    if (error) {
-        console.error('Error fetching public users:', error);
+    if (profilesResult.error) {
+        console.error('Error fetching public users:', profilesResult.error);
         return [];
     }
 
-    // Check friendship status
-    const { data: friendships } = await supabase
-        .from('friendships')
-        .select('friend_id')
-        .eq('user_id', currentUserId);
+    const data = profilesResult.data || [];
+    const friendIds = new Set(friendshipsResult.data?.map((f: { friend_id: string }) => f.friend_id) || []);
+    const sentRequestIds = new Set(sentRequestsResult.data?.map((r: { receiver_id: string }) => r.receiver_id) || []);
+    const receivedRequestIds = new Set(receivedRequestsResult.data?.map((r: { sender_id: string }) => r.sender_id) || []);
 
-    const friendIds = new Set(friendships?.map((f: { friend_id: string }) => f.friend_id) || []);
+    return data.map((profile: any) => {
+        const isFriend = friendIds.has(profile.user_id);
+        let friendRequestStatus: Friend['friendRequestStatus'] = 'none';
 
-    // Check friend request status
-    const { data: sentRequests } = await supabase
-        .from('friend_requests')
-        .select('receiver_id, status')
-        .eq('sender_id', currentUserId)
-        .eq('status', 'pending');
+        if (isFriend) {
+            friendRequestStatus = 'accepted';
+        } else if (sentRequestIds.has(profile.user_id)) {
+            friendRequestStatus = 'pending_sent';
+        } else if (receivedRequestIds.has(profile.user_id)) {
+            friendRequestStatus = 'pending_received';
+        }
 
-    const { data: receivedRequests } = await supabase
-        .from('friend_requests')
-        .select('sender_id, status')
-        .eq('receiver_id', currentUserId)
-        .eq('status', 'pending');
-
-    const sentRequestIds = new Set(sentRequests?.map((r: { receiver_id: string }) => r.receiver_id) || []);
-    const receivedRequestIds = new Set(receivedRequests?.map((r: { sender_id: string }) => r.sender_id) || []);
-
-    return (data || [])
-        .map((profile: any) => {
-            const isFriend = friendIds.has(profile.user_id);
-            let friendRequestStatus: Friend['friendRequestStatus'] = 'none';
-
-            if (isFriend) {
-                friendRequestStatus = 'accepted';
-            } else if (sentRequestIds.has(profile.user_id)) {
-                friendRequestStatus = 'pending_sent';
-            } else if (receivedRequestIds.has(profile.user_id)) {
-                friendRequestStatus = 'pending_received';
-            }
-
-            return {
-                id: profile.user_id,
-                name: profile.name,
-                avatar: profile.avatar,
-                tagline: profile.tagline ?? undefined,
-                tokens: profile.tokens,
-                isInfluencer: profile.is_influencer,
-                interactionCost: profile.interaction_cost,
-                inviteCode: profile.invite_code,
-                isFriend,
-                isPrivate: profile.is_private,
-                friendRequestStatus,
-            };
-        });
+        return {
+            id: profile.user_id,
+            name: profile.name,
+            avatar: profile.avatar,
+            tagline: profile.tagline ?? undefined,
+            tokens: profile.tokens,
+            isInfluencer: profile.is_influencer,
+            interactionCost: profile.interaction_cost,
+            inviteCode: profile.invite_code,
+            isFriend,
+            isPrivate: profile.is_private,
+            friendRequestStatus,
+        };
+    });
 };
 
 export const searchUsers = async (query: string, currentUserId: string): Promise<Friend[]> => {
     if (!query || query.length < 2) return fetchPublicUsers(currentUserId);
 
-    // Search by name or invite code
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .or(`name.ilike.%${query}%,invite_code.eq.${query}`)
-        .neq('user_id', currentUserId)
-        .limit(50);
+    // Run all queries in parallel to eliminate N+1 pattern
+    const [profilesResult, friendshipsResult, sentRequestsResult, receivedRequestsResult] = await Promise.all([
+        // Query 1: Search profiles
+        supabase
+            .from('profiles')
+            .select('*')
+            .or(`name.ilike.%${query}%,invite_code.eq.${query}`)
+            .neq('user_id', currentUserId)
+            .limit(50),
+        
+        // Query 2: Get friendships
+        supabase
+            .from('friendships')
+            .select('friend_id')
+            .eq('user_id', currentUserId),
+        
+        // Query 3: Get sent friend requests
+        supabase
+            .from('friend_requests')
+            .select('receiver_id')
+            .eq('sender_id', currentUserId)
+            .eq('status', 'pending'),
+        
+        // Query 4: Get received friend requests
+        supabase
+            .from('friend_requests')
+            .select('sender_id')
+            .eq('receiver_id', currentUserId)
+            .eq('status', 'pending')
+    ]);
 
-    if (error) {
-        console.error('Error searching users:', error);
+    if (profilesResult.error) {
+        console.error('Error searching users:', profilesResult.error);
         return [];
     }
 
-    // Check friendship status
-    const { data: friendships } = await supabase
-        .from('friendships')
-        .select('friend_id')
-        .eq('user_id', currentUserId);
-
-    const friendIds = new Set(friendships?.map((f: { friend_id: string }) => f.friend_id) || []);
-
-    // Check friend request status
-    const { data: sentRequests } = await supabase
-        .from('friend_requests')
-        .select('receiver_id, status')
-        .eq('sender_id', currentUserId)
-        .eq('status', 'pending');
-
-    const { data: receivedRequests } = await supabase
-        .from('friend_requests')
-        .select('sender_id, status')
-        .eq('receiver_id', currentUserId)
-        .eq('status', 'pending');
-
-    const sentRequestIds = new Set(sentRequests?.map((r: { receiver_id: string }) => r.receiver_id) || []);
-    const receivedRequestIds = new Set(receivedRequests?.map((r: { sender_id: string }) => r.sender_id) || []);
+    const data = profilesResult.data || [];
+    const friendIds = new Set(friendshipsResult.data?.map((f: { friend_id: string }) => f.friend_id) || []);
+    const sentRequestIds = new Set(sentRequestsResult.data?.map((r: { receiver_id: string }) => r.receiver_id) || []);
+    const receivedRequestIds = new Set(receivedRequestsResult.data?.map((r: { sender_id: string }) => r.sender_id) || []);
 
     return data
         .filter((profile: any) => {
-            // Show if:
-            // 1. It's a friend
-            // 2. OR profile is NOT private
+            // Show if: friend OR profile is NOT private
             const isFriend = friendIds.has(profile.user_id);
             const isPrivate = profile.is_private === true;
             return isFriend || !isPrivate;

@@ -23,7 +23,6 @@ export type MessageWithSender = Message & {
  */
 export async function getConversations(userId: string): Promise<ConversationWithParticipants[]> {
     // Step 1: Get user's participant records (they can only see their own)
-    // Now includes other_user_id for direct lookup
     const { data: myParticipations, error } = await supabase
         .from('conversation_participants')
         .select('conversation_id, last_read_at, other_user_id')
@@ -42,36 +41,36 @@ export async function getConversations(userId: string): Promise<ConversationWith
     console.log('[getConversations] Found participations:', myParticipations.length);
 
     const conversationIds = myParticipations.map((p: { conversation_id: string }) => p.conversation_id);
-
-    // Step 2: Fetch conversation details
-    const { data: conversationsData, error: convError } = await supabase
-        .from('conversations')
-        .select('*')
-        .in('id', conversationIds)
-        .order('last_message_at', { ascending: false });
-
-    if (convError || !conversationsData) {
-        console.error('Error fetching conversation details:', convError);
-        return [];
-    }
-
-    // Step 3: Get all other user profiles in one query
     const otherUserIds = myParticipations
         .map((p: { other_user_id: string | null }) => p.other_user_id)
         .filter((id: string | null): id is string => id !== null);
 
-    const { data: profiles } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('user_id', otherUserIds);
+    // Step 2 & 3: Fetch conversation details AND profiles in parallel
+    const [conversationsResult, profilesResult] = await Promise.all([
+        supabase
+            .from('conversations')
+            .select('*')
+            .in('id', conversationIds)
+            .order('last_message_at', { ascending: false }),
+        
+        supabase
+            .from('profiles')
+            .select('*')
+            .in('user_id', otherUserIds)
+    ]);
+
+    if (conversationsResult.error || !conversationsResult.data) {
+        console.error('Error fetching conversation details:', conversationsResult.error);
+        return [];
+    }
 
     const profileMap = new Map<string, UserProfile>();
-    if (profiles) {
-        profiles.forEach((p: UserProfile) => profileMap.set(p.user_id, p));
+    if (profilesResult.data) {
+        profilesResult.data.forEach((p: UserProfile) => profileMap.set(p.user_id, p));
     }
 
     // Step 4: Build conversation objects with participants
-    const conversations: ConversationWithParticipants[] = conversationsData.map((conv: Conversation) => {
+    const conversations: ConversationWithParticipants[] = conversationsResult.data.map((conv: Conversation) => {
         const myParticipation = myParticipations.find(
             (p: { conversation_id: string }) => p.conversation_id === conv.id
         ) as { conversation_id: string; last_read_at: string; other_user_id: string | null } | undefined;

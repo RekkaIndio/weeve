@@ -200,6 +200,8 @@ interface AppState {
     groups: Group[];
     profileUpdateInProgress: boolean;
     isStoriesLoading: boolean;
+    hasMoreStories: boolean;
+    storiesPage: number;
 
     addStory: (story: Story) => void;
     addContribution: (storyId: string, contribution: Contribution | {
@@ -226,7 +228,8 @@ interface AppState {
     fetchFriends: () => Promise<void>;
     forkStory: (originalStoryId: string, slotIndices: number[], newParticipantId: string, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     forkBrandPost: (originalStoryId: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
-    fetchStories: () => Promise<void>;
+    fetchStories: (reset?: boolean) => Promise<void>;
+    fetchMoreStories: () => Promise<void>;
     setProfileUpdateInProgress: (value: boolean) => void;
 
     // Saved Stories
@@ -249,6 +252,8 @@ export const useStore = create<AppState>()(
             groups: [],
             profileUpdateInProgress: false,
             isStoriesLoading: false,
+            hasMoreStories: true,
+            storiesPage: 0,
             savedStoryIds: [],
             reportedStoryIds: [],
 
@@ -1127,8 +1132,9 @@ export const useStore = create<AppState>()(
                 }
             },
 
-            fetchStories: async () => {
-                const { currentUser, isStoriesLoading } = get();
+            fetchStories: async (reset = true) => {
+                const PAGE_SIZE = 30;
+                const { currentUser, isStoriesLoading, storiesPage } = get();
 
                 // Deduplicate: Don't fetch if already fetching
                 if (isStoriesLoading) {
@@ -1136,10 +1142,14 @@ export const useStore = create<AppState>()(
                     return;
                 }
 
+                // If reset, start from page 0
+                const page = reset ? 0 : storiesPage;
+                const offset = page * PAGE_SIZE;
+
                 set({ isStoriesLoading: true });
 
                 try {
-                    // Helper to run query with timeout
+                    // Helper to run query with timeout and pagination
                     const runQuery = async (timeoutMs: number) => {
                         const storiesQueryPromise = supabase
                             .from('stories')
@@ -1156,7 +1166,8 @@ export const useStore = create<AppState>()(
                                     profiles:user_id (name, avatar)
                                 )
                             `)
-                            .order('created_at', { ascending: false });
+                            .order('created_at', { ascending: false })
+                            .range(offset, offset + PAGE_SIZE - 1); // Pagination limit
 
                         return Promise.race([
                             storiesQueryPromise,
@@ -1197,11 +1208,14 @@ export const useStore = create<AppState>()(
                     }
 
                     // Log data reception for debugging
-                    console.log(`[Store] fetchStories received ${storiesData?.length || 0} raw stories`);
+                    console.log(`[Store] fetchStories received ${storiesData?.length || 0} raw stories (page ${page})`);
                     if (!storiesData) { // Allow empty array, but check for null/undefined
                          console.warn('[Store] fetchStories: No data returned from Supabase query'); 
                          return;
                     }
+
+                    // Determine if there are more stories to load
+                    const hasMore = storiesData.length === PAGE_SIZE;
 
                     // Fetch user's group memberships for filtering group content
                     // Group content should only be visible to members on the main feed
@@ -1367,13 +1381,38 @@ export const useStore = create<AppState>()(
                         };
                     });
 
-                    set({ stories: formattedStories });
+                    // If reset, replace stories; otherwise append
+                    if (reset) {
+                        set({ 
+                            stories: formattedStories, 
+                            storiesPage: 1, 
+                            hasMoreStories: hasMore 
+                        });
+                    } else {
+                        const existingStories = get().stories;
+                        const existingIds = new Set(existingStories.map(s => s.id));
+                        const newStories = formattedStories.filter(s => !existingIds.has(s.id));
+                        set({ 
+                            stories: [...existingStories, ...newStories], 
+                            storiesPage: page + 1, 
+                            hasMoreStories: hasMore 
+                        });
+                    }
 
                 } catch (err) {
                     console.error('Failed to fetch stories:', err);
                 } finally {
                     set({ isStoriesLoading: false });
                 }
+            },
+
+            fetchMoreStories: async () => {
+                const { hasMoreStories, isStoriesLoading } = get();
+                if (!hasMoreStories || isStoriesLoading) {
+                    console.log('[Store] fetchMoreStories skipped - no more stories or already loading');
+                    return;
+                }
+                await get().fetchStories(false);
             },
         }),
         {

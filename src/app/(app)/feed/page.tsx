@@ -15,7 +15,7 @@ export default function Home() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
-  const { stories, fetchStories, currentUser, setGroups, fetchFriends, isStoriesLoading, groups, reportedStoryIds } = useStore();
+  const { stories, fetchStories, fetchMoreStories, hasMoreStories, currentUser, setGroups, fetchFriends, isStoriesLoading, groups, reportedStoryIds } = useStore();
   const [showOnboardingOverlay, setShowOnboardingOverlay] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -70,19 +70,48 @@ export default function Home() {
     }
   }, []);
 
-  // Force fetch on mount - quick delay
+  // ===== CONSOLIDATED DATA FETCH =====
+  // Single orchestrated fetch that handles session check and data loading
+  // Replaces 3 separate useEffects that caused redundant fetches
+  const hasFetchedRef = useRef(false);
+
   useEffect(() => {
-    const timer = setTimeout(async () => {
+    if (hasFetchedRef.current) return;
+
+    let cancelled = false;
+
+    const fetchAllData = async () => {
+      // Wait for auth to finish loading
+      if (loading) return;
+
+      // If no auth user, redirect handled by another effect
+      if (!user) return;
+
+      hasFetchedRef.current = true;
+      console.log('[Feed] Starting consolidated data fetch...');
+
       try {
+        // Fetch stories first (critical path)
         await fetchStories();
-        fetchGroups(user?.id).then(groups => setGroups(groups));
-        fetchFriends();
+
+        // Then fetch secondary data in parallel (non-blocking)
+        if (!cancelled) {
+          Promise.allSettled([
+            fetchGroups(user.id).then(groups => setGroups(groups)),
+            fetchFriends(),
+          ]).catch(err => console.warn('[Feed] Secondary data fetch warning:', err));
+        }
+
+        console.log('[Feed] Consolidated data fetch complete');
       } catch (err) {
         console.error('[Feed] Fetch error:', err);
       }
-    }, 0); // Immediate
-    return () => clearTimeout(timer);
-  }, [fetchStories, setGroups, fetchFriends]);
+    };
+
+    fetchAllData();
+
+    return () => { cancelled = true; };
+  }, [loading, user, fetchStories, setGroups, fetchFriends]);
 
   // Tab state for feed organization
   const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
@@ -108,6 +137,8 @@ export default function Home() {
       setIsRefreshing(false);
     }
   }, [isRefreshing, user, fetchStories, setGroups, fetchFriends]);
+
+
 
   // Rank and filter stories using the harmonious feed algorithm
   // This handles:
@@ -137,6 +168,18 @@ export default function Home() {
       },
     });
   }, [stories, activeTab, currentUser?.id, groups, reportedStoryIds]);
+
+  // ===== AUTOMATIC INFINITE SCROLL =====
+  // Auto-load more stories when approaching the end of the feed
+  useEffect(() => {
+    const LOAD_MORE_THRESHOLD = 3; // Load more when within 3 stories of end
+    const storiesRemaining = filteredStories.length - activeIndex;
+
+    if (storiesRemaining <= LOAD_MORE_THRESHOLD && hasMoreStories && !isStoriesLoading) {
+      console.log(`[Feed] Auto-loading more stories (${storiesRemaining} remaining)`);
+      fetchMoreStories();
+    }
+  }, [activeIndex, filteredStories.length, hasMoreStories, isStoriesLoading, fetchMoreStories]);
 
 
   // Re-calculate active index when changing tabs to prevent index out of bounds
@@ -200,71 +243,6 @@ export default function Home() {
       router.replace("/login");
     }
   }, [loading, router, user]);
-
-  // Fetch stories when authenticated user is available
-  // We use `user` (auth user) as the trigger, not `currentUser` (store user)
-  // because currentUser might not be set yet due to race conditions after login
-  useEffect(() => {
-    if (user) {
-      console.log('[Feed] User authenticated, fetching stories...');
-      fetchStories();
-    }
-  }, [user, fetchStories]);
-
-  // Also check session on mount - handles the case where the page loads
-  // after a full redirect (window.location.replace) and user state hasn't propagated yet
-  useEffect(() => {
-    let cancelled = false;
-
-    const checkSessionAndFetch = async () => {
-      // Retry multiple times with increasing delays
-      // Session might not be immediately available after login redirect
-      const maxAttempts = 5;
-      const delays = [100, 200, 300, 500, 1000]; // Standard delays
-
-      for (let attempt = 0; attempt < maxAttempts && !cancelled; attempt++) {
-        try {
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-          if (sessionError) console.warn(`[Feed] Session check error (attempt ${attempt + 1}):`, sessionError);
-
-          if (session?.user) {
-            console.log(`[Feed] Session found on mount (attempt ${attempt + 1}), fetching data for user: ${session.user.id}`);
-
-            // Log access token presence (don't log full token)
-            console.log(`[Feed] Access token present: ${!!session.access_token}`);
-
-            // Serialize fetches to avoid overwhelming the cold connection
-            await fetchStories();
-
-            // Queue secondary fetches in background (don't await them for the retry loop)
-            Promise.allSettled([
-              fetchGroups(session.user.id).then(groups => setGroups(groups)),
-              fetchFriends(),
-            ]).catch(err => console.warn('[Feed] Secondary data fetch warning:', err));
-
-            console.log('[Feed] Mount-time data fetch triggered');
-            return; // Success, exit the retry loop
-          } else {
-            console.log(`[Feed] No session on attempt ${attempt + 1}, retrying...`);
-          }
-        } catch (err) {
-          console.warn(`[Feed] Session check attempt ${attempt + 1} failed:`, err);
-        }
-
-        // Wait before next attempt
-        if (attempt < maxAttempts - 1 && !cancelled) {
-          await new Promise(r => setTimeout(r, delays[attempt]));
-        }
-      }
-
-      console.warn('[Feed] All session check attempts exhausted');
-    };
-
-    // Run immediately on mount
-    checkSessionAndFetch();
-
-    return () => { cancelled = true; };
-  }, [fetchStories, setGroups, fetchFriends]);
 
   // Check if user needs onboarding tutorial
   useEffect(() => {
@@ -556,6 +534,12 @@ export default function Home() {
                   </button>
                 </>
               )
+            ) : hasMoreStories ? (
+              // Auto-loading indicator (no button needed - loads automatically)
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-10 h-10 border-3 border-[#EC1D99] border-t-transparent rounded-full animate-spin"></div>
+                <p className="text-sm text-gray-400">Loading more stories...</p>
+              </div>
             ) : (
               <>
                 <p className="mb-4">You&apos;re all caught up!</p>
