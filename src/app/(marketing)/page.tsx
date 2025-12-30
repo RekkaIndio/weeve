@@ -107,7 +107,7 @@ export default function LandingPage() {
                                 transition={{ delay: 0.4 }}
                                 className="text-base sm:text-lg lg:text-xl text-gray-400 mb-8 sm:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed"
                             >
-                                Every stitch, every Weeve. Stories never reset. Build. Collaborate. Evolve. Social media reimagined.
+                                Every stitch, every Weeve. Stories never reset. Build. Collaborate. Evolve. Social media redefined.
                             </motion.p>
 
                             <motion.div
@@ -122,12 +122,7 @@ export default function LandingPage() {
                                 >
                                     Join Waitlist <ArrowRight className="w-5 h-5" />
                                 </button>
-                                <Link
-                                    href="#how-it-works"
-                                    className="w-full sm:w-auto px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold rounded-full transition-colors flex items-center justify-center gap-2"
-                                >
-                                    See How It Works
-                                </Link>
+
                             </motion.div>
                         </div>
 
@@ -162,16 +157,20 @@ export default function LandingPage() {
                     <h2 className="text-3xl lg:text-5xl font-bold mb-12 text-center">Common Questions</h2>
                     <div className="space-y-2">
                         <FAQItem
+                            question="How do collaborative stories work?"
+                            answer="It starts with a standard post (the 'Root'). You then open Slots for friends to add their perspectives. Contributors select a slot to weave in their own photos or videos, stitching everything together into one shared, evolving narrative."
+                        />
+                        <FAQItem
+                            question="What are Forking and Branching?"
+                            answer="Stories on Weeve are alive. If you want to take a story in a new direction, you can Fork it to create a new Branch. This allows narratives to split and grow in infinite directions, turning a single moment into a tree of shared experiences."
+                        />
+                        <FAQItem
+                            question="Can I control who contributes?"
+                            answer="Absolutely. You have full control over your privacy and collaboration settings. You decide who can view, fill slots, or fork your stories—whether it's just close friends, specific groups, or the whole world."
+                        />
+                        <FAQItem
                             question="Is Weeve free to use?"
                             answer="Yes! Weeve is completely free to download and use. We believe authentic connection should be accessible to everyone."
-                        />
-                        <FAQItem
-                            question="How do collaborative stories work?"
-                            answer="One person starts a story with a photo or video, then invites friends to add their perspectives. All contributions weave together into one seamless narrative that captures the full experience."
-                        />
-                        <FAQItem
-                            question="Can I keep my stories private?"
-                            answer="Absolutely. You have complete control over privacy. Share with specific friends, create private communities, or go public—it's entirely up to you."
                         />
                         <FAQItem
                             question="Is Weeve available on my device?"

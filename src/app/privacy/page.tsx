@@ -261,7 +261,7 @@ export default function PrivacyPage() {
               The Service is not intended for children under the age of 16. We do not knowingly collect personal information from children under 16. If we become aware that we have collected personal information from a child under 16, we will take steps to delete such information promptly.
             </p>
             <p className="leading-relaxed mt-4">
-              If you are a parent or guardian and believe your child has provided us with personal information, please contact us at <a href="mailto:privacy@tryweeve.com" className="text-[#EC1D99] hover:underline">privacy@tryweeve.com</a>.
+              If you are a parent or guardian and believe your child has provided us with personal information, please contact us at <a href="mailto:legal@tryweeve.com" className="text-[#EC1D99] hover:underline">legal@tryweeve.com</a>.
             </p>
           </section>
 

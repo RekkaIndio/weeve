@@ -320,6 +320,62 @@ export default function NotificationsPage() {
                         </div>
                     </div>
                 </div>
+                {/* Debugging / Testing */}
+                <div>
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-2">
+                        Debugging
+                    </h3>
+                    <div className="bg-gray-900 rounded-xl overflow-hidden">
+                        <div className="flex items-center justify-between p-4">
+                            <div>
+                                <span className="font-medium">Test Push Notification</span>
+                                <p className="text-xs text-gray-500 mt-0.5">Send a test notification to this device</p>
+                            </div>
+                            <button
+                                onClick={async () => {
+                                    if (!currentUser) return;
+
+                                    toast.promise(
+                                        async () => {
+                                            // 1. Check if we have a token
+                                            const { data: profile } = await supabase
+                                                .from('profiles')
+                                                .select('push_token')
+                                                .eq('user_id', currentUser.id)
+                                                .single();
+
+                                            if (!profile?.push_token) {
+                                                throw new Error('No push token found for this device. Please enable push notifications first.');
+                                            }
+
+                                            // 2. Create test notification
+                                            const { error } = await supabase
+                                                .from('notifications')
+                                                .insert({
+                                                    user_id: currentUser.id,
+                                                    type: 'new_message', // Using a generic type that usually triggers push
+                                                    title: 'Test Notification',
+                                                    message: 'This is a test notification to verify your device is configured correctly.',
+                                                    data: { test: 'true' },
+                                                    read: false,
+                                                });
+
+                                            if (error) throw error;
+                                        },
+                                        {
+                                            loading: 'Sending test notification...',
+                                            success: 'Test notification sent! It should appear shortly.',
+                                            error: (e) => e.message || 'Failed to send test notification',
+                                        }
+                                    );
+                                }}
+                                className="px-4 py-2 bg-[#EC1D99] text-white text-sm font-semibold rounded-full hover:bg-[#d41b8a] transition-colors"
+                            >
+                                Test Push
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

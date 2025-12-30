@@ -318,6 +318,25 @@ export const notifyCommentReply = async (
 };
 
 /**
+ * Notify comment author of a like on their comment
+ */
+export const notifyCommentLike = async (
+    storyId: string,
+    commentUserId: string,
+    likerName: string
+) => {
+    await createNotification({
+        user_id: commentUserId,
+        type: 'story_liked',
+        title: 'Comment Liked ❤️',
+        message: `${likerName} liked your comment`,
+        data: { story_id: storyId },
+        action_url: `/story/${storyId}`,
+        read: false,
+    });
+};
+
+/**
  * Notify user of group invite
  */
 export const notifyGroupInvite = async (

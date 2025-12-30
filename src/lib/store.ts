@@ -83,9 +83,12 @@ export interface StoryComment {
     id: string;
     userId: string;
     userName: string;
+    userAvatar?: string;
     content: string;
     timestamp: number;
     parentCommentId?: string | null;
+    likes: number;
+    likedBy: string[];
 }
 
 export interface Story {
@@ -223,6 +226,7 @@ interface AppState {
     setStories: (stories: Story[]) => void;
     setGroups: (groups: Group[]) => void;
     toggleStoryLike: (storyId: string) => Promise<void>;
+    toggleCommentLike: (storyId: string, commentId: string) => Promise<void>;
     addStoryComment: (storyId: string, content: string, parentCommentId?: string) => Promise<void>;
     logoutUser: () => void;
     fetchFriends: () => Promise<void>;
@@ -611,6 +615,84 @@ export const useStore = create<AppState>()(
                 });
             },
 
+            toggleCommentLike: async (storyId, commentId) => {
+                const { currentUser } = get();
+                if (!currentUser) return;
+
+                const state = get();
+                const story = state.stories.find((s) => s.id === storyId);
+                if (!story) return;
+
+                const comment = story.comments.find((c) => c.id === commentId);
+                if (!comment) return;
+
+                const alreadyLiked = comment.likedBy.includes(currentUser.id);
+
+                if (alreadyLiked) {
+                    const { error } = await supabase
+                        .from('comment_likes')
+                        .delete()
+                        .match({ comment_id: commentId, user_id: currentUser.id });
+
+                    if (error) {
+                        console.error('Failed to remove comment like:', error);
+                        return;
+                    }
+                } else {
+                    const { error } = await supabase
+                        .from('comment_likes')
+                        .insert({ comment_id: commentId, user_id: currentUser.id });
+
+                    if (error) {
+                        console.error('Failed to add comment like:', error);
+                        return;
+                    }
+
+                    // Notify the comment author if liking someone else's comment
+                    if (comment.userId !== currentUser.id) {
+                        import('./notifications').then(({ notifyCommentLike }) => {
+                            notifyCommentLike(
+                                storyId,
+                                comment.userId,
+                                currentUser.name
+                            ).catch(err => {
+                                console.error('Failed to send comment like notification:', err);
+                            });
+                        }).catch(err => console.error('Failed to import notifications:', err));
+                    }
+                }
+
+                const shouldLike = !alreadyLiked;
+
+                set((state) => {
+                    const storyIndex = state.stories.findIndex((s) => s.id === storyId);
+                    if (storyIndex === -1) return state;
+
+                    const baseStory = state.stories[storyIndex];
+                    const updatedComments = baseStory.comments.map((c) => {
+                        if (c.id !== commentId) return c;
+                        const updatedLikedBy = shouldLike
+                            ? Array.from(new Set([...c.likedBy, currentUser.id]))
+                            : c.likedBy.filter((id) => id !== currentUser.id);
+                        return {
+                            ...c,
+                            likedBy: updatedLikedBy,
+                            likes: updatedLikedBy.length,
+                        };
+                    });
+
+                    const updatedStory: Story = {
+                        ...baseStory,
+                        comments: updatedComments,
+                    };
+
+                    const updatedStories = [...state.stories];
+                    updatedStories[storyIndex] = updatedStory;
+
+                    return { stories: updatedStories };
+                });
+            },
+
             addStoryComment: async (storyId, content, parentCommentId) => {
                 const trimmed = content.trim();
                 if (!trimmed) return;
@@ -642,9 +724,12 @@ export const useStore = create<AppState>()(
                     id: insertedComment.id,
                     userId: insertedComment.user_id,
                     userName: insertedComment.user_name,
+                    userAvatar: currentUser.avatar,
                     content: insertedComment.content,
                     timestamp: insertedComment.timestamp ?? timestamp,
                     parentCommentId: insertedComment.parent_comment_id,
+                    likes: 0,
+                    likedBy: [],
                 };
 
                 // Send notification
@@ -1149,7 +1234,8 @@ export const useStore = create<AppState>()(
                                 story_likes (user_id),
                                 story_comments (
                                     *,
-                                    profiles:user_id (name, avatar)
+                                    profiles:user_id (name, avatar),
+                                    comment_likes (user_id)
                                 )
                             `)
                             .order('created_at', { ascending: false })
@@ -1333,9 +1419,12 @@ export const useStore = create<AppState>()(
                             id: cm.id,
                             userId: cm.user_id,
                             userName: cm.user_name || cm.profiles?.name || 'Unknown',
+                            userAvatar: cm.profiles?.avatar || undefined,
                             content: cm.content,
                             timestamp: cm.timestamp,
-                            parentCommentId: cm.parent_comment_id
+                            parentCommentId: cm.parent_comment_id,
+                            likes: cm.comment_likes?.length ?? 0,
+                            likedBy: (cm.comment_likes ?? []).map((l: any) => l.user_id),
                         }));
 
                         // Map likes

@@ -176,7 +176,7 @@ type StoryWithRelations = StoryRow & {
     story_participants: (StoryParticipantRow & { user: ProfileRow | null })[] | null;
     group: Pick<GroupRow, 'avatar'> | null;
     story_likes: StoryLikeRow[] | null;
-    story_comments: StoryCommentRow[] | null;
+    story_comments: (StoryCommentRow & { profiles?: Pick<ProfileRow, 'name' | 'avatar'> | null })[] | null;
 };
 
 const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
@@ -223,9 +223,12 @@ const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
             id: comment.id,
             userId: comment.user_id,
             userName: comment.user_name,
+            userAvatar: (comment as any).profiles?.avatar || undefined,
             content: comment.content,
             timestamp: Number(comment.timestamp ?? Date.now()),
             parentCommentId: comment.parent_comment_id ?? undefined,
+            likes: (comment as any).comment_likes?.length ?? 0,
+            likedBy: ((comment as any).comment_likes ?? []).map((l: any) => l.user_id),
         }));
 
     return {
@@ -1131,7 +1134,11 @@ export async function fetchUserStories(userId: string): Promise<Story[]> {
                         avatar
                 ),
                 story_likes (*),
-                story_comments (*)
+                story_comments (
+                    *,
+                    profiles:user_id (name, avatar),
+                    comment_likes (user_id)
+                )
             `)
             .eq('contributions.approval_status', 'approved')
             .in('id', storyIds)

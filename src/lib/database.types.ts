@@ -308,6 +308,40 @@ export interface Database {
                     }
                 ]
             }
+            comment_likes: {
+                Row: {
+                    id: string
+                    comment_id: string
+                    user_id: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    comment_id: string
+                    user_id: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    comment_id?: string
+                    user_id?: string
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "comment_likes_comment_id_fkey"
+                        columns: ["comment_id"]
+                        referencedRelation: "story_comments"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "comment_likes_user_id_fkey"
+                        columns: ["user_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
             story_participants: {
                 Row: {
                     id: string
