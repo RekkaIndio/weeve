@@ -891,9 +891,6 @@ function DiscoverContent() {
                                 <span className="bg-gradient-to-r from-[#EC1D99] to-purple-500 text-transparent bg-clip-text text-lg font-bold">
                                     🌱 Featured Seeds
                                 </span>
-                                <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full text-gray-300 border border-white/5">
-                                    Stitch & Earn
-                                </span>
                             </div>
 
                             {/* Filter for Seed posts that are active */}

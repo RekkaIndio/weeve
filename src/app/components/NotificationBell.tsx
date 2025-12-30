@@ -55,7 +55,7 @@ export default function NotificationBell({ userId, className, badgeClassName, ic
             <Bell strokeWidth={1.6} className={iconClassNameFinal} />
             {notificationCount > 0 && (
                 <span className={badgeClassNameFinal}>
-                    {notificationCount > 9 ? "9+" : notificationCount}
+                    {notificationCount > 99 ? "99+" : notificationCount}
                 </span>
             )}
         </Link>
