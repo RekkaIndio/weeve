@@ -165,7 +165,7 @@ export default function SettingsPage() {
         {
             title: "Privacy",
             items: [
-                { label: "Account Privacy", icon: Lock, toggle: true },
+                { label: "Account Privacy", icon: Lock, toggle: true, description: "When enabled, only approved friends can see your profile and stories" },
                 { label: "Blocked Users", icon: User, action: () => router.push('/settings/blocked-users') },
             ]
         },
@@ -241,11 +241,16 @@ export default function SettingsPage() {
                                         } ${item.action ? 'cursor-pointer hover:bg-gray-800 transition-colors' : ''}`}
                                     onClick={item.action}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 rounded-full bg-gray-800 text-gray-400">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        <div className="p-2 rounded-full bg-gray-800 text-gray-400 flex-shrink-0">
                                             <item.icon className="w-5 h-5" />
                                         </div>
-                                        <span className="font-medium">{item.label}</span>
+                                        <div className="min-w-0">
+                                            <span className="font-medium">{item.label}</span>
+                                            {item.description && (
+                                                <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {item.toggle ? (

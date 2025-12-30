@@ -21,7 +21,7 @@ interface BlockedUser {
 
 export default function BlockedUsersPage() {
     const router = useRouter();
-    const { currentUser } = useStore();
+    const { currentUser, fetchBlockedUsers: refreshStoreBlockedUsers, fetchStories } = useStore();
     const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
@@ -76,6 +76,10 @@ export default function BlockedUsersPage() {
 
             setBlockedUsers(blockedUsers.filter(bu => bu.blocked_user_id !== blockedUserId));
             toast.success('User unblocked');
+
+            // Refresh store state
+            refreshStoreBlockedUsers();
+            fetchStories(true);
         } catch (error) {
             console.error('Error unblocking user:', error);
             toast.error('Failed to unblock user');
@@ -181,8 +185,8 @@ export default function BlockedUsersPage() {
                                     onClick={() => handleUnblock(blockedUser.blocked_user_id)}
                                     disabled={unblockingId === blockedUser.blocked_user_id}
                                     className={`${unblockingId === blockedUser.blocked_user_id
-                                            ? 'bg-gray-700 cursor-not-allowed'
-                                            : 'bg-gray-800 hover:bg-gray-700'
+                                        ? 'bg-gray-700 cursor-not-allowed'
+                                        : 'bg-gray-800 hover:bg-gray-700'
                                         } text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors`}
                                 >
                                     {unblockingId === blockedUser.blocked_user_id ? 'Unblocking...' : 'Unblock'}

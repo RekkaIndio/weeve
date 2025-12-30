@@ -239,7 +239,12 @@ interface AppState {
 
     // Reported Stories (Local Only)
     reportedStoryIds: string[];
+
     reportStory: (storyId: string) => void;
+
+    // Blocked Users
+    blockedUserIds: string[];
+    fetchBlockedUsers: () => Promise<void>;
 }
 
 export const useStore = create<AppState>()(
@@ -256,9 +261,35 @@ export const useStore = create<AppState>()(
             storiesPage: 0,
             savedStoryIds: [],
             reportedStoryIds: [],
+            blockedUserIds: [],
 
             reportStory: (storyId) =>
                 set((state) => ({ reportedStoryIds: [...state.reportedStoryIds, storyId] })),
+
+            fetchBlockedUsers: async () => {
+                const { currentUser } = get();
+                if (!currentUser) return;
+                
+                try {
+                    // Import helper dynamically to avoid circular dependency issues if any
+                    // But actually we can just use the supabase client directly here for simplicity
+                    // or import the helper. Let's use the helper we created.
+                    const { getBlockedUserIds, getBlockedByUserIds } = await import('./blocked');
+                    
+                    // Get people I blocked
+                    const iBlocked = await getBlockedUserIds(currentUser.id);
+                    
+                    // Get people who blocked me (so I don't see their stuff either)
+                    const blockedMe = await getBlockedByUserIds(currentUser.id);
+                    
+                    // Combine unique IDs
+                    const allBlockedIds = Array.from(new Set([...iBlocked, ...blockedMe]));
+                    
+                    set({ blockedUserIds: allBlockedIds });
+                } catch (err) {
+                    console.error('[Store] Failed to fetch blocked users:', err);
+                }
+            },
 
 
             fetchSavedStories: async () => {
@@ -1095,7 +1126,13 @@ export const useStore = create<AppState>()(
                 const page = reset ? 0 : storiesPage;
                 const offset = page * PAGE_SIZE;
 
+
+
                 set({ isStoriesLoading: true });
+                
+                // Refresh blocked users list first
+                try { await get().fetchBlockedUsers(); } catch (e) { /* ignore */ }
+                const { blockedUserIds } = get();
 
                 try {
                     // Helper to run query with timeout and pagination
@@ -1191,6 +1228,21 @@ export const useStore = create<AppState>()(
                                 if (!currentUserId || !userGroupIds.has(s.group_id)) {
                                     return false; // User is not a member of this group
                                 }
+                            }
+
+
+
+                            // Filter out blocked users
+                            if (blockedUserIds.length > 0) {
+                                // If I blocked the creator, or the creator blocked me
+                                if (blockedUserIds.includes(s.creator_id)) {
+                                    return false;
+                                }
+                                
+                                // Also check if ALL currently visible contributions are from blocked users
+                                // (If a story has non-blocked contributors, we might still show it, 
+                                // but we should hide the blocked contributions - handled in map step or UI)
+                                // For now, let's just hide STORIES created by blocked users.
                             }
 
                             // For public stories, only show if they have at least 1 contribution OR the current user is a participant

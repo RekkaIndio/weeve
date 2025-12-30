@@ -312,7 +312,7 @@ function DiscoveryFeedOverlay({ stories, initialIndex, onClose }: DiscoveryFeedO
 }
 
 function DiscoverContent() {
-    const { stories, groups, addGroup, currentUser, friends } = useStore();
+    const { stories, groups, addGroup, currentUser, friends, blockedUserIds } = useStore();
     const searchParams = useSearchParams();
     const tabParam = searchParams?.get('tab');
     const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -409,7 +409,11 @@ function DiscoverContent() {
                     }
                 }
 
-                if (mounted) setPeopleResults(results);
+                if (mounted) {
+                    // Filter out blocked users
+                    const filteredResults = results.filter(user => !blockedUserIds.includes(user.id));
+                    setPeopleResults(filteredResults);
+                }
             } catch (err) {
                 console.warn('[Discover] searchUsers/fetchPublicUsers failed', err);
                 if (mounted) setPeopleResults([]);
@@ -447,7 +451,8 @@ function DiscoverContent() {
             // Search in participant names, but ignore private participants
             const participantMatches = story.participants.some(p => {
                 const allowed = !p.isPrivate || (currentUser && (p.id === currentUser.id || friendIds.has(p.id)));
-                return allowed && p.name.toLowerCase().includes(query);
+                const notBlocked = !blockedUserIds.includes(p.id);
+                return allowed && notBlocked && p.name.toLowerCase().includes(query);
             });
             if (participantMatches) return true;
 

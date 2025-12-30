@@ -2,15 +2,16 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useStore, User } from "@/lib/store";
-import { Grid, UserPlus, ChevronLeft, Share2, Check, Clock } from "lucide-react";
+import { Grid, UserPlus, ChevronLeft, Share2, Check, Clock, MoreVertical, Ban, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from 'sonner';
 import { sendFriendRequest, getFriendRequests, acceptFriendRequest } from "@/lib/friends";
 import { notifyNewFollower } from "@/lib/notifications";
 import VideoThumbnail from '@/app/components/VideoThumbnail';
 import MediaWithFallback from '@/app/components/MediaWithFallback';
+import { isUserBlocked, blockUser } from "@/lib/blocked";
 
 export default function UserProfilePage() {
     const params = useParams();
@@ -58,6 +59,14 @@ export default function UserProfilePage() {
     const [followerCount, setFollowerCount] = useState(0);
     const [followingCount, setFollowingCount] = useState(0);
 
+    // Block user state
+    const [showMenu, setShowMenu] = useState(false);
+    const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+    const [isBlocking, setIsBlocking] = useState(false);
+    const [hasBlockedMe, setHasBlockedMe] = useState(false);
+    const [iHaveBlocked, setIHaveBlocked] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         async function fetchProfile() {
             if (user || userId === currentUser?.id) return;
@@ -96,6 +105,33 @@ export default function UserProfilePage() {
 
         fetchProfile();
     }, [userId, user, currentUser]);
+
+    // Check block status
+    useEffect(() => {
+        if (!currentUser || !userId || userId === currentUser.id) return;
+
+        (async () => {
+            // Check if this user has blocked me
+            const blockedMe = await isUserBlocked(userId, currentUser.id);
+            setHasBlockedMe(blockedMe);
+
+            // Check if I have blocked this user
+            const iBlocked = await isUserBlocked(currentUser.id, userId);
+            setIHaveBlocked(iBlocked);
+        })();
+    }, [currentUser, userId]);
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setShowMenu(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Fetch stats for this user
     useEffect(() => {
@@ -221,6 +257,33 @@ export default function UserProfilePage() {
                 >
                     Go Back
                 </button>
+            </div>
+        );
+    }
+
+    // Show "Account unavailable" if this user has blocked me
+    if (hasBlockedMe) {
+        return (
+            <div className="min-h-screen bg-black text-white pb-24 relative">
+                {/* Header */}
+                <div className="p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-3 sticky top-0 z-10 bg-black/80 backdrop-blur-md">
+                    <button
+                        onClick={() => router.back()}
+                        className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+                    >
+                        <ChevronLeft className="w-6 h-6" />
+                    </button>
+                    <h1 className="font-bold text-lg">Profile</h1>
+                </div>
+                <div className="flex flex-col items-center justify-center py-24 px-6 text-center">
+                    <div className="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center mb-4">
+                        <Ban className="w-10 h-10 text-gray-600" />
+                    </div>
+                    <h2 className="text-xl font-bold mb-2">Account unavailable</h2>
+                    <p className="text-gray-500 max-w-xs">
+                        This account isn't available at this time.
+                    </p>
+                </div>
             </div>
         );
     }
@@ -383,8 +446,61 @@ export default function UserProfilePage() {
     // Calculate total likes from user's stories
     const totalLikes = userStories.reduce((acc, story) => acc + (story.likes || 0), 0);
 
+    // Handle blocking a user
+    const handleBlockUser = async () => {
+        if (!currentUser || !user || isBlocking) return;
+
+        setIsBlocking(true);
+        try {
+            const success = await blockUser(currentUser.id, user.id);
+            if (success) {
+                setIHaveBlocked(true);
+                setShowBlockConfirm(false);
+                setShowMenu(false);
+                toast.success(`Blocked ${user.name}`);
+            } else {
+                toast.error('Failed to block user');
+            }
+        } catch (err) {
+            console.error('[UserProfile] Error blocking user:', err);
+            toast.error('Failed to block user');
+        } finally {
+            setIsBlocking(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-black text-white pb-24 relative">
+            {/* Block Confirmation Modal */}
+            {showBlockConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-gray-900 rounded-2xl p-6 max-w-sm w-full border border-gray-800">
+                        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-red-500/20 mx-auto mb-4">
+                            <Ban className="w-7 h-7 text-red-500" />
+                        </div>
+                        <h3 className="text-lg font-bold text-center mb-2">Block {user.name}?</h3>
+                        <p className="text-sm text-gray-400 text-center mb-6">
+                            They won't be able to see your profile, stories, or send you messages. They won't be notified that you blocked them.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowBlockConfirm(false)}
+                                className="flex-1 py-3 px-4 bg-gray-800 rounded-xl font-bold hover:bg-gray-700 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleBlockUser}
+                                disabled={isBlocking}
+                                className="flex-1 py-3 px-4 bg-red-500 rounded-xl font-bold hover:bg-red-600 transition-colors disabled:opacity-50"
+                            >
+                                {isBlocking ? 'Blocking...' : 'Block'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-3 sticky top-0 z-10 bg-black/80 backdrop-blur-md">
                 <button
@@ -393,7 +509,33 @@ export default function UserProfilePage() {
                 >
                     <ChevronLeft className="w-6 h-6" />
                 </button>
-                <h1 className="font-bold text-lg">{user.name}</h1>
+                <h1 className="font-bold text-lg flex-1">{user.name}</h1>
+
+                {/* Menu Button */}
+                <div className="relative" ref={menuRef}>
+                    <button
+                        onClick={() => setShowMenu(!showMenu)}
+                        className="p-2 rounded-full hover:bg-gray-800 transition-colors"
+                    >
+                        <MoreVertical className="w-6 h-6" />
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {showMenu && (
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden z-20">
+                            <button
+                                onClick={() => {
+                                    setShowMenu(false);
+                                    setShowBlockConfirm(true);
+                                }}
+                                className="w-full px-4 py-3 flex items-center gap-3 text-red-500 hover:bg-gray-800 transition-colors text-left"
+                            >
+                                <Ban className="w-5 h-5" />
+                                <span className="font-medium">{iHaveBlocked ? 'Blocked' : 'Block User'}</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Profile Info - Horizontal Layout */}
