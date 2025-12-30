@@ -107,7 +107,7 @@ export default function LandingPage() {
                                 transition={{ delay: 0.4 }}
                                 className="text-base sm:text-lg lg:text-xl text-gray-400 mb-8 sm:mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed"
                             >
-                                Every stitch, every Weeve. Stories never reset. Build. Collaborate. Evolve. Social media redefined.
+                                Every stitch, every Weeve. Stories never reset. Build. Collaborate. Evolve.
                             </motion.p>
 
                             <motion.div
