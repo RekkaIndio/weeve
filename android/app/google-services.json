@@ -33,6 +33,35 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:957578527300:android:0820fd4dc3b2b354423211",
+        "android_client_info": {
+          "package_name": "com.weeve.app.staging"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "957578527300-pqbsvcsmjstrt3r6d802l5msqtv3hr9b.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtB6lEb7-ujxqO3cAH8y5M7r8afQg2pT4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "957578527300-pqbsvcsmjstrt3r6d802l5msqtv3hr9b.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"
