@@ -60,29 +60,24 @@ try {
             storage: {
                 getItem: async (key: string) => {
                     try {
-                        console.log('[Supabase] GetItem:', key);
                         const { value } = await Preferences.get({ key });
-                        console.log('[Supabase] GetItem result:', key, !!value);
                         return value;
                     } catch (error) {
-                        console.error('[Supabase] GetItem error:', error);
                         return null;
                     }
                 },
                 setItem: async (key: string, value: string) => {
                     try {
-                        console.log('[Supabase] SetItem:', key);
                         await Preferences.set({ key, value });
                     } catch (error) {
-                        console.error('[Supabase] SetItem error:', error);
+                        // Ignore
                     }
                 },
                 removeItem: async (key: string) => {
                     try {
-                        console.log('[Supabase] RemoveItem:', key);
                         await Preferences.remove({ key });
                     } catch (error) {
-                        console.error('[Supabase] RemoveItem error:', error);
+                        // Ignore
                     }
                 },
             },

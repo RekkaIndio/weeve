@@ -151,12 +151,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
             try {
                 // 1. Get initial session
-                console.log('[AuthProvider] Getting session...');
                 const { data: { session }, error } = await supabase.auth.getSession();
 
                 if (session?.user) {
                     // OPTIMISTIC LOGIN: Set state immediately
-                    console.log('[AuthProvider] Session found, setting optimistic user');
                     setUser(session.user);
                     setLatestSession(session);
 
@@ -312,7 +310,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
         // If NOT logged in and on a private route -> Login
         if (!user && !isPublicRoute(currentPath)) {
-            console.log('[AuthProvider] Redirecting to /login (Protected Route)');
             router.replace('/login');
             return;
         }
@@ -329,7 +326,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
             // If fully onboarded and on Public/Auth route -> Go Feed
             if (!needsOnboarding && isPublicRoute(currentPath) && currentPath !== '/auth/callback') {
-                console.log('[AuthProvider] Redirecting to /feed (Authenticated on Public Route)');
                 router.replace('/feed');
                 // router.refresh(); // Optional, but helps if feed data is stale
             }
