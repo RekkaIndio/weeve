@@ -1395,37 +1395,13 @@ const CreateStory = ({
                       isLocked={formState.visibility === 'public' && idx === 0} // Lock slot 1 for public stories
                       onRemove={handleRemoveFriend}
                       onFill={(i) => {
-                        // For public stories, add current user to slot instead of opening friends picker
-                        if (formState.visibility === 'public' && currentUser) {
-                          const newSlots = [...slots];
-                          const isCurrentUserInSlot = newSlots[i].friend?.id === currentUser.id;
-
-                          if (isCurrentUserInSlot) {
-                            // Prevent removing current user from slot 1 (index 0) - they must always be there
-                            if (i === 0) {
-                              return; // Don't allow removal from slot 1
-                            }
-                            // Remove current user from this slot
-                            newSlots[i] = { ...newSlots[i], friend: null };
-                          } else {
-                            // Add current user to this slot
-                            newSlots[i] = {
-                              ...newSlots[i],
-                              friend: { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar }
-                            };
-                          }
-                          setSlots(newSlots);
-
-                          // Update selectedSlotIndices based on slots with current user
-                          const userSlotIndices = newSlots
-                            .map((slot, idx) => slot.friend?.id === currentUser.id ? idx : -1)
-                            .filter(idx => idx !== -1);
-                          setSelectedSlotIndices(userSlotIndices);
-                        } else {
-                          // For private stories, open friends picker
-                          setSlotToFill(i);
-                          setShowFriendDropdown(true);
+                        // For public stories, slot 0 is locked to current user
+                        if (formState.visibility === 'public' && i === 0) {
+                          return; // Don't allow modification of slot 1
                         }
+                        // For all other slots (public or private), open friends picker
+                        setSlotToFill(i);
+                        setShowFriendDropdown(true);
                       }}
                       isLast={idx === slots.length - 1}
                       isReordering={isReordering}
