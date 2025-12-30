@@ -92,14 +92,14 @@ export default function PhoneDemo3D() {
 
             <div className="max-w-6xl mx-auto px-6 relative z-10">
                 {/* Main Layout - Stacked vertically to maximize timeline width */}
-                <div className="flex flex-col items-center gap-4 w-full origin-top scale-[0.75] sm:scale-[0.80]">
+                <div className="flex flex-col items-center gap-6 w-full origin-top scale-[0.9] sm:scale-[1.0]">
 
                     {/* Phone */}
                     <div className="flex-shrink-0 self-center">
                         <div className="perspective-1000" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
                             <motion.div
                                 style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
-                                className="relative w-[260px] h-[520px] bg-zinc-950 rounded-[40px] border-4 border-zinc-800 shadow-2xl overflow-hidden"
+                                className="relative w-[220px] h-[450px] bg-zinc-950 rounded-[35px] border-4 border-zinc-800 shadow-2xl overflow-hidden"
                             >
                                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 h-6 bg-black rounded-b-xl z-30" />
                                 <div className="relative w-full h-full bg-zinc-900">
@@ -226,12 +226,20 @@ export default function PhoneDemo3D() {
                                                 animate={{ opacity: isVisible ? 1 : 0.25 }}
                                                 className={`w-full p-1 rounded border ${isLatest ? 'bg-zinc-900 border-[#EC1D99]/40' : isVisible ? 'bg-zinc-900/70 border-zinc-700' : 'bg-zinc-900/20 border-zinc-800/40'}`}
                                             >
-                                                <div className="aspect-square rounded-sm overflow-hidden bg-zinc-800 mb-1">
+                                                <div className="aspect-square rounded-sm overflow-hidden bg-zinc-800 mb-1 relative">
                                                     {isVisible && <img src={item.image} className="w-full h-full object-cover" />}
+                                                    {isVisible && (
+                                                        <div className="absolute top-0.5 right-0.5 bg-black/50 backdrop-blur-[1px] rounded-[2px] p-[1px]">
+                                                            {item.type === 'photo' && <Camera className="w-2 h-2 text-white/90" />}
+                                                            {item.type === 'video' && <Video className="w-2 h-2 text-white/90" />}
+                                                            {item.type === 'drawing' && <PenTool className="w-2 h-2 text-white/90" />}
+                                                            {item.type === 'text' && <Type className="w-2 h-2 text-white/90" />}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-0.5">
                                                     <img src={item.avatar} className="w-2.5 h-2.5 rounded-full" />
-                                                    <span className="text-[6px] font-bold text-white truncate">{item.user}</span>
+                                                    <span className="text-[8px] font-bold text-white truncate">{item.user}</span>
                                                 </div>
                                             </motion.div>
                                         </div>
@@ -274,6 +282,10 @@ export default function PhoneDemo3D() {
                                             <div key={item.id} className="flex-1 flex flex-col items-center">
                                                 {/* Line + Dot */}
                                                 <div className="w-full flex items-center justify-center relative mb-1 h-3">
+                                                    {/* Vertical Connection Line for First Item */}
+                                                    {index === 0 && (
+                                                        <div className="absolute bottom-1/2 left-1/2 -translate-x-1/2 w-0.5 h-6 border-l-2 border-dashed border-purple-500" />
+                                                    )}
                                                     {/* Lines - absolute to bleed into gaps */}
                                                     {/* Left Line - connects to previous card */}
                                                     {index > 0 && (
@@ -293,12 +305,20 @@ export default function PhoneDemo3D() {
                                                     animate={{ opacity: isVisible ? 1 : 0.25 }}
                                                     className={`w-full p-1 rounded border ${isLatest ? 'bg-zinc-900 border-purple-500/40' : isVisible ? 'bg-zinc-900/70 border-zinc-700' : 'bg-zinc-900/20 border-zinc-800/40'}`}
                                                 >
-                                                    <div className="aspect-square rounded-sm overflow-hidden bg-zinc-800 mb-1">
+                                                    <div className="aspect-square rounded-sm overflow-hidden bg-zinc-800 mb-1 relative">
                                                         {isVisible && <img src={item.image} className="w-full h-full object-cover" />}
+                                                        {isVisible && (
+                                                            <div className="absolute top-0.5 right-0.5 bg-black/50 backdrop-blur-[1px] rounded-[2px] p-[1px]">
+                                                                {item.type === 'photo' && <Camera className="w-2 h-2 text-white/90" />}
+                                                                {item.type === 'video' && <Video className="w-2 h-2 text-white/90" />}
+                                                                {item.type === 'drawing' && <PenTool className="w-2 h-2 text-white/90" />}
+                                                                {item.type === 'text' && <Type className="w-2 h-2 text-white/90" />}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div className="flex items-center gap-0.5">
                                                         <img src={item.avatar} className="w-2.5 h-2.5 rounded-full" />
-                                                        <span className="text-[6px] font-bold text-white truncate">{item.user}</span>
+                                                        <span className="text-[8px] font-bold text-white truncate">{item.user}</span>
                                                     </div>
                                                 </motion.div>
                                             </div>
