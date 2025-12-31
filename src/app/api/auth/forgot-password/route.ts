@@ -17,11 +17,18 @@ export async function POST(request: Request) {
         // Generate password reset link using Supabase Admin SDK
         // This generates a link that the user visits to reset their password
         // We'll direct them to our /reset-password page which handles the token hash
+        
+        // Ensure we use the www subdomain for production to avoid SSL/deep link issues
+        let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tryweeve.com';
+        if (appUrl === 'https://tryweeve.com') {
+            appUrl = 'https://www.tryweeve.com';
+        }
+
         const { data, error } = await supabaseAdmin.auth.admin.generateLink({
             type: 'recovery',
             email,
             options: {
-                redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://tryweeve.com'}/reset-password`,
+                redirectTo: `${appUrl}/reset-password`,
             },
         });
 

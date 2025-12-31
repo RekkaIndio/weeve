@@ -340,6 +340,18 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         if (!Capacitor.isNativePlatform()) return;
 
         App.addListener('appUrlOpen', async ({ url }) => {
+            // Handle Password Reset - navigate within the app
+            if (url.includes('reset-password')) {
+                const urlObj = new URL(url);
+                const code = urlObj.searchParams.get('code');
+                if (code) {
+                    router.push(`/reset-password?code=${code}`);
+                } else {
+                    router.push('/reset-password');
+                }
+                return;
+            }
+
             // Handle Stripe
             if (url.includes('payment-success')) {
                 // Navigate internally
