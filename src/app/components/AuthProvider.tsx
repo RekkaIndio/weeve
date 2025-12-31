@@ -325,7 +325,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             }
 
             // If fully onboarded and on Public/Auth route -> Go Feed
-            if (!needsOnboarding && isPublicRoute(currentPath) && currentPath !== '/auth/callback') {
+            if (!needsOnboarding && isPublicRoute(currentPath) && currentPath !== '/auth/callback' && currentPath !== '/reset-password') {
                 router.replace('/feed');
                 // router.refresh(); // Optional, but helps if feed data is stale
             }
