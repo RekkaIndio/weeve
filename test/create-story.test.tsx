@@ -129,7 +129,7 @@ describe('CreateStory Component', () => {
             result = render(
                 <CreateStory
                     onBack={mockOnBack}
-                    onCreateStory={mockOnCreateStory as (data: CreateStoryFormState) => Promise<void>}
+                    onCreateStory={mockOnCreateStory as (data: CreateStoryFormState) => Promise<string>}
                     currentUser={mockCurrentUser}
                     availableFriends={mockFriends}
                     onDeductTokens={mockOnDeductTokens as (amount: number) => boolean}
