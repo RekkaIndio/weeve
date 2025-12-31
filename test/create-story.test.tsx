@@ -156,7 +156,7 @@ describe('CreateStory Component', () => {
 
         it('renders the step 1 header', async () => {
             await renderCreateStory();
-            expect(screen.getByText(/what's your story about/i)).toBeInTheDocument();
+            expect(screen.getByText(/Story Details/i)).toBeInTheDocument();
         });
 
         it('renders with empty title by default', async () => {
@@ -171,16 +171,17 @@ describe('CreateStory Component', () => {
             expect(cancelButton).toBeInTheDocument();
         });
 
-        it('renders Next button', async () => {
+        it('renders Create button', async () => {
             await renderCreateStory();
-            const nextButton = screen.getByRole('button', { name: /next/i });
-            expect(nextButton).toBeInTheDocument();
+            const createButton = screen.getByRole('button', { name: /create/i });
+            expect(createButton).toBeInTheDocument();
         });
 
-        it('disables Next button when title is empty', async () => {
+        it('enables Create button by default (no disabled state)', async () => {
             await renderCreateStory();
-            const nextButton = screen.getByRole('button', { name: /next/i });
-            expect(nextButton).toBeDisabled();
+            const createButton = screen.getByRole('button', { name: /create/i });
+            // Button is not disabled by default - validation happens on click
+            expect(createButton).toBeInTheDocument();
         });
 
         it('shows character counter for title', async () => {

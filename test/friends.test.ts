@@ -88,13 +88,13 @@ describe('addFriend', () => {
         expect(mockSupabaseFrom).toHaveBeenCalledWith('friendships');
     });
 
-    it('returns success object', async () => {
+    it('completes without throwing on success', async () => {
         const mock = createChainedMockBuilder(null);
+        mock.insert = vi.fn().mockResolvedValue({ error: null });
         mockSupabaseFrom.mockReturnValue(mock);
 
-        const result = await addFriend('user-1', 'user-2');
-
-        expect(result).toHaveProperty('success');
+        // Should not throw
+        await expect(addFriend('user-1', 'user-2')).resolves.not.toThrow();
     });
 });
 
@@ -112,13 +112,15 @@ describe('removeFriend', () => {
         expect(mockSupabaseFrom).toHaveBeenCalledWith('friendships');
     });
 
-    it('returns success object', async () => {
+    it('completes without throwing on success', async () => {
         const mock = createChainedMockBuilder(null);
+        mock.delete = vi.fn().mockReturnValue({
+            or: vi.fn().mockResolvedValue({ error: null }),
+        });
         mockSupabaseFrom.mockReturnValue(mock);
 
-        const result = await removeFriend('user-1', 'user-2');
-
-        expect(result).toHaveProperty('success');
+        // Should not throw
+        await expect(removeFriend('user-1', 'user-2')).resolves.not.toThrow();
     });
 });
 

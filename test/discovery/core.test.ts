@@ -20,7 +20,7 @@ const createMockStory = (overrides: Partial<Story> = {}): Story => ({
   visibilityDays: 7,
   canonSlots: [0, 1, 2, 3],
   maxWeeves: 4,
-  contributions: [],
+  contributions: [{ id: 'contrib-1', userId: 'brand-user' } as any], // Need at least 1 for rankStories filter
   participants: [],
   likes: 0,
   comments: [],
