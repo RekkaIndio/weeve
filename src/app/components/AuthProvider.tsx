@@ -229,7 +229,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     setLatestSession(session);
 
                     // On SIGN_IN, we might need to sync profile again
-                    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
+
+                        // Handle Password Recovery Event explicitly
+                        if (event === 'PASSWORD_RECOVERY') {
+                            router.push('/reset-password');
+                            return;
+                        }
+
                         // OPTIMISTIC: Update UI first
                         const optimisticUser = {
                             id: session.user.id,
@@ -326,6 +333,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
             // If fully onboarded and on Public/Auth route -> Go Feed
             if (!needsOnboarding && isPublicRoute(currentPath) && currentPath !== '/auth/callback' && currentPath !== '/reset-password') {
+                // FAILSAFE: Check if we are in a recovery flow that landed on a wrong public route (like homepage)
+                if (typeof window !== 'undefined' && window.location.hash && window.location.hash.includes('type=recovery')) {
+                    console.log('[AuthProvider] Detected recovery hash on public route, redirecting to /reset-password');
+                    router.replace(`/reset-password${window.location.hash}`);
+                    return;
+                }
+
                 router.replace('/feed');
                 // router.refresh(); // Optional, but helps if feed data is stale
             }
@@ -421,6 +435,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                         const params = new URLSearchParams(url.split('#')[1]);
                         const access_token = params.get('access_token');
                         const refresh_token = params.get('refresh_token');
+                        const type = params.get('type');
 
                         // Parse error from hash if present
                         const error = params.get('error');
@@ -447,6 +462,13 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                     if (data?.session) {
                                         setUser(data.session.user);
                                         setLatestSession(data.session);
+
+                                        // Handle Password Recovery - Redirect correctly
+                                        if (type === 'recovery') {
+                                            router.push('/reset-password');
+                                            return;
+                                        }
+
                                         try {
                                             const syncPromise = syncProfile(data.session.user, { access_token: data.session.access_token });
                                             const syncTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000));

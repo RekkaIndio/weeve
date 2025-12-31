@@ -19,8 +19,25 @@ export async function POST(request: Request) {
         // We'll direct them to our /reset-password page which handles the token hash
         
         // Ensure we use the www subdomain for production to avoid SSL/deep link issues
+        // Ensure we use the www subdomain for production to avoid SSL/deep link issues
         let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.tryweeve.com';
-        if (appUrl === 'https://tryweeve.com') {
+        
+        try {
+            // Robustly handle varying formats (trailing slashes, etc.)
+            // If it doesn't have a protocol, assume https
+            let urlToParse = appUrl;
+            if (!urlToParse.startsWith('http')) {
+                urlToParse = `https://${urlToParse}`;
+            }
+            
+            const urlObj = new URL(urlToParse);
+            if (urlObj.hostname === 'tryweeve.com') {
+                urlObj.hostname = 'www.tryweeve.com';
+            }
+            // Normalize to origin (no trailing slash)
+            appUrl = urlObj.origin;
+        } catch (e) {
+            console.error('Error parsing app URL:', e);
             appUrl = 'https://www.tryweeve.com';
         }
 
