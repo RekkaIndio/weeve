@@ -175,9 +175,16 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
     }, [captureFrameFromVideo]);
     const skipAutoAdvanceRef = useRef(false);
 
-    // Touch handling refs for swipe gestures
+    // Touch handling refs for swipe gestures (used by slot picker overlay)
     const touchStartX = useRef(0);
     const touchEndX = useRef(0);
+
+    // Touch handling refs for main media content swipe navigation
+    const mediaTouchStartX = useRef(0);
+    const mediaTouchStartY = useRef(0);
+    const mediaTouchEndX = useRef(0);
+    const mediaTouchEndY = useRef(0);
+    const isMediaSwiping = useRef(false);
 
     // Normalize participants to handle cases where position might be missing or duplicated (legacy data)
     const normalizedParticipants = useMemo(() => {
@@ -1119,6 +1126,69 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
         }
     };
 
+    // Media content swipe navigation handlers
+    const handleMediaTouchStart = useCallback((e: React.TouchEvent) => {
+        mediaTouchStartX.current = e.touches[0].clientX;
+        mediaTouchStartY.current = e.touches[0].clientY;
+        mediaTouchEndX.current = e.touches[0].clientX;
+        mediaTouchEndY.current = e.touches[0].clientY;
+        isMediaSwiping.current = false;
+    }, []);
+
+    const handleMediaTouchMove = useCallback((e: React.TouchEvent) => {
+        mediaTouchEndX.current = e.touches[0].clientX;
+        mediaTouchEndY.current = e.touches[0].clientY;
+
+        // Determine if this is a horizontal swipe (vs vertical scroll)
+        const deltaX = Math.abs(mediaTouchEndX.current - mediaTouchStartX.current);
+        const deltaY = Math.abs(mediaTouchEndY.current - mediaTouchStartY.current);
+
+        // If horizontal movement is significantly greater than vertical, it's a swipe
+        if (deltaX > 30 && deltaX > deltaY * 1.5) {
+            isMediaSwiping.current = true;
+        }
+    }, []);
+
+    const handleMediaTouchEnd = useCallback(() => {
+        // Only process if we have multiple contributions to navigate
+        if (displayOrderedContributions.length <= 1) {
+            return;
+        }
+
+        const diffX = mediaTouchStartX.current - mediaTouchEndX.current;
+        const diffY = Math.abs(mediaTouchEndY.current - mediaTouchStartY.current);
+        const swipeThreshold = 50; // minimum horizontal swipe distance
+
+        // Only process as swipe if it was detected as horizontal swipe
+        if (isMediaSwiping.current && Math.abs(diffX) > swipeThreshold && Math.abs(diffX) > diffY) {
+            setHasInteracted(true);
+
+            // Pause current video before switching to prevent audio overlap
+            if (mediaType === 'video' && videoRef.current) {
+                videoRef.current.pause();
+            }
+
+            if (diffX > 0) {
+                // Swiped left (finger moved right to left) - go to next content
+                setCurrentIndex((prev) => {
+                    const next = prev + 1;
+                    // Don't wrap around - stay at the end if already at last item
+                    return next >= displayOrderedContributions.length ? prev : next;
+                });
+            } else {
+                // Swiped right (finger moved left to right) - go to previous content
+                setCurrentIndex((prev) => {
+                    const next = prev - 1;
+                    // Don't wrap around - stay at the beginning if already at first item
+                    return next < 0 ? prev : next;
+                });
+            }
+        }
+
+        // Reset swipe state
+        isMediaSwiping.current = false;
+    }, [displayOrderedContributions.length, mediaType]);
+
     const handleContainerClick = useCallback((e: React.MouseEvent) => {
 
         // Unmute video on user interaction
@@ -1147,6 +1217,9 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
             ref={containerRef}
             className="relative w-full h-full weeve-snap-item snap-start shrink-0 bg-gray-900 overflow-hidden"
             onClick={handleContainerClick}
+            onTouchStart={handleMediaTouchStart}
+            onTouchMove={handleMediaTouchMove}
+            onTouchEnd={handleMediaTouchEnd}
         >
             {/* Media Background */}
             {waitingForFirstContribution && waitingParticipant?.id !== currentUser?.id ? (
@@ -1304,6 +1377,7 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
 
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/90 pointer-events-none" />
+
 
             {/* Top Overlay - Weeve Context */}
             {story.forkedFromStoryId && (
