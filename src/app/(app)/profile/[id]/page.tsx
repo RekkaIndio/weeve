@@ -2,12 +2,12 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useStore, User } from "@/lib/store";
-import { Grid, UserPlus, ChevronLeft, Share2, Check, Clock, MoreVertical, Ban, X } from "lucide-react";
+import { Grid, UserPlus, ChevronLeft, Share2, Check, Clock, MoreVertical, Ban, X, UserMinus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { toast } from 'sonner';
-import { sendFriendRequest, getFriendRequests, acceptFriendRequest } from "@/lib/friends";
+import { sendFriendRequest, getFriendRequests, acceptFriendRequest, removeFriend } from "@/lib/friends";
 import { notifyNewFollower } from "@/lib/notifications";
 import VideoThumbnail from '@/app/components/VideoThumbnail';
 import MediaWithFallback from '@/app/components/MediaWithFallback';
@@ -65,6 +65,10 @@ export default function UserProfilePage() {
     const [isBlocking, setIsBlocking] = useState(false);
     const [hasBlockedMe, setHasBlockedMe] = useState(false);
     const [iHaveBlocked, setIHaveBlocked] = useState(false);
+
+    // Remove friend state
+    const [showRemoveFriendConfirm, setShowRemoveFriendConfirm] = useState(false);
+    const [isRemovingFriend, setIsRemovingFriend] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -469,6 +473,27 @@ export default function UserProfilePage() {
         }
     };
 
+    // Handle removing a friend
+    const handleRemoveFriend = async () => {
+        if (!currentUser || !user || isRemovingFriend) return;
+
+        setIsRemovingFriend(true);
+        try {
+            await removeFriend(currentUser.id, user.id);
+            setFriendStatus('none');
+            setShowRemoveFriendConfirm(false);
+            setShowMenu(false);
+            // Refresh friends list
+            try { await fetchFriends(); } catch (e) { console.error(e); }
+            toast.success(`Removed ${user.name} from friends`);
+        } catch (err) {
+            console.error('[UserProfile] Error removing friend:', err);
+            toast.error('Failed to remove friend');
+        } finally {
+            setIsRemovingFriend(false);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-black text-white pb-24 relative">
             {/* Block Confirmation Modal */}
@@ -501,6 +526,36 @@ export default function UserProfilePage() {
                 </div>
             )}
 
+            {/* Remove Friend Confirmation Modal */}
+            {showRemoveFriendConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="bg-gray-900 rounded-2xl p-6 max-w-sm w-full border border-gray-800">
+                        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-orange-500/20 mx-auto mb-4">
+                            <UserMinus className="w-7 h-7 text-orange-500" />
+                        </div>
+                        <h3 className="text-lg font-bold text-center mb-2">Remove {user.name} as friend?</h3>
+                        <p className="text-sm text-gray-400 text-center mb-6">
+                            You'll no longer be friends. You can send a new friend request later.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowRemoveFriendConfirm(false)}
+                                className="flex-1 py-3 px-4 bg-gray-800 rounded-xl font-bold hover:bg-gray-700 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleRemoveFriend}
+                                disabled={isRemovingFriend}
+                                className="flex-1 py-3 px-4 bg-orange-500 rounded-xl font-bold hover:bg-orange-600 transition-colors disabled:opacity-50"
+                            >
+                                {isRemovingFriend ? 'Removing...' : 'Remove'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center gap-3 sticky top-0 z-10 bg-black/80 backdrop-blur-md">
                 <button
@@ -523,6 +578,19 @@ export default function UserProfilePage() {
                     {/* Dropdown Menu */}
                     {showMenu && (
                         <div className="absolute right-0 top-full mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden z-20">
+                            {/* Remove Friend option - only show if friends */}
+                            {friendStatus === 'friend' && (
+                                <button
+                                    onClick={() => {
+                                        setShowMenu(false);
+                                        setShowRemoveFriendConfirm(true);
+                                    }}
+                                    className="w-full px-4 py-3 flex items-center gap-3 text-orange-500 hover:bg-gray-800 transition-colors text-left border-b border-gray-800"
+                                >
+                                    <UserMinus className="w-5 h-5" />
+                                    <span className="font-medium">Remove Friend</span>
+                                </button>
+                            )}
                             <button
                                 onClick={() => {
                                     setShowMenu(false);
