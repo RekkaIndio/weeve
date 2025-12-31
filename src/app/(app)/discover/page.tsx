@@ -1338,7 +1338,7 @@ function DiscoverContent() {
                                                 <span className="text-3xl">🎬</span>
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-lg">Brand Canon Stories</h3>
+                                                <h3 className="font-bold text-lg">Brand Canon Stories Coming Soon</h3>
                                                 <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">
                                                     Canon posts are premium brand narratives. Check back soon for collaborative storytelling opportunities!
                                                 </p>
