@@ -19,7 +19,7 @@ const GroupCard: React.FC<GroupCardProps> = ({ group, onJoin, onShare, onClick }
     return (
         <div
             onClick={() => onClick(group.id)}
-            className="group relative bg-[#121212] border border-white/5 rounded-2xl p-5 hover:border-[#EC1D99]/50 transition-all duration-300 cursor-pointer overflow-hidden"
+            className="group relative bg-gradient-to-br from-gray-900 to-gray-900/50 border border-gray-800 rounded-2xl p-5 hover:border-[#EC1D99]/50 hover:shadow-lg hover:shadow-[#EC1D99]/5 transition-all duration-300 cursor-pointer overflow-hidden"
         >
             {/* Hover Gradient Effect */}
             <div className="absolute inset-0 bg-gradient-to-br from-[#EC1D99]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -54,8 +54,8 @@ const GroupCard: React.FC<GroupCardProps> = ({ group, onJoin, onShare, onClick }
                             {/* Badges Row */}
                             <div className="flex items-center gap-2 mt-1.5">
                                 <div className={`flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border ${group.isPrivate
-                                        ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                                        : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                                     }`}>
                                     {group.isPrivate ? <Lock className="w-2.5 h-2.5" /> : <Globe className="w-2.5 h-2.5" />}
                                     {group.isPrivate ? 'PRIVATE' : 'PUBLIC'}
