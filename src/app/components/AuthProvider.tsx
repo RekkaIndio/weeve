@@ -228,8 +228,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     setUser(session.user);
                     setLatestSession(session);
 
-                    // On SIGN_IN, we might need to sync profile again
-                    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY') {
+                    // On SIGN_IN or session restore, we might need to sync profile
+                    // IMPORTANT: On iOS, after OAuth deep link return, the event is often 'INITIAL_SESSION' 
+                    // instead of 'SIGNED_IN', so we must handle both to prevent the double-login issue.
+                    const shouldSyncAndRedirect = event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY' || event === 'INITIAL_SESSION';
+
+                    if (shouldSyncAndRedirect) {
 
                         // Handle Password Recovery Event explicitly
                         if (event === 'PASSWORD_RECOVERY') {
@@ -246,8 +250,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                             completedOnboarding: true // Assume true
                         };
 
-                        // Prevent overwriting if we already have data
-                        if (!currentUser) {
+                        // Always set optimistic user - the sync will update with real data
+                        // Using useStore.getState() to avoid stale closure issues
+                        const storeState = useStore.getState();
+                        if (!storeState.currentUser) {
                             setCurrentUser(optimisticUser as any);
                         }
 
@@ -256,10 +262,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                             console.warn('[AuthProvider] Background sync error:', err);
                         });
 
-                        // Explicit Navigation check (safe to do since state is updated)
-                        if (event === 'SIGNED_IN') {
-                            router.replace('/feed');
-                            router.refresh();
+                        // Explicit Navigation check - redirect to feed if on login or other public routes
+                        // On iOS INITIAL_SESSION fires instead of SIGNED_IN, so we handle both
+                        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+                            // Only redirect if currently on a public/auth route to avoid unnecessary navigation
+                            const currentPath = window.location.pathname;
+                            if (isPublicRoute(currentPath) || currentPath === '/auth/callback') {
+                                console.log(`[AuthProvider] Redirecting to /feed after ${event} event from ${currentPath}`);
+                                router.replace('/feed');
+                                router.refresh();
+                            }
                         }
                     }
 
