@@ -96,10 +96,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             // 4. Update Store
             if (profile) {
                 // Ensure we map cleanly to the Store User type
+                // Note: profile.avatar already has a dicebear fallback from getUserProfile,
+                // so we don't need to fallback to authUser.user_metadata?.picture here
                 const appUser = {
                     id: authUser.id,
                     name: profile.name,
-                    avatar: profile.avatar || authUser.user_metadata?.picture,
+                    avatar: profile.avatar,
                     tagline: profile.tagline,
                     tokens: profile.tokens || 100,
                     inviteCode: profile.inviteCode,
@@ -158,18 +160,22 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     setUser(session.user);
                     setLatestSession(session);
 
+                    // Check if we already have a persisted user with the correct ID
+                    // If so, preserve their avatar to avoid the intermittent avatar bug
+                    const existingUser = useStore.getState().currentUser;
+                    const preserveAvatar = existingUser && existingUser.id === session.user.id ? existingUser.avatar : undefined;
+
                     // Create minimal temp user to unblock routing immediately
+                    // Preserve existing avatar if available to prevent flash of wrong avatar
                     const optimisticUser = {
                         id: session.user.id,
                         name: session.user.user_metadata?.name || 'User',
-                        avatar: session.user.user_metadata?.picture,
+                        avatar: preserveAvatar || session.user.user_metadata?.picture,
                         tokens: 0,
                         completedOnboarding: true // Assume true safely, sync will correct
                     };
 
-                    // Only set optimistic user if store is empty
-                    // We check mounting because we want to avoid overwriting if re-renders happen
-                    // but on init it's fine.
+                    // Only set optimistic user if store is empty or if we're updating the same user
                     setCurrentUser(optimisticUser as any);
 
                     // Release UI Block
@@ -242,17 +248,24 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                         }
 
                         // OPTIMISTIC: Update UI first
+                        // Using useStore.getState() to avoid stale closure issues
+                        const storeState = useStore.getState();
+
+                        // Preserve existing avatar if we have a persisted user with the same ID
+                        // This prevents the intermittent avatar disappearing bug
+                        const preserveAvatar = storeState.currentUser?.id === session.user.id
+                            ? storeState.currentUser.avatar
+                            : undefined;
+
                         const optimisticUser = {
                             id: session.user.id,
                             name: session.user.user_metadata?.name || 'User',
-                            avatar: session.user.user_metadata?.picture,
+                            avatar: preserveAvatar || session.user.user_metadata?.picture,
                             tokens: 0,
                             completedOnboarding: true // Assume true
                         };
 
-                        // Always set optimistic user - the sync will update with real data
-                        // Using useStore.getState() to avoid stale closure issues
-                        const storeState = useStore.getState();
+                        // Only set optimistic user if store is empty
                         if (!storeState.currentUser) {
                             setCurrentUser(optimisticUser as any);
                         }

@@ -271,26 +271,14 @@ export default function EditProfilePage() {
     return (
         <div className="min-h-screen bg-black text-white pb-8">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center justify-between border-b border-gray-800">
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={() => router.back()}
-                        className="p-2 rounded-full hover:bg-gray-800 transition-colors"
-                    >
-                        <ChevronLeft className="w-6 h-6" />
-                    </button>
-                    <h1 className="font-bold text-lg">Edit Profile</h1>
-                </div>
+            <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center border-b border-gray-800">
                 <button
-                    onClick={handleSave}
-                    disabled={isSaving || isUploading}
-                    className={`${isSaving || isUploading
-                        ? 'bg-gray-600 cursor-not-allowed'
-                        : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
-                        } text-white font-bold px-6 py-2 rounded-lg transition-colors`}
+                    onClick={() => router.back()}
+                    className="p-2 rounded-full hover:bg-gray-800 transition-colors"
                 >
-                    {isSaving ? 'Saving...' : 'Save'}
+                    <ChevronLeft className="w-6 h-6" />
                 </button>
+                <h1 className="font-bold text-lg">Edit Profile</h1>
             </div>
 
             <div className="p-6 space-y-6">
@@ -416,12 +404,22 @@ export default function EditProfilePage() {
 
 
 
-                    <div className="pt-4">
+                    <div className="pt-4 flex gap-3">
                         <button
                             onClick={() => router.back()}
-                            className="w-full bg-gray-800 text-white font-bold py-3 rounded-lg hover:bg-gray-700 transition-colors"
+                            className="flex-1 bg-gray-800 text-white font-bold py-3 rounded-lg hover:bg-gray-700 transition-colors"
                         >
                             Cancel
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={isSaving || isUploading}
+                            className={`flex-1 ${isSaving || isUploading
+                                ? 'bg-gray-600 cursor-not-allowed'
+                                : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
+                                } text-white font-bold py-3 rounded-lg transition-colors`}
+                        >
+                            {isSaving ? 'Saving...' : 'Save'}
                         </button>
                     </div>
                 </div>
