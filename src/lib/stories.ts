@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { User } from './store';
 import { notifyParticipantLeft } from './notifications';
 
 /**
@@ -288,6 +289,99 @@ export async function deleteStory(
         return { success: true };
     } catch (error) {
         console.error('Unexpected error deleting story:', error);
+        return { success: false, error: 'An unexpected error occurred' };
+    }
+}
+
+/**
+ * Update story participants - adds new participants and removes removed ones
+ * Calculates changes by comparing current DB state with provided new list
+ */
+export async function updateStoryParticipants(
+    storyId: string,
+    newParticipants: User[]
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        // 1. Get current participants from DB
+        const { data: currentParticipants, error: fetchError } = await supabase
+            .from('story_participants')
+            .select('user_id')
+            .eq('story_id', storyId);
+
+        if (fetchError) {
+            console.error('Error fetching current participants:', fetchError);
+            return { success: false, error: 'Failed to fetch current participants' };
+        }
+
+        const currentIds = new Set<string>(currentParticipants?.map((p: { user_id: string }) => p.user_id) || []);
+        const newIds = new Set(newParticipants.map(p => p.id));
+
+        // 2. Identify additions and removals
+        const toAdd = [...newIds].filter(id => !currentIds.has(id));
+        const toRemove = [...currentIds].filter(id => !newIds.has(id));
+
+        // 3. Perform updates
+        if (toAdd.length > 0) {
+            // Get the highest position currently in the story to append new users
+            const { data: maxPosData } = await supabase
+                .from('story_participants')
+                .select('position')
+                .eq('story_id', storyId)
+                .order('position', { ascending: false })
+                .limit(1)
+                .single();
+            
+            let nextPosition = (maxPosData?.position ?? -1) + 1;
+
+            const participantsToAdd = toAdd.map((userId, index) => ({
+                story_id: storyId,
+                user_id: userId,
+                status: 'waiting', // Default status for added users
+                position: nextPosition + index,
+                invited_at: new Date().toISOString()
+            }));
+
+            const { error: insertError } = await supabase
+                .from('story_participants')
+                .insert(participantsToAdd);
+
+            if (insertError) {
+                console.error('Error adding participants:', insertError);
+                return { success: false, error: 'Failed to add new participants' };
+            }
+
+            // Send notifications to new participants
+            toAdd.forEach(userId => {
+                supabase.from('notifications').insert({
+                    user_id: userId,
+                    type: 'story_invite',
+                    title: 'New Story Invite',
+                    message: 'You have been added to a story.',
+                    data: { story_id: storyId },
+                    action_url: `/story/${storyId}`, 
+                    created_at: new Date().toISOString()
+                }).then(({ error }: { error: any }) => {
+                    if (error) console.error('Failed to send invite notification to', userId, error);
+                });
+            });
+        }
+
+        if (toRemove.length > 0) {
+            const { error: deleteError } = await supabase
+                .from('story_participants')
+                .delete()
+                .eq('story_id', storyId)
+                .in('user_id', toRemove);
+
+            if (deleteError) {
+                console.error('Error removing participants:', deleteError);
+                return { success: false, error: 'Failed to remove participants' };
+            }
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('Unexpected error updating participants:', error);
         return { success: false, error: 'An unexpected error occurred' };
     }
 }

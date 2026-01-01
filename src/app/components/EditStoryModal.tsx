@@ -73,9 +73,29 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
         }
     };
 
-    const handleSave = () => {
-        updateStory(story.id, { participants });
-        onClose();
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            // updateStoryParticipants handles the diffing and Supabase calls
+            const { updateStoryParticipants } = await import('@/lib/stories');
+            const result = await updateStoryParticipants(story.id, participants);
+
+            if (result.success) {
+                // Optimistically update local store
+                updateStory(story.id, { participants });
+                toast.success('Story updated successfully');
+                onClose();
+            } else {
+                toast.error(result.error || 'Failed to update story');
+            }
+        } catch (error) {
+            console.error('Error saving story:', error);
+            toast.error('An error occurred while saving');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     // Close dropdown when clicking outside
@@ -194,8 +214,8 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
                                                     onClick={() => !isLocked && handleRemoveParticipant(participant.id)}
                                                     disabled={isLocked}
                                                     className={`p-2 rounded-lg transition-colors ${isLocked
-                                                            ? 'text-gray-600 cursor-not-allowed'
-                                                            : 'text-gray-500 hover:text-red-500 hover:bg-red-500/10'
+                                                        ? 'text-gray-600 cursor-not-allowed'
+                                                        : 'text-gray-500 hover:text-red-500 hover:bg-red-500/10'
                                                         }`}
                                                     title={isLocked ? "Fixed brand content cannot be removed" : "Remove from story"}
                                                 >
@@ -214,9 +234,10 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
                 <div className="p-4 border-t border-gray-800 bg-gray-900">
                     <button
                         onClick={handleSave}
-                        className="w-full bg-[#EC1D99] hover:bg-[#D41C84] text-white font-bold py-3 rounded-xl transition-colors font-sans"
+                        disabled={isSaving}
+                        className={`w-full font-bold py-3 rounded-xl transition-colors font-sans ${isSaving ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-[#EC1D99] hover:bg-[#D41C84] text-white'}`}
                     >
-                        Save Changes
+                        {isSaving ? 'Saving...' : 'Save Changes'}
                     </button>
                 </div>
             </div>
