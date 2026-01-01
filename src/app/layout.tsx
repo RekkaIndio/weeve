@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 
@@ -61,6 +62,7 @@ export default function RootLayout({
           <PushNotificationInitializer />
           {children}
           <Toaster richColors position="top-center" />
+          <Analytics />
         </AuthProvider>
       </body>
     </html>
