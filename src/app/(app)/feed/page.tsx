@@ -38,37 +38,6 @@ export default function Home() {
 
 
 
-
-  // CRITICAL: Force a full page reload after OAuth redirect to wake up the WebView
-  // But skip if user needs onboarding (let AuthProvider handle redirect)
-  useEffect(() => {
-    const oauthReloadKey = 'weeve_oauth_needs_reload';
-    const wasOAuthRedirect = sessionStorage.getItem(oauthReloadKey);
-
-    if (wasOAuthRedirect) {
-      console.log('[Feed] OAuth redirect detected, removing flag');
-      sessionStorage.removeItem(oauthReloadKey);
-      // Don't reload again - flag was already consumed
-    } else {
-      // Quick check - reload immediately if stories are empty
-      const timer = setTimeout(() => {
-        // Skip reload if user might need onboarding (AuthProvider will handle)
-        const storeState = useStore.getState();
-        const userProfile = storeState.currentUser;
-
-        // If no profile or stories are empty, might need reload
-        // But if this is a new user (no stories expected), skip reload
-        if (storeState.stories.length === 0 && userProfile) {
-          console.log('[Feed] No stories loaded, forcing page reload...');
-          sessionStorage.setItem(oauthReloadKey, 'true');
-          window.location.reload();
-        }
-      }, 100); // Very fast check - 100ms
-
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
   // ===== CONSOLIDATED DATA FETCH =====
   // Single orchestrated fetch that handles session check and data loading
   // Replaces 3 separate useEffects that caused redundant fetches
