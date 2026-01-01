@@ -27,6 +27,8 @@ export default function GroupDetailsPage() {
     const [activeTab, setActiveTab] = useState<'stories' | 'members'>('stories');
     const [showShareModal, setShowShareModal] = useState(false);
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+    const [showPhotoViewer, setShowPhotoViewer] = useState(false);
+    const [viewerImage, setViewerImage] = useState<{ url: string; alt: string } | null>(null);
     const [groupRoles, setGroupRoles] = useState<any[]>([]);
     const [memberRoles, setMemberRoles] = useState<any[]>([]);
     const [ownerVerification, setOwnerVerification] = useState<{ isVerified: boolean; tier: 'bronze' | 'silver' | 'gold' | null }>({ isVerified: false, tier: null });
@@ -138,6 +140,18 @@ export default function GroupDetailsPage() {
         } finally {
             setLoading(false); // Always clear loading state
         }
+    };
+
+    const handlePhotoClick = () => {
+        if (group?.avatar) {
+            setViewerImage({ url: group.avatar, alt: group.name });
+            setShowPhotoViewer(true);
+        }
+    };
+
+    const openImageViewer = (url: string, alt: string) => {
+        setViewerImage({ url, alt });
+        setShowPhotoViewer(true);
     };
 
     const handleAvatarClick = () => {
@@ -297,15 +311,13 @@ export default function GroupDetailsPage() {
 
             {/* Group Info */}
             <div className="flex flex-col items-center mb-8">
-                {/* Avatar with click handler for admins/owners */}
-                <div
-                    className={`relative mb-4 ${(isAdmin || isOwner) ? 'cursor-pointer' : ''}`}
-                    onClick={handleAvatarClick}
-                >
+                {/* Avatar with separate handlers for photo view and change */}
+                <div className="relative mb-4">
                     <img
                         src={group.avatar}
                         alt={group.name}
-                        className={`w-24 h-24 rounded-full bg-gray-800 ${uploadingAvatar ? 'opacity-50' : ''}`}
+                        className={`w-24 h-24 rounded-full bg-gray-800 cursor-pointer hover:opacity-90 transition-opacity ${uploadingAvatar ? 'opacity-50' : ''}`}
+                        onClick={handlePhotoClick}
                     />
                     {uploadingAvatar && (
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -313,9 +325,15 @@ export default function GroupDetailsPage() {
                         </div>
                     )}
                     {(isAdmin || isOwner) && !uploadingAvatar && (
-                        <div className="absolute bottom-0 right-0 bg-[#EC1D99] p-2 rounded-full border-2 border-black hover:bg-[#EC1D99]/90 transition-colors">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleAvatarClick();
+                            }}
+                            className="absolute bottom-0 right-0 bg-[#EC1D99] p-2 rounded-full border-2 border-black hover:bg-[#EC1D99]/90 transition-colors"
+                        >
                             <ImageIcon className="w-4 h-4 text-white" />
-                        </div>
+                        </button>
                     )}
                 </div>
                 <h1 className="text-2xl font-bold mb-2">{group.name}</h1>
@@ -467,48 +485,53 @@ export default function GroupDetailsPage() {
 
                             return (
                                 <div key={member.id} className="flex items-center gap-3 bg-gray-900/50 p-3 rounded-xl">
-                                    <Link href={`/profile/${member.user_id}`} className="flex items-center gap-3 flex-1 hover:opacity-80 transition-opacity">
+                                    {/* Avatar - links to profile */}
+                                    <Link href={`/profile/${member.user_id}`} className="shrink-0">
                                         <img
                                             src={member.profiles?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.user_id}`}
                                             alt={member.profiles?.name}
-                                            className="w-10 h-10 rounded-full bg-gray-800"
+                                            className="w-10 h-10 rounded-full bg-gray-800 hover:opacity-80 transition-opacity"
                                         />
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <p className="font-medium">{member.profiles?.name || 'Unknown User'}</p>
-                                                {isGroupOwner && (
-                                                    <div className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 rounded-full border border-yellow-500/40">
-                                                        <Crown className="w-3 h-3 text-yellow-500" />
-                                                        <span className="text-[10px] font-bold text-yellow-500 uppercase">Owner</span>
-                                                    </div>
-                                                )}
-                                                {isGroupAdmin && (
-                                                    <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-500/20 rounded-full border border-purple-500/40">
-                                                        <Shield className="w-3 h-3 text-purple-400" />
-                                                        <span className="text-[10px] font-bold text-purple-400 uppercase">Admin</span>
-                                                    </div>
-                                                )}
-                                                {/* Custom role badges */}
-                                                {customRoles.map((role: any) => (
-                                                    <div
-                                                        key={role.id}
-                                                        className="flex items-center gap-1 px-2 py-0.5 rounded-full"
-                                                        style={{ backgroundColor: `${role.color}20`, border: `1px solid ${role.color}40` }}
-                                                    >
-                                                        {role.badge_url ? (
-                                                            <img src={role.badge_url} alt={role.name} className="w-3 h-3 rounded-full object-cover" />
-                                                        ) : (
-                                                            <Tag className="w-3 h-3" style={{ color: role.color }} />
-                                                        )}
-                                                        <span className="text-[10px] font-bold uppercase" style={{ color: role.color }}>{role.name}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                            {!isGroupOwner && !isGroupAdmin && customRoles.length === 0 && (
-                                                <p className="text-xs text-gray-500 capitalize">{member.role}</p>
-                                            )}
-                                        </div>
                                     </Link>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            {/* Name - links to profile */}
+                                            <Link href={`/profile/${member.user_id}`} className="hover:opacity-80 transition-opacity">
+                                                <p className="font-medium">{member.profiles?.name || 'Unknown User'}</p>
+                                            </Link>
+                                            {isGroupOwner && (
+                                                <div className="flex items-center gap-1 px-2 py-0.5 bg-yellow-500/20 rounded-full border border-yellow-500/40">
+                                                    <Crown className="w-3 h-3 text-yellow-500" />
+                                                    <span className="text-[10px] font-bold text-yellow-500 uppercase">Owner</span>
+                                                </div>
+                                            )}
+                                            {isGroupAdmin && (
+                                                <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-500/20 rounded-full border border-purple-500/40">
+                                                    <Shield className="w-3 h-3 text-purple-400" />
+                                                    <span className="text-[10px] font-bold text-purple-400 uppercase">Admin</span>
+                                                </div>
+                                            )}
+                                            {/* Custom role badges - clickable if they have an image */}
+                                            {customRoles.map((role: any) => (
+                                                <button
+                                                    key={role.id}
+                                                    onClick={() => role.badge_url && openImageViewer(role.badge_url, role.name)}
+                                                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full ${role.badge_url ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'cursor-default'}`}
+                                                    style={{ backgroundColor: `${role.color}20`, border: `1px solid ${role.color}40` }}
+                                                >
+                                                    {role.badge_url ? (
+                                                        <img src={role.badge_url} alt={role.name} className="w-3 h-3 rounded-full object-cover" />
+                                                    ) : (
+                                                        <Tag className="w-3 h-3" style={{ color: role.color }} />
+                                                    )}
+                                                    <span className="text-[10px] font-bold uppercase" style={{ color: role.color }}>{role.name}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {!isGroupOwner && !isGroupAdmin && customRoles.length === 0 && (
+                                            <p className="text-xs text-gray-500 capitalize">{member.role}</p>
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}
@@ -562,6 +585,33 @@ export default function GroupDetailsPage() {
                             <span className="text-sm font-medium text-white">Upload Photo</span>
                         </button>
                     </div>
+                </div>
+            )}
+
+            {/* Photo Viewer Modal */}
+            {showPhotoViewer && viewerImage && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm animate-in fade-in duration-200"
+                    onClick={() => {
+                        setShowPhotoViewer(false);
+                        setViewerImage(null);
+                    }}
+                >
+                    <button
+                        onClick={() => {
+                            setShowPhotoViewer(false);
+                            setViewerImage(null);
+                        }}
+                        className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white z-10"
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+                    <img
+                        src={viewerImage.url}
+                        alt={viewerImage.alt}
+                        className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
+                        onClick={(e) => e.stopPropagation()}
+                    />
                 </div>
             )}
         </div>

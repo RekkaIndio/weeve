@@ -1296,7 +1296,7 @@ function DiscoverContent() {
                                             <div>
                                                 <h3 className="font-bold text-lg">Brand Seeds Coming Soon</h3>
                                                 <p className="text-gray-400 text-sm mt-1 max-w-xs mx-auto">
-                                                    Seed posts are brand-initiated stories where you can add your creative spin and earn rewards.
+                                                    Seed posts are brand-initiated stories where you can add your creative spin and be a part of the story.
                                                 </p>
                                             </div>
                                         </div>
