@@ -375,8 +375,19 @@ function DiscoverContent() {
         return engagementScore * (1 + decay);
     };
 
+    // Filter out private stories and incomplete stories (no contributions) for public discovery
+    // Private stories should only be shown to their creator/participants, not on the discover feed
+    // Stories without contributions are incomplete and shouldn't be shown publicly
+    const publicStories = stories.filter(story => {
+        // Must be public visibility
+        if (story.visibility !== 'public') return false;
+        // Must have at least one contribution (completed content)
+        if (!story.contributions || story.contributions.length === 0) return false;
+        return true;
+    });
+
     // Compute trending stories for the top carousel
-    const trendingStories = [...stories]
+    const trendingStories = [...publicStories]
         .sort((a, b) => getTrendingScore(b) - getTrendingScore(a))
         .slice(0, 6);
 
@@ -425,19 +436,13 @@ function DiscoverContent() {
     }, [searchQuery, viewMode, currentUser]);
 
     // Filter and sort stories based on search query and feed type
+    // Start with publicStories (already filtered for visibility and contributions)
     const filteredStories = (() => {
-        // First, filter by search query
-        let filtered = stories.filter(story => {
+        // Filter by search query if provided
+        let filtered = publicStories.filter(story => {
             if (!searchQuery.trim()) return true;
 
             const query = searchQuery.toLowerCase();
-
-            // EXCLUDE empty brand "waiting" posts from all public results
-            // If it's a brand post (canon/seed) but has 0 contributions, hide it
-            // unless we are in a "waiting" context (which is handled by profile/waiting tab, not here)
-            if ((!story.contributions || story.contributions.length === 0)) {
-                return false;
-            }
 
             // Search in title
             if (story.title.toLowerCase().includes(query)) return true;
