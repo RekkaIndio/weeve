@@ -524,6 +524,18 @@ export default function ProfilePage() {
         // Exclude completed stories from waiting tab — they should appear in main weeves tab
         if (s.status === 'completed') return false;
 
+        // For public open mode stories: exclude if user has already contributed to all their assigned slots
+        // These stories have "open" slots waiting for other public users, not the creator
+        const isPublicOpenStory = s.visibility === 'public' && s.mode === 'open';
+        if (isPublicOpenStory) {
+            // Check if user has contributed to their assigned slots
+            const userHasContributed = s.contributions?.some(c => c.userId === currentUser.id);
+            if (userHasContributed) {
+                // User already contributed - remaining open slots are for the public, not the creator
+                return false;
+            }
+        }
+
         // Show if it's their turn in an active story
         if (s.status === 'active' && s.currentTurnUserId === currentUser.id) return true;
 

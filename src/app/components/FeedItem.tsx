@@ -1538,6 +1538,28 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                         </div>
                     )}
 
+                {/* Add Stitch Button for Public Open Mode Stories */}
+                {story.visibility === 'public'
+                    && story.mode === 'open'
+                    && !['canon', 'seed'].includes(story.postType || '')
+                    && (story.contributions?.length || 0) < (story.maxWeeves || 3) // Has available slots
+                    && (
+                        <div className="flex flex-col items-center gap-0.5">
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(`/story/${story.id}`);
+                                }}
+                                className="w-10 h-10 rounded-full bg-[#EC1D99] flex items-center justify-center border border-white/20 text-white shadow-lg shadow-[#EC1D99]/30 hover:scale-110 transition-transform"
+                                aria-label="Add your stitch"
+                            >
+                                <Plus className="w-5 h-5" />
+                            </button>
+                            <span className="text-xs font-bold text-[#EC1D99]">Add</span>
+                        </div>
+                    )}
+
                 {/* Weeve Button for Brand/Seed posts */}
                 {['canon', 'seed'].includes(story.postType || '') && (() => {
                     const isCreator = currentUser?.id === story.creatorId;
@@ -1890,6 +1912,40 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                                     +{hiddenCount}
                                                 </div>
                                             )}
+
+                                            {/* Open Slots Indicators - show for public open mode stories */}
+                                            {story.visibility === 'public' && story.mode === 'open' && (() => {
+                                                const totalSlots = story.maxWeeves || 3;
+                                                const filledSlots = story.contributions?.length || 0;
+                                                const openSlots = Math.max(0, totalSlots - filledSlots);
+                                                // Show up to 3 open slot indicators
+                                                const slotsToShow = Math.min(openSlots, 3);
+                                                const moreSlots = openSlots - slotsToShow;
+
+                                                if (slotsToShow === 0) return null;
+
+                                                return (
+                                                    <>
+                                                        {Array.from({ length: slotsToShow }, (_, i) => (
+                                                            <div
+                                                                key={`open-slot-${i}`}
+                                                                className="-ml-2 z-10 flex items-center justify-center w-9 h-9 rounded-full border-2 border-dashed border-[#EC1D99] bg-[#EC1D99]/10 text-[#EC1D99] text-sm font-bold backdrop-blur-sm transition-all hover:bg-[#EC1D99]/20"
+                                                                title="Open slot"
+                                                            >
+                                                                +
+                                                            </div>
+                                                        ))}
+                                                        {moreSlots > 0 && (
+                                                            <div
+                                                                className="-ml-2 z-10 flex items-center justify-center w-9 h-9 rounded-full border-2 border-dashed border-[#EC1D99]/50 bg-[#EC1D99]/5 text-[#EC1D99]/70 text-[10px] font-bold backdrop-blur-sm"
+                                                                title={`${moreSlots} more open slot${moreSlots > 1 ? 's' : ''}`}
+                                                            >
+                                                                +{moreSlots}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
                                         </>
                                     );
                                 })()}
@@ -1924,6 +1980,25 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                         </Link>
                                     );
                                 })}
+
+                                {/* Open Slots Indicators - show for public open mode stories */}
+                                {story.visibility === 'public' && story.mode === 'open' && (() => {
+                                    const totalSlots = story.maxWeeves || 3;
+                                    const filledSlots = story.contributions?.length || 0;
+                                    const openSlots = Math.max(0, totalSlots - filledSlots);
+
+                                    if (openSlots === 0) return null;
+
+                                    return Array.from({ length: openSlots }, (_, i) => (
+                                        <div
+                                            key={`open-slot-exp-${i}`}
+                                            className="-ml-2 z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 border-dashed border-[#EC1D99] bg-[#EC1D99]/10 text-[#EC1D99] text-xs font-bold backdrop-blur-sm"
+                                            title="Open slot"
+                                        >
+                                            +
+                                        </div>
+                                    ));
+                                })()}
 
                                 {/* Collapse button */}
                                 <button
