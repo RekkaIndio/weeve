@@ -504,7 +504,7 @@ export default function WelcomeCarousel({ onComplete, onSkip }: WelcomeCarouselP
             </div>
 
             {/* Skip Button */}
-            <div className="absolute top-6 right-6 z-10 pt-[env(safe-area-inset-top,0px)]">
+            <div className="absolute top-6 right-6 z-50 pt-[env(safe-area-inset-top,0px)]">
                 <button
                     onClick={onSkip}
                     className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10 text-xs font-bold tracking-wide transition-all backdrop-blur-sm"

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/AuthProvider";
+import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { Check } from "lucide-react";
 
@@ -125,6 +126,17 @@ export default function FollowsPage() {
                     completed_onboarding: true,
                 })
                 .eq('user_id', user.id);
+
+            // CRITICAL: Update the store BEFORE navigating to prevent AuthProvider
+            // from seeing stale onboardingStep and redirecting back to /onboarding
+            const { setCurrentUser, currentUser: storeUser } = useStore.getState();
+            if (storeUser) {
+                setCurrentUser({
+                    ...storeUser,
+                    completedOnboarding: true,
+                    onboardingStep: undefined,
+                });
+            }
 
             // Respect local dismissal flags so tutorials don't reappear
             try { if (typeof window !== 'undefined' && user?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + user.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + user.id, 'true'); } } catch (err) { }

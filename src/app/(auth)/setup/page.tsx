@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createUserProfile, checkDisplayNameAvailability } from "@/lib/auth";
+import { checkDisplayNameAvailability } from "@/lib/auth";
 import { processReferralCode } from "@/lib/referral";
 import { useAuth } from "@/app/components/AuthProvider";
+import { useStore } from "@/lib/store";
 import { capturePhoto } from "@/lib/camera";
 import { supabase } from "@/lib/supabase";
 import { Camera, Check, X, Loader2 } from "lucide-react";
@@ -139,16 +140,37 @@ export default function SetupPage() {
                 }
             }
 
-            const { error: profileError } = await createUserProfile(
-                user.id,
-                displayName.trim(),
-                finalAvatar,
-                undefined, // inviteCode (auto-generated)
-                undefined, // referrerCode - now handled by processReferralCode
-                user.user_metadata?.date_of_birth
-            );
+            // First, clear last_name_change_at to allow the name update (bypasses 14-day restriction)
+            // This is necessary because AuthProvider may have created the profile with a default name
+            await supabase
+                .from('profiles')
+                .update({ last_name_change_at: null })
+                .eq('user_id', user.id);
 
-            if (profileError) throw profileError;
+            // Now update the profile with the user's chosen username and avatar
+            // Also advance onboarding_step to 1 to progress to the welcome carousel
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({
+                    name: displayName.trim(),
+                    avatar: finalAvatar,
+                    onboarding_step: 1, // Advance to welcome carousel step
+                })
+                .eq('user_id', user.id);
+
+            if (updateError) throw updateError;
+
+            // CRITICAL: Update the store BEFORE redirecting to prevent AuthProvider
+            // from seeing stale onboardingStep and bouncing back to /setup
+            const { setCurrentUser, currentUser: storeUser } = useStore.getState();
+            if (storeUser) {
+                setCurrentUser({
+                    ...storeUser,
+                    name: displayName.trim(),
+                    avatar: finalAvatar,
+                    onboardingStep: 1,
+                });
+            }
 
             // Process any pending referral code to connect with referrer
             try {
@@ -216,29 +238,51 @@ export default function SetupPage() {
                                 onClick={handleAvatarClick}
                                 className="relative w-32 h-32 rounded-full border-4 border-white/20 overflow-hidden cursor-pointer group"
                             >
-                                <img
-                                    src={avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.id}`}
-                                    alt="Avatar Preview"
-                                    className="w-full h-full object-cover"
-                                />
+                                {avatar ? (
+                                    // User has selected a custom avatar
+                                    <img
+                                        src={avatar}
+                                        alt="Avatar Preview"
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    // Animated placeholder when no avatar selected
+                                    <div className="w-full h-full bg-gradient-to-br from-[#EC1D99]/30 via-purple-500/30 to-blue-500/30 flex items-center justify-center animate-gradient-shift">
+                                        <div className="relative">
+                                            {/* Pulsing ring animation */}
+                                            <div className="absolute inset-0 rounded-full border-2 border-white/30 animate-ping" style={{ animationDuration: '2s' }} />
+                                            <div className="absolute inset-0 rounded-full border-2 border-white/20 animate-ping" style={{ animationDuration: '2.5s', animationDelay: '0.5s' }} />
+                                            {/* Center icon */}
+                                            <div className="relative w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
+                                                <Camera className="w-8 h-8 text-white/70" />
+                                            </div>
+                                        </div>
+                                        {/* Floating particles effect */}
+                                        <div className="absolute inset-0 overflow-hidden rounded-full">
+                                            <div className="absolute w-2 h-2 bg-white/30 rounded-full animate-float-1" style={{ top: '20%', left: '30%' }} />
+                                            <div className="absolute w-1.5 h-1.5 bg-white/20 rounded-full animate-float-2" style={{ top: '60%', left: '70%' }} />
+                                            <div className="absolute w-1 h-1 bg-white/40 rounded-full animate-float-3" style={{ top: '40%', left: '20%' }} />
+                                        </div>
+                                    </div>
+                                )}
                                 {uploadingAvatar && (
                                     <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                                         <Loader2 className="w-8 h-8 text-white animate-spin" />
                                     </div>
                                 )}
-                                {!uploadingAvatar && (
-                                    <>
-                                        {/* Always visible camera icon */}
-                                        <div className="absolute bottom-0 right-0 bg-[#EC1D99] p-2.5 rounded-full border-2 border-black group-hover:scale-110 transition-transform">
-                                            <Camera className="w-5 h-5 text-white" />
-                                        </div>
-                                        {/* Hover overlay */}
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <span className="text-sm font-medium text-white">Change Photo</span>
-                                        </div>
-                                    </>
-                                )}
+                                {/* Hover overlay */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Camera className="w-6 h-6 text-white" />
+                                    <span className="text-sm font-medium text-white">{avatar ? 'Change' : 'Add Photo'}</span>
+                                </div>
                             </div>
+                            {/* Camera button outside the avatar */}
+                            <button
+                                onClick={handleAvatarClick}
+                                className="absolute -bottom-1 -right-1 bg-[#EC1D99] p-2.5 rounded-full border-3 border-black shadow-lg hover:scale-110 transition-transform z-10"
+                            >
+                                <Camera className="w-5 h-5 text-white" />
+                            </button>
                         </div>
                     </div>
 
@@ -332,6 +376,40 @@ export default function SetupPage() {
                 }
                 .animation-delay-4000 {
                     animation-delay: 4s;
+                }
+                @keyframes gradient-shift {
+                    0%, 100% { background-position: 0% 50%; }
+                    50% { background-position: 100% 50%; }
+                }
+                .animate-gradient-shift {
+                    background-size: 200% 200%;
+                    animation: gradient-shift 4s ease infinite;
+                }
+                @keyframes float-1 {
+                    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
+                    25% { transform: translateY(-10px) translateX(5px); opacity: 0.6; }
+                    50% { transform: translateY(-5px) translateX(-5px); opacity: 0.4; }
+                    75% { transform: translateY(-15px) translateX(3px); opacity: 0.5; }
+                }
+                @keyframes float-2 {
+                    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.2; }
+                    33% { transform: translateY(-12px) translateX(-8px); opacity: 0.5; }
+                    66% { transform: translateY(-6px) translateX(6px); opacity: 0.3; }
+                }
+                @keyframes float-3 {
+                    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.4; }
+                    50% { transform: translateY(-8px) translateX(4px); opacity: 0.6; }
+                }
+                .animate-float-1 {
+                    animation: float-1 3s ease-in-out infinite;
+                }
+                .animate-float-2 {
+                    animation: float-2 4s ease-in-out infinite;
+                    animation-delay: 0.5s;
+                }
+                .animate-float-3 {
+                    animation: float-3 2.5s ease-in-out infinite;
+                    animation-delay: 1s;
                 }
             `}</style>
         </div>

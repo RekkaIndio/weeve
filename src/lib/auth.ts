@@ -338,9 +338,11 @@ export async function createUserProfile(
                 tokens: 100,
                 // Regenerate invite code if name changed or if it's a retry, to ensure uniqueness there too
                 invite_code: inviteCode && !isRetry ? inviteCode : `${candidateName.toUpperCase().slice(0, 3).replace(/[^A-Z]/g, 'U')}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-                onboarding_step: 1,
+                onboarding_step: 0, // Start at 0 to send user to /setup for username/avatar
                 completed_onboarding: false,
                 date_of_birth: dateOfBirth,
+                // Set to null so the 14-day restriction doesn't apply to the first name set on /setup
+                last_name_change_at: null,
             };
 
             // Split upsert and select to debug 406 error

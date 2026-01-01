@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/lib/store";
 import FeedItem from "@/app/components/FeedItem";
-import FeedOnboardingOverlay from "@/app/components/FeedOnboardingOverlay";
 import { useAuth } from "@/app/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { fetchGroups } from "@/lib/data";
@@ -16,7 +15,7 @@ export default function Home() {
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   const { stories, fetchStories, fetchMoreStories, hasMoreStories, currentUser, setGroups, fetchFriends, isStoriesLoading, groups, reportedStoryIds } = useStore();
-  const [showOnboardingOverlay, setShowOnboardingOverlay] = useState(false);
+
   const [activeIndex, setActiveIndex] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -244,37 +243,7 @@ export default function Home() {
     }
   }, [loading, router, user]);
 
-  // Check if user needs onboarding tutorial
   useEffect(() => {
-    const checkOnboarding = async () => {
-      if (!currentUser?.id) return;
-
-      try {
-        const { data } = await supabase
-          .from('profiles')
-          .select('onboarding_step, completed_onboarding')
-          .eq('user_id', currentUser.id)
-          .single();
-
-        // Respect local dismissal flag so overlay doesn't reappear after user dismisses it
-        let dismissed = false;
-        try {
-          if (typeof window !== 'undefined') {
-            dismissed = !!localStorage.getItem('weeve_onboarding_overlay_dismissed_' + currentUser.id);
-          }
-        } catch (err) { dismissed = false; }
-
-        // Show overlay if they just created their onboarding story and haven't dismissed it
-        if (data && data.onboarding_step === 2 && !data.completed_onboarding && !dismissed) {
-          setShowOnboardingOverlay(true);
-        }
-      } catch (err) {
-        console.error('[Feed] Error checking onboarding:', err);
-      }
-    };
-
-    checkOnboarding();
-  }, [currentUser?.id]); useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -556,13 +525,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Onboarding Tutorial Overlay */}
-      {showOnboardingOverlay && (
-        <FeedOnboardingOverlay onDismiss={() => {
-          try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
-          setShowOnboardingOverlay(false);
-        }} />
-      )}
+
     </>
   );
 }

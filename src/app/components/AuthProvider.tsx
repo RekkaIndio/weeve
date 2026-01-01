@@ -166,13 +166,16 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     const preserveAvatar = existingUser && existingUser.id === session.user.id ? existingUser.avatar : undefined;
 
                     // Create minimal temp user to unblock routing immediately
-                    // Preserve existing avatar if available to prevent flash of wrong avatar
+                    // Preserve existing avatar and onboarding state if available to prevent flash
                     const optimisticUser = {
                         id: session.user.id,
-                        name: session.user.user_metadata?.name || 'User',
+                        name: existingUser?.name || session.user.user_metadata?.name || 'User',
                         avatar: preserveAvatar || session.user.user_metadata?.picture,
-                        tokens: 0,
-                        completedOnboarding: true // Assume true safely, sync will correct
+                        tokens: existingUser?.tokens || 0,
+                        // IMPORTANT: Preserve existing onboarding state if we have it
+                        // Don't assume true for new users - this prevents feed flash before setup
+                        completedOnboarding: existingUser?.completedOnboarding ?? false,
+                        onboardingStep: existingUser?.onboardingStep,
                     };
 
                     // Only set optimistic user if store is empty or if we're updating the same user
@@ -348,16 +351,27 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
         // If Logged in...
         if (user && currentUser) {
-            const needsOnboarding = !currentUser.completedOnboarding && currentUser.onboardingStep !== 2;
+            // Step 0: Profile just created, needs username/avatar selection
+            // Step 1: Setup complete, needs welcome carousel and follows
+            // Step 2: Created onboarding story, may see tutorial on story page
+            // null/undefined + completedOnboarding: true = fully onboarded
+            const onboardingStep = currentUser.onboardingStep;
+            const isCompleted = currentUser.completedOnboarding;
 
-            // If needs onboarding and NOT there -> Go there
-            if (needsOnboarding && !currentPath.startsWith('/onboarding') && currentPath !== '/login') {
+            // If step 0 (just created profile), go to /setup for username/avatar
+            if (!isCompleted && onboardingStep === 0 && currentPath !== '/setup') {
+                router.replace('/setup');
+                return;
+            }
+
+            // If step 1 (setup complete), go to welcome carousel
+            if (!isCompleted && onboardingStep === 1 && !currentPath.startsWith('/onboarding') && currentPath !== '/login') {
                 router.replace('/onboarding/welcome');
                 return;
             }
 
             // If fully onboarded and on Public/Auth route -> Go Feed
-            if (!needsOnboarding && isPublicRoute(currentPath) && currentPath !== '/auth/callback' && currentPath !== '/reset-password') {
+            if (isCompleted && isPublicRoute(currentPath) && currentPath !== '/auth/callback' && currentPath !== '/reset-password') {
                 // FAILSAFE: Check if we are in a recovery flow that landed on a wrong public route (like homepage)
                 if (typeof window !== 'undefined' && window.location.hash && window.location.hash.includes('type=recovery')) {
                     console.log('[AuthProvider] Detected recovery hash on public route, redirecting to /reset-password');
@@ -532,7 +546,49 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // ---------------------------------------------------------------------------
     // Render
     // ---------------------------------------------------------------------------
-    if (loading) {
+
+    // Calculate redirect need synchronously to prevent flashing content
+    let isRedirecting = false;
+    const currentPath = pathname || '';
+
+    if (!loading) {
+        // 1. Not logged in + Private route
+        if (!user && !isPublicRoute(currentPath)) {
+            isRedirecting = true;
+        }
+
+        // 2. Logged in logic
+        if (user && currentUser) {
+            const onboardingStep = currentUser.onboardingStep;
+            const isCompleted = currentUser.completedOnboarding;
+
+            // Step 0 -> /setup
+            if (!isCompleted && onboardingStep === 0 && currentPath !== '/setup') {
+                isRedirecting = true;
+            }
+
+            // Step 1 -> /onboarding/welcome
+            if (!isCompleted && onboardingStep === 1 && !currentPath.startsWith('/onboarding') && currentPath !== '/login') {
+                isRedirecting = true;
+            }
+
+            // Completed -> /feed (if on public route)
+            if (isCompleted && isPublicRoute(currentPath) && currentPath !== '/auth/callback' && currentPath !== '/reset-password') {
+                // Check recovery hash (client-side only logic handled in effect, but we assume redirect if not recovery)
+                // We can't check window.location.hash safely during SSR, so we might flash briefly only in that edge case
+                // But for normal login -> feed redirect, this blocks the flash
+                isRedirecting = true;
+            }
+
+            // 3. Logged in + strictly auth pages (Login/Signup)
+            // Always block render because we will redirect somewhere
+            if (currentPath === '/login' || currentPath === '/signup') {
+                isRedirecting = true;
+            }
+        }
+    }
+
+    if (loading || isRedirecting) {
         return (
             <div className="min-h-screen bg-black flex items-center justify-center">
                 <div className="relative w-24 h-24 flex items-center justify-center">
