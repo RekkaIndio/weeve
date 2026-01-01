@@ -1538,7 +1538,7 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                         </div>
                     )}
 
-                {/* Add Stitch Button for Public Open Mode Stories */}
+                {/* Weeve Button for Public Open Mode Stories */}
                 {story.visibility === 'public'
                     && story.mode === 'open'
                     && !['canon', 'seed'].includes(story.postType || '')
@@ -1549,14 +1549,18 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                 type="button"
                                 onClick={(e) => {
                                     e.stopPropagation();
+                                    // Store the source story ID so we can return to it
+                                    if (typeof window !== 'undefined') {
+                                        sessionStorage.setItem('weeve_return_to_story', story.id);
+                                    }
                                     router.push(`/story/${story.id}`);
                                 }}
                                 className="w-10 h-10 rounded-full bg-[#EC1D99] flex items-center justify-center border border-white/20 text-white shadow-lg shadow-[#EC1D99]/30 hover:scale-110 transition-transform"
-                                aria-label="Add your stitch"
+                                aria-label="Add to story"
                             >
-                                <Plus className="w-5 h-5" />
+                                <span className="font-black text-lg">W</span>
                             </button>
-                            <span className="text-xs font-bold text-[#EC1D99]">Add</span>
+                            <span className="text-xs font-bold text-[#EC1D99]">Weeve</span>
                         </div>
                     )}
 

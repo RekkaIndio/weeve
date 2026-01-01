@@ -555,6 +555,26 @@ function DiscoverContent() {
         }
     }, [filteredStories]);
 
+    // Restore story position when returning from story/timeline page
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const returnToStoryId = sessionStorage.getItem('weeve_return_to_story');
+        if (returnToStoryId && filteredStories.length > 0) {
+            // Clear the stored ID so we don't keep reopening
+            sessionStorage.removeItem('weeve_return_to_story');
+
+            // Find the story in the filtered list and open it
+            const idx = filteredStories.findIndex(s => s.id === returnToStoryId);
+            if (idx !== -1) {
+                // Small delay to ensure component is mounted
+                setTimeout(() => {
+                    setSelectedStoryIndex(idx);
+                }, 100);
+            }
+        }
+    }, [filteredStories]);
+
     const handleCreateGroup = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!newGroupName.trim() || !currentUser) return;
