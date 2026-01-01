@@ -101,8 +101,9 @@ function CreateStoryContent() {
       // Build final participants directly from ordered slots (preserve user slot positions)
       const orderedSlots = data.orderedParticipants || [];
 
-      // Check if this is a public story with slot selection
-      const isPublicStoryWithSlots = data.visibility === 'public' && data.selectedSlotIndices && data.selectedSlotIndices.length > 0;
+      // Check if this is a public story (non-brand)
+      const isBrandPost = data.postType === 'canon' || data.postType === 'seed';
+      const isPublicStoryWithSlots = data.visibility === 'public' && !isBrandPost;
 
       // For public stories with slot selection, user has already chosen their slots explicitly
       // For other stories, ensure current user is in at least one slot
@@ -126,20 +127,11 @@ function CreateStoryContent() {
       const computedMaxWeeves = Math.max(data.inviteCount + 1, slotsWithUser.length);
 
       // Check if this is a brand post requiring payment
-      const isBrandPost = data.postType === 'canon' || data.postType === 'seed';
       const requiresPayment = isBrandPost && data.visibilityDays;
 
       // Determine initial turn user based on story type
-      let initialTurnUserId: string;
-      if (isPublicStoryWithSlots) {
-        // For public stories with slot selection: first selected slot determines initial turn
-        const firstSelectedSlotIndex = Math.min(...data.selectedSlotIndices!);
-        const firstSelectedParticipant = slotsWithUser[firstSelectedSlotIndex];
-        initialTurnUserId = firstSelectedParticipant?.id ?? currentUser.id;
-      } else {
-        // For other stories: use first participant or current user
-        initialTurnUserId = finalParticipants[0]?.id ?? currentUser.id;
-      }
+      // For all stories: first participant in slot order determines initial turn
+      const initialTurnUserId = finalParticipants[0]?.id ?? currentUser.id;
 
       const { data: storyData, error: storyError } = await supabase
         .from('stories')
@@ -183,14 +175,18 @@ function CreateStoryContent() {
       let participantsToInsert: { story_id: string; user_id: string; position: number; status: 'accepted' | 'waiting' }[];
 
       if (isPublicStoryWithSlots) {
-        console.log('[CreateStory] Public Story Detected. Selected Indices:', data.selectedSlotIndices);
-        // For public stories with slot selection: only add creator to their selected slots
-        participantsToInsert = data.selectedSlotIndices!.map((slotIndex) => ({
-          story_id: newStoryId,
-          user_id: currentUser.id,
-          position: slotIndex,
-          status: 'accepted' as 'accepted', // Creator has already accepted, can contribute immediately
-        }));
+        console.log('[CreateStory] Public Story Detected. Ordered Slots:', slotsWithUser);
+        // For public stories: add ALL assigned participants (creator + friends)
+        // Creator slots get 'accepted', friend slots get 'waiting' (they need to accept invite)
+        // Empty/null slots are left open for public users to contribute
+        participantsToInsert = slotsWithUser
+          .map((slot, idx) => slot ? ({
+            story_id: newStoryId,
+            user_id: slot.id,
+            position: idx,
+            status: slot.id === currentUser.id ? ('accepted' as 'accepted') : ('waiting' as 'waiting'),
+          }) : null)
+          .filter((p): p is NonNullable<typeof p> => p !== null);
         console.log('[CreateStory] Inserted Participants (Public):', participantsToInsert);
       } else {
         console.log('[CreateStory] Standard/Brand Story Logic. Fallback participants:', finalParticipants);

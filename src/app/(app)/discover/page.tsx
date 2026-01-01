@@ -375,14 +375,31 @@ function DiscoverContent() {
         return engagementScore * (1 + decay);
     };
 
-    // Filter out private stories and incomplete stories (no contributions) for public discovery
+    // Filter out private stories and incomplete stories for public discovery
     // Private stories should only be shown to their creator/participants, not on the discover feed
-    // Stories without contributions are incomplete and shouldn't be shown publicly
+    // Hybrid workflow for public stories:
+    // - If story has only creator (no invited friends): show after creator adds contribution
+    // - If story has invited friends (reserved slots): show after ALL reserved slots are filled
     const publicStories = stories.filter(story => {
         // Must be public visibility
         if (story.visibility !== 'public') return false;
         // Must have at least one contribution (completed content)
         if (!story.contributions || story.contributions.length === 0) return false;
+
+        // Check if this is a public story with reserved slots (invited friends)
+        // Reserved slots are participants who are NOT the creator
+        const reservedParticipants = story.participants.filter(p => p.id !== story.creatorId);
+
+        if (reservedParticipants.length > 0) {
+            // Has reserved slots - check if ALL reserved participants have contributed
+            const contributorIds = new Set(story.contributions.map(c => c.userId));
+            const allReservedFilled = reservedParticipants.every(p => contributorIds.has(p.id));
+            if (!allReservedFilled) {
+                // Reserved slots not all filled - don't show on discover yet
+                return false;
+            }
+        }
+        // Either no reserved slots, or all reserved slots are filled
         return true;
     });
 

@@ -130,10 +130,21 @@ export function StoryTimeline({
 
                             const canAddNormalStory = !isBrandPost && isMyTurn && !isStoryComplete && isNextSequentialSlot && (isMyWaitingSlot || isReservedForMe);
 
-                            // NEW: Allow contributing to ANY open slot in public user stories (non-brand)
-                            // No previousSlotsFilled or hasUserContributed requirement - all open slots are always available
+                            // For public user stories (non-brand, open mode):
+                            // Open slots are available to the public ONLY AFTER all reserved slots are filled
+                            // Reserved slots = participants who are NOT the creator
                             const isPublicUserStory = !isBrandPost && isOpenModeStory;
-                            const canContributeToPublicOpenSlot = isPublicUserStory && !isStoryComplete;
+
+                            // Check if all reserved slots (invited friends) have contributed
+                            const reservedParticipants = story.participants.filter(p => p.id !== story.creatorId);
+                            const contributorIds = new Set(story.contributions?.map(c => c.userId) || []);
+                            const allReservedSlotsFilled = reservedParticipants.length === 0 ||
+                                reservedParticipants.every(p => contributorIds.has(p.id));
+
+                            // Public users can contribute to open slots only after reserved slots are filled
+                            // The story creator and invited friends can always contribute to their assigned slots
+                            const canContributeToPublicOpenSlot = isPublicUserStory && !isStoryComplete &&
+                                (isAlreadyInvolved || allReservedSlotsFilled);
 
                             const canAdd = canAddNormalStory || canPublicUserAdd || canForkCreatorAdd || isReservedForMe;
 
