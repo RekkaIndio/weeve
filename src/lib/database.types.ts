@@ -12,6 +12,30 @@ export type Json =
 export interface Database {
     public: {
         Tables: {
+            hashtags: {
+                Row: {
+                    id: string
+                    name: string
+                    count: number
+                    last_used_at: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    name: string
+                    count?: number
+                    last_used_at?: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    name?: string
+                    count?: number
+                    last_used_at?: string
+                    created_at?: string
+                }
+                Relationships: []
+            }
             profiles: {
                 Row: {
                     id: string
