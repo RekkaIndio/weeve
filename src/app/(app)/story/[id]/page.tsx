@@ -918,6 +918,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         setTextElements(prev => [...prev, newElement]);
         setActiveElementId(id);
         setHasMovedInCurrentEdit(false);
+        // Close sticker panel when adding text (mutual exclusivity - only one menu open at a time)
+        setShowStickerPanel(false);
     }, [textElements.length]);
 
     const handleComposerCancel = () => {

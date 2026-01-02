@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { DrawingCanvas } from "@/app/components/DrawingCanvas";
 import { DraggableSticker } from "@/app/components/DraggableSticker";
 import { PHOTO_FILTERS } from "../constants/filters";
@@ -35,6 +35,15 @@ export function EditorCanvas({
     onSetPhotoStickers,
     onSetDraggingStickerId
 }: EditorCanvasProps) {
+    // Capture the initial viewport height to prevent canvas resize when keyboard opens
+    const [fixedHeight, setFixedHeight] = useState<number | null>(null);
+
+    useEffect(() => {
+        // Lock the height on mount to prevent keyboard resize
+        if (typeof window !== 'undefined' && fixedHeight === null) {
+            setFixedHeight(window.innerHeight);
+        }
+    }, [fixedHeight]);
 
     if (stitchMode === 'video' && mediaDraft?.previewUrl) {
         return (
@@ -89,19 +98,31 @@ export function EditorCanvas({
         );
     }
 
-    if (stitchMode === 'drawing') {
+    if (stitchMode === 'drawing' || stitchMode === 'text') {
+        // Calculate the canvas container height (full height minus bottom thumbnail area)
+        const containerHeight = fixedHeight ? fixedHeight - 112 : undefined; // 112px = bottom-28 (7rem)
+
         return (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-auto px-8 pt-12 pb-32">
-                <DrawingCanvas
-                    ref={drawingCanvasRef}
-                    className="max-h-[70vh] w-auto"
-                    onAddText={onAddText}
-                    onToggleStickers={onToggleStickers}
-                    isStickerPanelOpen={showStickerPanel}
-                    onClearStickers={onClearStickers}
-                    hasStickers={photoStickers.length > 0}
-                    hideUI={!!activeElementId}
-                />
+            <div
+                className="absolute inset-x-0 top-0 pointer-events-auto"
+                style={{ height: fixedHeight ? `${fixedHeight}px` : '100%' }}
+            >
+                {/* Full-screen container with space for thumbnails at bottom */}
+                <div
+                    className="absolute inset-x-0 top-0 flex items-center justify-center"
+                    style={{ height: containerHeight ? `${containerHeight}px` : 'calc(100% - 7rem)' }}
+                >
+                    <DrawingCanvas
+                        ref={drawingCanvasRef}
+                        className="h-full w-auto max-w-full"
+                        onAddText={onAddText}
+                        onToggleStickers={onToggleStickers}
+                        isStickerPanelOpen={showStickerPanel}
+                        onClearStickers={onClearStickers}
+                        hasStickers={photoStickers.length > 0}
+                        hideUI={stitchMode === 'text' || !!activeElementId}
+                    />
+                </div>
                 {/* Stickers Overlay for Drawing */}
                 {photoStickers.map((sticker) => (
                     <DraggableSticker
@@ -130,3 +151,4 @@ export function EditorCanvas({
 
     return null;
 }
+

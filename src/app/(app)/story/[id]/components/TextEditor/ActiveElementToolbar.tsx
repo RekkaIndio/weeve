@@ -1,4 +1,4 @@
-import { Type, Trash, Check, Palette, AlignCenter } from "lucide-react";
+import { Type, Trash, Check, Palette, AlignCenter, Layers } from "lucide-react";
 import { type TextElement } from "@/lib/store";
 
 interface ActiveElementToolbarProps {
@@ -24,9 +24,9 @@ export function ActiveElementToolbar({
     if (activeMenu) return null;
 
     return (
-        <div className="absolute bottom-20 left-0 right-0 flex items-center justify-center gap-3 z-[70] pointer-events-auto animate-in fade-in zoom-in-95 duration-150">
-            {/* Simple compact toolbar */}
-            <div className="flex items-center gap-2 bg-black/70 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-2xl">
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-[70] pointer-events-auto animate-in fade-in slide-in-from-right duration-150">
+            {/* Vertical toolbar - matching drawing tools style */}
+            <div className="flex flex-col items-center gap-4">
                 {/* Add Text */}
                 <button
                     onClick={(e) => {
@@ -34,10 +34,10 @@ export function ActiveElementToolbar({
                         e.stopPropagation();
                         onAddText();
                     }}
-                    className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                    className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
                     aria-label="Add text"
                 >
-                    <Type className="w-5 h-5" />
+                    <Type className="w-5 h-5 text-white" />
                 </button>
 
                 {/* Style (opens color/font options) */}
@@ -47,10 +47,23 @@ export function ActiveElementToolbar({
                         e.stopPropagation();
                         onSetActiveMenu('color');
                     }}
-                    className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                    className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
                     aria-label="Style"
                 >
-                    <Palette className="w-5 h-5" />
+                    <Palette className="w-5 h-5 text-white" />
+                </button>
+
+                {/* Background */}
+                <button
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSetActiveMenu('bg');
+                    }}
+                    className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
+                    aria-label="Background"
+                >
+                    <Layers className="w-5 h-5 text-white" />
                 </button>
 
                 {/* Align */}
@@ -60,13 +73,11 @@ export function ActiveElementToolbar({
                         e.stopPropagation();
                         onSetActiveMenu('align');
                     }}
-                    className="p-2 rounded-full hover:bg-white/10 text-white transition-colors"
+                    className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
                     aria-label="Align"
                 >
-                    <AlignCenter className="w-5 h-5" />
+                    <AlignCenter className="w-5 h-5 text-white" />
                 </button>
-
-                <div className="w-px h-5 bg-white/20" />
 
                 {/* Delete */}
                 <button
@@ -75,10 +86,10 @@ export function ActiveElementToolbar({
                         e.stopPropagation();
                         onDelete();
                     }}
-                    className="p-2 rounded-full hover:bg-red-500/20 text-red-400 transition-colors"
+                    className="w-10 h-10 rounded-full bg-red-500/30 backdrop-blur-sm border-2 border-red-500/50 flex items-center justify-center shadow-lg transition-all hover:bg-red-500/50"
                     aria-label="Delete"
                 >
-                    <Trash className="w-5 h-5" />
+                    <Trash className="w-5 h-5 text-red-400" />
                 </button>
 
                 {/* Done */}
@@ -88,10 +99,10 @@ export function ActiveElementToolbar({
                         e.stopPropagation();
                         onDone();
                     }}
-                    className="p-2 rounded-full bg-[#EC1D99] hover:bg-[#D41884] text-white transition-colors"
+                    className="w-10 h-10 rounded-full bg-[#EC1D99] border-2 border-white flex items-center justify-center shadow-lg transition-all hover:bg-[#D41884]"
                     aria-label="Done"
                 >
-                    <Check className="w-5 h-5" />
+                    <Check className="w-5 h-5 text-white" />
                 </button>
             </div>
         </div>

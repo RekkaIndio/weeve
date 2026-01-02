@@ -121,10 +121,10 @@ export function TextEditor({
                                         onChange={(e) => onUpdateContent(element.id, e.target.value)}
                                         onPointerDown={(e) => e.stopPropagation()}
                                         placeholder="Type something..."
-                                        className="w-full bg-transparent border-none outline-none resize-none text-inherit"
+                                        className="w-full bg-transparent border-none outline-none resize-none text-inherit placeholder:text-white/40 placeholder:text-lg placeholder:font-light"
                                         style={{
                                             fontFamily: 'inherit',
-                                            fontSize: 'inherit',
+                                            fontSize: element.content ? 'inherit' : '18px',
                                             color: 'inherit',
                                             textAlign: element.style.textAlign as any,
                                             minHeight: '1.5em',
