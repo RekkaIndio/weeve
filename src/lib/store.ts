@@ -107,6 +107,7 @@ export interface Story {
     theme?: string; // Visual theme for the story
     groupId?: string;
     groupAvatar?: string;
+    groupIsPrivate?: boolean;
     hashtags?: string[];
     likes: number;
     likedBy: string[];
@@ -1226,6 +1227,10 @@ export const useStore = create<AppState>()(
                             .from('stories')
                             .select(`
                                 *,
+                                groups (
+                                    avatar,
+                                    is_private
+                                ),
                                 contributions (*),
                                 story_participants (
                                     *,
@@ -1240,7 +1245,6 @@ export const useStore = create<AppState>()(
                             `)
                             .order('created_at', { ascending: false })
                             .range(offset, offset + PAGE_SIZE - 1); // Pagination limit
-
                         return Promise.race([
                             storiesQueryPromise,
                             new Promise<{ data: any[] | null; error: any }>((resolve) => 
@@ -1308,11 +1312,18 @@ export const useStore = create<AppState>()(
                     const formattedStories: Story[] = storiesData
                         // Filter out stories we don't want on the public feed
                         .filter((s: any) => {
-                            // Group content check - only show if user is a member of the group
-                            // This applies to both public and private groups
-                            if (s.group_id) {
+                            // Private group content check - only show if user is a member of the group
+                            // Public groups are visible to everyone
+                            if (s.group_id && s.groups?.is_private) {
                                 if (!currentUserId || !userGroupIds.has(s.group_id)) {
-                                    return false; // User is not a member of this group
+                                    return false; // User is not a member of this private group
+                                }
+                                // Group stories must have at least 1 contribution to appear in feed
+                                // OR the current user must be a participant (so they can see it in their waiting tab)
+                                const hasContributions = s.contributions && s.contributions.length > 0;
+                                const isParticipant = (s.story_participants ?? []).some((p: any) => p.user_id === currentUserId);
+                                if (!hasContributions && !isParticipant) {
+                                    return false;
                                 }
                             }
 
@@ -1446,6 +1457,8 @@ export const useStore = create<AppState>()(
                             coverImage: s.cover_image,
                             theme: s.theme,
                             groupId: s.group_id,
+                            groupAvatar: s.groups?.avatar,
+                            groupIsPrivate: s.groups?.is_private,
                             likes: likedBy.length,
                             likedBy,
                             comments,
@@ -1464,7 +1477,7 @@ export const useStore = create<AppState>()(
                             brandId: s.brand_id ?? undefined,
                             isFeatured: s.is_featured ?? false,
                             scheduledFor: s.scheduled_for ?? undefined
-                        };
+};
                     });
 
                     // If reset, replace stories; otherwise append

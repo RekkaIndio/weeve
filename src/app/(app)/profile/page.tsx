@@ -525,13 +525,17 @@ export default function ProfilePage() {
         if (s.status === 'completed') return false;
 
         // For public open mode stories: exclude if user has already contributed to all their assigned slots
-        // These stories have "open" slots waiting for other public users, not the creator
+        // These stories have "open" slots waiting for other public users, not the creator.
+        // BUT, if the creator has explicitly assigned themselves to future slots (e.g. Me - Open - Me),
+        // we must keep it in the waiting tab until ALL their assigned slots are filled.
         const isPublicOpenStory = s.visibility === 'public' && s.mode === 'open';
         if (isPublicOpenStory) {
-            // Check if user has contributed to their assigned slots
-            const userHasContributed = s.contributions?.some(c => c.userId === currentUser.id);
-            if (userHasContributed) {
-                // User already contributed - remaining open slots are for the public, not the creator
+            const userAssignedSlots = s.participants.filter(p => p.id === currentUser.id).length;
+            const userContributions = s.contributions?.filter(c => c.userId === currentUser.id).length || 0;
+
+            // If user has filled all their assigned slots, then hide it (remaining slots are for public)
+            // If they have more slots to fill (userAssignedSlots > userContributions), keep it shown.
+            if (userAssignedSlots > 0 && userContributions >= userAssignedSlots) {
                 return false;
             }
         }
@@ -1530,6 +1534,13 @@ export default function ProfilePage() {
 
                                 return (
                                     <Link key={story.id} href={`/story/${story.id}`} className="aspect-[3/4] relative bg-gray-900 group overflow-hidden border-2 border-[#EC1D99]/50">
+                                        {/* Group Indicator */}
+                                        {story.groupAvatar && (
+                                            <div className="absolute top-2 left-2 z-20 w-8 h-8 rounded-full border border-white/20 shadow-lg overflow-hidden bg-gray-800">
+                                                <img src={story.groupAvatar} alt="Group" className="w-full h-full object-cover" />
+                                            </div>
+                                        )}
+
                                         {/* Wavy Lines Background - shown when no content */}
                                         {!mediaUrl && !content && (!story.coverImage || story.coverImage.includes('placehold.co')) && (
                                             <AestheticFallback className="absolute inset-0 z-0" showLogo={false} />

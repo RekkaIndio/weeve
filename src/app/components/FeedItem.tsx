@@ -1,4 +1,3 @@
-"use client";
 
 // Shared module-level caches that persist across component remounts/navigation
 const GLOBAL_VIDEO_PRELOAD_CACHE: Map<string, HTMLVideoElement> = (globalThis as any).__weeveVideoPreloadCache || new Map();
@@ -1224,6 +1223,12 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
             {/* Media Background */}
             {waitingForFirstContribution && waitingParticipant?.id !== currentUser?.id ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white">
+                    {/* Group Indicator */}
+                    {story.groupAvatar && (
+                        <div className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full border border-white/20 shadow-lg overflow-hidden bg-gray-800">
+                            <img src={story.groupAvatar} alt="Group" className="w-full h-full object-cover" />
+                        </div>
+                    )}
                     <div className="flex flex-col items-center justify-center gap-3 p-6 rounded-3xl bg-black/40 border border-white/10 backdrop-blur-sm">
                         <div className="relative">
                             <div className="w-[52px] h-[52px] rounded-full border-2 border-[#EC1D99]/70 p-1 animate-pulse">
@@ -1838,10 +1843,29 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                 className="flex items-center gap-0 pl-2 py-1 group"
                             >
                                 {(() => {
-                                    // Use contributions for slot-based avatar display
-                                    // This ensures each slot shows an avatar even if same user owns multiple slots
-                                    const slotContributions = effectiveOrderedContributions;
-                                    const total = slotContributions.length;
+                                    // Build unified slots array (Contributions + Assigned + Open)
+                                    const totalSlots = story.maxWeeves || 3;
+                                    const slots: Array<{
+                                        type: 'contribution' | 'assigned' | 'open';
+                                        data?: any;
+                                        id: string;
+                                        index: number;
+                                    }> = [];
+
+                                    for (let i = 0; i < totalSlots; i++) {
+                                        const contribution = effectiveOrderedContributions[i];
+                                        if (contribution) {
+                                            slots.push({ type: 'contribution', data: contribution, id: `c-${i}`, index: i });
+                                        } else {
+                                            const participant = story.participants.find(p => p.position === i);
+                                            if (participant) {
+                                                slots.push({ type: 'assigned', data: participant, id: `a-${i}`, index: i });
+                                            } else {
+                                                slots.push({ type: 'open', id: `o-${i}`, index: i });
+                                            }
+                                        }
+                                    }
+                                    const total = slots.length;
 
                                     // Determine which avatars to show:
                                     // - Always show the currently playing avatar prominently
@@ -1874,37 +1898,70 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                     return (
                                         <>
                                             {visibleIndices.map((idx, displayIdx) => {
-                                                const contribution = slotContributions[idx];
-                                                // Look up participant info for avatar/name
-                                                const p = participantsMap.get(contribution.userId);
-                                                const avatarUrl = p?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(contribution.userName || 'Unknown')}`;
-                                                const name = p?.name || contribution.userName || 'Unknown';
-                                                const userId = contribution.userId;
+                                                const slot = slots[idx];
                                                 const isActive = idx === currentIndex;
-                                                return (
-                                                    <Link
-                                                        key={`${contribution.id}-${idx}`}
-                                                        href={`/profile/${userId}`}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        title={`${idx + 1}. ${name}${isActive ? ' (playing)' : ''}`}
-                                                        className={`relative rounded-full flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} ${isActive
-                                                            ? 'z-20 scale-110 opacity-100'
-                                                            : 'z-10 opacity-70 group-hover:opacity-90'
-                                                            }`}
-                                                    >
-                                                        <img
-                                                            src={avatarUrl}
-                                                            alt={name}
-                                                            className={`w-9 h-9 min-w-[36px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
-                                                                ? 'border-[#EC1D99] shadow-[0_0_10px_#EC1D99]'
-                                                                : 'border-black/80'
+
+                                                if (slot.type === 'contribution') {
+                                                    const contribution = slot.data;
+                                                    const p = participantsMap.get(contribution.userId);
+                                                    const avatarUrl = p?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(contribution.userName || 'Unknown')}`;
+                                                    const name = p?.name || contribution.userName || 'Unknown';
+
+                                                    return (
+                                                        <Link
+                                                            key={slot.id}
+                                                            href={`/profile/${contribution.userId}`}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            title={`${idx + 1}. ${name}${isActive ? ' (playing)' : ''}`}
+                                                            className={`relative rounded-full flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} ${isActive
+                                                                ? 'z-20 scale-110 opacity-100'
+                                                                : 'z-10 opacity-70 group-hover:opacity-90'
                                                                 }`}
-                                                        />
-                                                        {isActive && (
-                                                            <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#EC1D99] rounded-full animate-pulse" />
-                                                        )}
-                                                    </Link>
-                                                );
+                                                        >
+                                                            <img
+                                                                src={avatarUrl}
+                                                                alt={name}
+                                                                className={`w-9 h-9 min-w-[36px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
+                                                                    ? 'border-[#EC1D99] shadow-[0_0_10px_#EC1D99]'
+                                                                    : 'border-black/80'
+                                                                    }`}
+                                                            />
+                                                            {isActive && (
+                                                                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#EC1D99] rounded-full animate-pulse" />
+                                                            )}
+                                                        </Link>
+                                                    );
+                                                } else if (slot.type === 'assigned') {
+                                                    const p = slot.data;
+                                                    return (
+                                                        <Link
+                                                            key={slot.id}
+                                                            href={`/profile/${p.id}`}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            title={`${idx + 1}. Waiting for ${p.name}`}
+                                                            className={`relative rounded-full flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} z-10 opacity-70 group-hover:opacity-90 grayscale`}
+                                                        >
+                                                            <img
+                                                                src={p.avatar}
+                                                                alt={p.name}
+                                                                className="w-9 h-9 min-w-[36px] aspect-square object-cover block rounded-full border-2 border-dashed border-gray-400 flex-shrink-0"
+                                                            />
+                                                        </Link>
+                                                    );
+                                                } else {
+                                                    // Open Slot
+                                                    return (
+                                                        <div
+                                                            key={slot.id}
+                                                            className={`relative flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} z-5`}
+                                                            title="Open slot"
+                                                        >
+                                                            <div className="w-9 h-9 min-w-[36px] flex items-center justify-center rounded-full border-2 border-dashed border-[#EC1D99] bg-[#EC1D99]/10 text-[#EC1D99] text-sm font-bold backdrop-blur-sm">
+                                                                +
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
                                             })}
 
                                             {/* +X More Badge */}
@@ -1917,39 +1974,7 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                                 </div>
                                             )}
 
-                                            {/* Open Slots Indicators - show for public open mode stories */}
-                                            {story.visibility === 'public' && story.mode === 'open' && (() => {
-                                                const totalSlots = story.maxWeeves || 3;
-                                                const filledSlots = story.contributions?.length || 0;
-                                                const openSlots = Math.max(0, totalSlots - filledSlots);
-                                                // Show up to 3 open slot indicators
-                                                const slotsToShow = Math.min(openSlots, 3);
-                                                const moreSlots = openSlots - slotsToShow;
 
-                                                if (slotsToShow === 0) return null;
-
-                                                return (
-                                                    <>
-                                                        {Array.from({ length: slotsToShow }, (_, i) => (
-                                                            <div
-                                                                key={`open-slot-${i}`}
-                                                                className="-ml-2 z-10 flex items-center justify-center w-9 h-9 rounded-full border-2 border-dashed border-[#EC1D99] bg-[#EC1D99]/10 text-[#EC1D99] text-sm font-bold backdrop-blur-sm transition-all hover:bg-[#EC1D99]/20"
-                                                                title="Open slot"
-                                                            >
-                                                                +
-                                                            </div>
-                                                        ))}
-                                                        {moreSlots > 0 && (
-                                                            <div
-                                                                className="-ml-2 z-10 flex items-center justify-center w-9 h-9 rounded-full border-2 border-dashed border-[#EC1D99]/50 bg-[#EC1D99]/5 text-[#EC1D99]/70 text-[10px] font-bold backdrop-blur-sm"
-                                                                title={`${moreSlots} more open slot${moreSlots > 1 ? 's' : ''}`}
-                                                            >
-                                                                +{moreSlots}
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                );
-                                            })()}
                                         </>
                                     );
                                 })()}
@@ -1957,51 +1982,95 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                         ) : (
                             /* Expanded View - All participants visible */
                             <div className="flex items-center gap-0 pl-2 py-1 animate-in slide-in-from-left-2 duration-300">
-                                {story.participants.map((p, idx) => {
-                                    const isActive = idx === currentIndex;
-                                    return (
-                                        <Link
-                                            key={`${p.id}-${p.position}`}
-                                            href={`/profile/${p.id}`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            title={`${idx + 1}. ${p.name}${isActive ? ' (playing)' : ''}`}
-                                            className={`relative rounded-full flex-none transition-all duration-300 ${idx !== 0 ? '-ml-3' : ''} ${isActive
-                                                ? 'z-20 scale-110 opacity-100'
-                                                : 'z-10 opacity-70 hover:opacity-100'
-                                                }`}
-                                        >
-                                            <img
-                                                src={p.avatar}
-                                                alt={p.name}
-                                                className={`w-8 h-8 min-w-[32px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
-                                                    ? 'border-[#EC1D99] shadow-[0_0_8px_#EC1D99]'
-                                                    : 'border-black/80'
-                                                    }`}
-                                            />
-                                            {isActive && (
-                                                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-[#EC1D99] rounded-full animate-pulse" />
-                                            )}
-                                        </Link>
-                                    );
-                                })}
-
-                                {/* Open Slots Indicators - show for public open mode stories */}
-                                {story.visibility === 'public' && story.mode === 'open' && (() => {
+                                {(() => {
+                                    // Build unified slots array (Contributions + Assigned + Open)
                                     const totalSlots = story.maxWeeves || 3;
-                                    const filledSlots = story.contributions?.length || 0;
-                                    const openSlots = Math.max(0, totalSlots - filledSlots);
+                                    const slots: Array<{
+                                        type: 'contribution' | 'assigned' | 'open';
+                                        data?: any;
+                                        id: string;
+                                        index: number;
+                                    }> = [];
 
-                                    if (openSlots === 0) return null;
+                                    for (let i = 0; i < totalSlots; i++) {
+                                        const contribution = effectiveOrderedContributions[i]; // Simple mapping
+                                        if (contribution) {
+                                            slots.push({ type: 'contribution', data: contribution, id: `c-${i}`, index: i });
+                                        } else {
+                                            const participant = story.participants.find(p => p.position === i);
+                                            if (participant) {
+                                                slots.push({ type: 'assigned', data: participant, id: `a-${i}`, index: i });
+                                            } else {
+                                                slots.push({ type: 'open', id: `o-${i}`, index: i });
+                                            }
+                                        }
+                                    }
 
-                                    return Array.from({ length: openSlots }, (_, i) => (
-                                        <div
-                                            key={`open-slot-exp-${i}`}
-                                            className="-ml-2 z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 border-dashed border-[#EC1D99] bg-[#EC1D99]/10 text-[#EC1D99] text-xs font-bold backdrop-blur-sm"
-                                            title="Open slot"
-                                        >
-                                            +
-                                        </div>
-                                    ));
+                                    return slots.map((slot, idx) => {
+                                        const isActive = idx === currentIndex;
+
+                                        if (slot.type === 'contribution') {
+                                            const contribution = slot.data;
+                                            const p = participantsMap.get(contribution.userId);
+                                            const avatarUrl = p?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(contribution.userName || 'Unknown')}`;
+                                            const name = p?.name || contribution.userName || 'Unknown';
+
+                                            return (
+                                                <Link
+                                                    key={slot.id}
+                                                    href={`/profile/${contribution.userId}`}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    title={`${idx + 1}. ${name}${isActive ? ' (playing)' : ''}`}
+                                                    className={`relative rounded-full flex-none transition-all duration-300 ${idx !== 0 ? '-ml-3' : ''} ${isActive
+                                                        ? 'z-20 scale-110 opacity-100'
+                                                        : 'z-10 opacity-70 hover:opacity-100'
+                                                        }`}
+                                                >
+                                                    <img
+                                                        src={avatarUrl}
+                                                        alt={name}
+                                                        className={`w-8 h-8 min-w-[32px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
+                                                            ? 'border-[#EC1D99] shadow-[0_0_8px_#EC1D99]'
+                                                            : 'border-black/80'
+                                                            }`}
+                                                    />
+                                                    {isActive && (
+                                                        <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-[#EC1D99] rounded-full animate-pulse" />
+                                                    )}
+                                                </Link>
+                                            );
+                                        } else if (slot.type === 'assigned') {
+                                            const p = slot.data;
+                                            return (
+                                                <Link
+                                                    key={slot.id}
+                                                    href={`/profile/${p.id}`}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    title={`${idx + 1}. Waiting for ${p.name}`}
+                                                    className={`relative rounded-full flex-none transition-all duration-300 ${idx !== 0 ? '-ml-3' : ''} z-10 opacity-70 group-hover:opacity-90 grayscale`}
+                                                >
+                                                    <img
+                                                        src={p.avatar}
+                                                        alt={p.name}
+                                                        className="w-8 h-8 min-w-[32px] aspect-square object-cover block rounded-full border-2 border-dashed border-gray-400 flex-shrink-0"
+                                                    />
+                                                </Link>
+                                            );
+                                        } else {
+                                            // Open Slot
+                                            return (
+                                                <div
+                                                    key={slot.id}
+                                                    className={`relative flex-none transition-all duration-300 ${idx !== 0 ? '-ml-3' : ''} z-5`}
+                                                    title="Open slot"
+                                                >
+                                                    <div className="w-8 h-8 min-w-[32px] flex items-center justify-center rounded-full border-2 border-dashed border-[#EC1D99] bg-[#EC1D99]/10 text-[#EC1D99] text-xs font-bold backdrop-blur-sm">
+                                                        +
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+                                    });
                                 })()}
 
                                 {/* Collapse button */}

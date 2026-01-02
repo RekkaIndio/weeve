@@ -588,7 +588,7 @@ const CreateStory = ({
 
     // Determine story type first
     const isBrandPost = formState.postType === 'canon' || formState.postType === 'seed';
-    const isPublicStoryWithSlotSelection = formState.visibility === 'public' && !isBrandPost;
+    const isPublicStoryWithSlotSelection = (formState.visibility === 'public' || groupId) && !isBrandPost;
 
     // Check if current user is in at least one slot
     const userInSlots = slots.some(s => s.friend?.id === currentUser?.id);
@@ -1392,11 +1392,11 @@ const CreateStory = ({
                       slot={slot}
                       index={idx}
                       isCurrentUser={isCurrentUser}
-                      isLocked={formState.visibility === 'public' && idx === 0} // Lock slot 1 for public stories
+                      isLocked={(formState.visibility === 'public' || !!groupId) && idx === 0} // Lock slot 1 for public and group stories
                       onRemove={handleRemoveFriend}
                       onFill={(i) => {
-                        // For public stories, slot 0 is locked to current user
-                        if (formState.visibility === 'public' && i === 0) {
+                        // For public stories and group stories, slot 0 is locked to current user
+                        if ((formState.visibility === 'public' || groupId) && i === 0) {
                           return; // Don't allow modification of slot 1
                         }
                         // For all other slots (public or private), open friends picker

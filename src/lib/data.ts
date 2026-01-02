@@ -174,7 +174,7 @@ type GroupRow = Database['public']['Tables']['groups']['Row'];
 type StoryWithRelations = StoryRow & {
     contributions: ContributionRow[] | null;
     story_participants: (StoryParticipantRow & { user: ProfileRow | null })[] | null;
-    group: Pick<GroupRow, 'avatar'> | null;
+    group: Pick<GroupRow, 'avatar' | 'is_private'> | null;
     story_likes: StoryLikeRow[] | null;
     story_comments: (StoryCommentRow & { profiles?: Pick<ProfileRow, 'name' | 'avatar'> | null })[] | null;
 };
@@ -247,6 +247,7 @@ const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
         theme: story.theme ?? undefined,
         groupId: story.group_id ?? undefined,
         groupAvatar: story.group?.avatar ?? undefined,
+        groupIsPrivate: story.group?.is_private ?? undefined,
         likes: likesArray.length,
         likedBy: likesArray,
         comments,

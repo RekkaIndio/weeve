@@ -103,7 +103,7 @@ function CreateStoryContent() {
 
       // Check if this is a public story (non-brand)
       const isBrandPost = data.postType === 'canon' || data.postType === 'seed';
-      const isPublicStoryWithSlots = data.visibility === 'public' && !isBrandPost;
+      const isPublicStoryWithSlots = (data.visibility === 'public' || groupId) && !isBrandPost;
 
       // For public stories with slot selection, user has already chosen their slots explicitly
       // For other stories, ensure current user is in at least one slot

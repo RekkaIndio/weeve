@@ -105,7 +105,7 @@ export default function GroupDetailsPage() {
             if (canViewStories) {
                 const { data: storiesData, error: storiesError } = await supabase
                     .from('stories')
-                    .select('*')
+                    .select('*, contributions(*, profiles:user_id(name, avatar)), story_participants(*, profiles:user_id(name, avatar))')
                     .eq('group_id', id)
                     .order('created_at', { ascending: false });
 
@@ -113,7 +113,13 @@ export default function GroupDetailsPage() {
                     console.error('Error fetching group stories:', storiesError);
                     // Don't throw here - stories are not critical for page load
                 } else {
-                    setStories(storiesData || []);
+                    // Filter: only show stories with at least one contribution
+                    // Stories without contributions will appear in creators' "Waiting" tab on their profile
+                    const filteredStories = (storiesData || []).filter((s: any) => {
+                        const hasContributions = s.contributions && s.contributions.length > 0;
+                        return hasContributions;
+                    });
+                    setStories(filteredStories);
                 }
             } else {
                 // Non-member of private group - don't show stories
@@ -452,13 +458,112 @@ export default function GroupDetailsPage() {
                                         href={`/story/${story.id}`}
                                         className="relative rounded-xl overflow-hidden aspect-square group bg-gray-900"
                                     >
-                                        <img
-                                            src={story.cover_image || "https://via.placeholder.com/400"}
-                                            alt={story.title}
-                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                        />
+                                        {(() => {
+                                            // Get first contribution for thumbnail
+                                            const sortedContributions = (story.contributions || [])
+                                                .slice()
+                                                .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+                                            const firstContribution = sortedContributions[0];
+                                            const mediaType = firstContribution?.media_type;
+                                            const mediaUrl = firstContribution?.media_url;
+
+                                            if (mediaType === 'video' && mediaUrl) {
+                                                return (
+                                                    <video
+                                                        src={mediaUrl}
+                                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                        muted
+                                                        playsInline
+                                                        preload="metadata"
+                                                    />
+                                                );
+                                            } else if ((mediaType === 'image' || mediaType === 'drawing') && mediaUrl) {
+                                                return (
+                                                    <img
+                                                        src={mediaUrl}
+                                                        alt={story.title}
+                                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                    />
+                                                );
+                                            } else if (story.cover_image) {
+                                                return (
+                                                    <img
+                                                        src={story.cover_image}
+                                                        alt={story.title}
+                                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                    />
+                                                );
+                                            } else if (firstContribution?.content) {
+                                                // Text-only contribution
+                                                return (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-3 text-center">
+                                                        <p className="text-sm font-semibold leading-snug line-clamp-5">
+                                                            {firstContribution.content}
+                                                        </p>
+                                                    </div>
+                                                );
+                                            } else {
+                                                return (
+                                                    <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                                                        <span className="text-gray-600 text-xs">No media</span>
+                                                    </div>
+                                                );
+                                            }
+                                        })()}
+
+                                        {/* Weever avatars overlay - top left */}
+                                        {(() => {
+                                            const participants = story.story_participants || [];
+                                            const contributions = story.contributions || [];
+                                            const maxSlots = story.max_weeves || 3;
+                                            const filledSlots = contributions.length;
+                                            const openSlots = maxSlots - filledSlots;
+                                            const isOpen = story.status === 'active' && openSlots > 0;
+
+                                            // Get unique contributor avatars (up to 3)
+                                            const contributorAvatars = contributions
+                                                .slice(0, 3)
+                                                .map((c: any) => ({
+                                                    avatar: c.profiles?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${c.user_id}`,
+                                                    name: c.profiles?.name || 'Contributor'
+                                                }));
+
+                                            return (
+                                                <div className="absolute top-2 left-2 z-10 flex items-center">
+                                                    {/* Stacked avatars */}
+                                                    <div className="flex -space-x-2">
+                                                        {contributorAvatars.map((contributor: any, idx: number) => (
+                                                            <img
+                                                                key={idx}
+                                                                src={contributor.avatar}
+                                                                alt={contributor.name}
+                                                                className="w-6 h-6 rounded-full border-2 border-black object-cover"
+                                                            />
+                                                        ))}
+                                                        {/* Show open slot indicator */}
+                                                        {isOpen && openSlots > 0 && (
+                                                            <div className="w-6 h-6 rounded-full border-2 border-black bg-[#EC1D99] flex items-center justify-center">
+                                                                <span className="text-[10px] font-bold text-white">+{openSlots}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* Status badge - top right */}
+                                        {story.status === 'active' && (
+                                            <div className="absolute top-2 right-2 z-10">
+                                                <div className="flex items-center gap-1 bg-green-500/90 px-2 py-0.5 rounded-full">
+                                                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                                                    <span className="text-[10px] font-bold text-white uppercase">Open</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Title overlay */}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
-                                            <h3 className="font-bold text-sm line-clamp-2 mb-1">{story.title}</h3>
+                                            <h3 className="font-bold text-sm line-clamp-2">{story.title}</h3>
                                         </div>
                                     </Link>
                                 ))}
