@@ -43,6 +43,16 @@ export default function LoginPage() {
         router.prefetch('/feed');
     }, [router]);
 
+    // Handle error from query params (e.g. from failed deep link redirect)
+    useEffect(() => {
+        const errorMsg = searchParams?.get('error');
+        if (errorMsg) {
+            setError(decodeURIComponent(errorMsg));
+            // Clean up the URL
+            router.replace('/login', { scroll: false });
+        }
+    }, [searchParams, router]);
+
     // Auth state changes are handled by AuthProvider which will redirect to /feed
     useEffect(() => {
         // Safety timeout: If we are stuck in "Signing you in..." for more than 15 seconds, reset it.

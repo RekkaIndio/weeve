@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, useRef } from 'react';
 import { User as SupabaseUser, AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -397,157 +397,234 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     // ---------------------------------------------------------------------------
     // Capacitor / Native Handlers
     // ---------------------------------------------------------------------------
+
+    // Lock to prevent handling duplicate appUrlOpen events (common on iOS)
+    const isProcessingDeepLink = useRef(false);
+
     useEffect(() => {
         if (!Capacitor.isNativePlatform()) return;
 
-        App.addListener('appUrlOpen', async ({ url }) => {
-            // Handle Password Reset - navigate within the app
-            if (url.includes('reset-password')) {
-                const urlObj = new URL(url);
-                const code = urlObj.searchParams.get('code');
-                if (code) {
-                    router.push(`/reset-password?code=${code}`);
-                } else {
-                    router.push('/reset-password');
+        let listenerHandle: Promise<any>;
+
+        const setupListener = () => {
+            listenerHandle = App.addListener('appUrlOpen', async ({ url }) => {
+                if (isProcessingDeepLink.current) {
+                    console.log('[AuthProvider] Already processing a deep link, ignoring duplicate:', url);
+                    return;
                 }
-                return;
-            }
-
-            // Handle Stripe
-            if (url.includes('payment-success')) {
-                // Navigate internally
-                router.push('/feed?payment=success');
-                return;
-            }
-
-            // Handle Auth Callbacks
-            if (url.includes('auth/callback') || url.includes('code=') || url.includes('access_token=')) {
-                // Close browser if open - do this essentially parallel or just await
-                Browser.close().catch(() => { });
-
-                try {
-                    // Extract fragment/params
-                    // If it's a code flow (PKCE)
-                    const urlObj = new URL(url);
-                    const code = urlObj.searchParams.get('code');
-                    const error = urlObj.searchParams.get('error');
-
-                    if (error) {
-                        throw new Error(urlObj.searchParams.get('error_description') || error);
-                    }
-
-                    if (code) {
-                        // Add timeout to code exchange to prevent hanging
-                        const exchangePromise = supabase.auth.exchangeCodeForSession(code);
-                        const timeoutPromise = new Promise<{ data: { session: null }, error: Error }>((resolve) => {
-                            setTimeout(() => {
-                                console.warn('[AuthProvider] exchangeCodeForSession timed out after 15 seconds');
-                                resolve({ data: { session: null }, error: new Error('Code exchange timed out') });
-                            }, 15000);
-                        });
-
-                        const result = await Promise.race([exchangePromise, timeoutPromise]);
-                        const { data, error } = result as any;
-
-                        if (error) throw error;
-
-                        if (data?.session) {
-                            // Wrap in timeout to break out of native event loop and ensure React updates flushes
-                            setTimeout(async () => {
-                                // Force state update immediately
-                                setUser(data.session.user);
-                                setLatestSession(data.session);
-                                if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
-
-                                // Check profile triggers immediately (with timeout)
-                                try {
-                                    const syncPromise = syncProfile(data.session.user, { access_token: data.session.access_token });
-                                    const syncTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000));
-                                    await Promise.race([syncPromise, syncTimeout]);
-                                } catch (err) {
-                                    console.warn('[AuthProvider] Deep link sync profile error', err);
-                                }
-
-                                // FORCE navigation to break any "stuck" UI state
-                                router.push('/feed');
-                                router.refresh();
-                            }, 50);
+                // Handle Password Reset - navigate within the app
+                if (url.includes('reset-password')) {
+                    isProcessingDeepLink.current = true;
+                    try {
+                        const urlObj = new URL(url);
+                        const code = urlObj.searchParams.get('code');
+                        if (code) {
+                            router.push(`/reset-password?code=${code}`);
                         } else {
-                            throw new Error('No session received from code exchange');
+                            router.push('/reset-password');
                         }
+                    } finally {
+                        setTimeout(() => { isProcessingDeepLink.current = false; }, 2000); // Small cooldown
                     }
+                    return;
+                }
 
-                    // Implicit flow fallback
-                    if (url.includes('#access_token')) {
-                        const params = new URLSearchParams(url.split('#')[1]);
-                        const access_token = params.get('access_token');
-                        const refresh_token = params.get('refresh_token');
-                        const type = params.get('type');
+                // Handle Stripe
+                if (url.includes('payment-success')) {
+                    isProcessingDeepLink.current = true;
+                    try {
+                        // Navigate internally
+                        router.push('/feed?payment=success');
+                    } finally {
+                        setTimeout(() => { isProcessingDeepLink.current = false; }, 2000); // Small cooldown
+                    }
+                    return;
+                }
 
-                        // Parse error from hash if present
-                        const error = params.get('error');
-                        if (error) throw new Error(params.get('error_description') || error);
+                // Handle Auth Callbacks
+                if (url.includes('auth/callback') || url.includes('code=') || url.includes('access_token=')) {
+                    isProcessingDeepLink.current = true;
+                    // Close browser if open - do this essentially parallel or just await
+                    Browser.close().catch(() => { });
 
-                        if (access_token && refresh_token) {
-                            setTimeout(async () => {
-                                try {
-                                    // Add timeout to setSession
-                                    const sessionPromise = supabase.auth.setSession({ access_token, refresh_token });
-                                    const timeoutPromise = new Promise<{ data: { session: null }, error: Error }>((resolve) => {
-                                        setTimeout(() => {
-                                            resolve({ data: { session: null }, error: new Error('setSession timed out') });
-                                        }, 15000);
-                                    });
+                    try {
+                        // Extract fragment/params
+                        // If it's a code flow (PKCE)
+                        const urlObj = new URL(url);
+                        const code = urlObj.searchParams.get('code');
+                        const error = urlObj.searchParams.get('error');
 
-                                    const result = await Promise.race([sessionPromise, timeoutPromise]);
-                                    const { data, error } = result as any;
+                        if (error) {
+                            throw new Error(urlObj.searchParams.get('error_description') || error);
+                        }
 
-                                    if (error) console.error('[AuthProvider] setSession error', error);
+                        if (code) {
+                            // Add timeout to code exchange to prevent hanging
+                            const exchangePromise = supabase.auth.exchangeCodeForSession(code);
+                            const timeoutPromise = new Promise<{ data: { session: null }, error: Error }>((resolve) => {
+                                setTimeout(() => {
+                                    console.warn('[AuthProvider] exchangeCodeForSession timed out after 15 seconds');
+                                    resolve({ data: { session: null }, error: new Error('Code exchange timed out') });
+                                }, 15000);
+                            });
 
+                            const result = await Promise.race([exchangePromise, timeoutPromise]);
+                            const { data, error } = result as any;
+
+                            if (error) throw error;
+
+                            if (data?.session) {
+                                // Wrap in timeout to break out of native event loop and ensure React updates flushes
+                                setTimeout(async () => {
+                                    // Force state update immediately
+                                    setUser(data.session.user);
+                                    setLatestSession(data.session);
                                     if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
 
-                                    if (data?.session) {
-                                        setUser(data.session.user);
-                                        setLatestSession(data.session);
-
-                                        // Handle Password Recovery - Redirect correctly
-                                        if (type === 'recovery') {
-                                            router.push('/reset-password');
-                                            return;
-                                        }
-
-                                        try {
-                                            const syncPromise = syncProfile(data.session.user, { access_token: data.session.access_token });
-                                            const syncTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000));
-                                            await Promise.race([syncPromise, syncTimeout]);
-                                        } catch (err) {
-                                            console.warn('[AuthProvider] Deep link sync profile error', err);
-                                        }
+                                    // Check profile triggers immediately (with timeout)
+                                    try {
+                                        const syncPromise = syncProfile(data.session.user, { access_token: data.session.access_token });
+                                        const syncTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000));
+                                        await Promise.race([syncPromise, syncTimeout]);
+                                    } catch (err) {
+                                        console.warn('[AuthProvider] Deep link sync profile error', err);
                                     }
 
-                                    // FORCE navigation
+                                    // FORCE navigation to break any "stuck" UI state
                                     router.push('/feed');
                                     router.refresh();
-                                } catch (innerErr) {
-                                    console.error('[AuthProvider] Implicit flow error:', innerErr);
-                                    if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
-                                    toast.error('Authentication failed. Please try again.');
-                                    router.push('/login');
-                                }
-                            }, 50);
-                        }
-                    }
-                } catch (e: any) {
-                    console.error('Deep link auth error', e);
-                    toast.error(`Authentication failed: ${e.message || 'Unknown error'}`);
 
-                    // CRITICAL: Clear the loading flag so Login page stops spinning
-                    if (typeof window !== 'undefined') {
-                        sessionStorage.removeItem('weeve_oauth_in_progress');
+                                    // Reset lock after a delay to ensuring we don't process rebounds
+                                    setTimeout(() => { isProcessingDeepLink.current = false; }, 5000);
+                                }, 50);
+                            } else {
+                                throw new Error('No session received from code exchange');
+                            }
+                        }
+
+                        // Implicit flow fallback
+                        if (url.includes('#access_token')) {
+                            const params = new URLSearchParams(url.split('#')[1]);
+                            const access_token = params.get('access_token');
+                            const refresh_token = params.get('refresh_token');
+                            const type = params.get('type');
+
+                            // Parse error from hash if present
+                            const error = params.get('error');
+                            if (error) throw new Error(params.get('error_description') || error);
+
+                            if (access_token && refresh_token) {
+                                setTimeout(async () => {
+                                    try {
+                                        // Add timeout to setSession
+                                        const sessionPromise = supabase.auth.setSession({ access_token, refresh_token });
+                                        const timeoutPromise = new Promise<{ data: { session: null }, error: Error }>((resolve) => {
+                                            setTimeout(() => {
+                                                resolve({ data: { session: null }, error: new Error('setSession timed out') });
+                                            }, 15000);
+                                        });
+
+                                        const result = await Promise.race([sessionPromise, timeoutPromise]);
+                                        const { data, error } = result as any;
+
+                                        if (error) console.error('[AuthProvider] setSession error', error);
+
+                                        if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
+
+                                        if (data?.session) {
+                                            setUser(data.session.user);
+                                            setLatestSession(data.session);
+
+                                            // Handle Password Recovery - Redirect correctly
+                                            if (type === 'recovery') {
+                                                router.push('/reset-password');
+                                                setTimeout(() => { isProcessingDeepLink.current = false; }, 2000);
+                                                return;
+                                            }
+
+                                            try {
+                                                const syncPromise = syncProfile(data.session.user, { access_token: data.session.access_token });
+                                                const syncTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000));
+                                                await Promise.race([syncPromise, syncTimeout]);
+                                            } catch (err) {
+                                                console.warn('[AuthProvider] Deep link sync profile error', err);
+                                            }
+                                        }
+
+                                        // FORCE navigation
+                                        router.push('/feed');
+                                        router.refresh();
+                                        setTimeout(() => { isProcessingDeepLink.current = false; }, 5000);
+                                    } catch (innerErr) {
+                                        console.error('[AuthProvider] Implicit flow error:', innerErr);
+                                        isProcessingDeepLink.current = false; // Reset lock on error
+
+                                        if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
+                                        toast.error('Authentication failed. Please try again.');
+                                        router.push('/login');
+                                    }
+                                }, 50);
+                            }
+                        }
+                    } catch (e: any) {
+                        console.error('Deep link auth error:', e);
+
+                        // Fallback: Check if we actually HAVE a session despite the error
+                        // This handles race conditions where onAuthStateChange might have beaten us
+                        try {
+                            const { data: { session: fallbackSession } } = await supabase.auth.getSession();
+                            if (fallbackSession?.user) {
+                                console.log('[AuthProvider] Recovered from deep link error - Session exists!');
+
+                                // FORCE SUCCESS
+                                setUser(fallbackSession.user);
+                                setLatestSession(fallbackSession);
+                                if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
+
+                                // Sync profile just in case
+                                syncProfile(fallbackSession.user, { access_token: fallbackSession.access_token }).catch(() => { });
+
+                                // Redirect to feed
+                                router.push('/feed');
+                                router.refresh();
+
+                                setTimeout(() => { isProcessingDeepLink.current = false; }, 5000);
+                                return;
+                            }
+                        } catch (recoveryErr) {
+                            console.warn('[AuthProvider] Failed to recover session:', recoveryErr);
+                        }
+
+                        // Unlock on true failure
+                        isProcessingDeepLink.current = false;
+
+                        // CRITICAL: Clear the loading flag so Login page stops spinning
+                        if (typeof window !== 'undefined') {
+                            sessionStorage.removeItem('weeve_oauth_in_progress');
+                        }
+
+                        // Force navigation to login to reset state and show error
+                        // We use window.location.href to ensure a full refresh/state reset
+                        const errorMessage = encodeURIComponent(e.message || 'Authentication failed');
+                        window.location.href = `/login?error=${errorMessage}`;
                     }
                 }
+            });
+        };
+
+        setupListener();
+
+        return () => {
+            if (listenerHandle) {
+                listenerHandle.then(handle => {
+                    if (handle && handle.remove) {
+                        handle.remove();
+                    } else if ((App as any).removeListener) {
+                        (App as any).removeListener('appUrlOpen', setupListener);
+                    }
+                }).catch(err => console.error('Error removing listener', err));
             }
-        });
+        };
     }, [router, syncProfile, setUser]);
 
 
