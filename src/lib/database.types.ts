@@ -483,6 +483,43 @@ export interface Database {
                     }
                 ]
             }
+            group_messages: {
+                Row: {
+                    id: string
+                    group_id: string
+                    sender_id: string
+                    content: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    group_id: string
+                    sender_id: string
+                    content: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    group_id?: string
+                    sender_id?: string
+                    content?: string
+                    created_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "group_messages_group_id_fkey"
+                        columns: ["group_id"]
+                        referencedRelation: "groups"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "group_messages_sender_id_fkey"
+                        columns: ["sender_id"]
+                        referencedRelation: "profiles"
+                        referencedColumns: ["user_id"]
+                    }
+                ]
+            }
             group_roles: {
                 Row: {
                     id: string

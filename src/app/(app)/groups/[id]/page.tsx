@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { capturePhoto } from '@/lib/camera';
 import GroupShareModal from '@/app/components/GroupShareModal';
 import VerificationBadge from '@/app/components/VerificationBadge';
+import GroupChatTab from '@/app/components/GroupChatTab';
 
 export default function GroupDetailsPage() {
     const params = useParams();
@@ -24,7 +25,7 @@ export default function GroupDetailsPage() {
     const [isAdmin, setIsAdmin] = useState(false);
     const [isOwner, setIsOwner] = useState(false);
     const [hasPendingRequest, setHasPendingRequest] = useState(false);
-    const [activeTab, setActiveTab] = useState<'stories' | 'members'>('stories');
+    const [activeTab, setActiveTab] = useState<'stories' | 'members' | 'chat'>('stories');
     const [showShareModal, setShowShareModal] = useState(false);
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
     const [showPhotoViewer, setShowPhotoViewer] = useState(false);
@@ -289,120 +290,123 @@ export default function GroupDetailsPage() {
     if (!group) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Group not found</div>;
 
     return (
-        <div className="min-h-screen bg-black text-white p-4 pb-24">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <button onClick={() => router.back()} className="p-2 hover:bg-gray-900 rounded-full">
-                    <ArrowLeft className="w-6 h-6" />
-                </button>
-                <div className="flex items-center gap-2">
-                    {isMember && (
-                        <button
-                            onClick={() => setShowShareModal(true)}
-                            className="p-2 hover:bg-gray-900 rounded-full text-gray-400 hover:text-white"
-                        >
-                            <Share2 className="w-6 h-6" />
-                        </button>
-                    )}
-                    {(isAdmin || isOwner) && (
-                        <button
-                            onClick={() => router.push(`/groups/${id}/settings`)}
-                            className="p-2 hover:bg-gray-900 rounded-full text-gray-400 hover:text-white"
-                        >
-                            <Settings className="w-6 h-6" />
-                        </button>
-                    )}
+        <div className="min-h-screen bg-black text-white flex flex-col">
+            <div className="p-4">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                    <button onClick={() => router.back()} className="p-2 hover:bg-gray-900 rounded-full">
+                        <ArrowLeft className="w-6 h-6" />
+                    </button>
+                    <div className="flex items-center gap-2">
+                        {isMember && (
+                            <button
+                                onClick={() => setShowShareModal(true)}
+                                className="p-2 hover:bg-gray-900 rounded-full text-gray-400 hover:text-white"
+                            >
+                                <Share2 className="w-6 h-6" />
+                            </button>
+                        )}
+                        {(isAdmin || isOwner) && (
+                            <button
+                                onClick={() => router.push(`/groups/${id}/settings`)}
+                                className="p-2 hover:bg-gray-900 rounded-full text-gray-400 hover:text-white"
+                            >
+                                <Settings className="w-6 h-6" />
+                            </button>
+                        )}
+                    </div>
                 </div>
-            </div>
 
-            {/* Group Info */}
-            <div className="flex flex-col items-center mb-8">
-                {/* Avatar with separate handlers for photo view and change */}
-                <div className="relative mb-4">
-                    <img
-                        src={group.avatar}
-                        alt={group.name}
-                        className={`w-24 h-24 rounded-full bg-gray-800 cursor-pointer hover:opacity-90 transition-opacity ${uploadingAvatar ? 'opacity-50' : ''}`}
-                        onClick={handlePhotoClick}
-                    />
-                    {uploadingAvatar && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
+                {/* Group Info */}
+                <div className="flex flex-col items-center mb-8">
+                    {/* Avatar with separate handlers for photo view and change */}
+                    <div className="relative mb-4">
+                        <img
+                            src={group.avatar}
+                            alt={group.name}
+                            className={`w-24 h-24 rounded-full bg-gray-800 cursor-pointer hover:opacity-90 transition-opacity ${uploadingAvatar ? 'opacity-50' : ''}`}
+                            onClick={handlePhotoClick}
+                        />
+                        {uploadingAvatar && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
+                            </div>
+                        )}
+                        {(isAdmin || isOwner) && !uploadingAvatar && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAvatarClick();
+                                }}
+                                className="absolute bottom-0 right-0 bg-[#EC1D99] p-2 rounded-full border-2 border-black hover:bg-[#EC1D99]/90 transition-colors"
+                            >
+                                <ImageIcon className="w-4 h-4 text-white" />
+                            </button>
+                        )}
+                    </div>
+                    <h1 className="text-2xl font-bold mb-2">{group.name}</h1>
+                    <p className="text-gray-400 text-center max-w-md mb-4">{group.description}</p>
+
+                    <div className="flex items-center gap-4 text-sm text-gray-500 mb-6">
+                        <div className="flex items-center gap-1">
+                            <Users className="w-4 h-4" />
+                            <span>{members.filter((m: any) => m.status === 'active').length} members</span>
                         </div>
-                    )}
-                    {(isAdmin || isOwner) && !uploadingAvatar && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleAvatarClick();
-                            }}
-                            className="absolute bottom-0 right-0 bg-[#EC1D99] p-2 rounded-full border-2 border-black hover:bg-[#EC1D99]/90 transition-colors"
+                        <div className="flex items-center gap-1">
+                            {group.is_private ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+                            <span>{group.is_private ? 'Private' : 'Public'}</span>
+                            {ownerVerification.isVerified && (
+                                <VerificationBadge
+                                    isVerified={true}
+                                    tier={ownerVerification.tier}
+                                    size="sm"
+                                    className="ml-1"
+                                />
+                            )}
+                        </div>
+                    </div>
+
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-center gap-3 mb-6">
+                    {!isMember ? (
+                        <>
+                            {hasPendingRequest ? (
+                                <button
+                                    onClick={handleCancelRequest}
+                                    className="px-8 py-2 rounded-full font-bold transition-colors border border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-500 hover:bg-red-500/10"
+                                >
+                                    Cancel Request
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleJoin}
+                                    className="px-8 py-2 rounded-full font-bold transition-colors bg-[#EC1D99] text-white hover:bg-[#d61a88]"
+                                >
+                                    {group.is_private ? 'Request to Join' : 'Join Group'}
+                                </button>
+                            )}
+                        </>
+                    ) : (
+                        <Link
+                            href={`/create-story?groupId=${id}`}
+                            className="flex items-center gap-2 bg-[#EC1D99] text-white px-6 py-2 rounded-full font-bold hover:bg-[#d61a88] transition-colors"
                         >
-                            <ImageIcon className="w-4 h-4 text-white" />
-                        </button>
+                            <PlusSquare className="w-4 h-4" />
+                            Create Story
+                        </Link>
                     )}
                 </div>
-                <h1 className="text-2xl font-bold mb-2">{group.name}</h1>
-                <p className="text-gray-400 text-center max-w-md mb-4">{group.description}</p>
 
-                <div className="flex items-center gap-4 text-sm text-gray-500 mb-6">
-                    <div className="flex items-center gap-1">
-                        <Users className="w-4 h-4" />
-                        <span>{members.filter((m: any) => m.status === 'active').length} members</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        {group.is_private ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
-                        <span>{group.is_private ? 'Private' : 'Public'}</span>
-                        {ownerVerification.isVerified && (
-                            <VerificationBadge
-                                isVerified={true}
-                                tier={ownerVerification.tier}
-                                size="sm"
-                                className="ml-1"
-                            />
-                        )}
-                    </div>
-                </div>
-
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-center gap-3 mb-6">
-                {!isMember ? (
-                    <>
-                        {hasPendingRequest ? (
-                            <button
-                                onClick={handleCancelRequest}
-                                className="px-8 py-2 rounded-full font-bold transition-colors border border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-500 hover:bg-red-500/10"
-                            >
-                                Cancel Request
-                            </button>
-                        ) : (
-                            <button
-                                onClick={handleJoin}
-                                className="px-8 py-2 rounded-full font-bold transition-colors bg-[#EC1D99] text-white hover:bg-[#d61a88]"
-                            >
-                                {group.is_private ? 'Request to Join' : 'Join Group'}
-                            </button>
-                        )}
-                    </>
-                ) : (
-                    <Link
-                        href={`/create-story?groupId=${id}`}
-                        className="flex items-center gap-2 bg-[#EC1D99] text-white px-6 py-2 rounded-full font-bold hover:bg-[#d61a88] transition-colors"
-                    >
-                        <PlusSquare className="w-4 h-4" />
-                        Create Story
-                    </Link>
-                )}
             </div>
 
             {/* Tabs */}
-            <div className="max-w-md mx-auto mb-6">
-                <div className="flex gap-2 border-b border-gray-800">
+            <div className="w-full max-w-md mx-auto">
+                <div className="flex border-b border-gray-800">
                     <button
                         onClick={() => setActiveTab('stories')}
-                        className={`flex-1 py-3 text-sm font-medium transition-colors relative ${activeTab === 'stories'
+                        className={`flex-1 py-4 text-sm font-medium transition-colors relative ${activeTab === 'stories'
                             ? 'text-white'
                             : 'text-gray-500 hover:text-gray-300'
                             }`}
@@ -413,8 +417,20 @@ export default function GroupDetailsPage() {
                         )}
                     </button>
                     <button
+                        onClick={() => setActiveTab('chat')}
+                        className={`flex-1 py-4 text-sm font-medium transition-colors relative ${activeTab === 'chat'
+                            ? 'text-white'
+                            : 'text-gray-500 hover:text-gray-300'
+                            }`}
+                    >
+                        Chat
+                        {activeTab === 'chat' && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#EC1D99]" />
+                        )}
+                    </button>
+                    <button
                         onClick={() => setActiveTab('members')}
-                        className={`flex-1 py-3 text-sm font-medium transition-colors relative ${activeTab === 'members'
+                        className={`flex-1 py-4 text-sm font-medium transition-colors relative ${activeTab === 'members'
                             ? 'text-white'
                             : 'text-gray-500 hover:text-gray-300'
                             }`}
@@ -428,10 +444,10 @@ export default function GroupDetailsPage() {
             </div>
 
             {/* Tab Content */}
-            <div className="max-w-md mx-auto">
+            <div className={`w-full max-w-md mx-auto ${activeTab === 'chat' ? 'flex-1 flex flex-col' : ''}`}>
                 {activeTab === 'stories' ? (
                     /* Stories Tab */
-                    <div>
+                    <div className="px-4 pb-24">
                         {/* Show restricted message for non-members of private groups */}
                         {group.is_private && !isMember ? (
                             <div className="text-center py-12 bg-gray-900/30 rounded-xl border border-gray-800">
@@ -577,9 +593,12 @@ export default function GroupDetailsPage() {
                             </div>
                         )}
                     </div>
+                ) : activeTab === 'chat' ? (
+                    /* Chat Tab */
+                    <GroupChatTab groupId={id} isMember={isMember} />
                 ) : (
                     /* Members Tab */
-                    <div className="space-y-3">
+                    <div className="space-y-3 px-4 pb-24">
                         {members.filter(m => m.status === 'active').map((member) => {
                             const isGroupOwner = member.user_id === group.owner_id;
                             const isGroupAdmin = member.role === 'admin' && !isGroupOwner;
