@@ -995,7 +995,7 @@ function DiscoverContent() {
                                 </div>
                             ) : (
                                 <div className="bg-gray-900/50 border border-dashed border-gray-800 rounded-xl p-6 text-center mx-4">
-                                    <p className="text-gray-500 text-sm">No active seed challenges right now. Check back soon!</p>
+                                    <p className="text-gray-500 text-sm">No active seeds right now. Check back soon!</p>
                                 </div>
                             )}
                         </div>
@@ -1050,18 +1050,18 @@ function DiscoverContent() {
 
                     {/* Featured Canons Section - ONLY in 'For You' or 'Trending' */}
                     {!searchQuery.trim() && (feedType === 'forYou' || feedType === 'trending') && (
-                        stories.some(s => s.postType === 'canon' && s.status === 'active' && s.contributions && s.contributions.length > 0) && (
-                            <div className="mb-8 mt-4">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <Clapperboard className="w-5 h-5 text-amber-400" />
-                                    <span className="bg-gradient-to-r from-amber-400 to-amber-600 text-transparent bg-clip-text text-lg font-bold">
-                                        Canon Remixes
-                                    </span>
-                                    <span className="text-[10px] bg-amber-500/10 px-2 py-0.5 rounded-full text-amber-300 border border-amber-500/20">
-                                        Watch & Fork
-                                    </span>
-                                </div>
+                        <div className="mb-8 mt-4">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Clapperboard className="w-5 h-5 text-amber-400" />
+                                <span className="bg-gradient-to-r from-amber-400 to-amber-600 text-transparent bg-clip-text text-lg font-bold">
+                                    Canon Remixes
+                                </span>
+                                <span className="text-[10px] bg-amber-500/10 px-2 py-0.5 rounded-full text-amber-300 border border-amber-500/20">
+                                    Watch & Fork
+                                </span>
+                            </div>
 
+                            {stories.some(s => s.postType === 'canon' && s.status === 'active' && s.contributions && s.contributions.length > 0) ? (
                                 <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-4 px-4">
                                     {stories
                                         .filter(s => s.postType === 'canon' && s.status === 'active' && s.contributions && s.contributions.length > 0)
@@ -1127,8 +1127,12 @@ function DiscoverContent() {
                                             </div>
                                         ))}
                                 </div>
-                            </div>
-                        )
+                            ) : (
+                                <div className="bg-gray-900/50 border border-dashed border-gray-800 rounded-xl p-6 text-center mx-4">
+                                    <p className="text-gray-500 text-sm">Brand Canon Stories Coming Soon. Check back soon!</p>
+                                </div>
+                            )}
+                        </div>
                     )}
 
                     {/* People Results when searching */}
