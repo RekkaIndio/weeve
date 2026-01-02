@@ -615,7 +615,7 @@ export default function UserProfilePage() {
                         <img
                             src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
                             alt={user.name}
-                            className="w-20 h-20 rounded-full border-2 border-gray-800 bg-gray-800 object-cover"
+                            className="w-20 h-20 rounded-full border-2 border-[#EC1D99] bg-gray-800 object-cover"
                         />
                         {user.isInfluencer && (
                             <div className="absolute -bottom-1 -right-1 bg-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">

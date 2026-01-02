@@ -1141,7 +1141,7 @@ export default function ProfilePage() {
                         <img
                             src={isEditing ? editAvatar : currentUser.avatar}
                             alt={currentUser.name}
-                            className={`w-20 h-20 rounded-full border-2 border-gray-800 bg-gray-800 object-cover ${uploadingAvatar ? 'opacity-50' : ''}`}
+                            className={`w-20 h-20 rounded-full border-2 border-[#EC1D99] bg-gray-800 object-cover ${uploadingAvatar ? 'opacity-50' : ''}`}
                             onError={(e) => {
                                 (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${editName}`;
                             }}

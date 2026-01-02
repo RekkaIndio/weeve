@@ -3,13 +3,14 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
-import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera, Share2, Image as ImageIcon, X, Crown, Shield, Tag } from 'lucide-react';
+import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera, Share2, Image as ImageIcon, X, Crown, Shield, Tag, Heart } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { capturePhoto } from '@/lib/camera';
 import GroupShareModal from '@/app/components/GroupShareModal';
 import VerificationBadge from '@/app/components/VerificationBadge';
 import GroupChatTab from '@/app/components/GroupChatTab';
+import { formatCount } from '@/lib/format';
 
 export default function GroupDetailsPage() {
     const params = useParams();
@@ -33,6 +34,7 @@ export default function GroupDetailsPage() {
     const [groupRoles, setGroupRoles] = useState<any[]>([]);
     const [memberRoles, setMemberRoles] = useState<any[]>([]);
     const [ownerVerification, setOwnerVerification] = useState<{ isVerified: boolean; tier: 'bronze' | 'silver' | 'gold' | null }>({ isVerified: false, tier: null });
+    const [totalLikes, setTotalLikes] = useState<number>(0);
 
     useEffect(() => {
         if (id) fetchGroupDetails();
@@ -140,6 +142,14 @@ export default function GroupDetailsPage() {
                 .select('*, role:role_id(*)')
                 .eq('group_id', id);
             setMemberRoles(memberRolesData || []);
+
+            // Fetch total likes
+            const { count: likesCount } = await supabase
+                .from('story_likes')
+                .select('stories!inner(group_id)', { count: 'exact', head: true })
+                .eq('stories.group_id', id);
+
+            setTotalLikes(likesCount || 0);
         } catch (error) {
             console.error('Error fetching group details:', error);
             toast.error('Failed to load group details');
@@ -325,7 +335,7 @@ export default function GroupDetailsPage() {
                             <img
                                 src={group.avatar}
                                 alt={group.name}
-                                className={`w-20 h-20 rounded-2xl object-cover bg-gray-800 cursor-pointer hover:opacity-90 transition-opacity ${uploadingAvatar ? 'opacity-50' : ''}`}
+                                className={`w-20 h-20 rounded-2xl object-cover bg-gray-800 border-2 border-[#EC1D99] cursor-pointer hover:opacity-90 transition-opacity ${uploadingAvatar ? 'opacity-50' : ''}`}
                                 onClick={handlePhotoClick}
                             />
                             {uploadingAvatar && (
@@ -364,6 +374,10 @@ export default function GroupDetailsPage() {
                                 <div className="flex items-center gap-1">
                                     <Users className="w-3 h-3" />
                                     <span>{members.filter((m: any) => m.status === 'active').length} members</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <Heart className="w-3 h-3" />
+                                    <span>{formatCount(totalLikes)} likes</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                     <Globe className="w-3 h-3" />
