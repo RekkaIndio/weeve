@@ -95,7 +95,7 @@ export function TextEditor({
                             <div
                                 className={`
                                     relative px-5 py-4 min-w-[200px] max-w-[80vw] text-center
-                                    ${isEditing ? 'ring-2 ring-[#EC1D99] shadow-[0_0_0_4px_rgba(236,29,153,0.3)]' : 'hover:ring-1 hover:ring-white/30'}
+                                    ${isEditing ? '' : 'hover:ring-1 hover:ring-white/30'}
                                     transition-all duration-200 rounded-3xl
                                 `}
                                 style={{
@@ -103,9 +103,7 @@ export function TextEditor({
                                     fontSize: element.style.fontSize,
                                     color: element.style.textColor,
                                     textAlign: element.style.textAlign,
-                                    backgroundColor: element.style.backgroundColor === 'transparent'
-                                        ? (isEditing ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.3)')
-                                        : element.style.backgroundColor,
+                                    backgroundColor: element.style.backgroundColor,
                                     backdropFilter: 'blur(4px)',
                                     cursor: isEditing ? 'text' : 'pointer',
                                 }}

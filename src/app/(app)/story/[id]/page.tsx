@@ -1391,11 +1391,9 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             }
 
             if (positionToUse !== null) {
-                // For open mode: always use position-based timestamp
-                // For invite mode: only use position-based timestamp if waiting (forked stories)
-                if (isOpenModeStory || (currentUserParticipant?.status === 'waiting')) {
-                    contributionTimestamp = (positionToUse + 1) * 1000000;
-                }
+                // Always use position-based timestamp if a position is determined
+                // This ensures the contribution is correctly linked to the slot in the timeline
+                contributionTimestamp = (positionToUse + 1) * 1000000;
             }
 
             const { contribution } = await createStoryContribution({

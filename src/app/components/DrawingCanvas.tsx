@@ -91,7 +91,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             const canvas = new fabric.Canvas(canvasRef.current, {
                 width: clientWidth,
                 height: clientHeight,
-                backgroundColor: '#1F2937', // gray-800
+                backgroundColor: undefined, // Transparent
                 isDrawingMode: true,
                 selection: false,
                 renderOnAddRemove: false, // Performance optimization
