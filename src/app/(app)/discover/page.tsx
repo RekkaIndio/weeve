@@ -1273,6 +1273,15 @@ function DiscoverContent() {
                                                 <GitBranch className="w-3 h-3 text-[#EC1D99]" />
                                             </div>
                                         )}
+                                        {/* Open pill indicator for active stories */}
+                                        {!story.forkedFromStoryId && story.status === 'active' && ((story.maxWeeves || 0) - (story.contributions?.length || 0)) > 0 && (
+                                            <div className="absolute top-2 right-2 z-10">
+                                                <div className="flex items-center gap-1 bg-green-500/90 px-2 py-0.5 rounded-full">
+                                                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                                                    <span className="text-[10px] font-bold text-white uppercase">Open</span>
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
                                             <h3 className="font-bold text-sm line-clamp-2 mb-1">{story.title}</h3>
                                             <div className="flex items-center gap-1 text-xs text-gray-300">

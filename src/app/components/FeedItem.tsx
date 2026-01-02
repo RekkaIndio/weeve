@@ -1853,7 +1853,11 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                     }> = [];
 
                                     for (let i = 0; i < totalSlots; i++) {
-                                        const contribution = effectiveOrderedContributions[i];
+                                        // CRITICAL FIX: Use slotContentMap to find contribution at this SPECIFIC slot index
+                                        // Do not use effectiveOrderedContributions[i] because that array is dense (has no gaps)
+                                        // so a contribution at slot 2 would wrongly show up at slot 1 if slot 1 was empty.
+                                        const contribution = slotContentMap.get(i);
+
                                         if (contribution) {
                                             slots.push({ type: 'contribution', data: contribution, id: `c-${i}`, index: i });
                                         } else {
@@ -1867,39 +1871,28 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                     }
                                     const total = slots.length;
 
+                                    // CRITICAL FIX: Find the actual slot index of the current contribution for highlighting
+                                    // currentIndex is the index in the contributions array, which doesn't match slot index if there are gaps.
+                                    const activeSlotIndex = currentContribution
+                                        ? slots.findIndex(s => s.type === 'contribution' && s.data.id === currentContribution.id)
+                                        : -1;
+
+                                    // Fallback to currentIndex if not found (though it should be found if playing)
+                                    // or 0 if nothing playing
+                                    const pivot = activeSlotIndex >= 0 ? activeSlotIndex : 0;
+
                                     // Determine which avatars to show:
-                                    // - Always show the currently playing avatar prominently
-                                    // - Show 1 before and 1 after for context (if available)
-                                    // - Show +X if there are more
-
+                                    // Show ALL avatars (no truncation) as requested by user
                                     const visibleIndices: number[] = [];
+                                    for (let i = 0; i < total; i++) visibleIndices.push(i);
 
-                                    if (total <= 3) {
-                                        // Show all if 3 or fewer
-                                        for (let i = 0; i < total; i++) visibleIndices.push(i);
-                                    } else {
-                                        // Show context: previous, current, next
-                                        if (currentIndex > 0) visibleIndices.push(currentIndex - 1);
-                                        visibleIndices.push(currentIndex);
-                                        if (currentIndex < total - 1) visibleIndices.push(currentIndex + 1);
-
-                                        // If current is first, show 3 from start
-                                        if (currentIndex === 0 && total > 2) {
-                                            visibleIndices.push(currentIndex + 2);
-                                        }
-                                        // If current is last, show 3 from end
-                                        if (currentIndex === total - 1 && total > 2 && !visibleIndices.includes(currentIndex - 2)) {
-                                            visibleIndices.unshift(currentIndex - 2);
-                                        }
-                                    }
-
-                                    const hiddenCount = total - visibleIndices.length;
+                                    const hiddenCount = 0;
 
                                     return (
                                         <>
                                             {visibleIndices.map((idx, displayIdx) => {
                                                 const slot = slots[idx];
-                                                const isActive = idx === currentIndex;
+                                                const isActive = idx === activeSlotIndex;
 
                                                 if (slot.type === 'contribution') {
                                                     const contribution = slot.data;
@@ -1993,7 +1986,9 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                     }> = [];
 
                                     for (let i = 0; i < totalSlots; i++) {
-                                        const contribution = effectiveOrderedContributions[i]; // Simple mapping
+                                        // CRITICAL FIX: Use slotContentMap for accurate slot mapping
+                                        const contribution = slotContentMap.get(i);
+
                                         if (contribution) {
                                             slots.push({ type: 'contribution', data: contribution, id: `c-${i}`, index: i });
                                         } else {
@@ -2006,8 +2001,13 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                                         }
                                     }
 
+                                    // CRITICAL FIX: Find active slot index for highlighting
+                                    const activeSlotIndex = currentContribution
+                                        ? slots.findIndex(s => s.type === 'contribution' && s.data.id === currentContribution.id)
+                                        : -1;
+
                                     return slots.map((slot, idx) => {
-                                        const isActive = idx === currentIndex;
+                                        const isActive = idx === activeSlotIndex;
 
                                         if (slot.type === 'contribution') {
                                             const contribution = slot.data;
