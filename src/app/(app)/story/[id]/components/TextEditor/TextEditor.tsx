@@ -104,7 +104,6 @@ export function TextEditor({
                                     color: element.style.textColor,
                                     textAlign: element.style.textAlign,
                                     backgroundColor: element.style.backgroundColor,
-                                    backdropFilter: 'blur(4px)',
                                     cursor: isEditing ? 'text' : 'pointer',
                                 }}
                                 onClick={(e) => {

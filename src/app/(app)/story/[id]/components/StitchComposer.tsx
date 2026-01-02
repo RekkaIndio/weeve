@@ -110,7 +110,8 @@ export function StitchComposer({
                 onSetDraggingStickerId={onSetDraggingStickerId}
             />
 
-            {(stitchMode === 'text' || stitchMode === 'drawing') && (
+            {/* TextEditor available for all content modes */}
+            {(stitchMode === 'text' || stitchMode === 'drawing' || stitchMode === 'image' || stitchMode === 'video') && (
                 <TextEditor
                     textElements={textElements}
                     activeElementId={activeElementId}
@@ -139,7 +140,8 @@ export function StitchComposer({
                 />
             )}
 
-            {(stitchMode === 'image' || stitchMode === 'drawing') && showStickerPanel && (
+            {/* StickerPanel available for image, video, and drawing modes */}
+            {(stitchMode === 'image' || stitchMode === 'video' || stitchMode === 'drawing') && showStickerPanel && (
                 <StickerPanel
                     onSelectSticker={onSelectSticker}
                     currentStickersCount={photoStickers.length}

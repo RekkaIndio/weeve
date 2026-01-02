@@ -3,6 +3,7 @@ import { DrawingCanvas } from "@/app/components/DrawingCanvas";
 import { DraggableSticker } from "@/app/components/DraggableSticker";
 import { PHOTO_FILTERS } from "../constants/filters";
 import type { PhotoSticker, MediaDraft } from "../types";
+import { Type, Smile, Trash } from "lucide-react";
 
 interface EditorCanvasProps {
     stitchMode: 'video' | 'image' | 'drawing' | 'text' | null;
@@ -59,6 +60,61 @@ export function EditorCanvas({
                         else e.currentTarget.pause();
                     }}
                 />
+                {/* Stickers Overlay */}
+                {photoStickers.map((sticker) => (
+                    <DraggableSticker
+                        key={sticker.id}
+                        id={sticker.id}
+                        emoji={sticker.emoji}
+                        initialX={sticker.x}
+                        initialY={sticker.y}
+                        initialScale={sticker.scale}
+                        isDragging={draggingStickerId === sticker.id}
+                        onDragStart={onSetDraggingStickerId}
+                        onDragEnd={() => onSetDraggingStickerId(null)}
+                        onUpdate={(id, updates) => {
+                            onSetPhotoStickers(photoStickers.map(s =>
+                                s.id === id ? { ...s, ...updates } : s
+                            ));
+                        }}
+                        onDelete={(id) => {
+                            onSetPhotoStickers(photoStickers.filter(s => s.id !== id));
+                        }}
+                    />
+                ))}
+                {/* Right Side Tool Menu - matching drawing tools style */}
+                {!activeElementId && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-[70] pointer-events-auto">
+                        {/* Add Text Button */}
+                        <button
+                            onClick={onAddText}
+                            className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
+                            aria-label="Add Text"
+                        >
+                            <Type className="w-5 h-5 text-white" />
+                        </button>
+
+                        {/* Sticker Button */}
+                        <button
+                            onClick={onToggleStickers}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${showStickerPanel ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                            aria-label="Stickers"
+                        >
+                            <Smile className="w-5 h-5 text-white" />
+                        </button>
+
+                        {/* Clear Stickers - if stickers exist */}
+                        {photoStickers.length > 0 && onClearStickers && (
+                            <button
+                                onClick={onClearStickers}
+                                className="w-10 h-10 rounded-full bg-red-500/30 backdrop-blur-sm border-2 border-red-500/50 flex items-center justify-center shadow-lg transition-all hover:bg-red-500/50"
+                                aria-label="Clear stickers"
+                            >
+                                <Trash className="w-5 h-5 text-red-400" />
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
         );
     }
@@ -94,6 +150,39 @@ export function EditorCanvas({
                         }}
                     />
                 ))}
+                {/* Right Side Tool Menu - matching drawing tools style */}
+                {!activeElementId && (
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-[70] pointer-events-auto">
+                        {/* Add Text Button */}
+                        <button
+                            onClick={onAddText}
+                            className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
+                            aria-label="Add Text"
+                        >
+                            <Type className="w-5 h-5 text-white" />
+                        </button>
+
+                        {/* Sticker Button */}
+                        <button
+                            onClick={onToggleStickers}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${showStickerPanel ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                            aria-label="Stickers"
+                        >
+                            <Smile className="w-5 h-5 text-white" />
+                        </button>
+
+                        {/* Clear Stickers - if stickers exist */}
+                        {photoStickers.length > 0 && onClearStickers && (
+                            <button
+                                onClick={onClearStickers}
+                                className="w-10 h-10 rounded-full bg-red-500/30 backdrop-blur-sm border-2 border-red-500/50 flex items-center justify-center shadow-lg transition-all hover:bg-red-500/50"
+                                aria-label="Clear stickers"
+                            >
+                                <Trash className="w-5 h-5 text-red-400" />
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
         );
     }
