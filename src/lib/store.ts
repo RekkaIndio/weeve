@@ -106,6 +106,7 @@ export interface Story {
     coverImage?: string; // Thumbnail for the story
     theme?: string; // Visual theme for the story
     groupId?: string;
+    groupName?: string;
     groupAvatar?: string;
     groupIsPrivate?: boolean;
     hashtags?: string[];
@@ -1228,6 +1229,7 @@ export const useStore = create<AppState>()(
                             .select(`
                                 *,
                                 groups (
+                                    name,
                                     avatar,
                                     is_private
                                 ),
@@ -1457,6 +1459,7 @@ export const useStore = create<AppState>()(
                             coverImage: s.cover_image,
                             theme: s.theme,
                             groupId: s.group_id,
+                            groupName: s.groups?.name,
                             groupAvatar: s.groups?.avatar,
                             groupIsPrivate: s.groups?.is_private,
                             likes: likedBy.length,

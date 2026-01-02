@@ -273,6 +273,11 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     .select(`
                         *,
                         contributions (*),
+                        groups (
+                            name,
+                            avatar,
+                            is_private
+                        ),
                         story_participants (
                             *,
                             profiles:user_id (id, name, avatar, is_influencer)
@@ -368,6 +373,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     coverImage: s.cover_image ?? undefined,
                     theme: s.theme ?? undefined,
                     groupId: s.group_id ?? undefined,
+                    groupName: s.groups?.name,
+                    groupAvatar: s.groups?.avatar,
                     likes: likedBy.length,
                     likedBy,
                     comments,
@@ -1031,7 +1038,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                         className="w-3 h-3 rounded-full"
                                     />
                                 )}
-                                <span className="text-[10px] font-medium text-gray-300">From Group</span>
+                                <span className="text-[10px] font-medium text-gray-300">{story.groupName || 'From Group'}</span>
                             </button>
                         )}
                     </div>
@@ -1569,7 +1576,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                                     className="w-3 h-3 rounded-full"
                                 />
                             )}
-                            <span className="text-[10px] font-medium text-gray-300">From Group</span>
+                            <span className="text-[10px] font-medium text-gray-300">{story.groupName || 'From Group'}</span>
                         </button>
                     )}
                 </div>
