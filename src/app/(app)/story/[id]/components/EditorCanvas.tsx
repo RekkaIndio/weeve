@@ -155,19 +155,13 @@ export function EditorCanvas({
     }
 
     if (stitchMode === 'drawing' || stitchMode === 'text') {
-        // Calculate the canvas container height (full height minus bottom thumbnail area)
-        const containerHeight = fixedHeight ? fixedHeight - 112 : undefined; // 112px = bottom-28 (7rem)
-
         return (
             <div
-                className="absolute inset-x-0 top-0 pointer-events-auto"
+                className="absolute inset-0 pointer-events-auto"
                 style={{ height: fixedHeight ? `${fixedHeight}px` : '100%' }}
             >
-                {/* Full-screen container with space for thumbnails at bottom */}
-                <div
-                    className="absolute inset-x-0 top-0 flex items-center justify-center"
-                    style={{ height: containerHeight ? `${containerHeight}px` : 'calc(100% - 7rem)' }}
-                >
+                {/* Full-screen container */}
+                <div className="absolute inset-0 flex items-center justify-center">
                     <DrawingCanvas
                         ref={drawingCanvasRef}
                         className="h-full w-auto max-w-full"

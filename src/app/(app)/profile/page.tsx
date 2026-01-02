@@ -1344,13 +1344,11 @@ export default function ProfilePage() {
                                             className="weeve-inline-video w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                         />
                                     ) : firstMediaType === 'drawing' && firstMediaUrl ? (
-                                        <div className="w-full h-full flex items-center justify-center bg-gray-900">
-                                            <img
-                                                src={firstMediaUrl}
-                                                className="w-full h-auto max-h-full object-contain"
-                                                alt="Drawing contribution"
-                                            />
-                                        </div>
+                                        <img
+                                            src={firstMediaUrl}
+                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                            alt="Drawing contribution"
+                                        />
                                     ) : firstMediaType === 'image' && firstMediaUrl ? (
                                         <img
                                             src={firstMediaUrl}
@@ -1440,13 +1438,11 @@ export default function ProfilePage() {
                                                 className="weeve-inline-video w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                             />
                                         ) : firstMediaType === 'drawing' && firstMediaUrl ? (
-                                            <div className="w-full h-full flex items-center justify-center bg-gray-900">
-                                                <img
-                                                    src={firstMediaUrl}
-                                                    className="w-full h-auto max-h-full object-contain transition-transform duration-500 group-hover:scale-105"
-                                                    alt="Drawing contribution"
-                                                />
-                                            </div>
+                                            <img
+                                                src={firstMediaUrl}
+                                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                                alt="Drawing contribution"
+                                            />
                                         ) : firstMediaType === 'image' && firstMediaUrl ? (
                                             <img
                                                 src={firstMediaUrl}
@@ -1603,7 +1599,7 @@ export default function ProfilePage() {
                                         ) : mediaType === 'drawing' && mediaUrl ? (
                                             <img
                                                 src={mediaUrl}
-                                                className="absolute inset-0 z-10 w-full h-auto max-h-full object-contain opacity-80"
+                                                className="absolute inset-0 z-10 w-full h-full object-cover opacity-80"
                                                 alt="Drawing contribution"
                                             />
                                         ) : mediaType === 'image' && mediaUrl ? (
