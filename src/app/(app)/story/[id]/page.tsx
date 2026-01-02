@@ -1993,9 +1993,22 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 </div>
             )}
 
-            {/* Photo Tools Menu - Right Side (Filters, Stickers, Crop) */}
-            {isComposerOpen && stitchMode === 'image' && mediaDraft?.previewUrl && (
+            {/* Photo Tools Menu - Right Side (Text, Filters, Stickers, Crop) */}
+            {isComposerOpen && stitchMode === 'image' && mediaDraft?.previewUrl && !activeElementId && (
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3 pointer-events-auto">
+                    {/* Add Text Button */}
+                    <button
+                        onClick={() => {
+                            setShowPhotoFilterPanel(false);
+                            setShowStickerPanel(false);
+                            addTextElement();
+                        }}
+                        className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
+                        aria-label="Add Text"
+                    >
+                        <Type className="w-5 h-5 text-white" />
+                    </button>
+
                     {/* Filter Button */}
                     <button
                         onClick={() => {
