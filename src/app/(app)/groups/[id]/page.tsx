@@ -292,9 +292,9 @@ export default function GroupDetailsPage() {
     return (
         <div className="min-h-screen bg-black text-white flex flex-col">
             <div className="p-4">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <button onClick={() => router.back()} className="p-2 hover:bg-gray-900 rounded-full">
+                {/* Header Actions */}
+                <div className="flex items-center justify-between mb-2">
+                    <button onClick={() => router.back()} className="p-2 hover:bg-gray-900 rounded-full -ml-2">
                         <ArrowLeft className="w-6 h-6" />
                     </button>
                     <div className="flex items-center gap-2">
@@ -309,7 +309,7 @@ export default function GroupDetailsPage() {
                         {(isAdmin || isOwner) && (
                             <button
                                 onClick={() => router.push(`/groups/${id}/settings`)}
-                                className="p-2 hover:bg-gray-900 rounded-full text-gray-400 hover:text-white"
+                                className="p-2 hover:bg-gray-900 rounded-full text-gray-400 hover:text-white -mr-2"
                             >
                                 <Settings className="w-6 h-6" />
                             </button>
@@ -317,86 +317,99 @@ export default function GroupDetailsPage() {
                     </div>
                 </div>
 
-                {/* Group Info */}
-                <div className="flex flex-col items-center mb-8">
-                    {/* Avatar with separate handlers for photo view and change */}
-                    <div className="relative mb-4">
-                        <img
-                            src={group.avatar}
-                            alt={group.name}
-                            className={`w-24 h-24 rounded-full bg-gray-800 cursor-pointer hover:opacity-90 transition-opacity ${uploadingAvatar ? 'opacity-50' : ''}`}
-                            onClick={handlePhotoClick}
-                        />
-                        {uploadingAvatar && (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
+                {/* Compact Group Info */}
+                <div className="flex flex-col gap-4 mb-4">
+                    <div className="flex items-start gap-4">
+                        {/* Avatar */}
+                        <div className="relative shrink-0">
+                            <img
+                                src={group.avatar}
+                                alt={group.name}
+                                className={`w-20 h-20 rounded-2xl object-cover bg-gray-800 cursor-pointer hover:opacity-90 transition-opacity ${uploadingAvatar ? 'opacity-50' : ''}`}
+                                onClick={handlePhotoClick}
+                            />
+                            {uploadingAvatar && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-[#EC1D99]"></div>
+                                </div>
+                            )}
+                            {(isAdmin || isOwner) && !uploadingAvatar && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAvatarClick();
+                                    }}
+                                    className="absolute -bottom-2 -right-2 bg-[#EC1D99] p-1.5 rounded-full border-2 border-black hover:bg-[#EC1D99]/90 transition-colors shadow-lg"
+                                >
+                                    <ImageIcon className="w-3 h-3 text-white" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0 pt-1">
+                            <div className="flex items-center gap-2 mb-1">
+                                <h1 className="text-xl font-bold truncate pr-2">{group.name}</h1>
+                                {group.is_private && <Lock className="w-4 h-4 text-gray-500 shrink-0" />}
+                                {ownerVerification.isVerified && (
+                                    <VerificationBadge
+                                        isVerified={true}
+                                        tier={ownerVerification.tier}
+                                        size="sm"
+                                    />
+                                )}
                             </div>
-                        )}
-                        {(isAdmin || isOwner) && !uploadingAvatar && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAvatarClick();
-                                }}
-                                className="absolute bottom-0 right-0 bg-[#EC1D99] p-2 rounded-full border-2 border-black hover:bg-[#EC1D99]/90 transition-colors"
-                            >
-                                <ImageIcon className="w-4 h-4 text-white" />
-                            </button>
-                        )}
-                    </div>
-                    <h1 className="text-2xl font-bold mb-2">{group.name}</h1>
-                    <p className="text-gray-400 text-center max-w-md mb-4">{group.description}</p>
 
-                    <div className="flex items-center gap-4 text-sm text-gray-500 mb-6">
-                        <div className="flex items-center gap-1">
-                            <Users className="w-4 h-4" />
-                            <span>{members.filter((m: any) => m.status === 'active').length} members</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            {group.is_private ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
-                            <span>{group.is_private ? 'Private' : 'Public'}</span>
-                            {ownerVerification.isVerified && (
-                                <VerificationBadge
-                                    isVerified={true}
-                                    tier={ownerVerification.tier}
-                                    size="sm"
-                                    className="ml-1"
-                                />
-                            )}
+                            <div className="flex items-center gap-3 text-xs text-gray-400 mb-2">
+                                <div className="flex items-center gap-1">
+                                    <Users className="w-3 h-3" />
+                                    <span>{members.filter((m: any) => m.status === 'active').length} members</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <Globe className="w-3 h-3" />
+                                    <span>{group.is_private ? 'Private' : 'Public'} Group</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                </div>
-
-                {/* Actions */}
-                <div className="flex justify-center gap-3 mb-6">
-                    {!isMember ? (
-                        <>
-                            {hasPendingRequest ? (
-                                <button
-                                    onClick={handleCancelRequest}
-                                    className="px-8 py-2 rounded-full font-bold transition-colors border border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-500 hover:bg-red-500/10"
-                                >
-                                    Cancel Request
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handleJoin}
-                                    className="px-8 py-2 rounded-full font-bold transition-colors bg-[#EC1D99] text-white hover:bg-[#d61a88]"
-                                >
-                                    {group.is_private ? 'Request to Join' : 'Join Group'}
-                                </button>
-                            )}
-                        </>
-                    ) : (
-                        <Link
-                            href={`/create-story?groupId=${id}`}
-                            className="flex items-center gap-2 bg-[#EC1D99] text-white px-6 py-2 rounded-full font-bold hover:bg-[#d61a88] transition-colors"
-                        >
-                            <PlusSquare className="w-4 h-4" />
-                            Create Story
-                        </Link>
+                    {/* Description */}
+                    {group.description && (
+                        <p className="text-sm text-gray-300 leading-relaxed max-w-2xl">
+                            {group.description}
+                        </p>
                     )}
+
+                    {/* Actions */}
+                    <div className="flex gap-3">
+                        {!isMember ? (
+                            <>
+                                {hasPendingRequest ? (
+                                    <button
+                                        onClick={handleCancelRequest}
+                                        className="flex-1 py-2.5 rounded-xl font-bold transition-colors border border-gray-700 text-gray-400 hover:border-red-500 hover:text-red-500 hover:bg-red-500/10 text-sm"
+                                    >
+                                        Cancel Request
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleJoin}
+                                        className="flex-1 py-2.5 rounded-xl font-bold transition-colors bg-[#EC1D99] text-white hover:bg-[#d61a88] text-sm"
+                                    >
+                                        {group.is_private ? 'Request to Join' : 'Join Group'}
+                                    </button>
+                                )}
+                            </>
+                        ) : (
+                            <Link
+                                href={`/create-story?groupId=${id}`}
+                                className="flex-1 flex items-center justify-center gap-2 bg-[#EC1D99] text-white py-2.5 rounded-xl font-bold hover:bg-[#d61a88] transition-colors text-sm"
+                            >
+                                <PlusSquare className="w-4 h-4 ml-1" />
+                                Create Story
+                            </Link>
+                        )}
+                    </div>
                 </div>
 
             </div>
