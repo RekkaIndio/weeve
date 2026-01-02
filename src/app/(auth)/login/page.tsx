@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { signIn, signInWithGoogle } from "@/lib/auth";
 import { useAuth } from "@/app/components/AuthProvider";
 import { supabase } from '@/lib/supabase';
@@ -36,6 +37,11 @@ export default function LoginPage() {
     }, [searchParams]);
 
     const [isIosChrome, setIsIosChrome] = useState(false);
+
+    // Prefetch feed page for faster navigation after login
+    useEffect(() => {
+        router.prefetch('/feed');
+    }, [router]);
 
     // Auth state changes are handled by AuthProvider which will redirect to /feed
     useEffect(() => {
@@ -219,7 +225,7 @@ export default function LoginPage() {
                     )}
 
                     {/* Social Logins */}
-                    {/* <div className="w-full">
+                    <div className="w-full">
                         {isIosChrome && (
                             <div className="mb-2 p-3 rounded-lg bg-yellow-900/20 border border-yellow-700 text-yellow-100 text-sm">
                                 Tip: On iOS browsers other than Safari (e.g., Chrome), OAuth flows might not open the app. Try Safari or install the Weeve app for the best experience.
@@ -244,7 +250,7 @@ export default function LoginPage() {
                         <div className="flex-grow border-t border-white/20"></div>
                         <span className="flex-shrink-0 mx-4 text-gray-400 text-sm">Or continue with email</span>
                         <div className="flex-grow border-t border-white/20"></div>
-                    </div> */}
+                    </div>
 
                     <input
                         type="email"

@@ -26,6 +26,9 @@ export default function Home() {
 
   // Check for payment success query param
   useEffect(() => {
+    // Clear auth redirect flag on feed load (prevents blocking future logins)
+    sessionStorage.removeItem('weeve_auth_redirecting');
+
     const paymentStatus = searchParams?.get('payment');
     if (paymentStatus === 'success') {
       toast.success('Payment successful! Your brand story is now live.');
@@ -40,27 +43,38 @@ export default function Home() {
 
   // ===== CONSOLIDATED DATA FETCH =====
   // Single orchestrated fetch that handles session check and data loading
-  // Replaces 3 separate useEffects that caused redundant fetches
-  const hasFetchedRef = useRef(false);
+  // Track which user we've fetched for to prevent duplicate fetches but allow refetch on user change
+  const fetchedForUserRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (hasFetchedRef.current) return;
+    // Wait for auth to finish loading
+    if (loading) {
+      console.log('[Feed] Auth still loading, waiting...');
+      return;
+    }
+
+    // If no auth user, redirect handled by another effect
+    if (!user) {
+      console.log('[Feed] No user, skipping fetch');
+      return;
+    }
+
+    // If we've already fetched for this user, skip
+    if (fetchedForUserRef.current === user.id) {
+      console.log('[Feed] Already fetched for user', user.id);
+      return;
+    }
 
     let cancelled = false;
 
     const fetchAllData = async () => {
-      // Wait for auth to finish loading
-      if (loading) return;
-
-      // If no auth user, redirect handled by another effect
-      if (!user) return;
-
-      hasFetchedRef.current = true;
-      console.log('[Feed] Starting consolidated data fetch...');
+      fetchedForUserRef.current = user.id;
+      console.log('[Feed] Starting consolidated data fetch for user:', user.id);
 
       try {
         // Fetch stories first (critical path)
         await fetchStories();
+        console.log('[Feed] Stories fetched successfully');
 
         // Then fetch secondary data in parallel (non-blocking)
         if (!cancelled) {
@@ -73,6 +87,8 @@ export default function Home() {
         console.log('[Feed] Consolidated data fetch complete');
       } catch (err) {
         console.error('[Feed] Fetch error:', err);
+        // Reset ref so we can retry
+        fetchedForUserRef.current = null;
       }
     };
 
@@ -154,6 +170,51 @@ export default function Home() {
   useEffect(() => {
     setActiveIndex(0);
   }, [activeTab]);
+
+  // ===== FORCE INITIAL RENDER AFTER STORIES LOAD =====
+  // After OAuth redirect, the feed container may not render properly until user interaction.
+  // This effect forces a layout recalculation when stories first become available.
+  const prevStoriesLengthRef = useRef(0);
+
+  useEffect(() => {
+    // Track when we go from 0 stories to having stories
+    const hadNoStories = prevStoriesLengthRef.current === 0;
+    const hasStoriesNow = filteredStories.length > 0;
+    prevStoriesLengthRef.current = filteredStories.length;
+
+    if (hadNoStories && hasStoriesNow && containerRef.current) {
+      console.log('[Feed] Stories just loaded, forcing full initialization...');
+
+      // Force activeIndex to 0 to ensure proper rendering
+      setActiveIndex(0);
+
+      // Force scroll to top
+      containerRef.current.scrollTop = 0;
+
+      // Schedule a second forced update after React has finished the current render cycle
+      // This is necessary because the FeedItem components need time to mount
+      const timer = setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = 0;
+          // Force another state update to trigger re-render with all items mounted
+          setForceRefreshKey(prev => prev + 1);
+        }
+      }, 100);
+
+      // Also schedule an observer re-initialization after items are mounted
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          // Force the container to recalculate layout
+          containerRef.current.style.display = 'none';
+          containerRef.current.offsetHeight; // Force reflow
+          containerRef.current.style.display = '';
+          containerRef.current.scrollTop = 0;
+        }
+      });
+
+      return () => clearTimeout(timer);
+    }
+  }, [filteredStories.length]);
 
   // DEBUG LOGGING - Moved here to have access to all variables
   useEffect(() => {
@@ -439,7 +500,7 @@ export default function Home() {
             data-index={index}
           >
             {Math.abs(index - activeIndex) <= 1 ? (
-              <FeedItem key={story.id} story={story} />
+              <FeedItem key={story.id} story={story} isActive={index === activeIndex} />
             ) : (
               <div className="h-full w-full bg-black" />
             )}

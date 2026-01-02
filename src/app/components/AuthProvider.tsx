@@ -284,9 +284,17 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                             // Only redirect if currently on a public/auth route to avoid unnecessary navigation
                             const currentPath = window.location.pathname;
                             if (isPublicRoute(currentPath) || currentPath === '/auth/callback') {
+                                // Prevent duplicate redirects (event can fire multiple times)
+                                const redirectKey = 'weeve_auth_redirecting';
+                                if (sessionStorage.getItem(redirectKey)) {
+                                    console.log('[AuthProvider] Redirect already in progress, skipping');
+                                    return;
+                                }
+                                sessionStorage.setItem(redirectKey, 'true');
+
                                 console.log(`[AuthProvider] Redirecting to /feed after ${event} event from ${currentPath}`);
-                                router.replace('/feed');
-                                router.refresh();
+                                // Use replace for faster navigation (no history entry)
+                                window.location.replace('/feed');
                             }
                         }
                     }
