@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Square, X, Check, Loader2 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { VoiceRecorder, RecordingData } from 'capacitor-voice-recorder';
 
 interface AudioRecorderProps {
     userAvatar?: string;
@@ -19,12 +21,13 @@ export default function AudioRecorder({
     maxDuration = 60,
 }: AudioRecorderProps) {
     const [isRecording, setIsRecording] = useState(false);
-    const [isPaused, setIsPaused] = useState(false);
     const [duration, setDuration] = useState(0);
     const [hasRecording, setHasRecording] = useState(false);
     const [permissionDenied, setPermissionDenied] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [useNativeRecorder, setUseNativeRecorder] = useState(false);
 
+    // Web API refs
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
@@ -37,6 +40,12 @@ export default function AudioRecorder({
     const startTimeRef = useRef<number>(0);
     const finalDurationRef = useRef<number>(0);
 
+    // Check if we should use native recorder
+    useEffect(() => {
+        const isNative = Capacitor.isNativePlatform();
+        setUseNativeRecorder(isNative);
+    }, []);
+
     // Format duration to MM:SS
     const formatDuration = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -44,59 +53,157 @@ export default function AudioRecorder({
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // Draw waveform visualization
+    // Draw waveform visualization (simulated for native, real for web)
     const drawWaveform = useCallback(() => {
-        if (!canvasRef.current || !analyserRef.current) return;
+        if (!canvasRef.current) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        const analyser = analyserRef.current;
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        analyser.getByteFrequencyData(dataArray);
-
-        // Clear canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Draw circular waveform around avatar
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
-        const innerRadius = 60; // Avatar radius
+        const innerRadius = 60;
         const maxBarHeight = 40;
         const barCount = 64;
         const barWidth = 3;
 
-        for (let i = 0; i < barCount; i++) {
-            const dataIndex = Math.floor((i / barCount) * bufferLength);
-            const amplitude = dataArray[dataIndex] / 255;
-            const barHeight = amplitude * maxBarHeight + 4;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            const angle = (i / barCount) * Math.PI * 2 - Math.PI / 2;
-            const innerX = centerX + Math.cos(angle) * (innerRadius + 5);
-            const innerY = centerY + Math.sin(angle) * (innerRadius + 5);
-            const outerX = centerX + Math.cos(angle) * (innerRadius + 5 + barHeight);
-            const outerY = centerY + Math.sin(angle) * (innerRadius + 5 + barHeight);
+        if (analyserRef.current) {
+            // Real-time visualization from audio analyser
+            const bufferLength = analyserRef.current.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyserRef.current.getByteFrequencyData(dataArray);
 
-            ctx.beginPath();
-            ctx.moveTo(innerX, innerY);
-            ctx.lineTo(outerX, outerY);
-            ctx.strokeStyle = `rgba(236, 29, 153, ${0.5 + amplitude * 0.5})`;
-            ctx.lineWidth = barWidth;
-            ctx.lineCap = 'round';
-            ctx.stroke();
+            for (let i = 0; i < barCount; i++) {
+                const dataIndex = Math.floor((i / barCount) * bufferLength);
+                const amplitude = dataArray[dataIndex] / 255;
+                const barHeight = amplitude * maxBarHeight + 4;
+
+                const angle = (i / barCount) * Math.PI * 2 - Math.PI / 2;
+                const innerX = centerX + Math.cos(angle) * (innerRadius + 5);
+                const innerY = centerY + Math.sin(angle) * (innerRadius + 5);
+                const outerX = centerX + Math.cos(angle) * (innerRadius + 5 + barHeight);
+                const outerY = centerY + Math.sin(angle) * (innerRadius + 5 + barHeight);
+
+                ctx.beginPath();
+                ctx.moveTo(innerX, innerY);
+                ctx.lineTo(outerX, outerY);
+                ctx.strokeStyle = `rgba(236, 29, 153, ${0.5 + amplitude * 0.5})`;
+                ctx.lineWidth = barWidth;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+            }
+        } else {
+            // Simulated animation for native recording
+            const time = Date.now() / 100;
+            for (let i = 0; i < barCount; i++) {
+                const amplitude = 0.3 + 0.7 * Math.sin(time + i * 0.2) * Math.sin(time * 0.7 + i * 0.1);
+                const barHeight = amplitude * maxBarHeight + 4;
+
+                const angle = (i / barCount) * Math.PI * 2 - Math.PI / 2;
+                const innerX = centerX + Math.cos(angle) * (innerRadius + 5);
+                const innerY = centerY + Math.sin(angle) * (innerRadius + 5);
+                const outerX = centerX + Math.cos(angle) * (innerRadius + 5 + barHeight);
+                const outerY = centerY + Math.sin(angle) * (innerRadius + 5 + barHeight);
+
+                ctx.beginPath();
+                ctx.moveTo(innerX, innerY);
+                ctx.lineTo(outerX, outerY);
+                ctx.strokeStyle = `rgba(236, 29, 153, ${0.5 + amplitude * 0.5})`;
+                ctx.lineWidth = barWidth;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+            }
         }
 
         animationRef.current = requestAnimationFrame(drawWaveform);
     }, []);
 
-    // Start recording
-    const startRecording = async () => {
+    // Native recording functions
+    const startNativeRecording = async () => {
+        try {
+            // Check permissions
+            const hasPermission = await VoiceRecorder.hasAudioRecordingPermission();
+
+            if (!hasPermission.value) {
+                const permResult = await VoiceRecorder.requestAudioRecordingPermission();
+                if (!permResult.value) {
+                    setPermissionDenied(true);
+                    return;
+                }
+            }
+
+            // Start recording
+            await VoiceRecorder.startRecording();
+            startTimeRef.current = Date.now();
+            setIsRecording(true);
+            setPermissionDenied(false);
+
+            // Start timer
+            timerRef.current = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+                setDuration(elapsed);
+
+                if (elapsed >= maxDuration) {
+                    stopNativeRecording();
+                }
+            }, 1000);
+
+            // Start visualization animation
+            drawWaveform();
+
+        } catch (err) {
+            console.error('Native recording failed:', err);
+            setPermissionDenied(true);
+        }
+    };
+
+    const stopNativeRecording = async () => {
+        try {
+            if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+            }
+
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+
+            const result: RecordingData = await VoiceRecorder.stopRecording();
+            finalDurationRef.current = Math.floor((Date.now() - startTimeRef.current) / 1000);
+
+            if (result.value && result.value.recordDataBase64) {
+                // Convert base64 to blob
+                const base64 = result.value.recordDataBase64;
+                const mimeType = result.value.mimeType || 'audio/aac';
+                const byteCharacters = atob(base64);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: mimeType });
+
+                audioBlobRef.current = blob;
+                setHasRecording(true);
+            }
+
+            setIsRecording(false);
+        } catch (err) {
+            console.error('Failed to stop native recording:', err);
+            setIsRecording(false);
+        }
+    };
+
+    // Web recording functions
+    const startWebRecording = async () => {
         try {
             // Check if mediaDevices API is available
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                // Try to polyfill for older browsers/WebViews
+                // Try legacy APIs
                 const navigatorAny = navigator as any;
                 const getUserMedia = navigatorAny.getUserMedia ||
                     navigatorAny.webkitGetUserMedia ||
@@ -104,7 +211,6 @@ export default function AudioRecorder({
                     navigatorAny.msGetUserMedia;
 
                 if (getUserMedia) {
-                    // Use legacy API with callback
                     await new Promise<MediaStream>((resolve, reject) => {
                         getUserMedia.call(navigator,
                             { audio: true },
@@ -113,12 +219,12 @@ export default function AudioRecorder({
                         );
                     }).then(stream => {
                         streamRef.current = stream;
-                        setupRecording(stream);
+                        setupWebRecording(stream);
                     });
                     return;
                 }
 
-                console.error('getUserMedia not supported in this environment');
+                console.error('getUserMedia not supported');
                 setPermissionDenied(true);
                 return;
             }
@@ -132,25 +238,15 @@ export default function AudioRecorder({
             });
 
             streamRef.current = stream;
-            setupRecording(stream);
+            setupWebRecording(stream);
 
         } catch (err: any) {
-            console.error('Failed to start recording:', err);
-            // Check for specific error types
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                setPermissionDenied(true);
-            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                console.error('No microphone found');
-                setPermissionDenied(true);
-            } else {
-                setPermissionDenied(true);
-            }
+            console.error('Failed to start web recording:', err);
+            setPermissionDenied(true);
         }
     };
 
-    // Setup recording after getting stream
-    const setupRecording = (stream: MediaStream) => {
-        // Set up audio context for visualization
+    const setupWebRecording = (stream: MediaStream) => {
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         audioContextRef.current = audioContext;
 
@@ -160,15 +256,12 @@ export default function AudioRecorder({
         source.connect(analyser);
         analyserRef.current = analyser;
 
-        // Set up media recorder
         let mimeType = 'audio/webm';
         if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported) {
             if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
                 mimeType = 'audio/webm;codecs=opus';
             } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                mimeType = 'audio/mp4'; // iOS Safari fallback
-            } else if (MediaRecorder.isTypeSupported('audio/m4a')) {
-                mimeType = 'audio/m4a';
+                mimeType = 'audio/mp4';
             }
         }
 
@@ -188,29 +281,24 @@ export default function AudioRecorder({
             setHasRecording(true);
         };
 
-        // Start recording
-        mediaRecorder.start(100); // Collect data every 100ms
+        mediaRecorder.start(100);
         startTimeRef.current = Date.now();
         setIsRecording(true);
         setPermissionDenied(false);
 
-        // Start timer
         timerRef.current = setInterval(() => {
             const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
             setDuration(elapsed);
 
-            // Auto-stop at max duration
             if (elapsed >= maxDuration) {
-                stopRecording();
+                stopWebRecording();
             }
         }, 1000);
 
-        // Start visualization
         drawWaveform();
     };
 
-    // Stop recording
-    const stopRecording = () => {
+    const stopWebRecording = () => {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
             finalDurationRef.current = Math.floor((Date.now() - startTimeRef.current) / 1000);
             mediaRecorderRef.current.stop();
@@ -229,7 +317,24 @@ export default function AudioRecorder({
         setIsRecording(false);
     };
 
-    // Cleanup stream
+    // Unified start/stop functions
+    const startRecording = async () => {
+        if (useNativeRecorder) {
+            await startNativeRecording();
+        } else {
+            await startWebRecording();
+        }
+    };
+
+    const stopRecording = async () => {
+        if (useNativeRecorder) {
+            await stopNativeRecording();
+        } else {
+            stopWebRecording();
+        }
+    };
+
+    // Cleanup
     const cleanup = useCallback(() => {
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(track => track.stop());
@@ -252,7 +357,6 @@ export default function AudioRecorder({
         }
     }, []);
 
-    // Handle confirm
     const handleConfirm = async () => {
         if (audioBlobRef.current) {
             setIsProcessing(true);
@@ -261,13 +365,11 @@ export default function AudioRecorder({
         }
     };
 
-    // Handle cancel
     const handleCancel = () => {
         cleanup();
         onCancel();
     };
 
-    // Handle re-record
     const handleReRecord = () => {
         audioBlobRef.current = null;
         setHasRecording(false);
@@ -276,21 +378,19 @@ export default function AudioRecorder({
         startRecording();
     };
 
-    // Cleanup on unmount
     useEffect(() => {
         return () => {
             cleanup();
         };
     }, [cleanup]);
 
-    // Draw static waveform when not recording but has recording
+    // Draw static waveform when has recording but not recording
     useEffect(() => {
         if (hasRecording && !isRecording && canvasRef.current) {
             const canvas = canvasRef.current;
             const ctx = canvas.getContext('2d');
             if (!ctx) return;
 
-            // Draw static circular pattern
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
             const innerRadius = 60;
@@ -351,7 +451,7 @@ export default function AudioRecorder({
             {permissionDenied && (
                 <div className="bg-red-500/20 border border-red-500/50 rounded-lg px-4 py-3 mb-6 max-w-xs text-center">
                     <p className="text-red-400 text-sm">
-                        {typeof window !== 'undefined' && !window.isSecureContext
+                        {typeof window !== 'undefined' && !window.isSecureContext && !useNativeRecorder
                             ? 'Audio recording requires a secure connection (HTTPS). Please use the production app or connect via localhost.'
                             : 'Microphone access denied. Please enable microphone permissions in your device settings.'}
                     </p>

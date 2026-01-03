@@ -52,6 +52,7 @@
     "@supabase/supabase-js": "^2.84.0",
     "@vercel/analytics": "^1.6.1",
     "bcryptjs": "^3.0.3",
+    "capacitor-voice-recorder": "^7.0.6",
     "fabric": "^6.5.1",
     "firebase": "^12.6.0",
     "form-data": "^4.0.5",

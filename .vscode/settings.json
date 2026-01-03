@@ -1,5 +1,28 @@
 {
-    "java.configuration.updateBuildConfiguration": "interactive",
+    "java.autobuild.enabled": false,
+    "java.configuration.updateBuildConfiguration": "disabled",
+    "java.server.launchMode": "LightWeight",
+    "java.import.gradle.enabled": false,
+    "java.import.maven.enabled": false,
+    "java.project.sourcePaths": [],
+    "java.project.exclusions": [
+        "**/node_modules/**",
+        "**/.git/**",
+        "**/ios/**",
+        "**/android/**"
+    ],
+    "files.exclude": {
+        "**/node_modules/**/android": true,
+        "**/node_modules/**/ios": true
+    },
+    "files.watcherExclude": {
+        "**/node_modules/**": true
+    },
+    "search.exclude": {
+        "**/node_modules/**/android": true,
+        "**/node_modules/**/ios": true,
+        "**/node_modules/**/*.java": true
+    },
     "deno.enable": true,
     "deno.enablePaths": [
         "./supabase/functions"
