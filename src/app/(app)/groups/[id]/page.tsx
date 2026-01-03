@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
-import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera, Share2, Image as ImageIcon, X, Crown, Shield, Tag, Heart } from 'lucide-react';
+import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera, Share2, Image as ImageIcon, X, Crown, Shield, Tag, Heart, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { capturePhoto } from '@/lib/camera';
@@ -35,6 +35,7 @@ export default function GroupDetailsPage() {
     const [memberRoles, setMemberRoles] = useState<any[]>([]);
     const [ownerVerification, setOwnerVerification] = useState<{ isVerified: boolean; tier: 'bronze' | 'silver' | 'gold' | null }>({ isVerified: false, tier: null });
     const [totalLikes, setTotalLikes] = useState<number>(0);
+    const [leaving, setLeaving] = useState(false);
 
     useEffect(() => {
         if (id) fetchGroupDetails();
@@ -289,6 +290,37 @@ export default function GroupDetailsPage() {
         }
     };
 
+    const handleLeaveGroup = async () => {
+        if (!user) return;
+
+        // Owners cannot leave directly - must transfer ownership first in settings
+        if (isOwner) {
+            toast.error('Owners must transfer ownership before leaving. Go to Group Settings.');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to leave this group?')) return;
+
+        setLeaving(true);
+        try {
+            const { error } = await supabase
+                .from('group_members')
+                .delete()
+                .eq('group_id', id)
+                .eq('user_id', user.id);
+
+            if (error) throw error;
+            toast.success('You have left the group');
+            setIsMember(false);
+            setIsAdmin(false);
+            fetchGroupDetails(); // Refresh to update member count
+        } catch (error) {
+            console.error('Error leaving group:', error);
+            toast.error('Failed to leave group');
+        } finally {
+            setLeaving(false);
+        }
+    };
 
     // Only show loading spinner on initial load with no cached data
     if (loading && !group) return (
@@ -415,13 +447,29 @@ export default function GroupDetailsPage() {
                                 )}
                             </>
                         ) : (
-                            <Link
-                                href={`/create-story?groupId=${id}`}
-                                className="flex-1 flex items-center justify-center gap-2 bg-[#EC1D99] text-white py-2.5 rounded-xl font-bold hover:bg-[#d61a88] transition-colors text-sm"
-                            >
-                                <PlusSquare className="w-4 h-4 ml-1" />
-                                Create Story
-                            </Link>
+                            <>
+                                <Link
+                                    href={`/create-story?groupId=${id}`}
+                                    className="flex-1 flex items-center justify-center gap-2 bg-[#EC1D99] text-white py-2.5 rounded-xl font-bold hover:bg-[#d61a88] transition-colors text-sm"
+                                >
+                                    <PlusSquare className="w-4 h-4 ml-1" />
+                                    Create Story
+                                </Link>
+                                {!isOwner && (
+                                    <button
+                                        onClick={handleLeaveGroup}
+                                        disabled={leaving}
+                                        className="py-2.5 px-4 rounded-xl font-bold transition-colors border border-gray-700 text-gray-400 hover:border-red-500 hover:text-red-500 hover:bg-red-500/10 text-sm disabled:opacity-50"
+                                        title="Leave Group"
+                                    >
+                                        {leaving ? (
+                                            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-current" />
+                                        ) : (
+                                            <LogOut className="w-4 h-4" />
+                                        )}
+                                    </button>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
