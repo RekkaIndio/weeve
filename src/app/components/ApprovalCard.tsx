@@ -12,7 +12,7 @@ interface ApprovalCardProps {
         id: string;
         user_id: string;
         story_id: string;
-        media_type: 'video' | 'image' | 'text' | 'drawing';
+        media_type: 'video' | 'image' | 'text' | 'drawing' | 'audio';
         media_url?: string | null;
         content: string;
         created_at: string;

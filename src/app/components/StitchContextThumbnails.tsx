@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Contribution } from "@/lib/store";
-import { Video, Type, Pencil, Camera, Play, X } from "lucide-react";
+import { Video, Type, Pencil, Camera, Play, X, Mic } from "lucide-react";
 
 interface StitchContextThumbnailsProps {
     contributions: Contribution[];
@@ -30,6 +30,8 @@ export default function StitchContextThumbnails({ contributions, onThumbnailClic
                 return <Pencil className="w-4 h-4 text-white" />;
             case 'text':
                 return <Type className="w-4 h-4 text-white" />;
+            case 'audio':
+                return <Mic className="w-4 h-4 text-white" />;
             default:
                 return null;
         }

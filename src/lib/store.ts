@@ -47,7 +47,7 @@ export interface Group {
     ownerVerificationTier?: 'bronze' | 'silver' | 'gold' | null;
 }
 
-export type MediaType = 'video' | 'image' | 'text' | 'drawing';
+export type MediaType = 'video' | 'image' | 'text' | 'drawing' | 'audio';
 
 export interface TextElement {
     id: string;

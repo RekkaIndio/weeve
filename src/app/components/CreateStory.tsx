@@ -171,7 +171,7 @@ export interface CreateStoryFormState {
   // Public story slot selection fields
   selectedSlotIndices?: number[]; // For public stories: which slots the creator selected to fill
   slotMedia?: Record<number, {
-    type: 'video' | 'image' | 'text' | 'drawing';
+    type: 'video' | 'image' | 'text' | 'drawing' | 'audio';
     url: string;
     thumbnailUrl?: string;
   }>; // Media uploaded for each selected slot
@@ -313,7 +313,7 @@ const CreateStory = ({
   // Initialize with [0] since creator is always in slot 1
   const [selectedSlotIndices, setSelectedSlotIndices] = useState<number[]>([0]);
   const [slotMedia, setSlotMedia] = useState<Record<number, {
-    type: 'video' | 'image' | 'text' | 'drawing';
+    type: 'video' | 'image' | 'text' | 'drawing' | 'audio';
     url: string;
     thumbnailUrl?: string;
   }>>({});

@@ -102,6 +102,7 @@ export interface CreateStoryContributionOptions {
     mediaType: MediaType;
     content: string;
     file?: File;
+    mediaUrl?: string; // Pre-uploaded media URL (e.g., for audio)
     textStyle?: TextStyle;
     timestamp?: number;
     nextTurnUserId?: string | null;
@@ -678,7 +679,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
         user_name: options.userName,
         content: options.content,
         media_type: options.mediaType,
-        media_url: publicUrl,
+        media_url: publicUrl || options.mediaUrl, // Use pre-uploaded URL if no file upload
         timestamp,
         text_style: textStyleJson,
         approval_status: approvalStatus,

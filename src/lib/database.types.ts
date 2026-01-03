@@ -192,7 +192,7 @@ export interface Database {
                     user_id: string
                     user_name: string
                     content: string
-                    media_type: 'video' | 'image' | 'text' | 'drawing'
+                    media_type: 'video' | 'image' | 'text' | 'drawing' | 'audio'
                     media_url: string | null
                     timestamp: number
                     text_style: Json | null
@@ -207,7 +207,7 @@ export interface Database {
                     user_id: string
                     user_name: string
                     content: string
-                    media_type: 'video' | 'image' | 'text' | 'drawing'
+                    media_type: 'video' | 'image' | 'text' | 'drawing' | 'audio'
                     media_url?: string | null
                     timestamp: number
                     text_style?: Json | null
@@ -222,7 +222,7 @@ export interface Database {
                     user_id?: string
                     user_name?: string
                     content?: string
-                    media_type?: 'video' | 'image' | 'text' | 'drawing'
+                    media_type?: 'video' | 'image' | 'text' | 'drawing' | 'audio'
                     media_url?: string | null
                     timestamp?: number
                     text_style?: Json | null

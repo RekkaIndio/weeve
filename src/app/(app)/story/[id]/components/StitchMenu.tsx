@@ -1,7 +1,7 @@
-import { X, Video, Camera, Pencil } from "lucide-react";
+import { X, Video, Camera, Pencil, Mic } from "lucide-react";
 
 interface StitchMenuProps {
-    onOptionSelect: (option: 'video' | 'image' | 'drawing') => void;
+    onOptionSelect: (option: 'video' | 'image' | 'drawing' | 'audio') => void;
     onClose: () => void;
 }
 
@@ -46,6 +46,16 @@ export function StitchMenu({ onOptionSelect, onClose }: StitchMenuProps) {
                         <Pencil className="w-8 h-8" />
                     </div>
                     <span className="text-sm font-medium">Draw</span>
+                </button>
+
+                <button
+                    onClick={() => onOptionSelect('audio')}
+                    className="flex flex-col items-center gap-2 group"
+                >
+                    <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center group-hover:bg-[#EC1D99] transition-colors">
+                        <Mic className="w-8 h-8" />
+                    </div>
+                    <span className="text-sm font-medium">Audio</span>
                 </button>
             </div>
         </div>

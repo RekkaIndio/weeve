@@ -6,7 +6,7 @@ import type { PhotoSticker, MediaDraft } from "../types";
 import { Type, Smile, Trash } from "lucide-react";
 
 interface EditorCanvasProps {
-    stitchMode: 'video' | 'image' | 'drawing' | 'text' | null;
+    stitchMode: 'video' | 'image' | 'drawing' | 'text' | 'audio' | null;
     mediaDraft: MediaDraft | null;
     photoFilter: string;
     photoStickers: PhotoSticker[];

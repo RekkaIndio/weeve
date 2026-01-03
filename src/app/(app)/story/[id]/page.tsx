@@ -9,13 +9,15 @@ import { createStoryContribution } from "@/lib/data";
 import { leaveStory, deleteStory } from "@/lib/stories";
 import { capturePhoto, captureVideo } from "@/lib/camera";
 import { Capacitor } from "@capacitor/core";
-import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, Pencil, X, Loader2, Edit2, LogOut, Trash, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp, FileVideo, Image as ImageIcon, GitBranch, Sparkles, Crop, Smile } from "lucide-react";
+import { ChevronLeft, Plus, Play, MoreVertical, Video, Camera, Type, Pencil, X, Loader2, Edit2, LogOut, Trash, AlignLeft, AlignCenter, AlignRight, ChevronDown, ChevronUp, FileVideo, Image as ImageIcon, GitBranch, Sparkles, Crop, Smile, Mic } from "lucide-react";
 import EditStoryModal from "@/app/components/EditStoryModal";
 import ImageCropper from "@/app/components/ImageCropper";
 import { DrawingCanvas, type DrawingCanvasRef } from "@/app/components/DrawingCanvas";
 import { DraggableSticker } from "@/app/components/DraggableSticker";
 import OnboardingTutorialOverlay from "@/app/components/OnboardingTutorialOverlay";
 import StitchContextThumbnails from "@/app/components/StitchContextThumbnails";
+import AudioRecorder from "@/app/components/AudioRecorder";
+import { uploadAudio } from "@/lib/uploadAudio";
 import { toast } from "sonner";
 import { useTimerCheck } from "@/lib/useTimerCheck";
 import { supabase } from "@/lib/supabase";
@@ -109,7 +111,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     // Stitch Flow States
     const [showStitchMenu, setShowStitchMenu] = useState(false);
     const [mediaSourcePicker, setMediaSourcePicker] = useState<{ type: 'video' | 'image' } | null>(null);
-    const [stitchMode, setStitchMode] = useState<'video' | 'image' | 'text' | 'drawing' | null>(null);
+    const [stitchMode, setStitchMode] = useState<'video' | 'image' | 'text' | 'drawing' | 'audio' | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const [isForkingBrandPost, setIsForkingBrandPost] = useState(false);
     const uploadStartTimeRef = useRef<number | null>(null);
@@ -168,6 +170,17 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const [hasMovedInCurrentEdit, setHasMovedInCurrentEdit] = useState(false);
     // Track which slot position the user chose to contribute to (crucial for users with multiple slots)
     const [targetSlotPosition, setTargetSlotPosition] = useState<number | null>(null);
+
+    // Audio recording state
+    const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+    const [audioDuration, setAudioDuration] = useState<number>(0);
+
+    // Auto-submit when audio recording is complete
+    useEffect(() => {
+        if (audioBlob && stitchMode === 'audio') {
+            handleComposerSubmit();
+        }
+    }, [audioBlob]);
 
     // Reset move tracking when entering edit mode
     useEffect(() => {
@@ -657,6 +670,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         if (stitchMode === 'image') return 'Add Photo';
         if (stitchMode === 'text') return 'Write Caption';
         if (stitchMode === 'drawing') return 'Create Drawing';
+        if (stitchMode === 'audio') return 'Record Audio';
         return 'Compose';
     }, [stitchMode]);
 
@@ -875,6 +889,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         setShowPhotoFilterPanel(false);
         setShowStickerPanel(false);
         setPhotoStickers([]);
+        setAudioBlob(null);
+        setAudioDuration(0);
         dragStateRef.current = null;
     };
 
@@ -1143,7 +1159,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         }
     };
 
-    const handleStitchOption = async (mode: 'video' | 'image' | 'text' | 'drawing') => {
+    const handleStitchOption = async (mode: 'video' | 'image' | 'text' | 'drawing' | 'audio') => {
         if (isStoryComplete) {
             toast.error('This story has reached its stitch limit.');
             return;
@@ -1184,6 +1200,11 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         if (mode === 'drawing') {
 
             setStitchMode('drawing');
+            return;
+        }
+
+        if (mode === 'audio') {
+            setStitchMode('audio');
             return;
         }
     };
@@ -1303,6 +1324,22 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             }
         }
 
+        // Handle audio upload
+        let audioMediaUrl: string | undefined;
+        if (stitchMode === 'audio') {
+            if (!audioBlob) {
+                toast.error('Please record audio before posting.');
+                return;
+            }
+
+            const result = await uploadAudio(audioBlob, currentUser.id);
+            if (!result.success || !result.url) {
+                toast.error(result.error || 'Failed to upload audio.');
+                return;
+            }
+            audioMediaUrl = result.url;
+        }
+
         const requiresFile = stitchMode === 'video' || stitchMode === 'image';
         if (requiresFile && !mediaDraft?.file) {
             toast.error(`Please select a ${stitchMode === 'video' ? 'video' : 'photo'} to upload.`);
@@ -1405,6 +1442,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 mediaType: stitchMode,
                 content: caption,
                 file: stitchMode === 'drawing' ? drawingFile : (filteredImageFile || mediaDraft?.file),
+                mediaUrl: stitchMode === 'audio' ? audioMediaUrl : undefined,
                 textStyle: textStylePayload,
                 timestamp: contributionTimestamp,
                 nextTurnUserId: nextTurnUpdate,
@@ -1898,9 +1936,28 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     onCancel={handleMediaPickerCancel}
                 />
             )}
+            {/* Audio Recorder - shown when audio mode is selected */}
+            {stitchMode === 'audio' && !showStitchMenu && (
+                <div className="absolute inset-0 z-40">
+                    <AudioRecorder
+                        userAvatar={currentUser?.avatar}
+                        userName={currentUser?.name || 'User'}
+                        onRecordingComplete={async (blob, duration) => {
+                            // Store the audio data and trigger upload + submission
+                            setAudioBlob(blob);
+                            setAudioDuration(duration);
+                        }}
+                        onCancel={() => {
+                            resetComposer();
+                            setShowStitchMenu(false);
+                        }}
+                        maxDuration={60}
+                    />
+                </div>
+            )}
 
             <StitchComposer
-                isComposerOpen={isComposerOpen}
+                isComposerOpen={isComposerOpen && stitchMode !== 'audio'}
                 stitchMode={stitchMode}
                 mediaDraft={mediaDraft}
                 photoFilter={photoFilter}

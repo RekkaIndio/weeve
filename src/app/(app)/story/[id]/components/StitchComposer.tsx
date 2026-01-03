@@ -8,7 +8,7 @@ import { StickerPanel } from "./PhotoEditor/StickerPanel";
 
 interface StitchComposerProps {
     isComposerOpen: boolean;
-    stitchMode: 'video' | 'image' | 'drawing' | 'text' | null;
+    stitchMode: 'video' | 'image' | 'drawing' | 'text' | 'audio' | null;
     mediaDraft: MediaDraft | null;
 
     // State
