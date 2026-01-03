@@ -137,7 +137,8 @@ export default function GroupsPage() {
                 .insert({
                     group_id: groupId,
                     user_id: user.id,
-                    role: 'member'
+                    role: 'member',
+                    status: 'active'
                 });
 
             if (error) throw error;
@@ -145,9 +146,14 @@ export default function GroupsPage() {
             toast.success(`Joined ${groupName}!`);
             loadGroups();
             router.push(`/groups/${groupId}`);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error joining group:', error);
-            toast.error('Failed to join group');
+            if (error?.code === '23505') { // Unique violation
+                toast.success(`Joined ${groupName}!`);
+                router.push(`/groups/${groupId}`);
+            } else {
+                toast.error(error?.message || 'Failed to join group');
+            }
         }
     };
 

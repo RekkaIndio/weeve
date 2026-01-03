@@ -266,9 +266,14 @@ export default function GroupDetailsPage() {
                 toast.success('Joined group!');
                 fetchGroupDetails();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error joining group:', error);
-            toast.error('Failed to join group');
+            if (error?.code === '23505') { // Unique violation
+                toast.error('You are already a member of this group');
+                fetchGroupDetails();
+            } else {
+                toast.error(error?.message || 'Failed to join group');
+            }
         }
     };
 
@@ -284,9 +289,9 @@ export default function GroupDetailsPage() {
             if (error) throw error;
             toast.success('Request cancelled');
             setHasPendingRequest(false);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error cancelling request:', error);
-            toast.error('Failed to cancel request');
+            toast.error(error?.message || 'Failed to cancel request');
         }
     };
 
@@ -314,9 +319,9 @@ export default function GroupDetailsPage() {
             setIsMember(false);
             setIsAdmin(false);
             fetchGroupDetails(); // Refresh to update member count
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error leaving group:', error);
-            toast.error('Failed to leave group');
+            toast.error(error?.message || 'Failed to leave group');
         } finally {
             setLeaving(false);
         }
