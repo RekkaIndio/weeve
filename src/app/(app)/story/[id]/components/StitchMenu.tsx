@@ -48,6 +48,7 @@ export function StitchMenu({ onOptionSelect, onClose }: StitchMenuProps) {
                     <span className="text-sm font-medium">Draw</span>
                 </button>
 
+                {/* Audio option hidden for now - uncomment when ready
                 <button
                     onClick={() => onOptionSelect('audio')}
                     className="flex flex-col items-center gap-2 group"
@@ -57,6 +58,7 @@ export function StitchMenu({ onOptionSelect, onClose }: StitchMenuProps) {
                     </div>
                     <span className="text-sm font-medium">Audio</span>
                 </button>
+                */}
             </div>
         </div>
     );
