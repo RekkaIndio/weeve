@@ -89,6 +89,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3
+      capacitor-voice-recorder:
+        specifier: ^7.0.6
+        version: 7.0.6(@capacitor/core@7.4.4)(@capacitor/filesystem@7.1.6(@capacitor/core@7.4.4))
       fabric:
         specifier: ^6.5.1
         version: 6.9.1
@@ -462,6 +465,9 @@ packages:
     engines: {node: '>=6.9.0'}
     peerDependencies:
       '@babel/core': ^7.0.0-0
+
+  '@babel/runtime@7.11.2':
+    resolution: {integrity: sha512-TeWkU52so0mPtDcaCTxNBI/IHiz0pZgr8VEFqXFtZWpYD08ZB6FaSwVAS8MKRQAP3bYKiVjwysOJgMFY28o6Tw==}
 
   '@babel/runtime@7.28.4':
     resolution: {integrity: sha512-Q/N6JNWvIvPnLDvjlE1OUBLPQHH6l3CltCEsHIujp45zQUSSh8K+gHnaEX45yAT1nyngnINhvWtzN+Nb9D8RAQ==}
@@ -2521,6 +2527,17 @@ packages:
     resolution: {integrity: sha512-ItanGBMrmRV7Py2Z+Xhs7cT+FNt5K0vPL4p9EZ/UX/Mu7hFbkxSjKF2KVtPwX7UYWp7dRKnrTvReflgrItJbdw==}
     engines: {node: '>=6'}
 
+  capacitor-blob-writer@1.1.19:
+    resolution: {integrity: sha512-2uZjL/y6F2yblA6lc5SP0JE+rQhxZcinmsLQKwGuSIDQySAdrcDkCAoQ07nqQV9qMtaeWsVTD6n08wo4R2sSjA==}
+    peerDependencies:
+      '@capacitor/core': '>=3.0.0'
+      '@capacitor/filesystem': '>=1.0.0'
+
+  capacitor-voice-recorder@7.0.6:
+    resolution: {integrity: sha512-WdFFzv5B++FhTifb+/NzYnup7NvTHLZxP8D20qtolr2lLgxnwI5aNSKc3r8HpVlZn04b+GWrmnLIJ6q5JU3h8w==}
+    peerDependencies:
+      '@capacitor/core': '>=7.0.0'
+
   caseless@0.12.0:
     resolution: {integrity: sha512-4tYFyifaFfGacoiObjJegolkwSU4xQNGbVgUiNYVUxbQ2x2lUsFvY4hVgVzGiIe6WLOPqycWXA40l+PWsxthUw==}
 
@@ -3162,6 +3179,9 @@ packages:
   gensync@1.0.0-beta.2:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
     engines: {node: '>=6.9.0'}
+
+  get-blob-duration@1.2.0:
+    resolution: {integrity: sha512-2xNJa+oKznR21eC2ThMzw4a1931a3ogA8aHoY92xruZufc/02G7pl/P793GJZytkyI8xMJ2DepEQ7MWvg/tn/Q==}
 
   get-caller-file@2.0.5:
     resolution: {integrity: sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg==}
@@ -4226,6 +4246,9 @@ packages:
   reflect.getprototypeof@1.0.10:
     resolution: {integrity: sha512-00o4I+DVrefhv+nX0ulyi3biSHCPDe+yLv5o/p6d/UVlirijB8E16FtfwSAi4g3tcqrQ4lRAqQSoFEZJehYEcw==}
     engines: {node: '>= 0.4'}
+
+  regenerator-runtime@0.13.11:
+    resolution: {integrity: sha512-kY1AZVr2Ra+t+piVaJ4gxaFaReZVH40AKNo7UCX6W+dEwBo/2oZJzqfuN1qLq1oL45o56cPaTXELwrTh8Fpggg==}
 
   regexp.prototype.flags@1.5.4:
     resolution: {integrity: sha512-dYqgNSZbDwkaJ2ceRd9ojCGjBq+mOm9LmtXnAnEGyHhN/5R7iDW2TRw3h+o/jCFxus3P2LfWIIiwowAjANm7IA==}
@@ -5549,6 +5572,10 @@ snapshots:
     dependencies:
       '@babel/core': 7.28.5
       '@babel/helper-plugin-utils': 7.27.1
+
+  '@babel/runtime@7.11.2':
+    dependencies:
+      regenerator-runtime: 0.13.11
 
   '@babel/runtime@7.28.4': {}
 
@@ -7680,6 +7707,19 @@ snapshots:
       - supports-color
     optional: true
 
+  capacitor-blob-writer@1.1.19(@capacitor/core@7.4.4)(@capacitor/filesystem@7.1.6(@capacitor/core@7.4.4)):
+    dependencies:
+      '@capacitor/core': 7.4.4
+      '@capacitor/filesystem': 7.1.6(@capacitor/core@7.4.4)
+
+  capacitor-voice-recorder@7.0.6(@capacitor/core@7.4.4)(@capacitor/filesystem@7.1.6(@capacitor/core@7.4.4)):
+    dependencies:
+      '@capacitor/core': 7.4.4
+      capacitor-blob-writer: 1.1.19(@capacitor/core@7.4.4)(@capacitor/filesystem@7.1.6(@capacitor/core@7.4.4))
+      get-blob-duration: 1.2.0
+    transitivePeerDependencies:
+      - '@capacitor/filesystem'
+
   caseless@0.12.0: {}
 
   chai@4.5.0:
@@ -8583,6 +8623,10 @@ snapshots:
   generator-function@2.0.1: {}
 
   gensync@1.0.0-beta.2: {}
+
+  get-blob-duration@1.2.0:
+    dependencies:
+      '@babel/runtime': 7.11.2
 
   get-caller-file@2.0.5: {}
 
@@ -9702,6 +9746,8 @@ snapshots:
       get-intrinsic: 1.3.0
       get-proto: 1.0.1
       which-builtin-type: 1.2.1
+
+  regenerator-runtime@0.13.11: {}
 
   regexp.prototype.flags@1.5.4:
     dependencies:
