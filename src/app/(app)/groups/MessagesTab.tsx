@@ -103,7 +103,7 @@ export default function MessagesTab({ onNewMessage }: MessagesTabProps) {
                     type="text"
                     value={conversationFilter}
                     onChange={(e) => setConversationFilter(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-800 rounded-xl leading-5 bg-[#121212] text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-all font-medium sm:text-sm"
+                    className="block w-full pl-10 pr-3 py-3 border border-gray-800 rounded-xl leading-5 bg-gradient-to-br from-gray-900 to-gray-900/50 text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-all font-medium sm:text-sm"
                     placeholder="Search conversations..."
                 />
             </div>
@@ -115,11 +115,11 @@ export default function MessagesTab({ onNewMessage }: MessagesTabProps) {
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EC1D99]"></div>
                     </div>
                 ) : filteredConversations.length === 0 && conversationFilter ? (
-                    <div className="flex flex-col items-center justify-center py-20 bg-[#121212] rounded-3xl border border-gray-800/50 text-center">
+                    <div className="flex flex-col items-center justify-center py-20 bg-gradient-to-br from-gray-900 to-gray-900/50 rounded-3xl border border-gray-800/50 text-center">
                         <p className="text-gray-500">No conversations matching "{conversationFilter}"</p>
                     </div>
                 ) : filteredConversations.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 bg-[#121212] rounded-3xl border border-gray-800/50 text-center">
+                    <div className="flex flex-col items-center justify-center py-20 bg-gradient-to-br from-gray-900 to-gray-900/50 rounded-3xl border border-gray-800/50 text-center">
                         <div className="bg-gray-800/50 p-4 rounded-full mb-4">
                             <MessageCircle className="w-8 h-8 text-gray-400" />
                         </div>
@@ -147,7 +147,7 @@ export default function MessagesTab({ onNewMessage }: MessagesTabProps) {
                                 <button
                                     key={conv.id}
                                     onClick={() => router.push(`/inbox/${conv.id}`)}
-                                    className="w-full text-left flex items-center gap-3 p-4 rounded-2xl bg-[#121212] hover:bg-white/5 transition-colors border border-gray-800/50 hover:border-white/10"
+                                    className="w-full text-left flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-br from-gray-900 to-gray-900/50 hover:bg-white/5 transition-colors border border-gray-800/50 hover:border-white/10"
                                 >
                                     <div className="relative shrink-0">
                                         <Image

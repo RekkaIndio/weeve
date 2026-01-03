@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3, Receipt, DollarSign } from "lucide-react";
+import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3, Receipt, DollarSign, Ban, IdCard, KeyRound, TrendingUp, BookOpen, Scroll, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
 import { signOut, updateUserProfile } from "@/lib/auth";
@@ -153,7 +153,7 @@ export default function SettingsPage() {
                 // HIDDEN: Monetization features temporarily disabled
                 // { label: "Monetization Features", icon: DollarSign, toggle: true, toggleValue: monetizationEnabled, onToggle: handleMonetizationToggle },
                 { label: "Analytics", icon: BarChart3, action: () => router.push('/settings/analytics') },
-                { label: "Change Password", icon: Lock, action: () => router.push('/settings/change-password') },
+                { label: "Change Password", icon: KeyRound, action: () => router.push('/settings/change-password') },
             ]
         },
         {
@@ -165,14 +165,15 @@ export default function SettingsPage() {
         {
             title: "Privacy",
             items: [
+                { label: "Account Information", icon: IdCard, action: () => router.push('/settings/account') },
                 { label: "Account Privacy", icon: Lock, toggle: true, description: "When enabled, only approved friends can see your profile and stories" },
-                { label: "Blocked Users", icon: User, action: () => router.push('/settings/blocked-users') },
+                { label: "Blocked Users", icon: Ban, action: () => router.push('/settings/blocked-users') },
             ]
         },
         ...(currentUser?.isBrand ? [{
             title: "Brand",
             items: [
-                { label: "Brand Analytics", icon: BarChart3, action: () => router.push('/analytics') },
+                { label: "Brand Analytics", icon: TrendingUp, action: () => router.push('/analytics') },
                 { label: "Transaction History", icon: Receipt, action: () => router.push('/settings/transaction-history') },
             ]
         }] : []),
@@ -185,10 +186,10 @@ export default function SettingsPage() {
         {
             title: "Support",
             items: [
-                { label: "How Weeve Works", icon: Sparkles, action: () => router.push('/onboarding/welcome') },
-                ...(currentUser?.isBrand ? [{ label: "How Canon & Seed Work", icon: Sparkles, action: () => router.push('/settings/brand-tutorial') }] : []),
+                { label: "How Weeve Works", icon: BookOpen, action: () => router.push('/onboarding/welcome') },
+                ...(currentUser?.isBrand ? [{ label: "How Canon & Seed Work", icon: Scroll, action: () => router.push('/settings/brand-tutorial') }] : []),
                 { label: "Help Center", icon: HelpCircle, action: () => router.push('/settings/help-center') },
-                { label: "Report a Problem", icon: HelpCircle, action: () => router.push('/settings/report-problem') },
+                { label: "Report a Problem", icon: AlertTriangle, action: () => router.push('/settings/report-problem') },
             ]
         }
     ];
@@ -295,14 +296,6 @@ export default function SettingsPage() {
                         <LogOut className="w-5 h-5" />
                     )}
                     {isLoggingOut ? 'Logging out...' : 'Log Out'}
-                </button>
-
-                <button
-                    onClick={() => router.push('/settings/delete-account')}
-                    className="w-full p-4 bg-transparent border border-red-900/30 rounded-xl flex items-center justify-center gap-2 text-red-500 font-bold hover:bg-red-900/10 transition-colors mt-6"
-                >
-                    <Trash2 className="w-5 h-5" />
-                    Delete Account
                 </button>
 
                 <div className="text-center text-xs text-gray-600 mt-8 pb-8">

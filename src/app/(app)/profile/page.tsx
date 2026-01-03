@@ -513,6 +513,15 @@ export default function ProfilePage() {
     // Count contributions across all stories by the current user
     const contributionsCount = stories.reduce((acc, s) => acc + (s.contributions ? s.contributions.filter(c => c.userId === currentUser?.id).length : 0), 0);
 
+    // Calculate number of stories contributed to (Weeve count)
+    const weeveCount = useMemo(() => {
+        if (!currentUser) return 0;
+        return stories.filter(s =>
+            s.participants.some(p => p.id === currentUser.id) &&
+            s.contributions?.some(c => c.userId === currentUser.id)
+        ).length;
+    }, [stories, currentUser]);
+
     // Calculate total likes from user's stories
     const totalLikes = myStories.reduce((acc, story) => acc + (story.likes || 0), 0);
 
@@ -1259,6 +1268,10 @@ export default function ProfilePage() {
                     <>
                         {/* Stats - Compact Row */}
                         <div className="flex items-center justify-between py-3 border-y border-gray-800 mb-4">
+                            <div className="flex-1 text-center">
+                                <div className="font-bold text-base">{formatCount(weeveCount)}</div>
+                                <div className="text-xs text-gray-500">Weeves</div>
+                            </div>
                             <div className="flex-1 text-center">
                                 <div className="font-bold text-base">{formatCount(totalLikes)}</div>
                                 <div className="text-xs text-gray-500">Likes</div>

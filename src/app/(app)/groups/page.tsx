@@ -194,7 +194,7 @@ export default function GroupsPage() {
                 </div>
 
                 {/* Tab Switcher */}
-                <div className="flex gap-2 p-1 bg-[#121212] rounded-xl border border-gray-800">
+                <div className="flex gap-2 p-1 bg-gradient-to-br from-gray-900 to-gray-900/50 rounded-xl border border-gray-800">
                     <button
                         onClick={() => setActiveTab('groups')}
                         className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg font-semibold text-sm transition-all ${activeTab === 'groups'
@@ -229,7 +229,7 @@ export default function GroupsPage() {
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="block w-full pl-10 pr-3 py-3 border border-gray-800 rounded-xl leading-5 bg-[#121212] text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-all font-medium sm:text-sm"
+                                className="block w-full pl-10 pr-3 py-3 border border-gray-800 rounded-xl leading-5 bg-gradient-to-br from-gray-900 to-gray-900/50 text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-all font-medium sm:text-sm"
                                 placeholder="Search for groups..."
                             />
                         </div>
@@ -254,7 +254,7 @@ export default function GroupsPage() {
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="flex flex-col items-center justify-center py-20 bg-[#121212] rounded-3xl border border-gray-800/50 text-center">
+                                    <div className="flex flex-col items-center justify-center py-20 bg-gradient-to-br from-gray-900 to-gray-900/50 rounded-3xl border border-gray-800/50 text-center">
                                         <div className="bg-gray-800/50 p-4 rounded-full mb-4">
                                             <Users className="w-8 h-8 text-gray-400" />
                                         </div>
