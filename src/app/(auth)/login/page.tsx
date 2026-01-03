@@ -111,9 +111,9 @@ export default function LoginPage() {
             // }
 
             // AuthProvider Should handle redirect, but we force it here to be safe and avoid "double login" feeling
-            console.log('[Login] Login successful, redirecting to feed...');
-            router.push('/feed');
-            router.refresh();
+            console.log('[Login] Login successful, waiting for AuthProvider to redirect...');
+            // router.push('/feed'); // Removed to prevent race condition with AuthProvider
+            // router.refresh();
 
         } catch (error) {
             console.error('[Login] Error:', error);

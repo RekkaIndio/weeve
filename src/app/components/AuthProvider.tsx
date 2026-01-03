@@ -283,7 +283,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
                             // Only redirect if currently on a public/auth route to avoid unnecessary navigation
                             const currentPath = window.location.pathname;
-                            if (isPublicRoute(currentPath) || currentPath === '/auth/callback') {
+
+                            // Check if strict login page to ensure we redirect
+                            const isStrictAuthPage = currentPath === '/login' || currentPath === '/signup' || currentPath === '/forgot-password';
+
+                            if (isPublicRoute(currentPath) || currentPath === '/auth/callback' || isStrictAuthPage) {
                                 // Prevent duplicate redirects (event can fire multiple times)
                                 const redirectKey = 'weeve_auth_redirecting';
                                 if (sessionStorage.getItem(redirectKey)) {
@@ -293,6 +297,10 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                 sessionStorage.setItem(redirectKey, 'true');
 
                                 console.log(`[AuthProvider] Redirecting to /feed after ${event} event from ${currentPath}`);
+
+                                // Clean up the key after navigation (short timeout)
+                                setTimeout(() => sessionStorage.removeItem(redirectKey), 2000);
+
                                 // Use replace for faster navigation (no history entry)
                                 window.location.replace('/feed');
                             }
