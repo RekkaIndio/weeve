@@ -246,6 +246,13 @@ export default function GroupDetailsPage() {
             return;
         }
         try {
+            // Refresh session to ensure valid token for RLS
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                toast.error('Please sign in to join');
+                return;
+            }
+
             const status = group.is_private ? 'pending' : 'active';
 
             const { error } = await supabase

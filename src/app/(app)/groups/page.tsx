@@ -132,6 +132,13 @@ export default function GroupsPage() {
                 return;
             }
 
+            // Refresh session to ensure valid token for RLS
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                toast.error('Please sign in to join groups');
+                return;
+            }
+
             const { error } = await supabase
                 .from('group_members')
                 .insert({
@@ -357,8 +364,7 @@ export default function GroupsPage() {
                 {shareGroup && (
                     <GroupShareModal
                         group={shareGroup}
-                        onClose={() => setShareGroup(null)}
-                    />
+                        onClose={() => setShareGroup(null)} />
                 )}
             </div>
         </div>
