@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useStore, Group } from "@/lib/store";
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from "next/link";
 import { Search, TrendingUp, Sparkles, Clock, Users, Plus, X, Heart, Info, Zap, Clapperboard, Play, GitBranch, ChevronLeft } from "lucide-react";
 import NotificationBell from "@/app/components/NotificationBell";
@@ -325,8 +325,13 @@ function DiscoverContent() {
     const [feedType, setFeedType] = useState<'forYou' | 'trending' | 'new' | 'friends' | 'seeds' | 'canon'>('forYou');
     const [showFeedInfo, setShowFeedInfo] = useState(false);
 
-    // Discovery Feed Overlay state - for TikTok-style infinite scroll
-    const [selectedStoryIndex, setSelectedStoryIndex] = useState<number | null>(null);
+    const router = useRouter(); // Added router for URL updates
+    const storyIdParam = searchParams?.get('storyId');
+
+    // Discovery Feed Overlay state - now derived from URL
+    // We find the index of the storyId in the current filtered list
+    // Discovery Feed Overlay state - moved to after filteredStories definition to avoid access before declaration error
+    // See lines below filteredStories declaration
 
     const [peopleResults, setPeopleResults] = useState<FriendType[]>([]);
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
@@ -540,20 +545,31 @@ function DiscoverContent() {
         }
     })();
 
-    // Get stories that belong to groups for the Groups tab
     const groupStories = filteredStories.filter(story => story.groupId);
+
+    // Discovery Feed Overlay state - derived from URL
+    // We find the index of the storyId in the current filtered list
+    // Moved here to be after filteredStories is declared
+    const selectedStoryIndex = React.useMemo(() => {
+        if (!storyIdParam) return null;
+        const idx = filteredStories.findIndex(s => s.id === storyIdParam);
+        return idx !== -1 ? idx : null;
+    }, [storyIdParam, filteredStories]);
 
     // Helper to open any story in the overlay feed
     // Finds the story's index in filteredStories, or opens directly if not found
     const openStoryInOverlay = useCallback((storyId: string) => {
         const idx = filteredStories.findIndex(s => s.id === storyId);
         if (idx !== -1) {
-            setSelectedStoryIndex(idx);
+            // Update URL to include storyId - this enables back button closing and nav button reset
+            const newParams = new URLSearchParams(searchParams?.toString());
+            newParams.set('storyId', storyId);
+            router.push(`/discover?${newParams.toString()}`, { scroll: false });
         } else {
             // Story not in current filtered list - navigate to story page
             window.location.href = `/story/${storyId}`;
         }
-    }, [filteredStories]);
+    }, [filteredStories, router, searchParams]);
 
     // Restore story position when returning from story/timeline page
     useEffect(() => {
@@ -569,11 +585,14 @@ function DiscoverContent() {
             if (idx !== -1) {
                 // Small delay to ensure component is mounted
                 setTimeout(() => {
-                    setSelectedStoryIndex(idx);
+                    // Update URL instead of local state
+                    const newParams = new URLSearchParams(searchParams?.toString());
+                    newParams.set('storyId', returnToStoryId);
+                    router.replace(`/discover?${newParams.toString()}`, { scroll: false });
                 }, 100);
             }
         }
-    }, [filteredStories]);
+    }, [filteredStories, router, searchParams]);
 
     const handleCreateGroup = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1260,7 +1279,7 @@ function DiscoverContent() {
                                 {filteredStories.map((story, idx) => (
                                     <div
                                         key={story.id}
-                                        onClick={() => setSelectedStoryIndex(idx)}
+                                        onClick={() => openStoryInOverlay(story.id)}
                                         className={`relative rounded-xl overflow-hidden group cursor-pointer ${idx % 3 === 0 ? 'row-span-2 aspect-[9/16]' : 'aspect-square'}`}
                                     >
                                         <MediaWithFallback
@@ -1640,11 +1659,17 @@ function DiscoverContent() {
             )}
 
             {/* Discovery Feed Overlay - TikTok-style full-screen scrollable feed */}
-            {selectedStoryIndex !== null && filteredStories.length > 0 && (
+            {/* Overlay Feed */}
+            {selectedStoryIndex !== null && (
                 <DiscoveryFeedOverlay
-                    stories={filteredStories}
                     initialIndex={selectedStoryIndex}
-                    onClose={() => setSelectedStoryIndex(null)}
+                    stories={filteredStories}
+                    onClose={() => {
+                        // Remove storyIdParam from URL to close overlay
+                        const newParams = new URLSearchParams(searchParams?.toString());
+                        newParams.delete('storyId');
+                        router.push(`/discover?${newParams.toString()}`, { scroll: false });
+                    }}
                 />
             )}
         </div>
