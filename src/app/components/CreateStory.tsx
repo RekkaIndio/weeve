@@ -1165,7 +1165,7 @@ const CreateStory = ({
                   <p
                     className="text-xs text-gray-500 mt-0.5 font-sans leading-relaxed"
                   >
-                    Anyone can view, but only invited friends join
+                    Anyone can view and contribute
                   </p>
                 </div>
               </div>
@@ -1417,7 +1417,7 @@ const CreateStory = ({
       {/* Friend Picker - Available for both public and private stories (brand users use slot system) */}
       {
         !currentUser?.isBrand && formState.postType !== 'seed' && formState.postType !== 'canon' && (
-          <div className="relative mb-24">
+          <div className="relative">
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
                 <label
@@ -1599,7 +1599,7 @@ const CreateStory = ({
 
   // Render Section 3: Finishing Touches (Advanced Settings only now)
   const renderFinishingTouchesSection = () => (
-    <div className="space-y-6 mt-8">
+    <div className="space-y-6">
       <div className="text-left mb-2">
         <h2 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
           <Hash className="w-5 h-5 text-[#EC1D99]" />
@@ -1862,7 +1862,7 @@ const CreateStory = ({
       </main>
 
       {/* Footer Actions */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent z-10 pb-[env(safe-area-inset-bottom,20px)]">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent z-10 pb-[calc(env(safe-area-inset-bottom,0px)+24px)]">
         <div className="max-w-xl mx-auto flex gap-3">
           <button
             onClick={handleBack}
