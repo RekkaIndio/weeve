@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useStore } from "@/lib/store";
-import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Camera, Clock, Image as ImageIcon } from "lucide-react";
+import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Camera, Clock, Image as ImageIcon, GitBranch } from "lucide-react";
 import Link from "next/link";
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabase";
 
@@ -1388,7 +1388,11 @@ export default function ProfilePage() {
                                         />
                                     )}
 
-
+                                    {story.forkedFromStoryId && (
+                                        <div className="absolute top-2 right-2 z-10 bg-black/60 backdrop-blur-sm p-1.5 rounded-full border border-white/10">
+                                            <GitBranch className="w-3 h-3 text-[#EC1D99]" />
+                                        </div>
+                                    )}
 
                                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                                     <div className="absolute bottom-1 left-1 flex items-center gap-1 text-[10px] font-bold drop-shadow-md text-white">
@@ -1488,7 +1492,12 @@ export default function ProfilePage() {
                                                 <span className="text-[11px] font-bold text-white bg-[#EC1D99] px-2 py-0.5 rounded-full">Your turn</span>
                                             </div>
                                         )}
-                                        <div className="absolute top-2 right-2">
+                                        <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                                            {story.forkedFromStoryId && (
+                                                <div className="bg-black/60 backdrop-blur-sm p-1.5 rounded-full border border-white/10">
+                                                    <GitBranch className="w-3 h-3 text-[#EC1D99]" />
+                                                </div>
+                                            )}
                                             <Bookmark className="w-4 h-4 text-white fill-white drop-shadow-md" />
                                         </div>
                                         <div className="absolute bottom-1 left-1 flex items-center gap-1 text-[10px] font-bold drop-shadow-md text-white">
@@ -1710,7 +1719,7 @@ export default function ProfilePage() {
                                     <UserPlus className="w-6 h-6 text-[#EC1D99]" />
                                 </div>
                                 <h3 className="text-xl font-bold text-white mb-1">Invite Friends</h3>
-                                <p className="text-sm text-gray-400">Share your unique link to earn rewards when friends join!</p>
+                                <p className="text-sm text-gray-400">Share your unique link!</p>
                             </div>
 
                             <div className="space-y-4">
