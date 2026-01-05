@@ -8,7 +8,7 @@ import { useAuth } from "@/app/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { fetchGroups } from "@/lib/data";
 import { rankFeedStories } from "@/lib/discovery/feed-algorithm";
-import { toast } from "sonner";
+
 
 export default function Home() {
   const router = useRouter();

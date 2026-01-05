@@ -10,7 +10,7 @@ describe('createWatermarkImage', () => {
             onload: () => void = () => {};
             src: string = '';
             width: number = 100;
-            height: 100;
+            height: number = 100;
             set crossOrigin(val: string) {}
             
             constructor() {

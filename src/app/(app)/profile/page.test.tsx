@@ -386,7 +386,14 @@ describe('ProfilePage', () => {
   });
 
   it.skip('validates empty name on save', async () => {
-    const { toast } = await import('sonner');
+    const toast = {
+      success: vi.fn(),
+      error: vi.fn(),
+      custom: vi.fn(),
+      dismiss: vi.fn(),
+      promise: vi.fn(),
+      message: vi.fn(),
+    };
     const spy = vi.spyOn(toast, 'error');
 
     vi.spyOn(store, 'useStore').mockImplementation(() => ({

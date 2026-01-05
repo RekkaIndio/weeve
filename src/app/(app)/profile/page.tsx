@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store";
 import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Camera, Clock, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabase";
-import { toast } from "sonner";
+
 import { updateUserProfile } from "@/lib/auth";
 import { capturePhoto } from "@/lib/camera";
 import { getLatestSession, setLatestSession } from "@/lib/auth-session";

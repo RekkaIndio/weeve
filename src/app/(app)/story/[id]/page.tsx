@@ -18,7 +18,7 @@ import OnboardingTutorialOverlay from "@/app/components/OnboardingTutorialOverla
 import StitchContextThumbnails from "@/app/components/StitchContextThumbnails";
 import AudioRecorder from "@/app/components/AudioRecorder";
 import { uploadAudio } from "@/lib/uploadAudio";
-import { toast } from "sonner";
+
 import { useTimerCheck } from "@/lib/useTimerCheck";
 import { supabase } from "@/lib/supabase";
 

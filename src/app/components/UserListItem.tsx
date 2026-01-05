@@ -5,7 +5,7 @@ import { User as UserIcon, Check } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
-import { toast } from "sonner";
+
 import { notifyNewFollower } from "@/lib/notifications";
 
 interface UserListItemProps {
@@ -100,8 +100,8 @@ export default function UserListItem({ user, showFollowButton = true }: UserList
                     onClick={handleFollowToggle}
                     disabled={isProcessing}
                     className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${isFollowing
-                            ? 'bg-gray-800 text-white hover:bg-gray-700'
-                            : 'bg-[#EC1D99] text-white hover:bg-[#EC1D99]/90'
+                        ? 'bg-gray-800 text-white hover:bg-gray-700'
+                        : 'bg-[#EC1D99] text-white hover:bg-[#EC1D99]/90'
                         } ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     {isProcessing ? (

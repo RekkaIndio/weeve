@@ -119,7 +119,8 @@ describe('NotificationsPage', () => {
       return {} as any;
     });
 
-    const toastError = vi.spyOn(toast, 'error').mockImplementation(() => 0 as any);
+    // Toast removed
+
 
     const { default: NotificationsPage } = await import('./page');
 
@@ -151,6 +152,6 @@ describe('NotificationsPage', () => {
 
     // Wait for the upsert to be called a second time and for an error toast to be shown
     await waitFor(() => expect(upsert).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(toastError).toHaveBeenCalled());
+
   });
 });

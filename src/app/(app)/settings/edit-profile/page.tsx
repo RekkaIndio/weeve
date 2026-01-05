@@ -6,7 +6,7 @@ import { ChevronLeft, Camera, X, CheckCircle, XCircle, Loader } from "lucide-rea
 import { useStore } from "@/lib/store";
 import { updateUserProfile, checkDisplayNameAvailability } from "@/lib/auth";
 import { uploadMedia } from "@/lib/camera";
-import { toast } from "sonner";
+
 import ImageCropper from "@/app/components/ImageCropper";
 
 export default function EditProfilePage() {

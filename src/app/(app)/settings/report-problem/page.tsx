@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, AlertTriangle, Bug, MessageSquare, Shield, Lightbulb, Send } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
-import { toast } from "sonner";
+
 
 type IssueCategory = "bug" | "abuse" | "feature" | "account" | "other";
 
@@ -183,8 +183,8 @@ export default function ReportProblemPage() {
                                             type="button"
                                             onClick={() => setSelectedCategory(category.id)}
                                             className={`w-full p-4 rounded-lg border-2 transition-all text-left ${isSelected
-                                                    ? 'bg-[#EC1D99]/10 border-[#EC1D99]'
-                                                    : 'bg-gray-900 border-gray-800 hover:border-gray-700'
+                                                ? 'bg-[#EC1D99]/10 border-[#EC1D99]'
+                                                : 'bg-gray-900 border-gray-800 hover:border-gray-700'
                                                 }`}
                                         >
                                             <div className="flex items-center gap-3">
@@ -246,8 +246,8 @@ export default function ReportProblemPage() {
                                 type="submit"
                                 disabled={isSubmitting || !selectedCategory || !subject.trim() || !description.trim()}
                                 className={`w-full ${isSubmitting || !selectedCategory || !subject.trim() || !description.trim()
-                                        ? 'bg-gray-600 cursor-not-allowed'
-                                        : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
+                                    ? 'bg-gray-600 cursor-not-allowed'
+                                    : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
                                     } text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2`}
                             >
                                 {isSubmitting ? (

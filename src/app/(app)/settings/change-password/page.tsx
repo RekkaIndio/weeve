@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Eye, EyeOff, Lock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { toast } from "sonner";
+
 
 export default function ChangePasswordPage() {
     const router = useRouter();

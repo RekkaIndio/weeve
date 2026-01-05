@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3, Receipt, DollarSign, Ban, IdCard, KeyRound, TrendingUp, BookOpen, Scroll, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
+
 import { useStore } from "@/lib/store";
 import { signOut, updateUserProfile } from "@/lib/auth";
 import { setLatestSession } from "@/lib/auth-session";

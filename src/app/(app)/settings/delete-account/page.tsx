@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Trash2, AlertTriangle, Loader, ChevronRight } from "lucide-react";
 import { deleteUserAccount } from "@/lib/auth";
-import { toast } from "sonner";
+
 
 const DELETE_REASONS = [
     "I'm not using Weeve enough",

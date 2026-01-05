@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Mail, Phone, Globe, Trash2, Loader, CheckCircle, XCircle } from "lucide-react";
-import { toast } from "sonner";
+
 import { supabase } from "@/lib/supabase";
 import { useStore } from "@/lib/store";
 

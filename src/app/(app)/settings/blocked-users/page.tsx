@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, UserX, Search, MoreVertical } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
-import { toast } from "sonner";
+
 
 interface BlockedUser {
     id: string;
