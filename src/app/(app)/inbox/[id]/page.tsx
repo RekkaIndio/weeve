@@ -143,19 +143,21 @@ export default function ConversationPage() {
                                 {!isMe && (
                                     <div className="w-8 h-8 shrink-0 flex items-end">
                                         {showAvatar ? (
-                                            msg.sender.avatar ? (
-                                                <Image
-                                                    src={msg.sender.avatar}
-                                                    alt={msg.sender.name}
-                                                    width={32}
-                                                    height={32}
-                                                    className="rounded-full bg-gray-800 object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs">
-                                                    {msg.sender.name?.[0]}
-                                                </div>
-                                            )
+                                            <Link href={`/profile/${msg.sender_id}`}>
+                                                {msg.sender.avatar ? (
+                                                    <Image
+                                                        src={msg.sender.avatar}
+                                                        alt={msg.sender.name}
+                                                        width={32}
+                                                        height={32}
+                                                        className="rounded-full bg-gray-800 object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-xs">
+                                                        {msg.sender.name?.[0]}
+                                                    </div>
+                                                )}
+                                            </Link>
                                         ) : <div className="w-8" />}
                                     </div>
                                 )}
