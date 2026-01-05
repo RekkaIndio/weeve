@@ -239,6 +239,9 @@ export function useDiscoverLogic() {
             setNewGroupName('');
             setNewGroupDesc('');
             setIsPrivate(false);
+            
+            // Redirect to the new group
+            router.push(`/groups/${groupData.id}`);
         } catch (error) {
             console.error('Error creating group:', error);
         } finally {
