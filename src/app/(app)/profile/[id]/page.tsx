@@ -563,7 +563,7 @@ export default function UserProfilePage() {
                 >
                     <ChevronLeft className="w-6 h-6" />
                 </button>
-                <h1 className="font-bold text-lg flex-1">{user.name}</h1>
+                <h1 className="font-bold text-lg flex-1">Profile</h1>
 
                 {/* Menu Button */}
                 <div className="relative" ref={menuRef}>
