@@ -4,7 +4,7 @@ import { Users, Plus, X, Search, MessageCircle } from "lucide-react";
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { getLatestSession } from '@/lib/auth-session';
 import { useAuth } from '@/app/components/AuthProvider';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import NotificationBell from "@/app/components/NotificationBell";
 import { useStore } from '@/lib/store';
 import { fetchGroups as fetchGroupsData } from '@/lib/data';
@@ -15,6 +15,7 @@ import MessagesTab from './MessagesTab';
 export default function GroupsPage() {
     const { user } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { groups, setGroups } = useStore();
     const [loading, setLoading] = useState(true);
     const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -24,7 +25,8 @@ export default function GroupsPage() {
     const [creating, setCreating] = useState(false);
     const [shareGroup, setShareGroup] = useState<{ id: string; name: string; description: string; isPrivate: boolean } | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const [activeTab, setActiveTab] = useState<'groups' | 'messages'>('groups');
+    const tabParam = searchParams.get('tab');
+    const [activeTab, setActiveTab] = useState<'groups' | 'messages'>(tabParam === 'messages' ? 'messages' : 'groups');
 
     useEffect(() => {
         let isActive = true;

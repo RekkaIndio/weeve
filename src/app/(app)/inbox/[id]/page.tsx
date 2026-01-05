@@ -111,7 +111,7 @@ export default function ConversationPage() {
             {/* Header */}
             <div className="flex items-center gap-4 p-4 border-b border-gray-800 bg-[#121212] shrink-0 pt-[calc(env(safe-area-inset-top,0px)+1rem)]">
                 <button
-                    onClick={() => router.back()}
+                    onClick={() => router.push('/groups?tab=messages')}
                     className="p-2 -ml-2 hover:bg-white/10 rounded-full transition-colors"
                 >
                     <ArrowLeft className="w-6 h-6" />
