@@ -1,4 +1,5 @@
--- Drop existing policy
+-- Drop existing policy if it exists (handles re-runs)
+DROP POLICY IF EXISTS "Users can join groups" ON group_members;
 DROP POLICY IF EXISTS "Anyone can join open groups" ON group_members;
 
 -- Create comprehensive join policy

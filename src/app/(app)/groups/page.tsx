@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, X, Search, MessageCircle } from "lucide-react";
-import { supabase } from '@/lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
+import { getLatestSession } from '@/lib/auth-session';
 import { useAuth } from '@/app/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -133,22 +134,92 @@ export default function GroupsPage() {
             }
 
             // Refresh session to ensure valid token for RLS
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-                toast.error('Please sign in to join groups');
+            // iOS-specific: Session may not be immediately available from Preferences
+            // Try multiple fallback strategies to get a valid session
+            let validSession = false;
+            let cachedSession: ReturnType<typeof getLatestSession> = null;
+
+            // Attempt 1: Try to refresh the session
+            try {
+                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+                if (!refreshError && refreshData?.session) {
+                    validSession = true;
+                }
+            } catch (refreshErr) {
+                console.warn('[Groups] Session refresh failed:', refreshErr);
+            }
+
+            // Attempt 2: If refresh failed, try getSession with delay for iOS Preferences sync
+            if (!validSession) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    validSession = true;
+                }
+            }
+
+            // Attempt 3: Use in-memory session cache from AuthProvider
+            if (!validSession) {
+                cachedSession = getLatestSession();
+                if (cachedSession?.access_token) {
+                    validSession = true;
+                    console.log('[Groups] Using cached session for REST API');
+                }
+            }
+
+            if (!validSession) {
+                console.error('[Groups] No valid session available for user:', user.id);
+                toast.error('Session expired. Please log in again.');
                 return;
             }
 
-            const { error } = await supabase
-                .from('group_members')
-                .insert({
-                    group_id: groupId,
-                    user_id: user.id,
-                    role: 'member',
-                    status: 'active'
+            // If we're using cached session, use REST API directly
+            // Otherwise use Supabase SDK
+            if (cachedSession?.access_token) {
+                console.log('[Groups] Using REST API with cached session token');
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/group_members`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${cachedSession.access_token}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal',
+                    },
+                    body: JSON.stringify({
+                        group_id: groupId,
+                        user_id: user.id,
+                        role: 'member',
+                        status: 'active'
+                    }),
                 });
 
-            if (error) throw error;
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('[Groups] REST insert failed:', response.status, errorText);
+                    // Check for unique violation (already a member)
+                    if (errorText.includes('23505') || errorText.includes('duplicate')) {
+                        toast.success(`Joined ${groupName}!`);
+                        loadGroups();
+                        router.push(`/groups/${groupId}`);
+                        return;
+                    }
+                    throw new Error(`Failed to join group: ${errorText}`);
+                }
+
+                console.log('[Groups] REST insert succeeded!');
+            } else {
+                console.log('[Groups] Using Supabase SDK');
+                const { error } = await supabase
+                    .from('group_members')
+                    .insert({
+                        group_id: groupId,
+                        user_id: user.id,
+                        role: 'member',
+                        status: 'active'
+                    });
+
+                if (error) throw error;
+            }
 
             toast.success(`Joined ${groupName}!`);
             loadGroups();

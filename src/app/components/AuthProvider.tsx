@@ -151,6 +151,20 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const initialize = async () => {
             const initStartTime = Date.now();
 
+            // Network connectivity diagnostic
+            try {
+                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+                console.log('[AuthProvider] Testing network connectivity to:', supabaseUrl);
+                const testResponse = await fetch(`${supabaseUrl}/rest/v1/`, {
+                    method: 'HEAD',
+                    headers: { 'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' }
+                });
+                console.log('[AuthProvider] Network test result:', testResponse.status, testResponse.ok);
+            } catch (netError) {
+                console.error('[AuthProvider] Network connectivity FAILED:', netError);
+                console.error('[AuthProvider] This might indicate WiFi/cellular issues or Supabase URL misconfiguration');
+            }
+
             try {
                 // 1. Get initial session
                 const { data: { session }, error } = await supabase.auth.getSession();
@@ -230,10 +244,19 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         let subscription: { unsubscribe: () => void } | null = null;
         try {
             const { data } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-                console.log('[AuthProvider] onAuthStateChange:', event, session?.user?.id);
-                if (!mounted) return;
+                console.log('[AuthProvider] onAuthStateChange:', event, {
+                    hasSession: !!session,
+                    userId: session?.user?.id,
+                    expiresAt: session?.expires_at,
+                    accessTokenLength: session?.access_token?.length
+                });
+                if (!mounted) {
+                    console.log('[AuthProvider] Component unmounted, ignoring event');
+                    return;
+                }
 
                 if (session?.user) {
+                    console.log('[AuthProvider] Setting user from auth state change');
                     setUser(session.user);
                     setLatestSession(session);
 
@@ -241,6 +264,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     // IMPORTANT: On iOS, after OAuth deep link return, the event is often 'INITIAL_SESSION' 
                     // instead of 'SIGNED_IN', so we must handle both to prevent the double-login issue.
                     const shouldSyncAndRedirect = event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY' || event === 'INITIAL_SESSION';
+                    console.log('[AuthProvider] shouldSyncAndRedirect:', shouldSyncAndRedirect, 'for event:', event);
 
                     if (shouldSyncAndRedirect) {
 
@@ -296,15 +320,21 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                 }
                                 sessionStorage.setItem(redirectKey, 'true');
 
+                                // Set login timestamp for grace period (Use localStorage for persistence across reloads)
+                                if (typeof window !== 'undefined') {
+                                    localStorage.setItem('weeve_last_login_timestamp', Date.now().toString());
+                                }
+
                                 console.log(`[AuthProvider] Redirecting to /feed after ${event} event from ${currentPath}`);
 
                                 // Clean up the key after navigation (short timeout)
                                 setTimeout(() => sessionStorage.removeItem(redirectKey), 2000);
 
-                                // Use replace for faster navigation (no history entry)
-                                window.location.replace('/feed');
+                                // Use next/navigation router for client-side transition (preserves state)
+                                router.replace('/feed');
                             }
                         }
+
                     }
 
                     // OAuth Redirect Handling (Clean up URL)
@@ -327,6 +357,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
                 // Handle redirects on change
                 if (event === 'SIGNED_OUT') {
+                    // For logout, full refresh is safer to clear memory
                     window.location.href = '/login';
                 }
             });
@@ -637,6 +668,56 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
 
     // ---------------------------------------------------------------------------
+    // Session Recovery Polling (Grace Period)
+    // ---------------------------------------------------------------------------
+    useEffect(() => {
+        if (!loading && !user) {
+            const lastLoginStr = typeof window !== 'undefined' ? localStorage.getItem('weeve_last_login_timestamp') : null;
+            const lastLogin = lastLoginStr ? parseInt(lastLoginStr) : 0;
+            const timeSinceLogin = Date.now() - lastLogin;
+            const isRecentLogin = timeSinceLogin < 10000; // 10 seconds grace
+
+            console.log('[AuthProvider] Polling check:', {
+                loading,
+                hasUser: !!user,
+                lastLoginStr,
+                timeSinceLogin,
+                isRecentLogin
+            });
+
+            if (isRecentLogin) {
+                console.log('[AuthProvider] In grace period, starting session polling...');
+                let pollCount = 0;
+                const interval = setInterval(async () => {
+                    pollCount++;
+                    console.log('[AuthProvider] Polling attempt', pollCount);
+                    const { data, error } = await supabase.auth.getSession();
+                    console.log('[AuthProvider] Poll result:', {
+                        hasSession: !!data.session,
+                        userId: data.session?.user?.id,
+                        error: error?.message
+                    });
+                    if (data.session?.user) {
+                        console.log('[AuthProvider] Recovered session via polling!');
+                        setUser(data.session.user);
+                        setLatestSession(data.session);
+                    }
+                    if (pollCount >= 12) { // Stop after ~10 seconds
+                        console.log('[AuthProvider] Stopping polling after max attempts');
+                        clearInterval(interval);
+                    }
+                }, 800);
+                return () => {
+                    console.log('[AuthProvider] Cleaning up polling interval');
+                    clearInterval(interval);
+                };
+            } else {
+                console.log('[AuthProvider] Not in grace period, no polling');
+            }
+        }
+    }, [user, loading]);
+
+    // ---------------------------------------------------------------------------
     // Render
     // ---------------------------------------------------------------------------
 
@@ -647,7 +728,17 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (!loading) {
         // 1. Not logged in + Private route
         if (!user && !isPublicRoute(currentPath)) {
-            isRedirecting = true;
+            // Check for recent login to prevent race conditions (Grace Period)
+            const lastLoginStr = typeof window !== 'undefined' ? localStorage.getItem('weeve_last_login_timestamp') : null;
+            const lastLogin = lastLoginStr ? parseInt(lastLoginStr) : 0;
+            const isRecentLogin = Date.now() - lastLogin < 10000; // 10 seconds grace
+
+            if (isRecentLogin) {
+                // Don't redirect yet, keep loading/waiting
+                // effectively treat as loading
+            } else {
+                isRedirecting = true;
+            }
         }
 
         // 2. Logged in logic

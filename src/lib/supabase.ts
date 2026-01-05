@@ -59,25 +59,81 @@ try {
             detectSessionInUrl: !Capacitor.isNativePlatform(),
             storage: {
                 getItem: async (key: string) => {
+                    const isAuthKey = key.includes('supabase') || key.includes('sb-');
+                    
+                    // Try localStorage first (more reliable on iOS WebView)
+                    if (typeof window !== 'undefined' && window.localStorage) {
+                        try {
+                            const lsValue = window.localStorage.getItem(key);
+                            if (lsValue) {
+                                if (isAuthKey) {
+                                    console.log('[Supabase Storage] getItem from localStorage:', key, 'length:', lsValue.length);
+                                }
+                                return lsValue;
+                            }
+                        } catch (e) {
+                            console.warn('[Supabase Storage] localStorage getItem failed:', e);
+                        }
+                    }
+                    
+                    // Fallback to Capacitor Preferences
                     try {
                         const { value } = await Preferences.get({ key });
+                        if (isAuthKey) {
+                            console.log('[Supabase Storage] getItem from Preferences:', key, 'hasValue:', !!value);
+                        }
+                        // If found in Preferences but not localStorage, sync it
+                        if (value && typeof window !== 'undefined' && window.localStorage) {
+                            try {
+                                window.localStorage.setItem(key, value);
+                            } catch (e) { /* ignore */ }
+                        }
                         return value;
                     } catch (error) {
+                        console.error('[Supabase Storage] Preferences getItem error:', key, error);
                         return null;
                     }
                 },
                 setItem: async (key: string, value: string) => {
+                    const isAuthKey = key.includes('supabase') || key.includes('sb-');
+                    
+                    // Always save to localStorage first (synchronous, reliable)
+                    if (typeof window !== 'undefined' && window.localStorage) {
+                        try {
+                            window.localStorage.setItem(key, value);
+                            if (isAuthKey) {
+                                console.log('[Supabase Storage] setItem to localStorage:', key, 'length:', value?.length);
+                            }
+                        } catch (e) {
+                            console.warn('[Supabase Storage] localStorage setItem failed:', e);
+                        }
+                    }
+                    
+                    // Also save to Capacitor Preferences (async backup)
                     try {
                         await Preferences.set({ key, value });
+                        if (isAuthKey) {
+                            console.log('[Supabase Storage] setItem to Preferences:', key, 'SUCCESS');
+                        }
                     } catch (error) {
-                        // Ignore
+                        console.error('[Supabase Storage] Preferences setItem error:', key, error);
                     }
                 },
                 removeItem: async (key: string) => {
+                    console.log('[Supabase Storage] removeItem:', key);
+                    
+                    // Remove from localStorage
+                    if (typeof window !== 'undefined' && window.localStorage) {
+                        try {
+                            window.localStorage.removeItem(key);
+                        } catch (e) { /* ignore */ }
+                    }
+                    
+                    // Remove from Capacitor Preferences
                     try {
                         await Preferences.remove({ key });
                     } catch (error) {
-                        // Ignore
+                        console.error('[Supabase Storage] Preferences removeItem error:', key, error);
                     }
                 },
             },
@@ -109,3 +165,46 @@ try {
 }
 
 export const supabase = _supabase;
+
+/**
+ * Session sync helper for iOS - ensures Preferences are fully loaded before session check.
+ * On iOS with Capacitor, the Preferences storage is asynchronous and may not be
+ * immediately available after app launch or OAuth return.
+ * 
+ * @returns Promise<boolean> - true if session is valid, false otherwise
+ */
+export async function ensureSessionSync(): Promise<boolean> {
+    if (!Capacitor.isNativePlatform()) {
+        // On web, session is stored in localStorage which is synchronous
+        const { data: { session } } = await supabase.auth.getSession();
+        return !!session;
+    }
+    
+    try {
+        // Give Preferences time to fully initialize on app launch
+        const maxAttempts = 3;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) return true;
+            
+            // Try refresh on subsequent attempts
+            if (attempt > 0) {
+                try {
+                    const { data: refreshData } = await supabase.auth.refreshSession();
+                    if (refreshData?.session) return true;
+                } catch (refreshErr) {
+                    console.warn('[Supabase] Session refresh attempt failed:', refreshErr);
+                }
+            }
+            
+            // Wait before retry
+            if (attempt < maxAttempts - 1) {
+                await new Promise(resolve => setTimeout(resolve, 300));
+            }
+        }
+        return false;
+    } catch (e) {
+        console.warn('[Supabase] Session sync check failed:', e);
+        return false;
+    }
+}
