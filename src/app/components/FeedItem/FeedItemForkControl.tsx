@@ -51,6 +51,35 @@ export default function FeedItemForkControl({
     const maxSlots = story.maxWeeves || 3;
     const carouselRef = useRef<HTMLDivElement>(null);
 
+    // Touch swipe refs
+    const touchStartX = useRef(0);
+    const touchEndX = useRef(0);
+
+    // Touch handling functions for carousel swipe
+    const handleTouchStart = (e: React.TouchEvent) => {
+        touchStartX.current = e.touches[0].clientX;
+        touchEndX.current = e.touches[0].clientX;
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        touchEndX.current = e.touches[0].clientX;
+    };
+
+    const handleTouchEnd = () => {
+        const diff = touchStartX.current - touchEndX.current;
+        const threshold = 50; // minimum swipe distance
+
+        if (Math.abs(diff) > threshold) {
+            if (diff > 0) {
+                // Swiped left - go to next
+                setCurrentSlotIndex((prev) => (prev < maxSlots - 1 ? prev + 1 : 0));
+            } else {
+                // Swiped right - go to previous
+                setCurrentSlotIndex((prev) => (prev > 0 ? prev - 1 : maxSlots - 1));
+            }
+        }
+    };
+
     // Friend Search Effect
     useEffect(() => {
         if (!friendSearchQuery.trim()) {
@@ -238,82 +267,145 @@ export default function FeedItemForkControl({
                         <X className="w-5 h-5" />
                     </button>
 
-                    <h2 className="text-2xl font-bold text-white mb-2 text-center">Choose what to keep</h2>
+                    <h2 className="text-2xl font-bold text-white mb-2 text-center">Choose what to replace</h2>
                     <p className="text-gray-400 text-sm mb-8 text-center px-6">
                         Select the parts of the story you want to replace with your own content
                     </p>
 
-                    {/* Carousel */}
+                    {/* Stacked Carousel Container */}
                     <div
                         ref={carouselRef}
-                        className="w-full h-[60%] flex gap-4 overflow-x-auto px-8 snap-x snap-mandatory no-scrollbar items-center pb-8"
+                        className="relative w-full max-w-md mx-auto h-80 mb-6 flex items-center justify-center"
+                        onTouchStart={handleTouchStart}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
                     >
                         {Array.from({ length: maxSlots }).map((_, index) => {
                             const contribution = slotContentMap.get(index);
                             const p = participantsMap.get(contribution?.userId || '') || story.participants.find(pt => pt.position === index);
                             const isLocked = isSlotImmutable(story, index);
-                            const isActive = index === currentSlotIndex;
+
+                            // Calculate position and scale relative to current index
+                            const offset = index - currentSlotIndex;
+                            const isActive = offset === 0;
+                            const isPrev = offset === -1 || (currentSlotIndex === 0 && index === maxSlots - 1);
+                            const isNext = offset === 1 || (currentSlotIndex === maxSlots - 1 && index === 0);
+
+                            // Determine position and styling
+                            let transform = '';
+                            let zIndex = 0;
+                            let opacity = 0;
+                            let scale = 0.7;
+
+                            if (isActive) {
+                                transform = 'translateX(0)';
+                                zIndex = 30;
+                                opacity = 1;
+                                scale = 1;
+                            } else if (isPrev) {
+                                transform = 'translateX(-60%)';
+                                zIndex = 20;
+                                opacity = 0.5;
+                                scale = 0.75;
+                            } else if (isNext) {
+                                transform = 'translateX(60%)';
+                                zIndex = 20;
+                                opacity = 0.5;
+                                scale = 0.75;
+                            } else {
+                                opacity = 0;
+                                zIndex = 10;
+                            }
 
                             return (
                                 <div
                                     key={index}
-                                    className="min-w-[80vw] sm:min-w-[300px] h-full snap-center flex items-center justify-center"
+                                    className="absolute transition-all duration-300 ease-out"
+                                    style={{
+                                        transform: `${transform} scale(${scale})`,
+                                        zIndex,
+                                        opacity,
+                                    }}
                                 >
                                     <button
-                                        onClick={() => {
-                                            setCurrentSlotIndex(index);
-                                            toggleSlotSelection(index);
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (isActive) {
+                                                if (isLocked) return;
+                                                toggleSlotSelection(index);
+                                            } else {
+                                                setCurrentSlotIndex(index);
+                                            }
                                         }}
-                                        disabled={isLocked}
-                                        className={`relative w-full h-full rounded-3xl overflow-hidden transition-all duration-300 transform border-2 group ${isLocked
-                                            ? 'opacity-80 border-gray-700 cursor-not-allowed grayscale'
-                                            : selectedSlots.includes(index)
-                                                ? 'border-[#EC1D99] scale-100'
-                                                : 'border-white/20 scale-95 opacity-60 hover:opacity-80'
-                                            }`}
+                                        className={`relative group ${isActive ? (isLocked ? 'cursor-default' : 'cursor-pointer') : 'cursor-pointer'}`}
                                     >
-                                        {/* Content Preview */}
-                                        <div className="w-full h-full bg-gray-900 relative">
+                                        <div className={`w-64 h-64 rounded-3xl border-2 overflow-hidden transition-all bg-gray-800 relative ${isLocked
+                                            ? 'border-gray-600/50 opacity-90'
+                                            : selectedSlots.includes(index)
+                                                ? 'border-[#EC1D99] border-solid'
+                                                : 'border-dashed border-white/30 hover:border-[#EC1D99]'
+                                            }`}>
                                             {contribution ? (
-                                                contribution.mediaType === 'video' ? (
-                                                    <VideoThumbnail
-                                                        src={contribution.mediaUrl || ''}
-                                                        className="w-full h-full object-cover"
-                                                    />
-                                                ) : (
-                                                    <div className="w-full h-full bg-gray-800 flex items-center justify-center p-4">
-                                                        {contribution.mediaType === 'image' ? (
-                                                            <img src={contribution.mediaUrl} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <p className="text-white text-xs line-clamp-3">{contribution.content}</p>
-                                                        )}
-                                                    </div>
-                                                )
+                                                <>
+                                                    {contribution.mediaType === 'video' ? (
+                                                        <VideoThumbnail
+                                                            src={contribution.mediaUrl || ''}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : contribution.mediaType === 'image' ? (
+                                                        <img
+                                                            src={contribution.mediaUrl}
+                                                            alt="Slot content"
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center p-4 bg-gray-900">
+                                                            <p className="text-sm text-white text-center line-clamp-6 leading-tight font-medium">
+                                                                {contribution.content}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                    {/* Avatar Badge */}
+                                                    {p && (
+                                                        <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full border-2 border-black overflow-hidden">
+                                                            <img src={p.avatar} alt={p.name} className="w-full h-full object-cover" />
+                                                        </div>
+                                                    )}
+                                                </>
                                             ) : p ? (
-                                                <img src={p.avatar} className="w-full h-full object-cover opacity-50" />
+                                                <img
+                                                    src={p.avatar}
+                                                    alt={p.name}
+                                                    className="w-full h-full object-cover opacity-50"
+                                                />
                                             ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-gray-800">
-                                                    <UserPlus className="w-12 h-12 text-gray-500" />
+                                                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-4">
+                                                    <UserPlus className="w-12 h-12 text-gray-500 mb-2" />
+                                                    <p className="text-gray-500 text-sm">Empty Slot</p>
                                                 </div>
                                             )}
 
-                                            {/* Overlays */}
+                                            {/* Lock Overlay */}
                                             {isLocked && (
                                                 <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                                                    <Lock className="w-8 h-8 text-white/70" />
+                                                    <Lock className="w-10 h-10 text-white/70" />
                                                 </div>
                                             )}
+
+                                            {/* Selection Overlay */}
                                             {selectedSlots.includes(index) && (
-                                                <div className="absolute inset-0 flex items-center justify-center bg-[#EC1D99]/20 backdrop-blur-[2px]">
-                                                    <div className="bg-[#EC1D99] p-3 rounded-full shadow-lg">
-                                                        <Check className="w-6 h-6 text-white" />
+                                                <div className="absolute inset-0 flex items-center justify-center bg-[#EC1D99]/30 backdrop-blur-[2px]">
+                                                    <div className="bg-[#EC1D99] p-4 rounded-full shadow-lg">
+                                                        <Check className="w-8 h-8 text-white" />
                                                     </div>
                                                 </div>
                                             )}
                                         </div>
 
-                                        <div className="absolute bottom-4 left-0 right-0 text-center">
-                                            <span className="text-xs font-bold text-white drop-shadow-md bg-black/50 px-2 py-1 rounded-full">
+                                        {/* Slot Number Label */}
+                                        <div className="absolute -bottom-6 left-0 right-0 text-center">
+                                            <span className={`text-sm font-bold ${selectedSlots.includes(index) ? 'text-[#EC1D99]' : 'text-white'}`}>
                                                 Slot {index + 1}
                                             </span>
                                         </div>
@@ -321,6 +413,20 @@ export default function FeedItemForkControl({
                                 </div>
                             );
                         })}
+                    </div>
+
+                    {/* Carousel Indicators */}
+                    <div className="flex justify-center gap-2 mb-6">
+                        {Array.from({ length: maxSlots }).map((_, index) => (
+                            <button
+                                key={`indicator-${index}`}
+                                onClick={() => setCurrentSlotIndex(index)}
+                                className={`w-2 h-2 rounded-full transition-all ${index === currentSlotIndex
+                                    ? 'bg-[#EC1D99] w-6'
+                                    : 'bg-white/30 hover:bg-white/50'
+                                    }`}
+                            />
+                        ))}
                     </div>
 
                     {/* Continue Button */}
