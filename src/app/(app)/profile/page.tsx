@@ -1101,7 +1101,8 @@ export default function ProfilePage() {
 
         try {
             await copyTextToClipboard(inviteLink);
-            // toast removed
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             console.error('Share fallback failed:', err);
             console.error('Sharing is not supported on this device.');
@@ -1177,9 +1178,14 @@ export default function ProfilePage() {
                                     e.stopPropagation();
                                     handleNativeShare();
                                 }}
-                                className="absolute -bottom-1 -right-1 bg-[#EC1D99] p-1 rounded-full border-2 border-black hover:bg-[#EC1D99]/90 transition-colors"
+                                className={`absolute -bottom-1 -right-1 p-1 rounded-full border-2 border-black transition-colors ${copied ? 'bg-green-500 hover:bg-green-600' : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
+                                    }`}
                             >
-                                <Share2 className="w-3 h-3 text-white" />
+                                {copied ? (
+                                    <Check className="w-3 h-3 text-white" />
+                                ) : (
+                                    <Share2 className="w-3 h-3 text-white" />
+                                )}
                             </button>
                         )}
                     </div>
