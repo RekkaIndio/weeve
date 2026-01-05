@@ -55,13 +55,13 @@ export default function SettingsPage() {
             });
 
             if (!newValue) {
-                toast.success("Monetization features hidden");
+                // toast removed
             } else {
-                toast.success("Monetization features enabled");
+                // toast removed
             }
         } catch (err) {
             console.error('[Settings] Failed to update monetization preference:', err);
-            toast.error("Failed to update settings");
+            console.error("Failed to update settings");
         } finally {
             setIsUpdating(false);
         }

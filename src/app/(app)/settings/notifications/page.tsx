@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, Bell } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
-import { toast } from "sonner";
+
 
 interface NotificationPreferences {
     push_notifications: boolean;
@@ -92,7 +92,7 @@ export default function NotificationsPage() {
             console.error('Error updating notification preferences:', error);
             // Revert on error
             setPreferences(preferences);
-            toast.error('Failed to update preferences');
+            console.error('Failed to update preferences');
         } finally {
             setIsSaving(false);
         }
@@ -335,39 +335,36 @@ export default function NotificationsPage() {
                                 onClick={async () => {
                                     if (!currentUser) return;
 
-                                    toast.promise(
-                                        async () => {
-                                            // 1. Check if we have a token
-                                            const { data: profile } = await supabase
-                                                .from('profiles')
-                                                .select('push_token')
-                                                .eq('user_id', currentUser.id)
-                                                .single();
+                                    try {
+                                        // 1. Check if we have a token
+                                        const { data: profile } = await supabase
+                                            .from('profiles')
+                                            .select('push_token')
+                                            .eq('user_id', currentUser.id)
+                                            .single();
 
-                                            if (!profile?.push_token) {
-                                                throw new Error('No push token found for this device. Please enable push notifications first.');
-                                            }
-
-                                            // 2. Create test notification
-                                            const { error } = await supabase
-                                                .from('notifications')
-                                                .insert({
-                                                    user_id: currentUser.id,
-                                                    type: 'new_message', // Using a generic type that usually triggers push
-                                                    title: 'Test Notification',
-                                                    message: 'This is a test notification to verify your device is configured correctly.',
-                                                    data: { test: 'true' },
-                                                    read: false,
-                                                });
-
-                                            if (error) throw error;
-                                        },
-                                        {
-                                            loading: 'Sending test notification...',
-                                            success: 'Test notification sent! It should appear shortly.',
-                                            error: (e) => e.message || 'Failed to send test notification',
+                                        if (!profile?.push_token) {
+                                            console.error('No push token found for this device. Please enable push notifications first.');
+                                            return;
                                         }
-                                    );
+
+                                        // 2. Create test notification
+                                        const { error } = await supabase
+                                            .from('notifications')
+                                            .insert({
+                                                user_id: currentUser.id,
+                                                type: 'new_message',
+                                                title: 'Test Notification',
+                                                message: 'This is a test notification to verify your device is configured correctly.',
+                                                data: { test: 'true' },
+                                                read: false,
+                                            });
+
+                                        if (error) throw error;
+                                        console.log('Test notification sent!');
+                                    } catch (e: any) {
+                                        console.error(e.message || 'Failed to send test notification');
+                                    }
                                 }}
                                 className="px-4 py-2 bg-[#EC1D99] text-white text-sm font-semibold rounded-full hover:bg-[#d41b8a] transition-colors"
                             >
@@ -377,6 +374,6 @@ export default function NotificationsPage() {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

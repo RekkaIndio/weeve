@@ -6,7 +6,6 @@ import { Grid, UserPlus, ChevronLeft, Share2, Check, Clock, MoreVertical, Ban, X
 import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { toast } from 'sonner';
 import { sendFriendRequest, getFriendRequests, acceptFriendRequest, removeFriend } from "@/lib/friends";
 import { notifyNewFollower } from "@/lib/notifications";
 import VideoThumbnail from '@/app/components/VideoThumbnail';
@@ -311,7 +310,7 @@ export default function UserProfilePage() {
                 // Refresh store
                 try { await fetchFriends(); } catch (err) { console.warn('[UserProfile] fetchFriends after unfollow failed', err); }
                 setIsFollowing(false);
-                toast.success('Unfollowed');
+                // toast removed
             } else {
                 // Follow (one-directional)
                 const { error } = await supabase
@@ -324,14 +323,14 @@ export default function UserProfilePage() {
 
                 try { await fetchFriends(); } catch (err) { console.warn('[UserProfile] fetchFriends after follow failed', err); }
                 setIsFollowing(true);
-                toast.success('Following');
+                // toast removed
 
                 // Notify the user being followed
                 notifyNewFollower(currentUser.id, user.id).catch(console.error);
             }
         } catch (err) {
             console.error('[UserProfile] Follow toggle failed:', err);
-            toast.error('Failed to update follow status');
+            console.error('Failed to update follow status');
         } finally {
             setProcessingFriendAction(false);
         }
@@ -341,11 +340,11 @@ export default function UserProfilePage() {
         if (!currentUser || !user) return;
 
         if (friendStatus === 'friend') {
-            toast('You are already friends!');
+            console.log('You are already friends!');
             return;
         }
         if (friendStatus === 'requested') {
-            toast('Friend request already sent');
+            console.log('Friend request already sent');
             return;
         }
 
@@ -361,16 +360,16 @@ export default function UserProfilePage() {
                     // Refresh friends list to ensure store is up to date
                     try { await fetchFriends(); } catch (e) { console.error(e); }
 
-                    toast.success('Friend request accepted!');
+                    // toast removed
                 } else {
-                    toast.error('Failed to accept request');
+                    console.error('Failed to accept request');
                 }
             } else {
                 // Send Request
                 const sent = await sendFriendRequest(currentUser.id, user.id);
                 if (sent) {
                     setFriendStatus('requested');
-                    toast.success('Friend request sent');
+                    // toast removed
                 } else {
                     // Check if already friends via following
                     const { data: reverseFriendship } = await supabase
@@ -385,7 +384,7 @@ export default function UserProfilePage() {
 
                     if (reverseFriendship && amFollowing) {
                         setFriendStatus('friend');
-                        toast('You are already friends!');
+                        console.log('You are already friends!');
                     } else {
                         // Check for incoming request again (race condition)
                         const { sent: s, received: r } = await getFriendRequests(currentUser.id);
@@ -393,16 +392,16 @@ export default function UserProfilePage() {
                         if (incoming) {
                             setFriendStatus('incoming');
                             setIncomingRequestId(incoming.id);
-                            toast('This user sent you a request! Click again to accept.');
+                            console.log('This user sent you a request! Click again to accept.');
                         } else {
-                            toast.error('Unable to send friend request');
+                            console.error('Unable to send friend request');
                         }
                     }
                 }
             }
         } catch (err) {
             console.error('[UserProfile] handleFriendAction failed:', err);
-            toast.error('Failed to update friend status');
+            console.error('Failed to update friend status');
         } finally {
             setProcessingFriendAction(false);
         }
@@ -435,12 +434,12 @@ export default function UserProfilePage() {
 
             if (error) throw error;
 
-            toast.success(currentFeatured ? 'Story unpinned' : 'Story pinned to profile');
+            // toast removed
             // Refresh stories
             fetchStories();
         } catch (err) {
             console.error('Error pinning story:', err);
-            toast.error('Failed to update pin status');
+            console.error('Failed to update pin status');
         }
     };
 
@@ -461,13 +460,13 @@ export default function UserProfilePage() {
                 setIHaveBlocked(true);
                 setShowBlockConfirm(false);
                 setShowMenu(false);
-                toast.success(`Blocked ${user.name}`);
+                // toast removed
             } else {
-                toast.error('Failed to block user');
+                console.error('Failed to block user');
             }
         } catch (err) {
             console.error('[UserProfile] Error blocking user:', err);
-            toast.error('Failed to block user');
+            console.error('Failed to block user');
         } finally {
             setIsBlocking(false);
         }
@@ -485,10 +484,10 @@ export default function UserProfilePage() {
             setShowMenu(false);
             // Refresh friends list
             try { await fetchFriends(); } catch (e) { console.error(e); }
-            toast.success(`Removed ${user.name} from friends`);
+            // toast removed
         } catch (err) {
             console.error('[UserProfile] Error removing friend:', err);
-            toast.error('Failed to remove friend');
+            console.error('Failed to remove friend');
         } finally {
             setIsRemovingFriend(false);
         }

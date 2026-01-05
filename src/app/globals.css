@@ -51,11 +51,6 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Ensure top-positioned toast containers avoid the notch */
-[data-sonner-toaster][data-y-position="top"] {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
-}
-
 video.weeve-inline-video {
   background-color: #000000 !important;
   object-fit: cover;

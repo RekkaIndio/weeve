@@ -6,7 +6,6 @@ import { formatPrice } from '@/lib/brand-pricing';
 import { ChevronLeft, BarChart3, DollarSign, Users, TrendingUp, ExternalLink, Calendar, Filter, ArrowUpDown, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 
 type PostTypeFilter = 'all' | 'canon' | 'seed';
 type DateRangeFilter = 'all' | '7d' | '30d' | '90d';
@@ -26,7 +25,7 @@ export default function AnalyticsPage() {
     useEffect(() => {
         // Redirect non-brand users
         if (currentUser && !currentUser.isBrand) {
-            toast.error('Analytics is only available for brand accounts');
+            console.error('Analytics is only available for brand accounts');
             router.push('/settings');
             return;
         }
@@ -45,7 +44,7 @@ export default function AnalyticsPage() {
             setAnalytics(data);
         } catch (error) {
             console.error('Error fetching analytics:', error);
-            toast.error('Failed to load analytics');
+            console.error('Failed to load analytics');
         } finally {
             setLoading(false);
         }

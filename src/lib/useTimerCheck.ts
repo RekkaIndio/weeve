@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { skipTurn } from './stories';
 import { notifyTimerWarning } from './notifications';
-import { toast } from 'sonner';
+
 
 /**
  * Client-side timer expiration check hook
@@ -89,9 +89,6 @@ export function useTimerCheck(
 
                      try {
                         await notifyTimerWarning(storyId, 'your story', currentUserId, timeString);
-                        toast.warning(`You have ${timeString} left to contribute!`, {
-                            duration: 6000, // slightly longer for visibility
-                        });
                         localStorage.setItem(warningKey, 'true');
                      } catch (err) {
                          console.error('Failed to send timer warning:', err);
@@ -107,9 +104,7 @@ export function useTimerCheck(
         const result = await skipTurn(storyId, currentUserId, 'timer_expired');
         
         if (result.success) {
-          toast.error('Your turn has expired and you have been removed from the story.', {
-            duration: 8000,
-          });
+          console.log('Your turn has expired and you have been removed from the story.');
         } else {
           console.error('[Timer Check] Failed to skip turn:', result.error);
         }

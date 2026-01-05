@@ -13,7 +13,6 @@ import {
     type Notification
 } from '@/lib/notifications';
 import { acceptFriendRequest, declineFriendRequest, getFriendRequests, type FriendRequest } from '@/lib/friends';
-import { toast } from 'sonner';
 
 interface NotificationsListProps {
     userId: string;
@@ -79,7 +78,7 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
         if (onNotificationCountChange) {
             onNotificationCountChange(friendRequests.length);
         }
-        toast.success('All notifications marked as read');
+        // toast removed
     };
 
     const handleNotificationClick = async (notification: Notification) => {
@@ -108,28 +107,28 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
     const handleAcceptRequest = async (requestId: string) => {
         const success = await acceptFriendRequest(requestId);
         if (success) {
-            toast.success('Friend request accepted!');
+            // toast removed
             setFriendRequests(prev => prev.filter(r => r.id !== requestId));
             if (onNotificationCountChange) {
                 const unreadCount = notifications.filter(n => !n.read).length + friendRequests.length - 1;
                 onNotificationCountChange(unreadCount);
             }
         } else {
-            toast.error('Failed to accept request');
+            console.error('Failed to accept request');
         }
     };
 
     const handleDeclineRequest = async (requestId: string) => {
         const success = await declineFriendRequest(requestId);
         if (success) {
-            toast.success('Friend request declined');
+            // toast removed
             setFriendRequests(prev => prev.filter(r => r.id !== requestId));
             if (onNotificationCountChange) {
                 const unreadCount = notifications.filter(n => !n.read).length + friendRequests.length - 1;
                 onNotificationCountChange(unreadCount);
             }
         } else {
-            toast.error('Failed to decline request');
+            console.error('Failed to decline request');
         }
     };
 
@@ -148,14 +147,14 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
             const success = await deleteNotification(notificationId);
             if (!success) {
                 setNotifications(original);
-                toast.error('Failed to delete notification');
+                console.error('Failed to delete notification');
                 return;
             }
 
-            toast.success('Notification deleted');
+            // toast removed
         } catch (e) {
             setNotifications(original);
-            toast.error('Failed to delete notification');
+            console.error('Failed to delete notification');
         }
     };
 

@@ -7,7 +7,7 @@ import { Reorder, useDragControls } from "framer-motion";
 import NotificationBell from "./NotificationBell";
 import { searchUsers, addFriend, sendFriendRequest } from "@/lib/friends";
 import { searchHashtags } from "@/lib/hashtags";
-import { toast } from "sonner";
+
 import { getPrice, formatPrice, getAvailableSlotCounts } from "@/lib/brand-pricing";
 import { getPaymentLink } from "@/lib/revolut-payment-links";
 
@@ -498,10 +498,10 @@ const CreateStory = ({
     if (friend.isFriend === false && currentUser) {
       try {
         await addFriend(currentUser.id, friend.id);
-        toast.success(`Added ${friend.name} as a friend!`);
+
       } catch (err) {
         console.error("Failed to add friend", err);
-        toast.error("Failed to add friend connection");
+        console.error("Failed to add friend connection");
       }
     }
 
@@ -1432,7 +1432,7 @@ const CreateStory = ({
                       setIsLoading(true);
                       await onRefreshFriends();
                       setIsLoading(false);
-                      toast.success("Friends list refreshed");
+
                     }}
                     className="text-xs text-[#EC1D99] hover:text-[#D41C84] transition-colors font-medium"
                     type="button"
@@ -1555,11 +1555,11 @@ const CreateStory = ({
                                   if (!currentUser) return;
                                   const success = await sendFriendRequest(currentUser.id, friend.id);
                                   if (success) {
-                                    toast.success(`Friend request sent to ${friend.name}`);
+
                                     setFriendSearchInput(friendSearchInput + ' ');
                                     setTimeout(() => setFriendSearchInput(friendSearchInput), 10);
                                   } else {
-                                    toast.error('Could not send friend request');
+                                    console.error('Could not send friend request');
                                   }
                                 }}
                                 className="w-full py-1 px-2 bg-gray-700 hover:bg-gray-600 text-white text-[10px] rounded-md transition-colors"

@@ -4,7 +4,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
 import { Users, Settings, ArrowLeft, Lock, Globe, PlusSquare, Camera, Share2, Image as ImageIcon, X, Crown, Shield, Tag, Heart, LogOut } from 'lucide-react';
-import { toast } from 'sonner';
 import Link from 'next/link';
 import { capturePhoto } from '@/lib/camera';
 import GroupShareModal from '@/app/components/GroupShareModal';
@@ -60,7 +59,7 @@ export default function GroupDetailsPage() {
 
             if (!groupData) {
                 console.error('Group not found:', id);
-                toast.error('Group not found');
+                console.error('Group not found');
                 setLoading(false);
                 return;
             }
@@ -153,7 +152,7 @@ export default function GroupDetailsPage() {
             setTotalLikes(likesCount || 0);
         } catch (error) {
             console.error('Error fetching group details:', error);
-            toast.error('Failed to load group details');
+            console.error('Failed to load group details');
             setGroup(null); // Ensure group is null so we show error state
         } finally {
             setLoading(false); // Always clear loading state
@@ -182,7 +181,7 @@ export default function GroupDetailsPage() {
 
         // Double-check permissions
         if (!isAdmin && !isOwner) {
-            toast.error('Only admins and owners can change the group photo');
+            console.error('Only admins and owners can change the group photo');
             return;
         }
 
@@ -191,13 +190,13 @@ export default function GroupDetailsPage() {
 
         // Validate file type
         if (!file.type.startsWith('image/')) {
-            toast.error('Please select an image file');
+            console.error('Please select an image file');
             return;
         }
 
         // Validate file size (max 5MB)
         if (file.size > 5 * 1024 * 1024) {
-            toast.error('Image size must be less than 5MB');
+            console.error('Image size must be less than 5MB');
             return;
         }
 
@@ -230,11 +229,11 @@ export default function GroupDetailsPage() {
 
             if (updateError) throw updateError;
 
-            toast.success('Group avatar updated!');
+            // toast removed
             fetchGroupDetails(); // Refresh to show new avatar
         } catch (error) {
             console.error('Error uploading avatar:', error);
-            toast.error('Failed to update avatar');
+            console.error('Failed to update avatar');
         } finally {
             setUploadingAvatar(false);
         }
@@ -242,14 +241,14 @@ export default function GroupDetailsPage() {
 
     const handleJoin = async () => {
         if (!user) {
-            toast.error('Please sign in to join');
+            console.error('Please sign in to join');
             return;
         }
         try {
             // Refresh session to ensure valid token for RLS
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
-                toast.error('Please sign in to join');
+                console.error('Please sign in to join');
                 return;
             }
 
@@ -267,19 +266,19 @@ export default function GroupDetailsPage() {
             if (error) throw error;
 
             if (status === 'pending') {
-                toast.success('Request sent to group admins');
+                // toast removed
                 setHasPendingRequest(true);
             } else {
-                toast.success('Joined group!');
+                // toast removed
                 fetchGroupDetails();
             }
         } catch (error: any) {
             console.error('Error joining group:', error);
             if (error?.code === '23505') { // Unique violation
-                toast.error('You are already a member of this group');
+                console.error('You are already a member of this group');
                 fetchGroupDetails();
             } else {
-                toast.error(error?.message || 'Failed to join group');
+                console.error(error?.message || 'Failed to join group');
             }
         }
     };
@@ -294,11 +293,11 @@ export default function GroupDetailsPage() {
                 .eq('user_id', user.id);
 
             if (error) throw error;
-            toast.success('Request cancelled');
+            // toast removed
             setHasPendingRequest(false);
         } catch (error: any) {
             console.error('Error cancelling request:', error);
-            toast.error(error?.message || 'Failed to cancel request');
+            console.error(error?.message || 'Failed to cancel request');
         }
     };
 
@@ -307,7 +306,7 @@ export default function GroupDetailsPage() {
 
         // Owners cannot leave directly - must transfer ownership first in settings
         if (isOwner) {
-            toast.error('Owners must transfer ownership before leaving. Go to Group Settings.');
+            console.error('Owners must transfer ownership before leaving. Go to Group Settings.');
             return;
         }
 
@@ -322,13 +321,13 @@ export default function GroupDetailsPage() {
                 .eq('user_id', user.id);
 
             if (error) throw error;
-            toast.success('You have left the group');
+            // toast removed
             setIsMember(false);
             setIsAdmin(false);
             fetchGroupDetails(); // Refresh to update member count
         } catch (error: any) {
             console.error('Error leaving group:', error);
-            toast.error(error?.message || 'Failed to leave group');
+            console.error(error?.message || 'Failed to leave group');
         } finally {
             setLeaving(false);
         }

@@ -6,7 +6,7 @@ import { Story, useStore } from '@/lib/store';
 import { searchUsers } from '@/lib/friends';
 import { notifyStoryShared } from '@/lib/notifications';
 import { buildPublicUrl } from '@/lib/url';
-import { toast } from 'sonner';
+
 import { useVideoStitcher } from '@/hooks/useVideoStitcher';
 import { supabase } from '@/lib/supabase';
 
@@ -57,15 +57,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const [lastAction, setLastAction] = useState<'save' | 'share' | null>(null);
     const [isHighQualityExport, setIsHighQualityExport] = useState(false);
     const [groupInfo, setGroupInfo] = useState<{ avatar?: string; name?: string } | null>(null);
-    const [preparingToastId, setPreparingToastId] = useState<string | number | null>(null);
 
-    // Dismiss the "Preparing..." toast when video is ready or stitching completes/errors
-    useEffect(() => {
-        if (preparingToastId && (videoUrl || stitchingState === 'complete' || stitchingState === 'error')) {
-            toast.dismiss(preparingToastId);
-            setPreparingToastId(null);
-        }
-    }, [videoUrl, stitchingState, preparingToastId]);
 
     // Fetch group info when modal opens if story belongs to a group
     useEffect(() => {
@@ -178,7 +170,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                     }
 
                     setSavedFilePath(tempFile.uri);
-                    toast.success('Video saved to gallery!');
+
                 } else {
                     // Web: trigger download
                     const downloadUrl = window.URL.createObjectURL(fileBlob);
@@ -189,13 +181,13 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                     a.click();
                     document.body.removeChild(a);
                     window.URL.revokeObjectURL(downloadUrl);
-                    toast.success('Video downloaded!');
+
                 }
 
                 setIsSaved(true);
             } catch (error) {
                 console.error('Failed to save video:', error);
-                toast.error('Failed to save video');
+                console.error('Failed to save video');
             }
 
             setLastAction(null);
@@ -252,7 +244,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                 })));
             } catch (error) {
                 console.error('User search failed:', error);
-                toast.error('Unable to search right now. Please try again.');
+                console.error('Unable to search right now. Please try again.');
             } finally {
                 setSearching(false);
             }
@@ -283,14 +275,14 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                     text: `Check out "${story.title}" on Weeve!`,
                     url: storyUrl,
                 });
-                toast.success('Shared successfully!');
+
                 handleClose();
                 return shareResult;
             } catch (error) {
                 // User cancelled or share failed
                 if ((error as Error).name !== 'AbortError') {
                     console.error('Share failed:', error);
-                    toast.error('Device sharing failed. Link copied instead.');
+
                     await handleCopyLink();
                 }
                 return;
@@ -304,11 +296,11 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
         try {
             await navigator.clipboard.writeText(storyUrl);
             setCopied(true);
-            toast.success('Link copied to clipboard!');
+
             setTimeout(() => setCopied(false), 2000);
         } catch (error) {
             console.error('Copy failed:', error);
-            toast.error('Failed to copy link');
+            console.error('Failed to copy link');
         }
     };
 
@@ -329,12 +321,12 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
             } else {
                 await openUrl(whatsappUrl);
             }
-            toast.success('Opening WhatsApp...');
+
         } catch (e) {
             // Fallback to web URL if something goes wrong
             const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
             await openUrl(whatsappUrl);
-            toast.success('Opening WhatsApp...');
+
         }
     };
 
@@ -366,11 +358,11 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
             );
 
             await Promise.all(promises);
-            toast.success(`Shared with ${recipients.length} user${recipients.length > 1 ? 's' : ''}!`);
+
             handleClose();
         } catch (error) {
             console.error('Failed to send notifications:', error);
-            toast.error('Failed to share with friends');
+            console.error('Failed to share with friends');
         } finally {
             setSending(false);
         }
@@ -379,7 +371,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const handleShareFile = async (platform: 'whatsapp' | 'other' = 'other') => {
         if (!videoUrl) return;
 
-        const toastId = toast.loading('Preparing to share...');
+
         let fileBlob: Blob | null = null;
         let isNative = false;
 
@@ -449,15 +441,15 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                     throw new Error('Web Share API not supported');
                 }
             }
-            toast.success('Shared!', { id: toastId });
+
 
         } catch (e: any) {
             console.error('Share failed', e);
             if (e.name !== 'AbortError') {
-                toast.dismiss(toastId);
+
                 // Fallback: If share fails (especially on web), trigger download
                 if (!isNative && fileBlob) {
-                    toast.success('Share not supported, downloading instead.');
+
                     const downloadUrl = window.URL.createObjectURL(fileBlob);
                     const a = document.createElement('a');
                     a.href = downloadUrl;
@@ -467,9 +459,9 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                     document.body.removeChild(a);
                     return;
                 }
-                toast.error('Could not share video');
+                console.error('Could not share video');
             } else {
-                toast.dismiss(toastId);
+
             }
         }
     };
@@ -691,10 +683,6 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                                 // Trigger Stitch if not ready
                                                 if (stitchingState === 'idle' || stitchingState === 'error') {
                                                     stitchStory(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
-                                                    const id = toast.loading('Preparing video for Instagram...');
-                                                    setPreparingToastId(id);
-                                                } else if (!preparingToastId) {
-                                                    toast.info('Video is processing...');
                                                 }
                                             }
                                         }}
@@ -714,10 +702,6 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                             } else {
                                                 if (stitchingState === 'idle' || stitchingState === 'error') {
                                                     stitchStory(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
-                                                    const id = toast.loading('Preparing video for TikTok...');
-                                                    setPreparingToastId(id);
-                                                } else if (!preparingToastId) {
-                                                    toast.info('Video is processing...');
                                                 }
                                             }
                                         }}
@@ -763,8 +747,6 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                                     setIsHighQualityExport(true);
                                                     setLastAction('save');
                                                     stitchStory(story, { highQuality: true, groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
-                                                    const id = toast.loading('Preparing high-quality export (this may take a moment)...');
-                                                    setPreparingToastId(id);
                                                 }}
                                                 disabled={stitchingState !== 'idle' && stitchingState !== 'error' && stitchingState !== 'complete'}
                                                 className="w-full flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-yellow-600 to-yellow-800 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
@@ -835,7 +817,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                     <button
                                         onClick={() => {
                                             useStore.getState().reportStory(story.id);
-                                            toast.success("Thanks for reporting. We will review this content shortly.");
+
                                             handleClose();
                                         }}
                                         className="flex items-center justify-center gap-2 p-3 bg-gray-800/50 hover:bg-gray-800 rounded-xl transition-colors"
@@ -847,7 +829,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                     {/* Not Interested */}
                                     <button
                                         onClick={() => {
-                                            toast.success("We'll show you less content like this.");
+
                                             handleClose();
                                         }}
                                         className="flex items-center justify-center gap-2 p-3 bg-gray-800/50 hover:bg-gray-800 rounded-xl transition-colors"

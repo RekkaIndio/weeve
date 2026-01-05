@@ -67,13 +67,7 @@ vi.mock('@/lib/notifications', () => ({
     deleteNotification: vi.fn().mockResolvedValue(true),
 }));
 
-vi.mock('sonner', () => ({
-    toast: Object.assign(vi.fn(), {
-        success: vi.fn(),
-        error: vi.fn(),
-        warning: vi.fn(),
-    }),
-}));
+
 
 // Test fixtures
 const mockCurrentUser = {

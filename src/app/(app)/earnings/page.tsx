@@ -5,7 +5,6 @@ import { supabase } from '@/lib/supabase';
 import { ChevronLeft, TrendingUp, DollarSign, Clock, CheckCircle, XCircle, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 
 interface EarningsData {
     earnedTokens: number;
@@ -107,22 +106,22 @@ export default function EarningsPage() {
         const tokens = parseInt(payoutAmount);
 
         if (isNaN(tokens) || tokens <= 0) {
-            toast.error('Please enter a valid token amount');
+            console.error('Please enter a valid token amount');
             return;
         }
 
         if (tokens < MIN_PAYOUT_TOKENS) {
-            toast.error(`Minimum payout is ${MIN_PAYOUT_TOKENS} tokens ($${MIN_PAYOUT_USD.toFixed(2)})`);
+            console.error(`Minimum payout is ${MIN_PAYOUT_TOKENS} tokens ($${MIN_PAYOUT_USD.toFixed(2)})`);
             return;
         }
 
         if (tokens > earnings.earnedTokens) {
-            toast.error('Insufficient earned tokens');
+            console.error('Insufficient earned tokens');
             return;
         }
 
         if (!paymentEmail) {
-            toast.error('Please enter your PayPal email');
+            console.error('Please enter your PayPal email');
             return;
         }
 
@@ -139,14 +138,14 @@ export default function EarningsPage() {
 
             if (error) {
                 if (error.message?.includes('does not exist')) {
-                    toast.error('Earnings system not set up yet. Please run the database migration.');
+                    console.error('Earnings system not set up yet. Please run the database migration.');
                 } else {
                     throw error;
                 }
                 return;
             }
 
-            toast.success('Payout request submitted! We\'ll process it within 3-5 business days.');
+            // toast removed
             setShowPayoutModal(false);
             setPayoutAmount('');
             setPaymentEmail('');
@@ -156,7 +155,7 @@ export default function EarningsPage() {
             fetchPayoutRequests();
         } catch (error: any) {
             console.error('Error requesting payout:', error);
-            toast.error(error.message || 'Failed to request payout');
+            console.error(error.message || 'Failed to request payout');
         } finally {
             setSubmitting(false);
         }

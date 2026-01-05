@@ -53,29 +53,29 @@ export default function ChangePasswordPage() {
 
         // Prevent submission if Google-only
         if (isGoogleOnly) {
-            toast.error("Password is managed via Google for this account");
+            console.error("Password is managed via Google for this account");
             return;
         }
 
         // Validation
         if (!currentPassword || !newPassword || !confirmPassword) {
-            toast.error("Please fill in all fields");
+            console.error("Please fill in all fields");
             return;
         }
 
         const passwordError = validatePassword(newPassword);
         if (passwordError) {
-            toast.error(passwordError);
+            console.error(passwordError);
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            toast.error("New passwords do not match");
+            console.error("New passwords do not match");
             return;
         }
 
         if (currentPassword === newPassword) {
-            toast.error("New password must be different from current password");
+            console.error("New password must be different from current password");
             return;
         }
 
@@ -109,7 +109,7 @@ export default function ChangePasswordPage() {
 
             if (updateError) throw updateError;
 
-            toast.success("Password updated successfully");
+            // toast removed
 
             // Clear form
             setCurrentPassword("");
@@ -122,7 +122,7 @@ export default function ChangePasswordPage() {
             }, 1500);
         } catch (error: any) {
             console.error("Password update error:", error);
-            toast.error(error.message || "Failed to update password");
+            console.error(error.message || "Failed to update password");
         } finally {
             setIsUpdating(false);
         }

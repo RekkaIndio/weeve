@@ -593,14 +593,14 @@ export default function ProfilePage() {
         }
 
         if (uploadingAvatar) {
-            toast.info('Please wait for your profile photo to finish uploading');
+            console.log('Please wait for your profile photo to finish uploading');
             return;
         }
 
         const trimmedName = editName.trim();
         console.log('[Profile] Trimmed name:', trimmedName);
         if (trimmedName.length === 0) {
-            toast.error('Display name cannot be empty');
+            console.error('Display name cannot be empty');
             return;
         }
 
@@ -615,7 +615,7 @@ export default function ProfilePage() {
 
         if (!hasNameChange && !hasTaglineChange && !hasWebsiteChange) {
             console.log('[Profile] No changes detected, closing editor');
-            toast.info('No changes to save');
+            console.log('No changes to save');
             setIsEditing(false);
             return;
         }
@@ -636,14 +636,14 @@ export default function ProfilePage() {
 
                 if (checkError) {
                     console.error('Error checking name uniqueness:', checkError);
-                    toast.error('Failed to validate display name');
+                    console.error('Failed to validate display name');
                     setIsSaving(false);
                     return;
                 }
 
                 if (existingUsers && existingUsers.length > 0) {
                     console.log('[Profile] Name already taken');
-                    toast.error('This display name is already taken. Please choose another.');
+                    console.error('This display name is already taken. Please choose another.');
                     setIsSaving(false);
                     return;
                 }
@@ -705,11 +705,11 @@ export default function ProfilePage() {
             setEditTagline(resolvedTagline ?? '');
             setEditWebsite(updatedPrefs?.website || '');
 
-            toast.success('Profile updated!');
+            // toast removed
             setIsEditing(false);
         } catch (error) {
             console.error('Error updating profile:', error);
-            toast.error(`Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            console.error(`Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
             setIsSaving(false);
         }
@@ -740,7 +740,7 @@ export default function ProfilePage() {
             }
         } catch (error) {
             console.error('Error capturing photo:', error);
-            toast.error('Failed to capture photo');
+            console.error('Failed to capture photo');
         }
     };
 
@@ -763,7 +763,7 @@ export default function ProfilePage() {
         try {
             if (!file.type.startsWith('image/')) {
                 console.log('[Profile] Invalid file type:', file.type);
-                toast.error('Please select an image file');
+                console.error('Please select an image file');
                 return;
             }
 
@@ -783,7 +783,7 @@ export default function ProfilePage() {
         const MAX_FINAL_SIZE = 5 * 1024 * 1024; // 5MB limit for avatar after compression
         if (uploadPayload.size > MAX_FINAL_SIZE) {
             console.warn('[Profile] Compressed avatar still too large:', uploadPayload.size);
-            toast.error('Image is too large even after compression. Please choose a smaller photo.');
+            console.error('Image is too large even after compression. Please choose a smaller photo.');
             return;
         }
 
@@ -1001,7 +1001,7 @@ export default function ProfilePage() {
             });
             setEditAvatar(resolvedAvatar ?? '');
             setEditTagline(resolvedTagline ?? '');
-            toast.success('Avatar updated!');
+            // toast removed
         } catch (error) {
             console.error('Error uploading avatar:', error);
             if (previewApplied) {
@@ -1009,7 +1009,7 @@ export default function ProfilePage() {
                 setEditAvatar(previousUser.avatar || '');
                 setEditTagline(previousUser.tagline || '');
             }
-            toast.error('Failed to update avatar');
+            console.error('Failed to update avatar');
         } finally {
             setUploadingAvatar(false);
             console.log('[Profile] uploadingAvatar state set -> false (finally)');
@@ -1076,11 +1076,11 @@ export default function ProfilePage() {
         try {
             await copyTextToClipboard(inviteLink);
             setCopied(true);
-            toast.success('Link copied to clipboard!');
+            // toast removed
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             console.error('Failed to copy:', err);
-            toast.error('Unable to copy link');
+            console.error('Unable to copy link');
         }
     };
 
@@ -1101,10 +1101,10 @@ export default function ProfilePage() {
 
         try {
             await copyTextToClipboard(inviteLink);
-            toast.success('Link copied to clipboard!');
+            // toast removed
         } catch (err) {
             console.error('Share fallback failed:', err);
-            toast.error('Sharing is not supported on this device.');
+            console.error('Sharing is not supported on this device.');
         }
     };
 

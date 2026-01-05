@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { Story, Contribution, useStore } from '@/lib/store';
-import { toast } from 'sonner';
+
 import { createImageFromText, createWatermarkImage, createGroupWatermarkImage } from '@/lib/mediaUtils';
 
 export type StitchingState = 'idle' | 'loading-ffmpeg' | 'downloading-assets' | 'stitching' | 'complete' | 'error';
@@ -69,7 +69,7 @@ export function useVideoStitcher() {
 
     const stitchStory = useCallback(async (story: Story, options?: { highQuality?: boolean; groupAvatarUrl?: string; groupName?: string }) => {
         if (!story.contributions || story.contributions.length === 0) {
-            toast.error('No clips to stitch');
+            console.error('No clips to stitch');
             return;
         }
 
@@ -124,7 +124,7 @@ export function useVideoStitcher() {
                 // If we're in the middle of processing (some steps remain) and no progress has been made in 60s, mark as error and attempt to recover
                 if (stepRef.current < totalStepsRef.current && elapsed > 60000) {
                     console.error('FFmpeg seems stalled; last progress at', lastProgressValueRef.current, '%', 'elapsed ms=', elapsed);
-                    toast.error('Stitching stalled. Attempting to abort and clean up.');
+                    console.error('Stitching stalled. Attempting to abort and clean up.');
                     try {
                         if (ffmpegRef.current) {
                             ffmpegRef.current.terminate();
@@ -340,12 +340,12 @@ export function useVideoStitcher() {
 
                     } catch (e) {
                         console.error('Failed to generate fallback video from coverImage:', e);
-                        toast.error('No valid clips generated');
+                        console.error('No valid clips generated');
                         setState('idle');
                         return;
                     }
                 } else {
-                    toast.error('No valid clips generated');
+                    console.error('No valid clips generated');
                     setState('idle');
                     return;
                 }
@@ -553,7 +553,7 @@ export function useVideoStitcher() {
                     if (fallback && (fallback as any).length) {
 
                         data = fallback;
-                        toast.warning('Output video was read without audio (fallback).');
+                        console.warn('Output video was read without audio (fallback).');
                     } else {
                         throw e;
                     }
@@ -583,9 +583,7 @@ export function useVideoStitcher() {
 
 
             // Show success message with clear instructions
-            toast.success(`Video ready (${sizeMb} MB)! Tap the PINK SAVE button below.`, {
-                duration: 6000,
-            });
+
             
             // Cleanup in background
             for (const f of cleanupFiles) {
@@ -602,7 +600,7 @@ export function useVideoStitcher() {
         } catch (error) {
             console.error('Stitching failed:', error);
             const msg = error instanceof Error ? error.message : String(error);
-            toast.error(`Stitch failed: ${msg}`);
+            console.error(`Stitch failed: ${msg}`);
             setState('error');
         }
     }, [state]);

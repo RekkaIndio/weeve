@@ -81,9 +81,9 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
                     if (error) {
                         console.error('Error updating payment status:', error);
-                        toast.error('Payment verification failed. Please contact support.');
+                        console.error('Payment verification failed. Please contact support.');
                     } else {
-                        toast.success('Payment successful! Your story is now live.');
+                        // toast removed
                         // Refresh stories to get updated payment status
                         await fetchStories();
                     }
@@ -132,7 +132,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     setMediaDraft(null);
                     setTextElements([]);
                     setShowStitchMenu(false);
-                    toast.success('Your contribution was posted!');
+                    // toast removed
                 }
 
                 // Also check for timeout - if uploading for more than 2 minutes, assume something went wrong
@@ -140,7 +140,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 if (uploadStartTimeRef.current && Date.now() - uploadStartTimeRef.current > UPLOAD_TIMEOUT_MS) {
                     console.warn('[Story] Upload has been stuck for over 2 minutes. Resetting state.');
                     setIsUploading(false);
-                    toast.error('Upload timed out. Please try again.');
+                    console.error('Upload timed out. Please try again.');
                 }
             }
         };
@@ -322,13 +322,13 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         const isMember = await isGroupMember(s.group_id, currentUserId);
                         if (!isMember) {
                             console.warn('[Story] User is not a member of the group for this story');
-                            toast.error('You must be a member of this group to view this story');
+                            console.error('You must be a member of this group to view this story');
                             router.push('/groups');
                             return;
                         }
                     } else {
                         // Not logged in - can't view group-specific stories
-                        toast.error('Please sign in to view group stories');
+                        console.error('Please sign in to view group stories');
                         router.push('/');
                         return;
                     }
@@ -913,7 +913,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
     const addTextElement = useCallback(() => {
         if (textElements.length >= 5) {
-            toast.error("Maximum 5 text boxes allowed");
+            console.error("Maximum 5 text boxes allowed");
             return;
         }
 
@@ -963,12 +963,12 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
             } else {
 
-                toast.error(`${type === 'video' ? 'Video' : 'Photo'} capture cancelled or failed. Please try again.`);
+                console.error(`${type === 'video' ? 'Video' : 'Photo'} capture cancelled or failed. Please try again.`);
                 setShowStitchMenu(true);
             }
         } catch (error) {
             console.error(`[Story] ${type} capture failed:`, error);
-            toast.error(`${type === 'video' ? 'Video' : 'Photo'} capture failed. Please try again.`);
+            console.error(`${type === 'video' ? 'Video' : 'Photo'} capture failed. Please try again.`);
             setShowStitchMenu(true);
         }
     }, [setMediaDraft, setShowStitchMenu, addTextElement]);
@@ -1161,7 +1161,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
     const handleStitchOption = async (mode: 'video' | 'image' | 'text' | 'drawing' | 'audio') => {
         if (isStoryComplete) {
-            toast.error('This story has reached its stitch limit.');
+            console.error('This story has reached its stitch limit.');
             return;
         }
 
@@ -1227,7 +1227,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         if (!stitchMode || !currentUser) return;
 
         if (isStoryComplete) {
-            toast.error('This story has reached its stitch limit.');
+            console.error('This story has reached its stitch limit.');
             resetComposer();
             setShowStitchMenu(false);
             return;
@@ -1241,7 +1241,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         const userHasContributed = story.contributions?.some(c => c.userId === currentUser.id);
 
         if (isBrandPost && !isBrandOwner && userHasContributed) {
-            toast.error("You've already contributed to this brand post.");
+            console.error("You've already contributed to this brand post.");
             resetComposer();
             setShowStitchMenu(false);
             return;
@@ -1250,7 +1250,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         const trimmed = (stitchMode === 'text' || stitchMode === 'drawing') ? textElements.map(el => el.content).join(" ").trim() : '';
 
         if (stitchMode === 'text' && trimmed.length === 0) {
-            toast.error('Please add some text before posting.');
+            console.error('Please add some text before posting.');
             return;
         }
 
@@ -1258,12 +1258,12 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         let drawingFile: File | undefined;
         if (stitchMode === 'drawing') {
             if (!drawingCanvasRef.current) {
-                toast.error('Drawing canvas not initialized.');
+                console.error('Drawing canvas not initialized.');
                 return;
             }
 
             if (drawingCanvasRef.current.isEmpty()) {
-                toast.error('Please draw something before posting.');
+                console.error('Please draw something before posting.');
                 return;
             }
 
@@ -1272,7 +1272,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 drawingFile = new File([blob], `drawing-${Date.now()}.png`, { type: 'image/png' });
             } catch (error) {
                 console.error('Failed to export drawing:', error);
-                toast.error('Failed to export drawing. Please try again.');
+                console.error('Failed to export drawing. Please try again.');
                 return;
             }
         }
@@ -1328,13 +1328,13 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         let audioMediaUrl: string | undefined;
         if (stitchMode === 'audio') {
             if (!audioBlob) {
-                toast.error('Please record audio before posting.');
+                console.error('Please record audio before posting.');
                 return;
             }
 
             const result = await uploadAudio(audioBlob, currentUser.id);
             if (!result.success || !result.url) {
-                toast.error(result.error || 'Failed to upload audio.');
+                console.error(result.error || 'Failed to upload audio.');
                 return;
             }
             audioMediaUrl = result.url;
@@ -1342,7 +1342,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
         const requiresFile = stitchMode === 'video' || stitchMode === 'image';
         if (requiresFile && !mediaDraft?.file) {
-            toast.error(`Please select a ${stitchMode === 'video' ? 'video' : 'photo'} to upload.`);
+            console.error(`Please select a ${stitchMode === 'video' ? 'video' : 'photo'} to upload.`);
             return;
         }
 
@@ -1364,7 +1364,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         // Check if monetization is required
         if (story.monetizationCost && story.monetizationCost > 0 && story.creatorId !== currentUser.id) {
             if (currentUser.tokens < story.monetizationCost) {
-                toast.error(`Not enough tokens! You need ${story.monetizationCost} tokens to contribute.`);
+                console.error(`Not enough tokens! You need ${story.monetizationCost} tokens to contribute.`);
                 return;
             }
 
@@ -1373,7 +1373,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             const success = deductTokens(story.monetizationCost);
 
             if (!success) {
-                toast.error('Failed to deduct tokens. Please try again.');
+                console.error('Failed to deduct tokens. Please try again.');
                 return;
             }
 
@@ -1392,15 +1392,15 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 if (!response.ok) {
                     // Refund tokens if transfer fails
                     addTokens(story.monetizationCost);
-                    toast.error('Payment failed. Please try again.');
+                    console.error('Payment failed. Please try again.');
                     return;
                 }
 
-                toast.success(`Paid ${story.monetizationCost} tokens to contribute!`);
+                // toast removed
             } catch (error) {
                 // Refund tokens if API call fails
                 addTokens(story.monetizationCost);
-                toast.error('Payment failed. Please try again.');
+                console.error('Payment failed. Please try again.');
                 return;
             }
         }
@@ -1456,7 +1456,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
             if (isPending) {
                 // For brand posts, contribution is pending approval - don't add to local state
-                toast.success('Submitted for approval! The brand will review your contribution.');
+                // toast removed
             } else {
                 // For regular posts or brand creators, add to local state and show in UI
                 addContribution(story.id, contribution, { nextTurnUserId: nextTurnUpdate });
@@ -1466,7 +1466,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     fetchStories().catch(err => console.warn('[Story] fetchStories failed after contribution', err));
                 }, 100);
 
-                toast.success('Contribution posted!');
+                // toast removed
             }
 
             setActiveIndex(story.contributions.length);
@@ -1475,7 +1475,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             setShowStitchMenu(false);
         } catch (error) {
             console.error('Error adding contribution:', error);
-            toast.error('Failed to post contribution. Please try again.');
+            console.error('Failed to post contribution. Please try again.');
         } finally {
             setIsUploading(false);
             uploadStartTimeRef.current = null;
@@ -1510,7 +1510,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true');
                     } catch (e) { }
 
-                    toast.success('Tutorial completed! Welcome to Weeve! 🎉');
+                    // toast removed
                 }
             } catch (err) {
                 console.error('[Story] Error in onboarding completion:', err);
@@ -1529,14 +1529,14 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             const result = await leaveStory(story.id, currentUser.id, currentUser.name);
 
             if (result.success) {
-                toast.success('You have left the story');
+                // toast removed
                 router.push('/profile');
             } else {
-                toast.error(result.error || 'Failed to leave story');
+                console.error(result.error || 'Failed to leave story');
             }
         } catch (error) {
             console.error('Error leaving story:', error);
-            toast.error('An error occurred while leaving the story');
+            console.error('An error occurred while leaving the story');
         }
     };
 
@@ -1551,7 +1551,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             const result = await deleteStory(story.id, currentUser.id);
 
             if (result.success) {
-                toast.success('Story deleted successfully');
+                // toast removed
                 // Redirect to group page if story belongs to a group, otherwise profile
                 if (story.groupId) {
                     router.push(`/groups/${story.groupId}`);
@@ -1559,11 +1559,11 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     router.push('/profile');
                 }
             } else {
-                toast.error(result.error || 'Failed to delete story');
+                console.error(result.error || 'Failed to delete story');
             }
         } catch (error) {
             console.error('Error deleting story:', error);
-            toast.error('An error occurred while deleting the story');
+            console.error('An error occurred while deleting the story');
         }
     };
 

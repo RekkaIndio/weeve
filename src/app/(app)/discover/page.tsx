@@ -14,7 +14,6 @@ import FeedItem from "@/app/components/FeedItem";
 import { searchUsers, fetchPublicUsers, sendFriendRequest, Friend as FriendType } from '@/lib/friends';
 
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
 import type { Story } from '@/lib/store';
 
 // Discovery Feed Overlay - TikTok-style full-screen scrollable feed
@@ -639,14 +638,14 @@ function DiscoverContent() {
             };
             addGroup(newGroup);
 
-            toast.success('Group created successfully!');
+            // toast removed
             setShowCreateGroup(false);
             setNewGroupName('');
             setNewGroupDesc('');
             setIsPrivate(false);
         } catch (error) {
             console.error('Error creating group:', error);
-            toast.error('Failed to create group');
+            console.error('Failed to create group');
         } finally {
             setCreating(false);
         }

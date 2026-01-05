@@ -5,7 +5,6 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { getLatestSession } from '@/lib/auth-session';
 import { useAuth } from '@/app/components/AuthProvider';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 import NotificationBell from "@/app/components/NotificationBell";
 import { useStore } from '@/lib/store';
 import { fetchGroups as fetchGroupsData } from '@/lib/data';
@@ -56,7 +55,7 @@ export default function GroupsPage() {
             }
         } catch (error) {
             console.error('[GroupsPage] Error fetching groups:', error);
-            if (isActive) toast.error('Failed to load groups');
+            if (isActive) console.error('Failed to load groups');
         } finally {
             if (isActive) {
                 setLoading(false);
@@ -95,7 +94,7 @@ export default function GroupsPage() {
 
             if (memberError) throw memberError;
 
-            toast.success('Group created successfully!');
+            // toast removed
             setShowCreateGroup(false);
             setNewGroupName('');
             setNewGroupDesc('');
@@ -103,7 +102,7 @@ export default function GroupsPage() {
             loadGroups();
         } catch (error) {
             console.error('Error creating group:', error);
-            toast.error('Failed to create group');
+            console.error('Failed to create group');
         } finally {
             setCreating(false);
         }
@@ -111,7 +110,7 @@ export default function GroupsPage() {
 
     const handleJoinGroup = async (groupId: string, isPrivate: boolean, groupName: string) => {
         if (!user) {
-            toast.error('Please sign in to join groups');
+            console.error('Please sign in to join groups');
             return;
         }
 
@@ -129,7 +128,7 @@ export default function GroupsPage() {
             }
 
             if (isPrivate) {
-                toast.info('This group is private. You need an invite to join.');
+                console.log('This group is private. You need an invite to join.');
                 return;
             }
 
@@ -169,7 +168,7 @@ export default function GroupsPage() {
 
             if (!validSession) {
                 console.error('[Groups] No valid session available for user:', user.id);
-                toast.error('Session expired. Please log in again.');
+                console.error('Session expired. Please log in again.');
                 return;
             }
 
@@ -198,7 +197,7 @@ export default function GroupsPage() {
                     console.error('[Groups] REST insert failed:', response.status, errorText);
                     // Check for unique violation (already a member)
                     if (errorText.includes('23505') || errorText.includes('duplicate')) {
-                        toast.success(`Joined ${groupName}!`);
+                        // toast removed
                         loadGroups();
                         router.push(`/groups/${groupId}`);
                         return;
@@ -221,16 +220,16 @@ export default function GroupsPage() {
                 if (error) throw error;
             }
 
-            toast.success(`Joined ${groupName}!`);
+            // toast removed
             loadGroups();
             router.push(`/groups/${groupId}`);
         } catch (error: any) {
             console.error('Error joining group:', error);
             if (error?.code === '23505') { // Unique violation
-                toast.success(`Joined ${groupName}!`);
+                // toast removed
                 router.push(`/groups/${groupId}`);
             } else {
-                toast.error(error?.message || 'Failed to join group');
+                console.error(error?.message || 'Failed to join group');
             }
         }
     };

@@ -20,13 +20,7 @@ vi.mock('@/lib/supabase', () => ({
     },
 }));
 
-vi.mock('sonner', () => ({
-    toast: Object.assign(vi.fn(), {
-        success: vi.fn(),
-        error: vi.fn(),
-        warning: vi.fn(),
-    }),
-}));
+
 
 // Mock zustand store
 const mockCurrentUser: User = {

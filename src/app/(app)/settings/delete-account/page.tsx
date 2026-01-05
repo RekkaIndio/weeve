@@ -30,14 +30,14 @@ export default function DeleteAccountPage() {
         try {
             const { success, error } = await deleteUserAccount(selectedReason, feedback);
             if (success) {
-                toast.success("Account deleted successfully");
+                // toast removed
                 router.push('/');
             } else {
                 throw error;
             }
         } catch (error) {
             console.error("Delete account error:", error);
-            toast.error("Failed to delete account");
+            console.error("Failed to delete account");
             setIsDeleting(false);
         }
     };

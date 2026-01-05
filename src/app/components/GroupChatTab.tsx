@@ -4,7 +4,6 @@ import { useRef, useEffect, useState } from 'react';
 import { useAuth } from '@/app/components/AuthProvider';
 import { getGroupMessages, sendGroupMessage, subscribeToGroupMessages, GroupMessage } from '@/lib/group-messaging';
 import { Send, User } from 'lucide-react';
-import { toast } from 'sonner';
 
 interface GroupChatTabProps {
     groupId: string;
@@ -65,7 +64,7 @@ export default function GroupChatTab({ groupId, isMember }: GroupChatTabProps) {
             // Message will be added via subscription
         } catch (error) {
             console.error('Failed to send message:', error);
-            toast.error('Failed to send message');
+            console.error('Failed to send message');
             setNewMessage(content); // Restore message on error
         } finally {
             setSending(false);

@@ -9,7 +9,6 @@ import { Plus, X, MessageCircle, Search } from 'lucide-react';
 import Image from 'next/image';
 import SearchBar from '@/app/components/SearchBar';
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
 
 interface MessagesTabProps {
     onNewMessage?: () => void;
@@ -78,7 +77,7 @@ export default function MessagesTab({ onNewMessage }: MessagesTabProps) {
             router.push(`/inbox/${conversationId}`);
         } catch (error) {
             console.error('Failed to start chat:', error);
-            toast.error('Failed to start conversation');
+            console.error('Failed to start conversation');
         }
     };
 

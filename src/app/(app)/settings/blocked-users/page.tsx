@@ -56,7 +56,7 @@ export default function BlockedUsersPage() {
             setBlockedUsers((data as any) || []);
         } catch (error) {
             console.error('Error fetching blocked users:', error);
-            toast.error('Failed to load blocked users');
+            console.error('Failed to load blocked users');
         } finally {
             setIsLoading(false);
         }
@@ -75,14 +75,14 @@ export default function BlockedUsersPage() {
             if (error) throw error;
 
             setBlockedUsers(blockedUsers.filter(bu => bu.blocked_user_id !== blockedUserId));
-            toast.success('User unblocked');
+            // toast removed
 
             // Refresh store state
             refreshStoreBlockedUsers();
             fetchStories(true);
         } catch (error) {
             console.error('Error unblocking user:', error);
-            toast.error('Failed to unblock user');
+            console.error('Failed to unblock user');
         } finally {
             setUnblockingId(null);
         }

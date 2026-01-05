@@ -3,7 +3,6 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import * as store from '@/lib/store';
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
 
 describe('NotificationsPage', () => {
   beforeEach(() => {

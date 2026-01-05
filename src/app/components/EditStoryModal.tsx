@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Search, Plus, Trash2, SkipForward, Lock } from 'lucide-react';
 import { Story, User, useStore, isSlotImmutable } from '@/lib/store';
 import { skipTurn } from '@/lib/stories';
-import { toast } from 'sonner';
 
 interface EditStoryModalProps {
     story: Story;
@@ -37,7 +36,7 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
         const participant = participants.find(p => p.id === userId);
         if (participant && typeof participant.position === 'number') {
             if (isSlotImmutable(story, participant.position)) {
-                toast.error("Cannot remove brand content");
+                console.error("Cannot remove brand content");
                 return;
             }
         }
@@ -47,12 +46,12 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
 
     const handleSkipTurn = async (userId: string) => {
         if (!currentUser || story.creatorId !== currentUser.id) {
-            toast.error('Only the story creator can skip turns');
+            console.error('Only the story creator can skip turns');
             return;
         }
 
         if (story.currentTurnUserId !== userId) {
-            toast.error('This user does not have the current turn');
+            console.error('This user does not have the current turn');
             return;
         }
 
@@ -60,14 +59,14 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
         try {
             const result = await skipTurn(story.id, userId, 'manual_skip');
             if (result.success) {
-                toast.success('Turn skipped successfully');
+                // toast removed
                 onClose(); // Close modal to refresh the view
             } else {
-                toast.error(result.error || 'Failed to skip turn');
+                console.error(result.error || 'Failed to skip turn');
             }
         } catch (error) {
             console.error('Error skipping turn:', error);
-            toast.error('An error occurred while skipping turn');
+            console.error('An error occurred while skipping turn');
         } finally {
             setIsSkipping(false);
         }
@@ -85,14 +84,14 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
             if (result.success) {
                 // Optimistically update local store
                 updateStory(story.id, { participants });
-                toast.success('Story updated successfully');
+                // toast removed
                 onClose();
             } else {
-                toast.error(result.error || 'Failed to update story');
+                console.error(result.error || 'Failed to update story');
             }
         } catch (error) {
             console.error('Error saving story:', error);
-            toast.error('An error occurred while saving');
+            console.error('An error occurred while saving');
         } finally {
             setIsSaving(false);
         }

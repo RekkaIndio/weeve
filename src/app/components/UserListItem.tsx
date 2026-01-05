@@ -43,7 +43,7 @@ export default function UserListItem({ user, showFollowButton = true }: UserList
 
                 if (error) throw error;
                 await fetchFriends();
-                toast.success('Unfollowed');
+                // toast removed
             } else {
                 // Follow
                 const { error } = await supabase
@@ -52,14 +52,14 @@ export default function UserListItem({ user, showFollowButton = true }: UserList
 
                 if (error) throw error;
                 await fetchFriends();
-                toast.success('Following');
+                // toast removed
 
                 // Notify the user being followed
                 notifyNewFollower(currentUser.id, user.id).catch(console.error);
             }
         } catch (err) {
             console.error('[UserListItem] Follow toggle failed:', err);
-            toast.error('Failed to update follow status');
+            console.error('Failed to update follow status');
         } finally {
             setIsProcessing(false);
         }

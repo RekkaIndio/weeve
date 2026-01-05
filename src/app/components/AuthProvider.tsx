@@ -11,7 +11,6 @@ import { processReferralCode } from '@/lib/referral';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Browser } from '@capacitor/browser';
-import { toast } from 'sonner';
 
 interface AuthContextType {
     user: SupabaseUser | null;
@@ -570,7 +569,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                         isProcessingDeepLink.current = false; // Reset lock on error
 
                                         if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
-                                        toast.error('Authentication failed. Please try again.');
+                                        console.error('Authentication failed. Please try again.');
                                         router.push('/login');
                                     }
                                 }, 50);

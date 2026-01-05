@@ -61,7 +61,7 @@ export default function ReportProblemPage() {
         e.preventDefault();
 
         if (!currentUser || !selectedCategory || !subject.trim() || !description.trim()) {
-            toast.error("Please fill in all fields");
+            console.error("Please fill in all fields");
             return;
         }
 
@@ -101,7 +101,7 @@ export default function ReportProblemPage() {
                 // Don't fail the whole operation if email fails
             }
 
-            toast.success("Your report has been submitted. We'll get back to you soon!");
+            // toast removed
 
             // Clear form
             setSelectedCategory(null);
@@ -124,7 +124,7 @@ export default function ReportProblemPage() {
                 description,
             });
 
-            toast.success("Your report has been logged. Our team will review it soon.");
+            // toast removed
             setTimeout(() => router.back(), 2000);
         } finally {
             setIsSubmitting(false);

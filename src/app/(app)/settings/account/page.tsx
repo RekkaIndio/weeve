@@ -42,7 +42,7 @@ export default function AccountPage() {
 
             } catch (err) {
                 console.error("Failed to load account data:", err);
-                toast.error("Failed to load account information");
+                console.error("Failed to load account information");
             } finally {
                 setIsLoading(false);
             }
@@ -63,10 +63,10 @@ export default function AccountPage() {
             if (error) throw error;
 
             setInitialPhone(phone);
-            toast.success("Phone number updated");
+            // toast removed
         } catch (err: any) {
             console.error("Failed to update phone:", err);
-            toast.error(err.message || "Failed to update phone number");
+            console.error(err.message || "Failed to update phone number");
         } finally {
             setIsSaving(false);
         }

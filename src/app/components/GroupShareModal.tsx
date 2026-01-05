@@ -5,7 +5,6 @@ import { X, MessageCircle, Send, Check, Copy, Search as SearchIcon, Users, QrCod
 import { useStore } from '@/lib/store';
 import { searchUsers } from '@/lib/friends';
 import { notifyGroupInvite } from '@/lib/notifications';
-import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { buildPublicUrl } from '@/lib/url';
 
@@ -84,7 +83,7 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
                 })));
             } catch (error) {
                 console.error('User search failed:', error);
-                toast.error('Unable to search right now. Please try again.');
+                console.error('Unable to search right now. Please try again.');
             } finally {
                 setSearching(false);
             }
@@ -115,14 +114,14 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
                     text: `Join "${group.name}" on Weeve! ${group.description}`,
                     url: groupUrl,
                 });
-                toast.success('Shared successfully!');
+                // toast removed
                 onClose();
                 return;
             } catch (error) {
                 // User cancelled or share failed
                 if ((error as Error).name !== 'AbortError') {
                     console.error('Share failed:', error);
-                    toast.error('Device sharing failed. Link copied instead.');
+                    console.error('Device sharing failed. Link copied instead.');
                     await handleCopyLink();
                 }
                 return;
@@ -139,7 +138,7 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
                 try {
                     await navigator.clipboard.writeText(groupUrl);
                     setCopied(true);
-                    toast.success('Link copied to clipboard!');
+                    // toast removed
                     setTimeout(() => setCopied(false), 2000);
                     return;
                 } catch (clipboardError) {
@@ -171,14 +170,14 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
 
             if (successful) {
                 setCopied(true);
-                toast.success('Link copied to clipboard!');
+                // toast removed
                 setTimeout(() => setCopied(false), 2000);
             } else {
                 throw new Error('execCommand copy failed');
             }
         } catch (error) {
             console.error('Copy failed:', error);
-            toast.error('Failed to copy link');
+            console.error('Failed to copy link');
         }
     };
 
@@ -199,12 +198,12 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
             } else {
                 await openUrl(whatsappUrl);
             }
-            toast.success('Opening WhatsApp...');
+            // toast removed
         } catch (e) {
             // Fallback to web URL if something goes wrong
             const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
             await openUrl(whatsappUrl);
-            toast.success('Opening WhatsApp...');
+            // toast removed
         }
     };
 
@@ -223,12 +222,12 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
             } else {
                 await openUrl(telegramUrl);
             }
-            toast.success('Opening Telegram...');
+            // toast removed
         } catch (e) {
             // Fallback to web URL
             const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(groupUrl)}&text=${encodeURIComponent(`Join "${group.name}" on Weeve!`)}`;
             await openUrl(telegramUrl);
-            toast.success('Opening Telegram...');
+            // toast removed
         }
     };
 
@@ -265,7 +264,7 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
 
                 if (memberError) {
                     console.error('Error adding members to private group:', memberError);
-                    toast.error('Failed to add members to group');
+                    console.error('Failed to add members to group');
                     return;
                 }
             }
@@ -281,11 +280,11 @@ export default function GroupShareModal({ group, onClose }: GroupShareModalProps
             );
 
             await Promise.all(promises);
-            toast.success(`Invited ${recipients.length} user${recipients.length > 1 ? 's' : ''}!`);
+            // toast removed
             onClose();
         } catch (error) {
             console.error('Failed to send invites:', error);
-            toast.error('Failed to send invites');
+            console.error('Failed to send invites');
         } finally {
             setSending(false);
         }

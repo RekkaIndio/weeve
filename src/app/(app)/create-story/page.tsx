@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import CreateStory, { CreateStoryFormState, Friend } from '@/app/components/CreateStory';
 import { useStore, Story, User } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
 
 
 function CreateStoryContent() {
@@ -33,7 +32,7 @@ function CreateStoryContent() {
   useEffect(() => {
     const paymentStatus = searchParams?.get('payment');
     if (paymentStatus === 'cancelled') {
-      toast.error('Payment was cancelled. Please try again.');
+      console.error('Payment was cancelled. Please try again.');
     }
   }, [searchParams]);
 
@@ -239,7 +238,7 @@ function CreateStoryContent() {
 
               // Success: inform user that duplicates were removed due to DB constraints
               console.warn('[CreateStory] Story created but duplicate participants were removed due to DB constraints. To support duplicates, apply the migration supabase/migration_allow_duplicate_story_participants.sql');
-              toast(`Story created, but duplicate participants were removed due to DB constraints. Run supabase/migration_allow_duplicate_story_participants.sql to enable duplicates.`, { duration: 12000 });
+              console.warn('Story created, but duplicate participants were removed due to DB constraints. Run supabase/migration_allow_duplicate_story_participants.sql to enable duplicates.');
 
               // Update DB maxWeeves for consistency
               try {
@@ -287,7 +286,7 @@ function CreateStoryContent() {
             } catch (fallbackErr) {
               console.error('[CreateStory] Fallback insert or rollback failed:', fallbackErr);
               const errorMessage = (fallbackErr && (fallbackErr as any).message) || 'Failed to add participants to the story.';
-              toast.error(errorMessage);
+              console.error(errorMessage);
               // Rethrow to be caught by outer try/catch
               throw fallbackErr;
             }
@@ -411,7 +410,7 @@ function CreateStoryContent() {
     } catch (error) {
       console.error('Error creating story:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create story. Please try again.';
-      toast.error(errorMessage);
+      console.error(errorMessage);
       throw error; // Re-throw to let CreateStory component handle it
     }
   };

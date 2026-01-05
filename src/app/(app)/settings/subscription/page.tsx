@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Sparkles, Lock, Zap } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
 
 export default function SubscriptionPage() {
     const router = useRouter();
@@ -33,11 +32,11 @@ export default function SubscriptionPage() {
                 brandSubscriptionStatus: 'active',
             });
 
-            toast.success('Premium activated! You can now use Canon & Seed posts.');
+            // toast removed
             router.push('/create-story');
         } catch (error) {
             console.error('[Subscription] Error:', error);
-            toast.error('Failed to activate premium. Please try again.');
+            console.error('Failed to activate premium. Please try again.');
         } finally {
             setLoading(false);
         }

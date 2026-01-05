@@ -31,7 +31,7 @@ export default function Home() {
 
     const paymentStatus = searchParams?.get('payment');
     if (paymentStatus === 'success') {
-      toast.success('Payment successful! Your brand story is now live.');
+      // toast removed
       // Remove query param from URL
       router.replace('/feed', { scroll: false });
     }

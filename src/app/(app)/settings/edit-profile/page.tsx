@@ -87,7 +87,7 @@ export default function EditProfilePage() {
         if (!file || !currentUser) return;
 
         if (!file.type.startsWith('image/')) {
-            toast.error('Please select an image file');
+            console.error('Please select an image file');
             return;
         }
 
@@ -110,13 +110,13 @@ export default function EditProfilePage() {
             const result = await uploadMedia(file, 'image');
             if (result.url) {
                 setAvatar(result.url);
-                toast.success('Avatar uploaded successfully');
+                // toast removed
             } else {
                 throw new Error('Failed to upload avatar');
             }
         } catch (error) {
             console.error('Avatar upload error:', error);
-            toast.error('Failed to upload avatar');
+            console.error('Failed to upload avatar');
         } finally {
             setIsUploading(false);
         }
@@ -126,7 +126,7 @@ export default function EditProfilePage() {
         if (!currentUser) return;
 
         if (!name.trim()) {
-            toast.error('Name cannot be empty');
+            console.error('Name cannot be empty');
             return;
         }
 
@@ -149,7 +149,7 @@ export default function EditProfilePage() {
                 const { available, error } = await checkDisplayNameAvailability(name.trim(), currentUser.id);
                 if (error) {
                     setIsSaving(false);
-                    toast.error('Failed to verify name availability');
+                    console.error('Failed to verify name availability');
                     return;
                 }
                 if (!available) {
@@ -195,7 +195,7 @@ export default function EditProfilePage() {
                 }
 
                 setIsSaving(false);
-                toast.error('Failed to update profile');
+                console.error('Failed to update profile');
                 return;
             }
 
@@ -210,7 +210,7 @@ export default function EditProfilePage() {
             });
 
             setIsSaving(false);
-            toast.success('Profile updated successfully');
+            // toast removed
             router.back();
         } catch (err: any) {
             console.error('🔴 CAUGHT ERROR IN NEW CODE:', err);
@@ -254,7 +254,7 @@ export default function EditProfilePage() {
 
             console.log('Unhandled error - showing toast');
             setIsSaving(false);
-            toast.error('Failed to update profile');
+            console.error('Failed to update profile');
         }
     };
 

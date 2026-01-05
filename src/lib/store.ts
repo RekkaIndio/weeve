@@ -533,7 +533,7 @@ export const useStore = create<AppState>()(
                             }));
                             
                             // Optional: Show toast error to user
-                            // toast.error('Transaction failed');
+                            // console.error('Transaction failed');
                         }
                     })();
 

@@ -3,8 +3,6 @@
 import { useEffect } from 'react';
 import { FirebaseMessaging } from '@capacitor-firebase/messaging';
 import { Capacitor } from '@capacitor/core';
-import { toast } from 'sonner';
-import NotificationToast from './NotificationToast';
 import { useStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 
@@ -76,14 +74,7 @@ const PushNotificationInitializer = () => {
             // Foreground notification listener
             await FirebaseMessaging.addListener('notificationReceived', (event) => {
                 console.log('[Push] Received:', JSON.stringify(event));
-                const notification = event.notification;
-                toast.custom((t) => (
-                    <NotificationToast
-                        title={notification.title || 'Weeve'}
-                        body={notification.body || ''}
-                        onDismiss={() => toast.dismiss(t)}
-                    />
-                ));
+                // Note: Toast notifications removed - foreground push still logged and can be handled via other UI if needed
             });
 
             // Notification tap/action listener

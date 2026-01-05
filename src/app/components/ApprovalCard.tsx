@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Check, X, Loader2, Play } from 'lucide-react';
-import { toast } from 'sonner';
+
 import Link from 'next/link';
 import { approveBrandContribution } from '@/lib/brand-approval';
 import VerificationBadge from './VerificationBadge';
@@ -67,25 +67,23 @@ export default function ApprovalCard({
                 const result = await approveBrandContribution(contribution.id, brandUserId);
 
                 if (result.success) {
-                    toast.success('Content approved!');
-                    onApprove?.();
+
                 } else {
-                    toast.error(result.error || 'Failed to approve content');
+                    console.error(result.error || 'Failed to approve content');
                 }
             } else if (story) {
                 const { approveBrandStory } = await import('@/lib/brand-approval');
                 const result = await approveBrandStory(story.id, brandUserId);
 
                 if (result.success) {
-                    toast.success('Story approved and published!');
-                    onApprove?.();
+
                 } else {
-                    toast.error(result.error || 'Failed to approve story');
+                    console.error(result.error || 'Failed to approve story');
                 }
             }
         } catch (error) {
             console.error('Error approving:', error);
-            toast.error('Failed to approve');
+            console.error('Failed to approve');
         } finally {
             setIsApproving(false);
         }
@@ -101,25 +99,23 @@ export default function ApprovalCard({
                 const result = await rejectBrandContribution(contribution.id, brandUserId);
 
                 if (result.success) {
-                    toast.success('Content rejected');
-                    onReject?.();
+
                 } else {
-                    toast.error(result.error || 'Failed to reject content');
+                    console.error(result.error || 'Failed to reject content');
                 }
             } else if (story) {
                 const { rejectBrandStory } = await import('@/lib/brand-approval');
                 const result = await rejectBrandStory(story.id, brandUserId);
 
                 if (result.success) {
-                    toast.success('Story rejected');
-                    onReject?.();
+
                 } else {
-                    toast.error(result.error || 'Failed to reject story');
+                    console.error(result.error || 'Failed to reject story');
                 }
             }
         } catch (error) {
             console.error('Error rejecting:', error);
-            toast.error('Failed to reject');
+            console.error('Failed to reject');
         } finally {
             setIsRejecting(false);
         }

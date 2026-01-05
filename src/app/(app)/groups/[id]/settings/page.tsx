@@ -4,7 +4,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/components/AuthProvider';
 import { ArrowLeft, Trash2, Save, X, Check, UserPlus, Crown, Shield, Plus, Tag, Camera, Image as ImageIcon, Palette, ChevronUp, ChevronDown } from 'lucide-react';
-import { toast } from 'sonner';
 import { capturePhoto } from '@/lib/camera';
 import Link from 'next/link';
 
@@ -81,7 +80,7 @@ export default function GroupSettingsPage() {
 
             // Verify ownership
             if (groupData.owner_id !== user?.id) {
-                toast.error('Unauthorized');
+                console.error('Unauthorized');
                 router.push(`/groups/${id}`);
                 return;
             }
@@ -125,7 +124,7 @@ export default function GroupSettingsPage() {
 
         } catch (error) {
             console.error('Error fetching group settings:', error);
-            toast.error('Failed to load settings');
+            console.error('Failed to load settings');
         } finally {
             setLoading(false);
         }
@@ -145,11 +144,11 @@ export default function GroupSettingsPage() {
                 .eq('id', id);
 
             if (error) throw error;
-            toast.success('Group updated');
+            // toast removed
             router.push(`/groups/${id}`);
         } catch (error) {
             console.error('Error updating group:', error);
-            toast.error('Failed to update group');
+            console.error('Failed to update group');
         } finally {
             setSaving(false);
         }
@@ -164,11 +163,11 @@ export default function GroupSettingsPage() {
                 .eq('id', id);
 
             if (error) throw error;
-            toast.success('Group deleted');
+            // toast removed
             router.push('/groups');
         } catch (error) {
             console.error('Error deleting group:', error);
-            toast.error('Failed to delete group');
+            console.error('Failed to delete group');
         } finally {
             setDeleting(false);
             setShowDeleteModal(false);
@@ -184,7 +183,7 @@ export default function GroupSettingsPage() {
                 .eq('user_id', memberId);
 
             if (error) throw error;
-            toast.success('Request approved');
+            // toast removed
 
             // Move from requests to members
             const request = requests.find(r => r.user_id === memberId);
@@ -194,7 +193,7 @@ export default function GroupSettingsPage() {
             }
         } catch (error) {
             console.error('Error approving request:', error);
-            toast.error('Failed to approve request');
+            console.error('Failed to approve request');
         }
     };
 
@@ -209,11 +208,11 @@ export default function GroupSettingsPage() {
                 .eq('user_id', memberId);
 
             if (error) throw error;
-            toast.success('Request declined');
+            // toast removed
             setRequests(requests.filter(r => r.user_id !== memberId));
         } catch (error) {
             console.error('Error declining request:', error);
-            toast.error('Failed to decline request');
+            console.error('Failed to decline request');
         }
     };
 
@@ -228,11 +227,11 @@ export default function GroupSettingsPage() {
                 .eq('user_id', memberId);
 
             if (error) throw error;
-            toast.success('Member removed');
+            // toast removed
             setMembers(members.filter(m => m.user_id !== memberId));
         } catch (error) {
             console.error('Error removing member:', error);
-            toast.error('Failed to remove member');
+            console.error('Failed to remove member');
         }
     };
 
@@ -245,13 +244,13 @@ export default function GroupSettingsPage() {
                 .eq('user_id', memberId);
 
             if (error) throw error;
-            toast.success(`${memberName} is now an admin`);
+            // toast removed
             setMembers(members.map(m =>
                 m.user_id === memberId ? { ...m, role: 'admin' } : m
             ));
         } catch (error) {
             console.error('Error promoting member:', error);
-            toast.error('Failed to promote member');
+            console.error('Failed to promote member');
         }
     };
 
@@ -264,13 +263,13 @@ export default function GroupSettingsPage() {
                 .eq('user_id', memberId);
 
             if (error) throw error;
-            toast.success(`${memberName} is no longer an admin`);
+            // toast removed
             setMembers(members.map(m =>
                 m.user_id === memberId ? { ...m, role: 'member' } : m
             ));
         } catch (error) {
             console.error('Error demoting member:', error);
-            toast.error('Failed to demote member');
+            console.error('Failed to demote member');
         }
     };
 
@@ -284,7 +283,7 @@ export default function GroupSettingsPage() {
 
             if (otherMembers.length === 0) {
                 // Solo owner - must delete group instead
-                toast.error('You are the only member. Please delete the group from the Danger Zone instead.');
+                console.error('You are the only member. Please delete the group from the Danger Zone instead.');
                 return;
             }
 
@@ -304,11 +303,11 @@ export default function GroupSettingsPage() {
                 .eq('user_id', user.id);
 
             if (error) throw error;
-            toast.success('Left group');
+            // toast removed
             router.push('/groups');
         } catch (error) {
             console.error('Error leaving group:', error);
-            toast.error('Failed to leave group');
+            console.error('Failed to leave group');
         }
     };
 
@@ -343,12 +342,12 @@ export default function GroupSettingsPage() {
 
             if (leaveError) throw leaveError;
 
-            toast.success('Ownership transferred successfully');
+            // toast removed
             setShowTransferModal(false);
             router.push('/groups');
         } catch (error) {
             console.error('Error transferring ownership:', error);
-            toast.error('Failed to transfer ownership');
+            console.error('Failed to transfer ownership');
         } finally {
             setTransferring(false);
         }
@@ -382,12 +381,12 @@ export default function GroupSettingsPage() {
         if (!file) return;
 
         if (!file.type.startsWith('image/')) {
-            toast.error('Please select an image file');
+            console.error('Please select an image file');
             return;
         }
 
         if (file.size > 2 * 1024 * 1024) {
-            toast.error('Image must be less than 2MB');
+            console.error('Image must be less than 2MB');
             return;
         }
 
@@ -408,10 +407,10 @@ export default function GroupSettingsPage() {
                 .getPublicUrl(filePath);
 
             setNewRoleBadgeUrl(urlData.publicUrl);
-            toast.success('Badge uploaded!');
+            // toast removed
         } catch (error) {
             console.error('Error uploading badge:', error);
-            toast.error('Failed to upload badge');
+            console.error('Failed to upload badge');
         } finally {
             setUploadingBadge(false);
         }
@@ -419,7 +418,7 @@ export default function GroupSettingsPage() {
 
     const handleSaveRole = async () => {
         if (!newRoleName.trim()) {
-            toast.error('Role name is required');
+            console.error('Role name is required');
             return;
         }
 
@@ -438,7 +437,7 @@ export default function GroupSettingsPage() {
                     .eq('id', editingRole.id);
 
                 if (error) throw error;
-                toast.success('Role updated!');
+                // toast removed
             } else {
                 // Create new role
                 const { error } = await supabase
@@ -453,14 +452,14 @@ export default function GroupSettingsPage() {
                     });
 
                 if (error) throw error;
-                toast.success('Role created!');
+                // toast removed
             }
 
             setShowRoleModal(false);
             fetchGroupData();
         } catch (error) {
             console.error('Error saving role:', error);
-            toast.error('Failed to save role');
+            console.error('Failed to save role');
         } finally {
             setSavingRole(false);
         }
@@ -476,11 +475,11 @@ export default function GroupSettingsPage() {
                 .eq('id', roleId);
 
             if (error) throw error;
-            toast.success('Role deleted');
+            // toast removed
             fetchGroupData();
         } catch (error) {
             console.error('Error deleting role:', error);
-            toast.error('Failed to delete role');
+            console.error('Failed to delete role');
         }
     };
 
@@ -489,7 +488,7 @@ export default function GroupSettingsPage() {
             // Check if already has this role
             const existing = memberRoles.find(mr => mr.user_id === userId && mr.role_id === roleId);
             if (existing) {
-                toast.error('Member already has this role');
+                console.error('Member already has this role');
                 return;
             }
 
@@ -503,13 +502,13 @@ export default function GroupSettingsPage() {
                 });
 
             if (error) throw error;
-            toast.success('Role assigned!');
+            // toast removed
             setShowAssignRoleModal(false);
             setSelectedMemberForRole(null);
             fetchGroupData();
         } catch (error) {
             console.error('Error assigning role:', error);
-            toast.error('Failed to assign role');
+            console.error('Failed to assign role');
         }
     };
 
@@ -521,11 +520,11 @@ export default function GroupSettingsPage() {
                 .eq('id', memberRoleId);
 
             if (error) throw error;
-            toast.success('Role removed');
+            // toast removed
             fetchGroupData();
         } catch (error) {
             console.error('Error removing role:', error);
-            toast.error('Failed to remove role');
+            console.error('Failed to remove role');
         }
     };
 

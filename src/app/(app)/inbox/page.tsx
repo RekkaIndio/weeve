@@ -9,7 +9,6 @@ import { Plus, X, MessageCircle } from 'lucide-react';
 import Image from 'next/image';
 import SearchBar from '@/app/components/SearchBar';
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
 
 export default function InboxPage() {
   const { user } = useAuth();
@@ -74,7 +73,7 @@ export default function InboxPage() {
       router.push(`/inbox/${conversationId}`);
     } catch (error) {
       console.error('Failed to start chat:', error);
-      toast.error('Failed to start conversation');
+      console.error('Failed to start conversation');
     }
   };
 
