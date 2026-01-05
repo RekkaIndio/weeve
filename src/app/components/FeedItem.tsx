@@ -7,6 +7,7 @@ if (!(globalThis as any).__weeveVideoPreloadCache) (globalThis as any).__weeveVi
 if (!(globalThis as any).__weeveVideoPosterCache) (globalThis as any).__weeveVideoPosterCache = GLOBAL_VIDEO_POSTER_CACHE;
 if (!(globalThis as any).__weeveVideoReadyRef) (globalThis as any).__weeveVideoReadyRef = GLOBAL_VIDEO_READY_REF;
 
+import { formatCount } from "@/lib/format";
 import { Story, useStore, Contribution, isSlotImmutable, isBrandPost, getSlotProgress } from "@/lib/store";
 import { NON_VIDEO_AUTO_ADVANCE_MS } from "@/lib/playback";
 import { MessageCircle, Heart, Share2, X, UserPlus, Users, Bookmark, Search, GitBranch, Plus, ExternalLink, ChevronDown, Lock } from "lucide-react";
@@ -1511,8 +1512,7 @@ export default function FeedItem({ story, initialContributionId, isActive }: Fee
                             <span className={`text-xs font-bold ${showTutorialTooltip ? 'text-[#EC1D99]' : ''}`}>
                                 {story.monetizationCost && story.monetizationCost > 0
                                     ? `💎 ${story.monetizationCost}`
-                                    : 'Weeve'
-                                }
+                                    : (story.forksCount && story.forksCount > 0 ? formatCount(story.forksCount) : 'Weeve')}
                             </span>
 
                             {/* Tutorial Tooltip */}

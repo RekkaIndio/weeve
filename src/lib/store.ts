@@ -127,6 +127,7 @@ export interface Story {
     isFeatured?: boolean;
     scheduledFor?: string;
     visibilityDays?: number;
+    forksCount?: number;
     // Approval status (for Canon posts - entire story approval)
     approvalStatus?: 'pending' | 'approved' | 'rejected';
     reviewedAt?: string;
@@ -254,6 +255,7 @@ interface AppState {
 }
 
 export const useStore = create<AppState>()(
+    // @ts-ignore
     persist(
         (set, get) => ({
             currentUser: null,
@@ -1243,7 +1245,8 @@ export const useStore = create<AppState>()(
                                     *,
                                     profiles:user_id (name, avatar),
                                     comment_likes (user_id)
-                                )
+                                ),
+                                forks:stories!forked_from_story_id(count)
                             `)
                             .order('created_at', { ascending: false })
                             .range(offset, offset + PAGE_SIZE - 1); // Pagination limit
@@ -1479,7 +1482,8 @@ export const useStore = create<AppState>()(
                             visibilityDays: s.visibility_days ?? undefined,
                             brandId: s.brand_id ?? undefined,
                             isFeatured: s.is_featured ?? false,
-                            scheduledFor: s.scheduled_for ?? undefined
+                            scheduledFor: s.scheduled_for ?? undefined,
+                            forksCount: (s.forks && s.forks[0]) ? s.forks[0].count : 0
 };
                     });
 

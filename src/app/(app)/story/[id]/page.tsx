@@ -300,7 +300,8 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         story_comments (
                             *,
                             profiles:user_id (name, avatar)
-                        )
+                        ),
+                        forks:stories!forked_from_story_id(count)
                     `)
                     .eq('id', storyId)
                     .single();
@@ -403,6 +404,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     postType: (s as any).post_type ?? 'normal',
                     canonSlots: (s as any).canon_slots ?? undefined,
                     scheduledFor: (s as any).scheduled_for ?? undefined,
+                    forksCount: ((s as any).forks && (s as any).forks[0]) ? (s as any).forks[0].count : 0,
                 };
 
                 console.log('[Story] About to call addStory with id:', mapped.id);

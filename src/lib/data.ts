@@ -178,6 +178,7 @@ type StoryWithRelations = StoryRow & {
     group: Pick<GroupRow, 'avatar' | 'is_private'> | null;
     story_likes: StoryLikeRow[] | null;
     story_comments: (StoryCommentRow & { profiles?: Pick<ProfileRow, 'name' | 'avatar'> | null })[] | null;
+    forks?: { count: number }[] | null;
 };
 
 const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
@@ -252,6 +253,7 @@ const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
         likes: likesArray.length,
         likedBy: likesArray,
         comments,
+        forksCount: (story.forks && story.forks[0]) ? story.forks[0].count : 0,
         // Brand post fields
         postType: (story as any).post_type ?? 'normal',
         canonSlots: (story as any).canon_slots ?? [],
@@ -1143,7 +1145,8 @@ export async function fetchUserStories(userId: string): Promise<Story[]> {
                     *,
                     profiles:user_id (name, avatar),
                     comment_likes (user_id)
-                )
+                ),
+                forks:stories!forked_from_story_id(count)
             `)
             .eq('contributions.approval_status', 'approved')
             .in('id', storyIds)
