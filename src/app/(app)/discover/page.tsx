@@ -1013,7 +1013,7 @@ function DiscoverContent() {
                                 </div>
                             ) : (
                                 <div className="bg-gray-900/50 border border-dashed border-gray-800 rounded-xl p-6 text-center mx-4">
-                                    <p className="text-gray-500 text-sm">No active seeds right now. Check back soon!</p>
+                                    <p className="text-gray-500 text-sm">Seed stories are coming. Check back soon!</p>
                                 </div>
                             )}
                         </div>
