@@ -90,7 +90,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                                         }`}
                                 >
                                     <div className="relative">
-                                        <item.icon className="w-6 h-6" />
+                                        {item.label === "Profile" && currentUser ? (
+                                            <img
+                                                src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser.name)}`}
+                                                alt="Profile"
+                                                className={`w-6 h-6 rounded-full object-cover ${isActive ? "ring-2 ring-[#EC1D99]" : ""}`}
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser.name)}`;
+                                                }}
+                                            />
+                                        ) : (
+                                            <item.icon className="w-6 h-6" />
+                                        )}
                                         {item.label === "Home" && myTurnCount > 0 && (
                                             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[#EC1D99] rounded-full border-2 border-black" />
                                         )}
@@ -101,6 +112,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </nav>
                 )}
             </div>
-        </div>
+        </div >
     );
 }

@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Search, PlusCircle, MessageSquare, User } from "lucide-react";
 import React from "react";
+import { useStore } from "@/lib/store";
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const { currentUser } = useStore();
 
   // Hide nav on certain pages (e.g., create-story has its own sticky footer)
   const hiddenRoutes = ["/create-story", "/create"];
@@ -60,7 +62,19 @@ export default function BottomNav() {
                   }`}
                 aria-current={isActive ? "page" : undefined}
               >
-                <Icon className="w-6 h-6" />
+                {item.label === "Profile" && currentUser ? (
+                  <img
+                    src={currentUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser.name)}`}
+                    alt="Profile"
+                    className={`w-6 h-6 rounded-full object-cover ${isActive ? "ring-2 ring-[#EC1D99]" : ""
+                      }`}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(currentUser.name)}`;
+                    }}
+                  />
+                ) : (
+                  <Icon className="w-6 h-6" />
+                )}
                 <span className="text-[10px]">{item.label}</span>
               </div>
             </Link>
