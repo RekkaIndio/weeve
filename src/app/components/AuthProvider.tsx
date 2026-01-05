@@ -182,7 +182,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     setLoading(false);
 
                     // BACKGROUND Sync: Fetch full profile
-                    syncProfile(session.user, { access_token: session.access_token }).catch(err => {
+                    syncProfile(session.user, { access_token: session.access_token }).catch((err: any) => {
                         console.warn('[AuthProvider] Background sync failed:', err);
                     });
                 } else {
@@ -268,7 +268,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                         }
 
                         // Background Sync
-                        syncProfile(session.user, { access_token: session.access_token }).catch(err => {
+                        syncProfile(session.user, { access_token: session.access_token }).catch((err: any) => {
                             console.warn('[AuthProvider] Background sync error:', err);
                         });
 
@@ -416,7 +416,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         let listenerHandle: Promise<any>;
 
         const setupListener = () => {
-            listenerHandle = App.addListener('appUrlOpen', async ({ url }) => {
+            listenerHandle = App.addListener('appUrlOpen', async ({ url }: { url: string }) => {
                 if (isProcessingDeepLink.current) {
                     console.log('[AuthProvider] Already processing a deep link, ignoring duplicate:', url);
                     return;

@@ -113,6 +113,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const [mediaSourcePicker, setMediaSourcePicker] = useState<{ type: 'video' | 'image' } | null>(null);
     const [stitchMode, setStitchMode] = useState<'video' | 'image' | 'text' | 'drawing' | 'audio' | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [isForkingBrandPost, setIsForkingBrandPost] = useState(false);
     const uploadStartTimeRef = useRef<number | null>(null);
 
@@ -1406,6 +1407,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         }
 
         setIsUploading(true);
+        setUploadProgress(0);
         uploadStartTimeRef.current = Date.now();
 
         try {
@@ -1446,6 +1448,9 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 textStyle: textStylePayload,
                 timestamp: contributionTimestamp,
                 nextTurnUserId: nextTurnUpdate,
+                onProgress: (progress) => {
+                    setUploadProgress(Math.round(progress));
+                }
             });
 
 
@@ -1478,6 +1483,7 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             console.error('Failed to post contribution. Please try again.');
         } finally {
             setIsUploading(false);
+            setUploadProgress(0);
             uploadStartTimeRef.current = null;
         }
 
@@ -1876,8 +1882,37 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 {
                     isUploading && (
                         <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center">
-                            <Loader2 className="w-12 h-12 text-[#EC1D99] animate-spin mb-4" />
-                            <p className="font-bold">Uploading...</p>
+                            {/* Circular Progress Spinner */}
+                            <div className="relative w-24 h-24 mb-4 flex items-center justify-center">
+                                <svg className="w-full h-full transform -rotate-90">
+                                    <circle
+                                        cx="48"
+                                        cy="48"
+                                        r="40"
+                                        stroke="currentColor"
+                                        strokeWidth="8"
+                                        fill="transparent"
+                                        className="text-gray-700"
+                                    />
+                                    <circle
+                                        cx="48"
+                                        cy="48"
+                                        r="40"
+                                        stroke="currentColor"
+                                        strokeWidth="8"
+                                        fill="transparent"
+                                        strokeLinecap="round"
+                                        className="text-[#EC1D99]"
+                                        strokeDasharray={2 * Math.PI * 40}
+                                        strokeDashoffset={2 * Math.PI * 40 * (1 - uploadProgress / 100)}
+                                        style={{ transition: 'stroke-dashoffset 0.1s linear' }}
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-xl font-bold text-white">{uploadProgress}%</span>
+                                </div>
+                            </div>
+                            <p className="font-bold text-white animate-pulse">Uploading...</p>
                         </div>
                     )
                 }

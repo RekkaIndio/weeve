@@ -16,8 +16,9 @@ async function uploadFileToStorage(params: {
     upsert?: boolean;
     contentType?: string;
     accessToken: string;
+    onProgress?: (progress: number) => void;
 }) {
-    const { bucket, objectPath, file, cacheControl, upsert, contentType, accessToken } = params;
+    const { bucket, objectPath, file, cacheControl, upsert, contentType, accessToken, onProgress } = params;
     const url = new URL(`${SUPABASE_URL}/storage/v1/object/${bucket}/${encodeStoragePath(objectPath)}`);
 
     if (cacheControl) {
@@ -27,42 +28,40 @@ async function uploadFileToStorage(params: {
         url.searchParams.set('upsert', 'true');
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    return new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url.toString());
 
-    let response: Response;
-    try {
-        response = await fetch(url.toString(), {
-            method: 'POST',
-            headers: {
-                apikey: SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': contentType || (file instanceof File && file.type ? file.type : 'application/octet-stream'),
-            },
-            body: file,
-            signal: controller.signal,
-        });
-    } catch (fetchError: any) {
-        clearTimeout(timeoutId);
-        if (fetchError.name === 'AbortError') {
-            throw new Error('Upload timed out after 30 seconds');
-        }
-        throw fetchError;
-    }
-    clearTimeout(timeoutId);
+        xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+        xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
+        xhr.setRequestHeader('Content-Type', contentType || (file instanceof File && file.type ? file.type : 'application/octet-stream'));
 
-    const responseText = await response.text();
+        xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable && onProgress) {
+                const percentComplete = (event.loaded / event.total) * 100;
+                onProgress(percentComplete);
+            }
+        };
 
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+            } else {
+                reject(new Error(`Storage upload failed with status ${xhr.status}: ${xhr.responseText}`));
+            }
+        };
 
-    try {
+        xhr.onerror = () => {
+            reject(new Error('Network error occurred during upload'));
+        };
 
-    } catch {
+        xhr.ontimeout = () => {
+            reject(new Error('Upload timed out after 5 minutes. Please check your internet connection and try again.'));
+        };
 
-    }
-
-    if (!response.ok) {
-        throw new Error(`Storage upload failed with status ${response.status}: ${responseText}`);
-    }
+        xhr.timeout = 300000; // 5 minutes
+        xhr.send(file);
+    });
 }
 
 const randomSuffix = () => {
@@ -106,6 +105,7 @@ export interface CreateStoryContributionOptions {
     textStyle?: TextStyle;
     timestamp?: number;
     nextTurnUserId?: string | null;
+    onProgress?: (progress: number) => void;
 }
 
 const parseTextStyle = (value: Json | null): TextStyle | undefined => {
@@ -344,6 +344,8 @@ async function compressImage(file: File): Promise<Blob> {
     });
 }
 
+
+
 export async function createStoryContribution(options: CreateStoryContributionOptions): Promise<{ contribution: Contribution }> {
 
 
@@ -486,7 +488,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                 uploadBlob = await compressImage(options.file);
                 uploadContentType = 'image/jpeg'; // We force JPEG in compression
             } else if (options.file.type.startsWith('video/')) {
-                // For video files, don't slice to avoid potential issues
+                // For video files, upload as-is
                 uploadBlob = options.file;
             } else {
                 // For other files, slice to ensure stable Blob
@@ -515,6 +517,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                     upsert: false,
                     contentType: uploadContentType,
                     accessToken: session.access_token,
+                    onProgress: options.onProgress,
                 });
                 uploadSucceeded = true;
             } catch (restPrimaryError) {
