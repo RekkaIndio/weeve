@@ -25,7 +25,7 @@ export default function GroupsPage() {
     const [creating, setCreating] = useState(false);
     const [shareGroup, setShareGroup] = useState<{ id: string; name: string; description: string; isPrivate: boolean } | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
-    const tabParam = searchParams.get('tab');
+    const tabParam = searchParams?.get('tab');
     const [activeTab, setActiveTab] = useState<'groups' | 'messages'>(tabParam === 'messages' ? 'messages' : 'groups');
 
     useEffect(() => {

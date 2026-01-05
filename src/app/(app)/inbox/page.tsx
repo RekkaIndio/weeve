@@ -24,6 +24,27 @@ export default function InboxPage() {
   useEffect(() => {
     if (!user) return;
     loadConversations();
+
+    // Subscribe to real-time updates for new messages
+    const channel = supabase
+      .channel('inbox-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen for INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'messages',
+        },
+        () => {
+          // Reload conversations when any message changes
+          loadConversations();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   const loadConversations = async () => {
