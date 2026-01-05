@@ -1895,29 +1895,6 @@ const CreateStory = ({
         </div>
       </div>
 
-      {/* CSS for animations */}
-      <style jsx>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-        .hidden-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .hidden-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
     </div>
   );
 };

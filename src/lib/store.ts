@@ -77,6 +77,7 @@ export interface Contribution {
     approvalStatus?: 'pending' | 'approved' | 'rejected';
     reviewedAt?: string;
     reviewedBy?: string;
+    slotIndex?: number;
 }
 
 export interface StoryComment {
