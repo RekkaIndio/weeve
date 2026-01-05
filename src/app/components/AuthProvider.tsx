@@ -149,22 +149,6 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         let initCompleted = false;
 
         const initialize = async () => {
-            const initStartTime = Date.now();
-
-            // Network connectivity diagnostic
-            try {
-                const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-                console.log('[AuthProvider] Testing network connectivity to:', supabaseUrl);
-                const testResponse = await fetch(`${supabaseUrl}/rest/v1/`, {
-                    method: 'HEAD',
-                    headers: { 'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' }
-                });
-                console.log('[AuthProvider] Network test result:', testResponse.status, testResponse.ok);
-            } catch (netError) {
-                console.error('[AuthProvider] Network connectivity FAILED:', netError);
-                console.error('[AuthProvider] This might indicate WiFi/cellular issues or Supabase URL misconfiguration');
-            }
-
             try {
                 // 1. Get initial session
                 const { data: { session }, error } = await supabase.auth.getSession();
@@ -244,27 +228,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         let subscription: { unsubscribe: () => void } | null = null;
         try {
             const { data } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-                console.log('[AuthProvider] onAuthStateChange:', event, {
-                    hasSession: !!session,
-                    userId: session?.user?.id,
-                    expiresAt: session?.expires_at,
-                    accessTokenLength: session?.access_token?.length
-                });
-                if (!mounted) {
-                    console.log('[AuthProvider] Component unmounted, ignoring event');
-                    return;
-                }
+                if (!mounted) return;
 
                 if (session?.user) {
-                    console.log('[AuthProvider] Setting user from auth state change');
                     setUser(session.user);
                     setLatestSession(session);
 
                     // On SIGN_IN or session restore, we might need to sync profile
-                    // IMPORTANT: On iOS, after OAuth deep link return, the event is often 'INITIAL_SESSION' 
-                    // instead of 'SIGNED_IN', so we must handle both to prevent the double-login issue.
                     const shouldSyncAndRedirect = event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'PASSWORD_RECOVERY' || event === 'INITIAL_SESSION';
-                    console.log('[AuthProvider] shouldSyncAndRedirect:', shouldSyncAndRedirect, 'for event:', event);
 
                     if (shouldSyncAndRedirect) {
 
@@ -677,42 +648,20 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             const timeSinceLogin = Date.now() - lastLogin;
             const isRecentLogin = timeSinceLogin < 10000; // 10 seconds grace
 
-            console.log('[AuthProvider] Polling check:', {
-                loading,
-                hasUser: !!user,
-                lastLoginStr,
-                timeSinceLogin,
-                isRecentLogin
-            });
-
             if (isRecentLogin) {
-                console.log('[AuthProvider] In grace period, starting session polling...');
                 let pollCount = 0;
                 const interval = setInterval(async () => {
                     pollCount++;
-                    console.log('[AuthProvider] Polling attempt', pollCount);
-                    const { data, error } = await supabase.auth.getSession();
-                    console.log('[AuthProvider] Poll result:', {
-                        hasSession: !!data.session,
-                        userId: data.session?.user?.id,
-                        error: error?.message
-                    });
+                    const { data } = await supabase.auth.getSession();
                     if (data.session?.user) {
-                        console.log('[AuthProvider] Recovered session via polling!');
                         setUser(data.session.user);
                         setLatestSession(data.session);
                     }
-                    if (pollCount >= 12) { // Stop after ~10 seconds
-                        console.log('[AuthProvider] Stopping polling after max attempts');
+                    if (pollCount >= 12) {
                         clearInterval(interval);
                     }
                 }, 800);
-                return () => {
-                    console.log('[AuthProvider] Cleaning up polling interval');
-                    clearInterval(interval);
-                };
-            } else {
-                console.log('[AuthProvider] Not in grace period, no polling');
+                return () => clearInterval(interval);
             }
         }
     }, [user, loading]);

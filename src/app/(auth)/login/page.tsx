@@ -97,44 +97,20 @@ export default function LoginPage() {
         setError("");
 
         try {
-            console.log('[Login] Starting email login for:', email);
             const { user, session, error: authError } = await signIn(email, password);
 
-            console.log('[Login] signIn result:', {
-                hasUser: !!user,
-                hasSession: !!session,
-                hasError: !!authError,
-                userId: user?.id,
-                sessionExpiry: session?.expires_at
-            });
-
-            if (authError) {
-                console.error('[Login] Auth error:', authError);
-                throw authError;
-            }
+            if (authError) throw authError;
             if (!user) throw new Error('Login failed - no user returned');
-
-            // Verify session is actually set in Supabase client
-            const { data: verifyData } = await supabase.auth.getSession();
-            console.log('[Login] Verified session after signIn:', {
-                hasSession: !!verifyData.session,
-                userId: verifyData.session?.user?.id
-            });
 
             // Set login timestamp for grace period
             if (typeof window !== 'undefined') {
                 localStorage.setItem('weeve_last_login_timestamp', Date.now().toString());
-                console.log('[Login] Set grace period timestamp');
             }
 
-            console.log('[Login] Login successful, waiting for AuthProvider to redirect...');
-
             // Fallback: If AuthProvider doesn't redirect within 3 seconds, force navigate
-            // This handles cases where onAuthStateChange might not fire correctly on iOS
             setTimeout(() => {
                 const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
                 if (currentPath === '/login' || currentPath === '/signup') {
-                    console.log('[Login] Fallback redirect triggered - AuthProvider did not redirect');
                     router.replace('/feed');
                 }
             }, 3000);

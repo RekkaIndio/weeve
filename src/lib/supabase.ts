@@ -59,29 +59,17 @@ try {
             detectSessionInUrl: !Capacitor.isNativePlatform(),
             storage: {
                 getItem: async (key: string) => {
-                    const isAuthKey = key.includes('supabase') || key.includes('sb-');
-                    
                     // Try localStorage first (more reliable on iOS WebView)
                     if (typeof window !== 'undefined' && window.localStorage) {
                         try {
                             const lsValue = window.localStorage.getItem(key);
-                            if (lsValue) {
-                                if (isAuthKey) {
-                                    console.log('[Supabase Storage] getItem from localStorage:', key, 'length:', lsValue.length);
-                                }
-                                return lsValue;
-                            }
-                        } catch (e) {
-                            console.warn('[Supabase Storage] localStorage getItem failed:', e);
-                        }
+                            if (lsValue) return lsValue;
+                        } catch (e) { /* ignore */ }
                     }
                     
                     // Fallback to Capacitor Preferences
                     try {
                         const { value } = await Preferences.get({ key });
-                        if (isAuthKey) {
-                            console.log('[Supabase Storage] getItem from Preferences:', key, 'hasValue:', !!value);
-                        }
                         // If found in Preferences but not localStorage, sync it
                         if (value && typeof window !== 'undefined' && window.localStorage) {
                             try {
@@ -90,38 +78,23 @@ try {
                         }
                         return value;
                     } catch (error) {
-                        console.error('[Supabase Storage] Preferences getItem error:', key, error);
                         return null;
                     }
                 },
                 setItem: async (key: string, value: string) => {
-                    const isAuthKey = key.includes('supabase') || key.includes('sb-');
-                    
                     // Always save to localStorage first (synchronous, reliable)
                     if (typeof window !== 'undefined' && window.localStorage) {
                         try {
                             window.localStorage.setItem(key, value);
-                            if (isAuthKey) {
-                                console.log('[Supabase Storage] setItem to localStorage:', key, 'length:', value?.length);
-                            }
-                        } catch (e) {
-                            console.warn('[Supabase Storage] localStorage setItem failed:', e);
-                        }
+                        } catch (e) { /* ignore */ }
                     }
                     
                     // Also save to Capacitor Preferences (async backup)
                     try {
                         await Preferences.set({ key, value });
-                        if (isAuthKey) {
-                            console.log('[Supabase Storage] setItem to Preferences:', key, 'SUCCESS');
-                        }
-                    } catch (error) {
-                        console.error('[Supabase Storage] Preferences setItem error:', key, error);
-                    }
+                    } catch (error) { /* ignore */ }
                 },
                 removeItem: async (key: string) => {
-                    console.log('[Supabase Storage] removeItem:', key);
-                    
                     // Remove from localStorage
                     if (typeof window !== 'undefined' && window.localStorage) {
                         try {
@@ -132,9 +105,7 @@ try {
                     // Remove from Capacitor Preferences
                     try {
                         await Preferences.remove({ key });
-                    } catch (error) {
-                        console.error('[Supabase Storage] Preferences removeItem error:', key, error);
-                    }
+                    } catch (error) { /* ignore */ }
                 },
             },
         },
