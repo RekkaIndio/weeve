@@ -1204,7 +1204,7 @@ export default function ProfilePage() {
                             {currentUser.tagline || 'Storyteller, dreamer, and weaver of tales. 🌌'}
                         </p>
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
-                            {(currentUser.website || (currentUser.preferences as any)?.website) && (
+                            {currentUser.isBrand && (currentUser.website || (currentUser.preferences as any)?.website) && (
                                 <a
                                     href={currentUser.website || (currentUser.preferences as any)?.website}
                                     target="_blank"
@@ -1244,16 +1244,18 @@ export default function ProfilePage() {
                                 maxLength={100}
                             />
                         </div>
-                        <div>
-                            <label className="text-xs text-gray-500 ml-1">Website</label>
-                            <input
-                                type="url"
-                                value={editWebsite}
-                                onChange={(e) => setEditWebsite(e.target.value)}
-                                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#EC1D99]"
-                                placeholder="https://example.com"
-                            />
-                        </div>
+                        {currentUser.isBrand && (
+                            <div>
+                                <label className="text-xs text-gray-500 ml-1">Website</label>
+                                <input
+                                    type="url"
+                                    value={editWebsite}
+                                    onChange={(e) => setEditWebsite(e.target.value)}
+                                    className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-[#EC1D99]"
+                                    placeholder="https://example.com"
+                                />
+                            </div>
+                        )}
                         <div className="flex gap-2 pt-2">
                             <button
                                 onClick={handleCancel}

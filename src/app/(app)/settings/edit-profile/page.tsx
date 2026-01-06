@@ -412,21 +412,23 @@ export default function EditProfilePage() {
                         </p>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-2">
-                            Website
-                        </label>
-                        <input
-                            type="url"
-                            value={website}
-                            onChange={(e) => setWebsite(e.target.value)}
-                            className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#EC1D99] transition-colors"
-                            placeholder="https://yourwebsite.com"
-                        />
-                        <p className="text-xs text-gray-600 mt-1.5">
-                            Add a link to your website or portfolio
-                        </p>
-                    </div>
+                    {currentUser.isBrand && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-400 mb-2">
+                                Website
+                            </label>
+                            <input
+                                type="url"
+                                value={website}
+                                onChange={(e) => setWebsite(e.target.value)}
+                                className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#EC1D99] transition-colors"
+                                placeholder="https://yourwebsite.com"
+                            />
+                            <p className="text-xs text-gray-600 mt-1.5">
+                                Add a link to your website or portfolio
+                            </p>
+                        </div>
+                    )}
 
 
 

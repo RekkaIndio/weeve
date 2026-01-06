@@ -632,7 +632,7 @@ export default function UserProfilePage() {
                             {user.tagline || 'Weeve user'}
                         </p>
                         <div className="flex items-center gap-3 mt-1 flex-wrap">
-                            {(user.website || (user.preferences as any)?.website) && (
+                            {user.isBrand && (user.website || (user.preferences as any)?.website) && (
                                 <a
                                     href={user.website || (user.preferences as any)?.website}
                                     target="_blank"
