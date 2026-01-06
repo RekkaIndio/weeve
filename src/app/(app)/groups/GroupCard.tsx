@@ -3,6 +3,8 @@ import { Users, Share2, Lock, Globe, BookOpen } from "lucide-react";
 import VerificationBadge from '@/app/components/VerificationBadge';
 import type { Database } from '@/lib/database.types';
 
+import { formatCount } from '@/lib/format';
+
 // We can extend the GroupRow type or define a specific interface based on what's actually used
 // looking at the GroupsPage code, the 'groups' state seems to have some joined/computed fields 
 // like memberCount, storyCount, isMember, etc.
@@ -86,11 +88,11 @@ const GroupCard: React.FC<GroupCardProps> = ({ group, onJoin, onShare, onClick }
                         <div className="flex items-center gap-4 text-xs text-gray-500 font-medium">
                             <div className="flex items-center gap-1.5">
                                 <Users className="w-3.5 h-3.5 text-[#EC1D99]" />
-                                <span>{group.memberCount || 0} Members</span>
+                                <span>{formatCount(group.memberCount || 0)} Members</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                                 <BookOpen className="w-3.5 h-3.5 text-[#EC1D99]" />
-                                <span>{group.storyCount || 0} Stories</span>
+                                <span>{formatCount(group.storyCount || 0)} Stories</span>
                             </div>
                         </div>
 

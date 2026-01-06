@@ -429,7 +429,7 @@ export default function GroupDetailsPage() {
                             <div className="flex items-center gap-3 text-xs text-gray-400 mb-2">
                                 <div className="flex items-center gap-1">
                                     <Users className="w-3 h-3" />
-                                    <span>{members.filter((m: any) => m.status === 'active').length} members</span>
+                                    <span>{formatCount(members.filter((m: any) => m.status === 'active').length)} members</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                     <Heart className="w-3 h-3" />

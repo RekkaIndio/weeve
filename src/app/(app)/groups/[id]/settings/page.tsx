@@ -7,6 +7,8 @@ import { ArrowLeft, Trash2, Save, X, Check, UserPlus, Crown, Shield, Plus, Tag, 
 import { capturePhoto } from '@/lib/camera';
 import Link from 'next/link';
 
+import { formatCount } from '@/lib/format';
+
 // Types
 interface GroupRole {
     id: string;
@@ -707,7 +709,7 @@ export default function GroupSettingsPage() {
 
                 {/* Member Management */}
                 <div className="space-y-4">
-                    <h2 className="text-lg font-bold text-[#EC1D99]">Members ({members.length})</h2>
+                    <h2 className="text-lg font-bold text-[#EC1D99]">Members ({formatCount(members.length)})</h2>
                     <div className="space-y-3">
                         {members.map((member) => {
                             const customRoles = getMemberCustomRoles(member.user_id);
