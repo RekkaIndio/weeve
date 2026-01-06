@@ -16,6 +16,14 @@ export type ConversationWithParticipants = Conversation & {
 
 export type MessageWithSender = Message & {
     sender: UserProfile;
+    reply_to_id?: string | null;
+    reply_to_message?: {
+        id: string;
+        content: string;
+        sender: { name: string };
+    } | null;
+    likes_count: number;
+    has_liked: boolean;
 };
 
 /**
@@ -99,13 +107,19 @@ export async function getConversations(userId: string): Promise<ConversationWith
 /**
  * Fetch messages for a specific conversation
  */
+/**
+ * Fetch messages for a specific conversation
+ */
 export async function getMessages(conversationId: string): Promise<MessageWithSender[]> {
     console.log('[getMessages] Fetching messages for conversation:', conversationId);
     
-    // Fetch messages first
+    // Fetch messages first, including likes
     const { data: messagesData, error } = await supabase
         .from('messages')
-        .select('*')
+        .select(`
+            *,
+            likes:message_likes(user_id)
+        `)
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true });
 
@@ -121,6 +135,8 @@ export async function getMessages(conversationId: string): Promise<MessageWithSe
 
     console.log('[getMessages] Found messages:', messagesData.length);
 
+    const currentUserId = (await supabase.auth.getUser()).data.user?.id;
+
     // Get unique sender IDs
     const senderIds = [...new Set(messagesData.map((m: any) => m.sender_id))];
     
@@ -135,10 +151,13 @@ export async function getMessages(conversationId: string): Promise<MessageWithSe
         profiles.forEach((p: UserProfile) => profileMap.set(p.user_id, p));
     }
 
-    // Combine messages with sender profiles
-    const messagesWithSenders: MessageWithSender[] = messagesData.map((msg: any) => ({
-        ...msg,
-        sender: profileMap.get(msg.sender_id) || { 
+    // Create a map of messages to easily find reply parents
+    const messageMap = new Map<string, any>();
+    messagesData.forEach((m: any) => messageMap.set(m.id, m));
+
+    // Combine messages with sender profiles and process likes/replies
+    const messagesWithSenders: MessageWithSender[] = messagesData.map((msg: any) => {
+        const sender = profileMap.get(msg.sender_id) || { 
             user_id: msg.sender_id, 
             name: 'Unknown User',
             avatar: null,
@@ -161,8 +180,36 @@ export async function getMessages(conversationId: string): Promise<MessageWithSe
             brand_subscription_status: 'none' as const,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
-        } as UserProfile
-    }));
+        } as UserProfile;
+
+        // Process reply
+        let reply_to_message = null;
+        if (msg.reply_to_id) {
+            const parent = messageMap.get(msg.reply_to_id);
+            if (parent) {
+                const parentSender = profileMap.get(parent.sender_id);
+                reply_to_message = {
+                    id: parent.id,
+                    content: parent.content,
+                    sender: { name: parentSender?.name || 'Unknown' }
+                };
+            }
+        }
+
+        // Process likes
+        const likes = msg.likes || [];
+        const likes_count = likes.length;
+        const has_liked = currentUserId ? likes.some((l: any) => l.user_id === currentUserId) : false;
+
+        return {
+            ...msg,
+            sender,
+            reply_to_id: msg.reply_to_id,
+            reply_to_message,
+            likes_count,
+            has_liked
+        };
+    });
 
     return messagesWithSenders;
 }
@@ -170,14 +217,15 @@ export async function getMessages(conversationId: string): Promise<MessageWithSe
 /**
  * Send a new message
  */
-export async function sendMessage(conversationId: string, senderId: string, content: string) {
+export async function sendMessage(conversationId: string, senderId: string, content: string, replyToId?: string) {
     // 1. Insert message
     const { data: message, error: messageError } = await supabase
         .from('messages')
         .insert({
             conversation_id: conversationId,
             sender_id: senderId,
-            content: content
+            content: content,
+            reply_to_id: replyToId
         })
         .select()
         .single();
@@ -236,6 +284,38 @@ export async function sendMessage(conversationId: string, senderId: string, cont
     }
 
     return message;
+}
+
+/**
+ * Like a message
+ */
+export async function likeMessage(messageId: string, userId: string) {
+    const { error } = await supabase
+        .from('message_likes')
+        .insert({
+            message_id: messageId,
+            user_id: userId
+        });
+    
+    if (error) {
+        console.error('Error liking message:', error);
+        throw error;
+    }
+}
+
+/**
+ * Unlike a message
+ */
+export async function unlikeMessage(messageId: string, userId: string) {
+    const { error } = await supabase
+        .from('message_likes')
+        .delete()
+        .match({ message_id: messageId, user_id: userId });
+        
+    if (error) {
+        console.error('Error unliking message:', error);
+        throw error;
+    }
 }
 
 /**
