@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3, Receipt, DollarSign, Ban, IdCard, KeyRound, TrendingUp, BookOpen, Scroll, AlertTriangle } from "lucide-react";
+import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3, Receipt, DollarSign, Ban, IdCard, KeyRound, TrendingUp, BookOpen, Scroll, AlertTriangle, Heart } from "lucide-react";
 
 import { useStore } from "@/lib/store";
 import { signOut, updateUserProfile } from "@/lib/auth";
@@ -150,6 +150,7 @@ export default function SettingsPage() {
             title: "Account",
             items: [
                 { label: "Edit Profile", icon: User, action: () => router.push('/settings/edit-profile') },
+                { label: "Interests", icon: Heart, action: () => router.push('/settings/interests') },
                 // HIDDEN: Monetization features temporarily disabled
                 // { label: "Monetization Features", icon: DollarSign, toggle: true, toggleValue: monetizationEnabled, onToggle: handleMonetizationToggle },
                 { label: "Analytics", icon: BarChart3, action: () => router.push('/settings/analytics') },

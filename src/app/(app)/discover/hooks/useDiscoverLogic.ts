@@ -81,6 +81,14 @@ export function useDiscoverLogic() {
         });
         // Group bonus
         if (story.groupId && userGroupIds.has(story.groupId)) score += 30;
+        // Interest matching bonus
+        const userInterests = currentUser?.preferences?.interests || [];
+        if (userInterests.length > 0 && story.hashtags) {
+            const matchingInterests = story.hashtags.filter(tag => 
+                userInterests.some((interest: string) => tag.toLowerCase().includes(interest.toLowerCase()))
+            );
+            score += matchingInterests.length * 25; // 25 points per matching interest
+        }
         // Engagement
         score += (story.likes || 0) * 2;
         score += (story.comments?.length || 0) * 3;
@@ -90,7 +98,7 @@ export function useDiscoverLogic() {
         const ageHours = (Date.now() - createdAt) / 3600000;
         const recencyMultiplier = Math.max(0.3, 1 - (ageHours / 168));
         return score * recencyMultiplier;
-    }, [friendIds, userGroupIds]);
+    }, [friendIds, userGroupIds, currentUser?.preferences?.interests]);
 
     const getTrendingScore = useCallback((story: typeof stories[0]) => {
         const likes = story.likes || 0;

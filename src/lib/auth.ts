@@ -42,6 +42,7 @@ export interface AuthUser {
     interactionCost?: number | null;
     preferences?: {
         monetization_enabled?: boolean;
+        interests?: string[];  // Array of interest IDs from INTEREST_CATEGORIES
         [key: string]: any;
     };
 }
