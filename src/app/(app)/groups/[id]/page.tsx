@@ -120,7 +120,20 @@ export default function GroupDetailsPage() {
                     // Stories without contributions will appear in creators' "Waiting" tab on their profile
                     const filteredStories = (storiesData || []).filter((s: any) => {
                         const hasContributions = s.contributions && s.contributions.length > 0;
-                        return hasContributions;
+                        if (!hasContributions) return false;
+
+                        // For forked stories, check if the creator (the person who forked) still has
+                        // 'waiting' status as a participant. When they add their content, their status
+                        // changes from 'waiting' to 'accepted'. Until then, hide from group feed.
+                        if (s.forked_from_story_id) {
+                            const forkerUserId = s.creator_id;
+                            const forkerIsWaiting = (s.story_participants || []).some(
+                                (p: any) => p.user_id === forkerUserId && p.status === 'waiting'
+                            );
+                            if (forkerIsWaiting) return false;
+                        }
+
+                        return true;
                     });
                     setStories(filteredStories);
                 }
