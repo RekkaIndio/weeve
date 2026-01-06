@@ -1020,6 +1020,55 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         );
     }
 
+    // Handle leaving the story - defined early so it's available in isStoryComplete block
+    const handleLeaveStory = async () => {
+        if (!currentUser || !story) return;
+
+        setShowLeaveConfirm(false);
+        setShowMenu(false);
+
+        try {
+            const result = await leaveStory(story.id, currentUser.id, currentUser.name);
+
+            if (result.success) {
+                // toast removed
+                router.push('/profile');
+            } else {
+                console.error(result.error || 'Failed to leave story');
+            }
+        } catch (error) {
+            console.error('Error leaving story:', error);
+            console.error('An error occurred while leaving the story');
+        }
+    };
+
+    // Handle deleting the story (creators only) - defined early so it's available in isStoryComplete block
+    const handleDeleteStory = async () => {
+        if (!currentUser || !story) return;
+
+        setShowDeleteConfirm(false);
+        setShowMenu(false);
+
+        try {
+            const result = await deleteStory(story.id, currentUser.id);
+
+            if (result.success) {
+                // toast removed
+                // Redirect to group page if story belongs to a group, otherwise profile
+                if (story.groupId) {
+                    router.push(`/groups/${story.groupId}`);
+                } else {
+                    router.push('/profile');
+                }
+            } else {
+                console.error(result.error || 'Failed to delete story');
+            }
+        } catch (error) {
+            console.error('Error deleting story:', error);
+            console.error('An error occurred while deleting the story');
+        }
+    };
+
     // If story is complete, render it using the feed-style UI so it behaves like a normal post
     if (isStoryComplete) {
         return (
@@ -1150,6 +1199,66 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                         );
                     })()}
                 </div>
+
+                {/* Edit Story Modal */}
+                {showEditModal && (
+                    <EditStoryModal
+                        story={story}
+                        onClose={() => setShowEditModal(false)}
+                    />
+                )}
+
+                {/* Leave Story Confirmation Modal */}
+                {showLeaveConfirm && (
+                    <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full">
+                            <h2 className="text-xl font-bold mb-2">Leave Story?</h2>
+                            <p className="text-gray-400 text-sm mb-6">
+                                Are you sure you want to leave "<span className="text-white font-medium">{story.title}</span>"? This will free up your slot for someone else.
+                            </p>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowLeaveConfirm(false)}
+                                    className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleLeaveStory}
+                                    className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+                                >
+                                    Yes, Leave
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Delete Story Confirmation Modal */}
+                {showDeleteConfirm && (
+                    <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-sm w-full">
+                            <h2 className="text-xl font-bold mb-2 text-red-400">Delete Story?</h2>
+                            <p className="text-gray-400 text-sm mb-6">
+                                Are you sure you want to permanently delete "<span className="text-white font-medium">{story.title}</span>"? This action cannot be undone and will remove all contributions, comments, and likes.
+                            </p>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    className="flex-1 px-4 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDeleteStory}
+                                    className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+                                >
+                                    Yes, Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -1525,57 +1634,6 @@ function StoryPageContent({ storyId }: { storyId: string }) {
             }
         }
     };
-
-    // Handle leaving the story
-    const handleLeaveStory = async () => {
-        if (!currentUser || !story) return;
-
-        setShowLeaveConfirm(false);
-        setShowMenu(false);
-
-        try {
-            const result = await leaveStory(story.id, currentUser.id, currentUser.name);
-
-            if (result.success) {
-                // toast removed
-                router.push('/profile');
-            } else {
-                console.error(result.error || 'Failed to leave story');
-            }
-        } catch (error) {
-            console.error('Error leaving story:', error);
-            console.error('An error occurred while leaving the story');
-        }
-    };
-
-    // Handle deleting the story (creators only)
-    const handleDeleteStory = async () => {
-        if (!currentUser || !story) return;
-
-        setShowDeleteConfirm(false);
-        setShowMenu(false);
-
-        try {
-            const result = await deleteStory(story.id, currentUser.id);
-
-            if (result.success) {
-                // toast removed
-                // Redirect to group page if story belongs to a group, otherwise profile
-                if (story.groupId) {
-                    router.push(`/groups/${story.groupId}`);
-                } else {
-                    router.push('/profile');
-                }
-            } else {
-                console.error(result.error || 'Failed to delete story');
-            }
-        } catch (error) {
-            console.error('Error deleting story:', error);
-            console.error('An error occurred while deleting the story');
-        }
-    };
-
-
 
     const handleEmojiInsert = (emoji: string) => {
         if (!activeElementId) return;
