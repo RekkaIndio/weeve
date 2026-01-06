@@ -109,6 +109,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     brandSubscriptionStatus: profile.brandSubscriptionStatus,
                     completedOnboarding: profile.completedOnboarding ?? false,
                     onboardingStep: (profile.onboardingStep === null) ? undefined : profile.onboardingStep,
+                    website: (profile.preferences as any)?.website,
+                    preferences: profile.preferences,
                 };
                 setCurrentUser(appUser);
                 return appUser;

@@ -16,6 +16,7 @@ export default function EditProfilePage() {
 
     const [name, setName] = useState(currentUser?.name || "");
     const [tagline, setTagline] = useState(currentUser?.tagline || "");
+    const [website, setWebsite] = useState((currentUser?.preferences as any)?.website || "");
     const [avatar, setAvatar] = useState(currentUser?.avatar || "");
     const [interactionCost, setInteractionCost] = useState(currentUser?.interactionCost?.toString() || "");
     const [isUploading, setIsUploading] = useState(false);
@@ -159,11 +160,19 @@ export default function EditProfilePage() {
             }
         }
         try {
+            // Build preferences update for website
+            const currentPrefs = (currentUser.preferences as any) || {};
+            const trimmedWebsite = website.trim();
+            const updatedPrefs = {
+                ...currentPrefs,
+                website: trimmedWebsite.length > 0 ? trimmedWebsite : undefined
+            };
+
             const { error } = await updateUserProfile(currentUser.id, {
                 name: name.trim(),
                 tagline: tagline.trim() || null,
                 avatar: avatar || null,
-
+                preferences: updatedPrefs,
                 interactionCost: null, // Feature removed
             });
 
@@ -205,7 +214,8 @@ export default function EditProfilePage() {
                 name: name.trim(),
                 tagline: tagline.trim() || undefined,
                 avatar: avatar || undefined,
-
+                website: trimmedWebsite || undefined,
+                preferences: updatedPrefs,
                 interactionCost: undefined, // Feature removed
             });
 
@@ -399,6 +409,22 @@ export default function EditProfilePage() {
                         />
                         <p className="text-xs text-gray-600 mt-1.5">
                             {tagline.length}/150 characters
+                        </p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-2">
+                            Website
+                        </label>
+                        <input
+                            type="url"
+                            value={website}
+                            onChange={(e) => setWebsite(e.target.value)}
+                            className="w-full bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#EC1D99] transition-colors"
+                            placeholder="https://yourwebsite.com"
+                        />
+                        <p className="text-xs text-gray-600 mt-1.5">
+                            Add a link to your website or portfolio
                         </p>
                     </div>
 
