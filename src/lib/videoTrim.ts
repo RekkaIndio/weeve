@@ -46,6 +46,7 @@ export interface TrimVideoOptions {
     file: File;
     startTime: number; // seconds
     endTime: number;   // seconds
+    isMuted?: boolean; // remove audio
     onProgress?: (progress: number) => void;
 }
 
@@ -54,20 +55,20 @@ export interface TrimVideoOptions {
  * Uses FFmpeg WASM to process the video client-side
  */
 export async function trimVideo(options: TrimVideoOptions): Promise<File> {
-    const { file, startTime, endTime, onProgress } = options;
+    const { file, startTime, endTime, isMuted, onProgress } = options;
 
-    // If no trimming needed (full video), return original
-    if (startTime <= 0 && endTime <= 0) {
+    // If no trimming needed (full video) and no mute needed, return original
+    if (startTime <= 0 && endTime <= 0 && !isMuted) {
         return file;
     }
 
     const duration = endTime - startTime;
-    if (duration <= 0) {
+    if (duration <= 0 && !isMuted) {
         console.warn('[trimVideo] Invalid trim range, returning original file');
         return file;
     }
 
-    console.log(`[trimVideo] Trimming video from ${startTime}s to ${endTime}s (duration: ${duration}s)`);
+    console.log(`[trimVideo] Trimming video from ${startTime}s to ${endTime}s (duration: ${duration}s, muted: ${isMuted})`);
 
     try {
         const ffmpeg = await getFFmpeg();
@@ -87,35 +88,52 @@ export async function trimVideo(options: TrimVideoOptions): Promise<File> {
         const fileData = await fetchFile(file);
         await ffmpeg.writeFile(inputName, fileData);
 
-        // Execute FFmpeg trim command
-        // -ss: seek to start time (before -i for faster seeking)
-        // -t: duration to extract
-        // -c copy: use stream copy for speed (no re-encoding)
-        // If copy fails, fall back to re-encoding
-        try {
-            await ffmpeg.exec([
-                '-ss', startTime.toString(),
-                '-i', inputName,
-                '-t', duration.toString(),
-                '-c', 'copy',
-                '-avoid_negative_ts', 'make_zero',
-                '-y',
-                outputName
-            ]);
-        } catch (copyError) {
-            console.warn('[trimVideo] Copy mode failed, falling back to re-encode:', copyError);
-            // Fall back to re-encoding
-            await ffmpeg.exec([
-                '-ss', startTime.toString(),
-                '-i', inputName,
-                '-t', duration.toString(),
-                '-c:v', 'libx264',
-                '-preset', 'ultrafast',
-                '-c:a', 'aac',
-                '-avoid_negative_ts', 'make_zero',
-                '-y',
-                outputName
-            ]);
+        // Build FFmpeg command args
+        const commonArgs = [
+            '-ss', startTime.toString(),
+            '-i', inputName,
+            '-t', duration.toString(),
+            '-avoid_negative_ts', 'make_zero',
+            '-y'
+        ];
+
+        // Add mute flag if needed
+        if (isMuted) {
+            commonArgs.push('-an');
+            // If muting, we can use copy mode for video stream only, or re-encode if fails
+            try {
+                await ffmpeg.exec([
+                    ...commonArgs,
+                    '-c:v', 'copy',
+                    outputName
+                ]);
+            } catch (copyError) {
+                console.warn('[trimVideo] Copy mode failed (mute), fallback to re-encode:', copyError);
+                await ffmpeg.exec([
+                    ...commonArgs,
+                     '-c:v', 'libx264',
+                    '-preset', 'ultrafast',
+                    outputName
+                ]);
+            }
+        } else {
+            // Normal trimming (keep audio)
+            try {
+                await ffmpeg.exec([
+                    ...commonArgs,
+                    '-c', 'copy',
+                    outputName
+                ]);
+            } catch (copyError) {
+                console.warn('[trimVideo] Copy mode failed, falling back to re-encode:', copyError);
+                await ffmpeg.exec([
+                    ...commonArgs,
+                    '-c:v', 'libx264',
+                    '-preset', 'ultrafast',
+                    '-c:a', 'aac',
+                    outputName
+                ]);
+            }
         }
 
         // Read the output file
@@ -163,7 +181,9 @@ export async function trimVideo(options: TrimVideoOptions): Promise<File> {
 /**
  * Check if video needs trimming based on mediaDraft values
  */
-export function needsTrimming(trimStart?: number, trimEnd?: number, videoDuration?: number): boolean {
+export function needsTrimming(trimStart?: number, trimEnd?: number, videoDuration?: number, isMuted?: boolean): boolean {
+    if (isMuted) return true;
+
     if (trimStart === undefined || trimEnd === undefined) {
         return false;
     }

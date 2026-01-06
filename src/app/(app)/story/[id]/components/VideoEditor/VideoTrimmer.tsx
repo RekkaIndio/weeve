@@ -1,5 +1,7 @@
 "use client";
 
+"use client";
+
 import { useRef, useState, useEffect, useCallback } from "react";
 
 interface VideoTrimmerProps {
@@ -185,11 +187,12 @@ export function VideoTrimmer({
     const showPlayhead = currentTime >= (isDragging ? localStart : trimStart) && currentTime <= (isDragging ? localEnd : trimEnd);
 
     return (
-        <div className="w-full px-3 py-3 bg-black/80 backdrop-blur-sm rounded-2xl">
+        <div className="w-full px-3 py-3 bg-black/80 backdrop-blur-sm rounded-2xl flex items-center gap-3">
+
             {/* Filmstrip Timeline */}
             <div
                 ref={trackRef}
-                className="relative h-12 rounded-lg overflow-hidden"
+                className="relative h-12 flex-1 rounded-lg overflow-hidden"
             >
                 {/* Thumbnail Strip */}
                 <div className="absolute inset-0 flex">

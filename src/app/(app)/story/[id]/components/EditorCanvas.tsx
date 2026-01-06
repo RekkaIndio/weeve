@@ -3,7 +3,7 @@ import { DrawingCanvas } from "@/app/components/DrawingCanvas";
 import { DraggableSticker } from "@/app/components/DraggableSticker";
 import { PHOTO_FILTERS } from "../constants/filters";
 import type { PhotoSticker, MediaDraft } from "../types";
-import { Type, Smile, Trash, Scissors } from "lucide-react";
+import { Type, Smile, Trash, Scissors, Volume2, VolumeX } from "lucide-react";
 
 interface EditorCanvasProps {
     stitchMode: 'video' | 'image' | 'drawing' | 'text' | 'audio' | null;
@@ -22,6 +22,9 @@ interface EditorCanvasProps {
     // Video trimmer props
     onToggleTrimmer?: () => void;
     showVideoTrimmer?: boolean;
+    // Mute props
+    isMuted?: boolean;
+    onToggleMute?: () => void;
 }
 
 export function EditorCanvas({
@@ -39,7 +42,9 @@ export function EditorCanvas({
     onSetPhotoStickers,
     onSetDraggingStickerId,
     onToggleTrimmer,
-    showVideoTrimmer = false
+    showVideoTrimmer = false,
+    isMuted = false,
+    onToggleMute
 }: EditorCanvasProps) {
     // Capture the initial viewport height to prevent canvas resize when keyboard opens
     const [fixedHeight, setFixedHeight] = useState<number | null>(null);
@@ -50,6 +55,8 @@ export function EditorCanvas({
             setFixedHeight(window.innerHeight);
         }
     }, [fixedHeight]);
+
+    console.log('[EditorCanvas] Render', { stitchMode, isMuted, hasToggleMute: !!onToggleMute });
 
     if (stitchMode === 'video' && mediaDraft?.previewUrl) {
         return (
@@ -99,6 +106,17 @@ export function EditorCanvas({
                                 aria-label="Trim Video"
                             >
                                 <Scissors className="w-5 h-5 text-white" />
+                            </button>
+                        )}
+
+                        {/* Mute Button - only if handler provided */}
+                        {onToggleMute && (
+                            <button
+                                onClick={onToggleMute}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${isMuted ? 'bg-red-500 border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                                aria-label={isMuted ? "Unmute Video" : "Mute Video"}
+                            >
+                                {isMuted ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
                             </button>
                         )}
 

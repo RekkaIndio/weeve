@@ -1580,24 +1580,32 @@ function StoryPageContent({ storyId }: { storyId: string }) {
 
         // Handle video trimming if trim points are set
         let videoFileToUpload = mediaDraft?.file;
-        if (stitchMode === 'video' && mediaDraft?.file && mediaDraft.trimStart !== undefined && mediaDraft.trimEnd !== undefined) {
-            const shouldTrim = needsTrimming(mediaDraft.trimStart, mediaDraft.trimEnd);
-            if (shouldTrim) {
+        if (stitchMode === 'video' && mediaDraft?.file) {
+            const hasTrimPoints = mediaDraft.trimStart !== undefined && mediaDraft.trimEnd !== undefined;
+            const shouldTrim = needsTrimming(
+                mediaDraft.trimStart,
+                mediaDraft.trimEnd,
+                undefined, // video duration unknown here, optimization: could pass if tracked
+                mediaDraft.isMuted
+            );
+
+            if (shouldTrim && hasTrimPoints) {
                 try {
-                    console.log('[Story] Trimming video before upload...');
+                    console.log('[Story] Processing video before upload (trim/mute)...');
                     setUploadProgress(0);
                     videoFileToUpload = await trimVideo({
                         file: mediaDraft.file,
-                        startTime: mediaDraft.trimStart,
-                        endTime: mediaDraft.trimEnd,
+                        startTime: mediaDraft.trimStart ?? 0,
+                        endTime: mediaDraft.trimEnd ?? 0,
+                        isMuted: mediaDraft.isMuted,
                         onProgress: (progress) => {
                             // Use 0-30% for trimming progress
                             setUploadProgress(Math.round(progress * 0.3));
                         }
                     });
-                    console.log('[Story] Video trimmed successfully');
+                    console.log('[Story] Video processed successfully');
                 } catch (trimError) {
-                    console.error('[Story] Video trimming failed, using original file:', trimError);
+                    console.error('[Story] Video processing failed, using original file:', trimError);
                     // Fall back to original file if trimming fails
                     videoFileToUpload = mediaDraft.file;
                 }
@@ -2217,6 +2225,15 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     setActiveMenu(null);
                 }}
                 showVideoTrimmer={showVideoTrimmer}
+                isMuted={mediaDraft?.isMuted}
+                onToggleMute={() => {
+                    const newMuted = !mediaDraft?.isMuted;
+                    setMediaDraft(prev => prev ? { ...prev, isMuted: newMuted } : null);
+                    const video = document.querySelector('.absolute.inset-0 video') as HTMLVideoElement | null;
+                    if (video) {
+                        video.muted = newMuted;
+                    }
+                }}
             />
 
             {/* Composer Header - Cancel/Post buttons */}

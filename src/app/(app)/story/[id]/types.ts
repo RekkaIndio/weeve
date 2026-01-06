@@ -34,4 +34,5 @@ export interface MediaDraft {
     previewUrl?: string;
     trimStart?: number; // Video trim start point in seconds
     trimEnd?: number;   // Video trim end point in seconds
+    isMuted?: boolean;  // Whether audio should be removed
 }
