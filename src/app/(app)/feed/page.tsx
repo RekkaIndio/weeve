@@ -73,8 +73,17 @@ export default function Home() {
 
       try {
         // Fetch stories first (critical path)
-        await fetchStories();
-        console.log('[Feed] Stories fetched successfully');
+        // If returning from a story (restoring position), skip initial fetch to prevent
+        // resetting the list to page 1, which would lose our scroll position if deep in the feed.
+        const isRestoring = typeof window !== 'undefined' && !!sessionStorage.getItem('weeve_return_to_story');
+        const hasStories = useStore.getState().stories.length > 0;
+
+        if (isRestoring && hasStories) {
+          console.log('[Feed] Restoring position, skipping initial fetch to preserve list.');
+        } else {
+          await fetchStories();
+          console.log('[Feed] Stories fetched successfully');
+        }
 
         // Then fetch secondary data in parallel (non-blocking)
         if (!cancelled) {
@@ -98,7 +107,21 @@ export default function Home() {
   }, [loading, user, fetchStories, setGroups, fetchFriends]);
 
   // Tab state for feed organization
-  const [activeTab, setActiveTab] = useState<'foryou' | 'following'>('foryou');
+  // Initialize from sessionStorage to restore context if returning
+  const [activeTab, setActiveTab] = useState<'foryou' | 'following'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('weeve_active_tab');
+      if (saved === 'following') return 'following';
+    }
+    return 'foryou';
+  });
+
+  // Persist activeTab changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('weeve_active_tab', activeTab);
+    }
+  }, [activeTab]);
 
   // Pull-to-refresh handler
   const handleRefresh = useCallback(async () => {
@@ -166,9 +189,16 @@ export default function Home() {
   }, [activeIndex, filteredStories.length, hasMoreStories, isStoriesLoading, fetchMoreStories]);
 
 
+  // Track if we are in a restoration flow to prevent unwanted resets
+  const isRestoringRef = useRef(typeof window !== 'undefined' && !!sessionStorage.getItem('weeve_return_to_story'));
+  const hasRestoredRef = useRef(false);
+
   // Re-calculate active index when changing tabs to prevent index out of bounds
+  // Guarded to prevent resetting during initial restoration
   useEffect(() => {
-    setActiveIndex(0);
+    if (!isRestoringRef.current) {
+      setActiveIndex(0);
+    }
   }, [activeTab]);
 
   // ===== FORCE INITIAL RENDER AFTER STORIES LOAD =====
@@ -185,36 +215,77 @@ export default function Home() {
     if (hadNoStories && hasStoriesNow && containerRef.current) {
       console.log('[Feed] Stories just loaded, forcing full initialization...');
 
-      // Force activeIndex to 0 to ensure proper rendering
-      setActiveIndex(0);
-
-      // Force scroll to top
-      containerRef.current.scrollTop = 0;
-
-      // Schedule a second forced update after React has finished the current render cycle
-      // This is necessary because the FeedItem components need time to mount
-      const timer = setTimeout(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTop = 0;
-          // Force another state update to trigger re-render with all items mounted
-          setForceRefreshKey(prev => prev + 1);
+      // Logic to determine if we should reset to top or allow restoration
+      // If we are restoring, we check if the target story exists in the current list
+      let shouldReset = true;
+      if (isRestoringRef.current) {
+        const returnId = typeof window !== 'undefined' ? sessionStorage.getItem('weeve_return_to_story') : null;
+        if (returnId && filteredStories.some(s => s.id === returnId)) {
+          console.log('[Feed] Skipping reset for restoration flow');
+          shouldReset = false;
+        } else {
+          // Target not found, proceed with reset
+          isRestoringRef.current = false;
         }
-      }, 100);
+      }
 
-      // Also schedule an observer re-initialization after items are mounted
-      requestAnimationFrame(() => {
-        if (containerRef.current) {
-          // Force the container to recalculate layout
-          containerRef.current.style.display = 'none';
-          containerRef.current.offsetHeight; // Force reflow
-          containerRef.current.style.display = '';
-          containerRef.current.scrollTop = 0;
-        }
-      });
+      if (shouldReset) {
+        // Force activeIndex to 0 to ensure proper rendering
+        setActiveIndex(0);
 
-      return () => clearTimeout(timer);
+        // Force scroll to top
+        containerRef.current.scrollTop = 0;
+
+        const timer = setTimeout(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop = 0;
+            setForceRefreshKey(prev => prev + 1);
+          }
+        }, 100);
+
+        requestAnimationFrame(() => {
+          if (containerRef.current) {
+            containerRef.current.style.display = 'none';
+            containerRef.current.offsetHeight; // Force reflow
+            containerRef.current.style.display = '';
+            containerRef.current.scrollTop = 0;
+          }
+        });
+        return () => clearTimeout(timer);
+      }
     }
   }, [filteredStories.length]);
+
+  // Dedicated Restoration Effect
+  useEffect(() => {
+    if (hasRestoredRef.current) return;
+
+    const returnToStoryId = typeof window !== 'undefined' ? sessionStorage.getItem('weeve_return_to_story') : null;
+
+    if (returnToStoryId && filteredStories.length > 0) {
+      const idx = filteredStories.findIndex(s => s.id === returnToStoryId);
+      if (idx !== -1) {
+        console.log('[Feed] Restoration found target at index:', idx);
+
+        // Mark as restored so we don't do it again
+        hasRestoredRef.current = true;
+        isRestoringRef.current = false; // Allow normal resets now
+
+        sessionStorage.removeItem('weeve_return_to_story');
+
+        setActiveIndex(idx);
+
+        // Schedule scroll
+        setTimeout(() => {
+          const el = itemRefs.current.get(idx);
+          if (el && containerRef.current) {
+            console.log('[Feed] ScrollTo offset:', el.offsetTop);
+            containerRef.current.scrollTop = el.offsetTop;
+          }
+        }, 100);
+      }
+    }
+  }, [filteredStories]);
 
   // DEBUG LOGGING - Moved here to have access to all variables
   useEffect(() => {
@@ -265,6 +336,8 @@ export default function Home() {
       }
     }
   }, [activeIndex, filteredStories]);
+
+  // Restore story position logic moved to initialization effect to avoid race condition
 
   // Redirect to login if not authenticated
   useEffect(() => {
