@@ -3,7 +3,7 @@ import { DrawingCanvas } from "@/app/components/DrawingCanvas";
 import { DraggableSticker } from "@/app/components/DraggableSticker";
 import { PHOTO_FILTERS } from "../constants/filters";
 import type { PhotoSticker, MediaDraft } from "../types";
-import { Type, Smile, Trash } from "lucide-react";
+import { Type, Smile, Trash, Scissors } from "lucide-react";
 
 interface EditorCanvasProps {
     stitchMode: 'video' | 'image' | 'drawing' | 'text' | 'audio' | null;
@@ -19,6 +19,9 @@ interface EditorCanvasProps {
     onClearStickers: () => void;
     onSetPhotoStickers: (stickers: PhotoSticker[]) => void;
     onSetDraggingStickerId: (id: string | null) => void;
+    // Video trimmer props
+    onToggleTrimmer?: () => void;
+    showVideoTrimmer?: boolean;
 }
 
 export function EditorCanvas({
@@ -34,7 +37,9 @@ export function EditorCanvas({
     onToggleStickers,
     onClearStickers,
     onSetPhotoStickers,
-    onSetDraggingStickerId
+    onSetDraggingStickerId,
+    onToggleTrimmer,
+    showVideoTrimmer = false
 }: EditorCanvasProps) {
     // Capture the initial viewport height to prevent canvas resize when keyboard opens
     const [fixedHeight, setFixedHeight] = useState<number | null>(null);
@@ -54,6 +59,7 @@ export function EditorCanvas({
                     className="absolute inset-0 w-full h-full object-cover pointer-events-auto"
                     autoPlay
                     playsInline
+                    muted
                     loop
                     onClick={(e) => {
                         if (e.currentTarget.paused) e.currentTarget.play();
@@ -85,6 +91,17 @@ export function EditorCanvas({
                 {/* Right Side Tool Menu - matching drawing tools style */}
                 {!activeElementId && (
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-[70] pointer-events-auto">
+                        {/* Trim Button */}
+                        {onToggleTrimmer && (
+                            <button
+                                onClick={onToggleTrimmer}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all ${showVideoTrimmer ? 'bg-[#EC1D99] border-2 border-white' : 'bg-gray-800/90 backdrop-blur-sm border-2 border-white/30'}`}
+                                aria-label="Trim Video"
+                            >
+                                <Scissors className="w-5 h-5 text-white" />
+                            </button>
+                        )}
+
                         {/* Add Text Button */}
                         <button
                             onClick={onAddText}

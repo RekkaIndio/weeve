@@ -18,6 +18,7 @@ import OnboardingTutorialOverlay from "@/app/components/OnboardingTutorialOverla
 import StitchContextThumbnails from "@/app/components/StitchContextThumbnails";
 import AudioRecorder from "@/app/components/AudioRecorder";
 import { uploadAudio } from "@/lib/uploadAudio";
+import { trimVideo, needsTrimming } from "@/lib/videoTrim";
 
 import { useTimerCheck } from "@/lib/useTimerCheck";
 import { supabase } from "@/lib/supabase";
@@ -43,6 +44,7 @@ import { StitchComposer } from "./components/StitchComposer";
 import { StoryTimeline } from "./components/StoryTimeline";
 import { StitchMenu } from "./components/StitchMenu";
 import { MediaPickerOverlay } from "./components/MediaPickerOverlay";
+import { VideoTrimmer } from "./components/VideoEditor/VideoTrimmer";
 
 export default function StoryPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
@@ -164,6 +166,9 @@ function StoryPageContent({ storyId }: { storyId: string }) {
     const [photoFilter, setPhotoFilter] = useState<string>('normal');
     const [showPhotoFilterPanel, setShowPhotoFilterPanel] = useState(false);
     const [showStickerPanel, setShowStickerPanel] = useState(false);
+    const [showVideoTrimmer, setShowVideoTrimmer] = useState(false);
+    const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+    const isScrubbingRef = useRef(false);
     const [photoStickers, setPhotoStickers] = useState<PhotoSticker[]>([]);
     const [draggingStickerId, setDraggingStickerId] = useState<string | null>(null);
     const stickerLastTapRef = useRef<{ id: string; time: number } | null>(null);
@@ -891,11 +896,63 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         setPhotoFilter('normal');
         setShowPhotoFilterPanel(false);
         setShowStickerPanel(false);
+        setShowVideoTrimmer(false);
         setPhotoStickers([]);
         setAudioBlob(null);
         setAudioDuration(0);
         dragStateRef.current = null;
     };
+
+    // Auto-loop video within trim range when trimmer is visible
+    useEffect(() => {
+        if (!showVideoTrimmer || stitchMode !== 'video' || !mediaDraft?.previewUrl) return;
+
+        const video = document.querySelector('.absolute.inset-0 video') as HTMLVideoElement | null;
+        if (!video) return;
+
+        const trimStart = mediaDraft.trimStart ?? 0;
+        const trimEnd = mediaDraft.trimEnd ?? video.duration;
+
+        // Set up loop within trim range
+        const handleTimeUpdate = () => {
+            if (!isScrubbingRef.current) {
+                setVideoCurrentTime(video.currentTime);
+            }
+            // Only loop if not scrubbing
+            if (!isScrubbingRef.current && trimEnd > 0 && video.currentTime >= trimEnd) {
+                video.currentTime = trimStart;
+                // Ensure video keeps playing after loop
+                if (video.paused) {
+                    video.play().catch(() => { });
+                }
+            }
+        };
+
+        // Ensure video is playing when trimmer opens
+        const ensurePlaying = () => {
+            if (video.paused && !isScrubbingRef.current) {
+                video.play().catch(() => { });
+            }
+        };
+
+        video.addEventListener('timeupdate', handleTimeUpdate);
+        video.addEventListener('seeked', ensurePlaying);
+
+        // Start from trim start if outside range
+        if (video.currentTime < trimStart || video.currentTime > trimEnd) {
+            video.currentTime = trimStart;
+        }
+
+        // Ensure video is playing
+        ensurePlaying();
+
+        return () => {
+            video.removeEventListener('timeupdate', handleTimeUpdate);
+            video.removeEventListener('seeked', ensurePlaying);
+        };
+    }, [showVideoTrimmer, stitchMode, mediaDraft?.previewUrl, mediaDraft?.trimStart, mediaDraft?.trimEnd]);
+
+
 
     const updateTextStyle = (key: keyof TextStyle, value: string | number) => {
         if (!activeElementId) return;
@@ -1521,6 +1578,32 @@ function StoryPageContent({ storyId }: { storyId: string }) {
         setUploadProgress(0);
         uploadStartTimeRef.current = Date.now();
 
+        // Handle video trimming if trim points are set
+        let videoFileToUpload = mediaDraft?.file;
+        if (stitchMode === 'video' && mediaDraft?.file && mediaDraft.trimStart !== undefined && mediaDraft.trimEnd !== undefined) {
+            const shouldTrim = needsTrimming(mediaDraft.trimStart, mediaDraft.trimEnd);
+            if (shouldTrim) {
+                try {
+                    console.log('[Story] Trimming video before upload...');
+                    setUploadProgress(0);
+                    videoFileToUpload = await trimVideo({
+                        file: mediaDraft.file,
+                        startTime: mediaDraft.trimStart,
+                        endTime: mediaDraft.trimEnd,
+                        onProgress: (progress) => {
+                            // Use 0-30% for trimming progress
+                            setUploadProgress(Math.round(progress * 0.3));
+                        }
+                    });
+                    console.log('[Story] Video trimmed successfully');
+                } catch (trimError) {
+                    console.error('[Story] Video trimming failed, using original file:', trimError);
+                    // Fall back to original file if trimming fails
+                    videoFileToUpload = mediaDraft.file;
+                }
+            }
+        }
+
         try {
             const willComplete = maxWeeves !== null && story.contributions.length + 1 >= maxWeeves;
             const computedNextTurnUserId = computeNextTurnUserId(willComplete);
@@ -1554,13 +1637,20 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 userName: currentUser.name,
                 mediaType: stitchMode,
                 content: caption,
-                file: stitchMode === 'drawing' ? drawingFile : (filteredImageFile || mediaDraft?.file),
+                file: stitchMode === 'drawing' ? drawingFile :
+                    stitchMode === 'video' ? videoFileToUpload :
+                        (filteredImageFile || mediaDraft?.file),
                 mediaUrl: stitchMode === 'audio' ? audioMediaUrl : undefined,
                 textStyle: textStylePayload,
                 timestamp: contributionTimestamp,
                 nextTurnUserId: nextTurnUpdate,
                 onProgress: (progress) => {
-                    setUploadProgress(Math.round(progress));
+                    // If we did video trimming, offset progress (30% was for trim, 70% for upload)
+                    const hasTrimmed = stitchMode === 'video' && videoFileToUpload !== mediaDraft?.file;
+                    const adjustedProgress = hasTrimmed
+                        ? 30 + Math.round(progress * 0.7)
+                        : Math.round(progress);
+                    setUploadProgress(adjustedProgress);
                 }
             });
 
@@ -2121,6 +2211,12 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                     setActiveElementId(null);
                     setActiveMenu(null);
                 }}
+                onToggleTrimmer={() => {
+                    setShowVideoTrimmer(prev => !prev);
+                    setShowStickerPanel(false);
+                    setActiveMenu(null);
+                }}
+                showVideoTrimmer={showVideoTrimmer}
             />
 
             {/* Composer Header - Cancel/Post buttons */}
@@ -2295,6 +2391,43 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 )
             }
 
+
+
+            {/* Video Trimmer Panel - above stitch thumbnails when toggled */}
+            {showVideoTrimmer && stitchMode === 'video' && mediaDraft?.previewUrl && !showStitchMenu && (
+                <div className="absolute left-4 right-4 bottom-[130px] z-50 pointer-events-auto">
+                    <VideoTrimmer
+                        videoUrl={mediaDraft.previewUrl}
+                        trimStart={mediaDraft.trimStart ?? 0}
+                        trimEnd={mediaDraft.trimEnd ?? 0}
+                        currentTime={videoCurrentTime}
+                        onTrimChange={(start, end) => {
+                            setMediaDraft(prev => prev ? { ...prev, trimStart: start, trimEnd: end } : null);
+                        }}
+                        onScrub={(time) => {
+                            const video = document.querySelector('.absolute.inset-0 video') as HTMLVideoElement | null;
+                            if (video) {
+                                video.currentTime = time;
+                            }
+                        }}
+                        onInteractionStart={() => {
+                            isScrubbingRef.current = true;
+                            const video = document.querySelector('.absolute.inset-0 video') as HTMLVideoElement | null;
+                            if (video && !video.paused) {
+                                video.pause();
+                            }
+                        }}
+                        onInteractionEnd={() => {
+                            isScrubbingRef.current = false;
+                            const video = document.querySelector('.absolute.inset-0 video') as HTMLVideoElement | null;
+                            if (video) {
+                                // Resume playing from current position
+                                video.play().catch(() => { });
+                            }
+                        }}
+                    />
+                </div>
+            )}
 
             {/* Context Thumbnails - Visible when composing OR cropping, BUT NOT when editing text (to avoid keyboard overlap) */}
             {contributions.length > 0 && ((stitchMode !== null && !showStitchMenu) || imageToCrop) && !activeElementId && (

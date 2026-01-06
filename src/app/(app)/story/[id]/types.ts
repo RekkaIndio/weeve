@@ -32,4 +32,6 @@ export interface MediaDraft {
     type: 'video' | 'image';
     file?: File;
     previewUrl?: string;
+    trimStart?: number; // Video trim start point in seconds
+    trimEnd?: number;   // Video trim end point in seconds
 }

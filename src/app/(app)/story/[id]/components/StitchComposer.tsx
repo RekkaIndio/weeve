@@ -47,6 +47,9 @@ interface StitchComposerProps {
     onUpdateTextStyle: (key: keyof TextStyle, value: any) => void;
     onUpdateTextContent: (id: string, content: string) => void;
     onDeleteTextElement: (id: string) => void;
+    // Video trimmer handler
+    onToggleTrimmer?: () => void;
+    showVideoTrimmer?: boolean;
 }
 
 export function StitchComposer({
@@ -81,7 +84,9 @@ export function StitchComposer({
     onSetHasMovedInCurrentEdit,
     onUpdateTextStyle,
     onUpdateTextContent,
-    onDeleteTextElement
+    onDeleteTextElement,
+    onToggleTrimmer,
+    showVideoTrimmer
 }: StitchComposerProps) {
     if (!isComposerOpen) return null;
 
@@ -108,6 +113,8 @@ export function StitchComposer({
                 onClearStickers={onClearStickers}
                 onSetPhotoStickers={onSetPhotoStickers}
                 onSetDraggingStickerId={onSetDraggingStickerId}
+                onToggleTrimmer={onToggleTrimmer}
+                showVideoTrimmer={showVideoTrimmer}
             />
 
             {/* TextEditor available for all content modes */}
