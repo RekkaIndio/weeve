@@ -37,7 +37,10 @@ export type NotificationType =
     | 'content_submitted_for_review'
     | 'story_submitted_for_review'
     | 'story_comment'
-    | 'share';
+    | 'share'
+    | 'collab_request'
+    | 'collab_accepted'
+    | 'collab_declined';
 
 export interface Notification {
     id: string;
@@ -533,6 +536,104 @@ export const notifyNewMessage = async (
         message: `${senderName}: ${messagePreview.substring(0, 50)}${messagePreview.length > 50 ? '...' : ''}`,
         data: { conversation_id: conversationId },
         action_url: `/inbox/${conversationId}`,
+        read: false,
+    });
+};
+
+// ============================================
+// COLLABORATION NOTIFICATIONS
+// ============================================
+
+/**
+ * Notify user of a collaboration request
+ */
+export const notifyCollabRequest = async (
+    storyId: string,
+    storyTitle: string,
+    senderId: string,
+    receiverId: string,
+    priceCents?: number
+) => {
+    const { data: sender } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('user_id', senderId)
+        .single();
+
+    if (!sender) return;
+
+    const priceMessage = priceCents && priceCents > 0
+        ? ` (paid $${(priceCents / 100).toFixed(2)})`
+        : '';
+
+    await createNotification({
+        user_id: receiverId,
+        type: 'collab_request',
+        title: 'Collaboration Request 🤝',
+        message: `${sender.name} wants to collaborate on "${storyTitle}"${priceMessage}`,
+        data: { story_id: storyId, sender_id: senderId, price_cents: priceCents },
+        action_url: `/story/${storyId}`,
+        read: false,
+    });
+};
+
+/**
+ * Notify initiator that collaboration was accepted
+ */
+export const notifyCollabAccepted = async (
+    storyId: string,
+    storyTitle: string,
+    accepterId: string,
+    initiatorId: string
+) => {
+    const { data: accepter } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('user_id', accepterId)
+        .single();
+
+    if (!accepter) return;
+
+    await createNotification({
+        user_id: initiatorId,
+        type: 'collab_accepted',
+        title: 'Collaboration Accepted! 🎉',
+        message: `${accepter.name} accepted your collaboration request for "${storyTitle}"`,
+        data: { story_id: storyId },
+        action_url: `/story/${storyId}`,
+        read: false,
+    });
+};
+
+/**
+ * Notify initiator that collaboration was declined
+ */
+export const notifyCollabDeclined = async (
+    storyId: string,
+    storyTitle: string,
+    declinerId: string,
+    initiatorId: string,
+    refundCents?: number
+) => {
+    const { data: decliner } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('user_id', declinerId)
+        .single();
+
+    if (!decliner) return;
+
+    const refundMessage = refundCents && refundCents > 0
+        ? `. Your $${(refundCents / 100).toFixed(2)} will be refunded.`
+        : '';
+
+    await createNotification({
+        user_id: initiatorId,
+        type: 'collab_declined',
+        title: 'Collaboration Declined',
+        message: `${decliner.name} declined your collaboration request for "${storyTitle}"${refundMessage}`,
+        data: { story_id: storyId, refund_cents: refundCents },
+        action_url: `/profile`,
         read: false,
     });
 };

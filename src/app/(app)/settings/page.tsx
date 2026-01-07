@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3, Receipt, DollarSign, Ban, IdCard, KeyRound, TrendingUp, BookOpen, Scroll, AlertTriangle, Heart } from "lucide-react";
+import { ChevronLeft, User, Bell, Lock, HelpCircle, LogOut, ChevronRight, Trash2, Sparkles, BarChart3, Receipt, DollarSign, Ban, IdCard, KeyRound, TrendingUp, BookOpen, Scroll, AlertTriangle, Heart, Users } from "lucide-react";
 
 import { useStore } from "@/lib/store";
 import { signOut, updateUserProfile } from "@/lib/auth";
@@ -168,6 +168,7 @@ export default function SettingsPage() {
             items: [
                 { label: "Account Information", icon: IdCard, action: () => router.push('/settings/account') },
                 { label: "Account Privacy", icon: Lock, toggle: true, description: "When enabled, only approved friends can see your profile and stories" },
+                { label: "Collaboration Settings", icon: Users, action: () => router.push('/settings/collaboration'), description: "Manage who can collaborate with you and set your pricing" },
                 { label: "Blocked Users", icon: Ban, action: () => router.push('/settings/blocked-users') },
             ]
         },

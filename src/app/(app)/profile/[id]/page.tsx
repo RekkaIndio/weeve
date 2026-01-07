@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useStore, User } from "@/lib/store";
-import { Grid, UserPlus, ChevronLeft, Share2, Check, Clock, MoreVertical, Ban, X, UserMinus } from "lucide-react";
+import { Grid, UserPlus, ChevronLeft, Share2, Check, Clock, MoreVertical, Ban, X, UserMinus, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
@@ -11,6 +11,7 @@ import { notifyNewFollower } from "@/lib/notifications";
 import VideoThumbnail from '@/app/components/VideoThumbnail';
 import MediaWithFallback from '@/app/components/MediaWithFallback';
 import { isUserBlocked, blockUser } from "@/lib/blocked";
+import { canInitiateCollab, formatPrice } from "@/lib/collaborations";
 
 export default function UserProfilePage() {
     const params = useParams();
@@ -70,6 +71,10 @@ export default function UserProfilePage() {
     const [isRemovingFriend, setIsRemovingFriend] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
+    // Collaboration state
+    const [collabEnabled, setCollabEnabled] = useState(true);
+    const [collabPriceCents, setCollabPriceCents] = useState<number>(0);
+
     useEffect(() => {
         async function fetchProfile() {
             if (user || userId === currentUser?.id) return;
@@ -121,6 +126,22 @@ export default function UserProfilePage() {
             // Check if I have blocked this user
             const iBlocked = await isUserBlocked(currentUser.id, userId);
             setIHaveBlocked(iBlocked);
+        })();
+    }, [currentUser, userId]);
+
+    // Fetch collaboration settings for this user
+    useEffect(() => {
+        if (!userId || userId === currentUser?.id) return;
+
+        (async () => {
+            try {
+                const result = await canInitiateCollab(currentUser?.id || '', userId);
+                setCollabEnabled(result.allowed);
+                setCollabPriceCents(result.priceCents);
+            } catch (err) {
+                console.error('[UserProfile] Failed to check collab eligibility:', err);
+                setCollabEnabled(false);
+            }
         })();
     }, [currentUser, userId]);
 
@@ -713,6 +734,17 @@ export default function UserProfilePage() {
                         )}
                     </button>
                 </div>
+
+                {/* Collaborate Button */}
+                {collabEnabled && (
+                    <button
+                        onClick={() => router.push(`/create-story?collaboratorId=${userId}`)}
+                        className="w-full mt-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-2.5 rounded-lg text-sm hover:opacity-90 transition-all flex items-center justify-center gap-2"
+                    >
+                        <Users className="w-4 h-4" />
+                        Collaborate {collabPriceCents > 0 ? `• ${formatPrice(collabPriceCents)}` : ''}
+                    </button>
+                )}
             </div>
 
             {/* Tabs */}

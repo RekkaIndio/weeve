@@ -5,14 +5,23 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import CreateStory, { CreateStoryFormState, Friend } from '@/app/components/CreateStory';
 import { useStore, Story, User } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
+import { getCollabPrice, formatPrice } from '@/lib/collaborations';
 
 
 function CreateStoryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const groupId = searchParams?.get('groupId');
+  const collaboratorId = searchParams?.get('collaboratorId');
+  const isCollabMode = !!collaboratorId;
+
   const { addStory, currentUser, friends, deductTokens, fetchFriends, fetchStories } = useStore();
   const [groupInfo, setGroupInfo] = useState<{ name: string; avatar: string } | null>(null);
+
+  // Collaboration mode state
+  const [collaborator, setCollaborator] = useState<Friend | null>(null);
+  const [collabPriceCents, setCollabPriceCents] = useState<number>(0);
+  const [loadingCollab, setLoadingCollab] = useState(false);
 
   // Fetch group info if groupId is present
   useEffect(() => {
@@ -35,6 +44,42 @@ function CreateStoryContent() {
       console.error('Payment was cancelled. Please try again.');
     }
   }, [searchParams]);
+
+  // Fetch collaborator info if in collab mode
+  useEffect(() => {
+    if (!collaboratorId || !currentUser) return;
+
+    setLoadingCollab(true);
+    (async () => {
+      try {
+        // Fetch collaborator profile
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('user_id, name, avatar, is_influencer, collab_price_cents')
+          .eq('user_id', collaboratorId)
+          .single();
+
+        if (error || !profile) {
+          console.error('[CreateStory] Failed to fetch collaborator:', error);
+          router.back();
+          return;
+        }
+
+        setCollaborator({
+          id: profile.user_id,
+          name: profile.name,
+          avatar: profile.avatar || undefined,
+          isInfluencer: profile.is_influencer || false,
+        });
+        setCollabPriceCents(profile.collab_price_cents || 0);
+      } catch (err) {
+        console.error('[CreateStory] Error in collab mode setup:', err);
+        router.back();
+      } finally {
+        setLoadingCollab(false);
+      }
+    })();
+  }, [collaboratorId, currentUser, router]);
 
   const fetchGroupInfo = async () => {
     if (!groupId) return;
@@ -139,8 +184,10 @@ function CreateStoryContent() {
           description: description,
           creator_id: currentUser.id,
           // Use 'open' mode for brand posts AND public stories with slot selection (to handle open slots)
-          mode: (data.postType === 'canon' || data.postType === 'seed' || isPublicStoryWithSlots) ? 'open' : 'invite',
-          visibility: data.visibility, // Assuming DB has visibility column or we map it
+          // For collab mode, use 'invite' since it's between two specific creators
+          mode: isCollabMode ? 'invite' : ((data.postType === 'canon' || data.postType === 'seed' || isPublicStoryWithSlots) ? 'open' : 'invite'),
+          // Collab stories start as private until accepted, then go public when complete
+          visibility: isCollabMode ? 'private' : data.visibility,
           status: 'active',
           max_weeves: computedMaxWeeves, // Store total slots including creator (inviteCount is friend count)
           current_turn_user_id: initialTurnUserId, // Set based on story type
@@ -157,6 +204,12 @@ function CreateStoryContent() {
           payment_status: requiresPayment ? 'pending' : 'completed',
           // Product URL for brand posts
           product_url: data.productUrl || null,
+          // Collaboration fields
+          is_collab: isCollabMode || null,
+          collab_status: isCollabMode ? 'pending' : null,
+          collab_initiator_id: isCollabMode ? currentUser.id : null,
+          collab_target_id: isCollabMode ? collaboratorId : null,
+          collab_price_cents: isCollabMode ? collabPriceCents : null,
         })
         .select()
         .single();
@@ -312,17 +365,27 @@ function CreateStoryContent() {
           }
         }
 
-        // Send invite notifications to invited users (excluding creator)
-        const invitedUserIds = finalParticipants
-          .filter(p => p.id !== currentUser.id)
-          .map(p => p.id);
-
-        if (invitedUserIds.length > 0) {
-          import('@/lib/notifications').then(({ notifyStoryInvite }) => {
-            notifyStoryInvite(newStoryId, data.title, currentUser.name, invitedUserIds).catch(err => {
-              console.error('Failed to send invite notifications:', err);
+        // Send notifications based on story type
+        if (isCollabMode && collaboratorId) {
+          // Send collaboration request notification
+          import('@/lib/notifications').then(({ notifyCollabRequest }) => {
+            notifyCollabRequest(newStoryId, data.title, currentUser.id, collaboratorId, collabPriceCents || undefined).catch(err => {
+              console.error('Failed to send collab request notification:', err);
             });
           }).catch(err => console.error('Failed to import notifications:', err));
+        } else {
+          // Send regular invite notifications to invited users (excluding creator)
+          const invitedUserIds = finalParticipants
+            .filter(p => p.id !== currentUser.id)
+            .map(p => p.id);
+
+          if (invitedUserIds.length > 0) {
+            import('@/lib/notifications').then(({ notifyStoryInvite }) => {
+              notifyStoryInvite(newStoryId, data.title, currentUser.name, invitedUserIds).catch(err => {
+                console.error('Failed to send invite notifications:', err);
+              });
+            }).catch(err => console.error('Failed to import notifications:', err));
+          }
         }
       }
 
@@ -423,12 +486,29 @@ function CreateStoryContent() {
     );
   }
 
+  // Show loading state while fetching collaborator in collab mode
+  if (isCollabMode && loadingCollab) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black text-white">
+        <div className="text-gray-500">Setting up collaboration...</div>
+      </div>
+    );
+  }
+
+  // In collab mode, only show current user and collaborator as available friends
+  const collabFriends: Friend[] = isCollabMode && collaborator && currentUser
+    ? [
+      { id: currentUser.id, name: currentUser.name, avatar: currentUser.avatar },
+      collaborator
+    ]
+    : friends;
+
   return (
     <CreateStory
       onBack={handleBack}
       onCreateStory={handleCreateStory}
       currentUser={currentUser}
-      availableFriends={friends}
+      availableFriends={collabFriends}
       onDeductTokens={deductTokens}
       groupId={groupId || undefined}
       groupName={groupInfo?.name}
@@ -436,6 +516,9 @@ function CreateStoryContent() {
       onRefreshFriends={async () => {
         await fetchFriends();
       }}
+      isCollabMode={isCollabMode}
+      collaborator={collaborator || undefined}
+      collabPriceCents={collabPriceCents}
     />
   );
 }

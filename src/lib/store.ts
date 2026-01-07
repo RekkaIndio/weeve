@@ -32,6 +32,9 @@ export interface User {
     brandSubscriptionStatus?: 'none' | 'active' | 'expired';
     completedOnboarding?: boolean;
     onboardingStep?: number;
+    // Collaboration fields
+    collabEnabled?: boolean;
+    collabPriceCents?: number; // Price in cents (e.g., 500 = $5.00)
 }
 
 export interface Group {
@@ -135,6 +138,12 @@ export interface Story {
     reviewedBy?: string;
     // Product link for brand posts
     productUrl?: string;
+    // Collaboration fields
+    isCollab?: boolean;
+    collabStatus?: 'pending' | 'accepted' | 'declined';
+    collabInitiatorId?: string;
+    collabTargetId?: string;
+    collabPriceCents?: number; // Price paid for this collab (in cents)
 }
 
 /**

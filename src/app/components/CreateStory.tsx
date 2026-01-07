@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronLeft, Loader, Check } from "lucide-react";
+import { ChevronLeft, Loader, Check, Users } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 import { useCreateStory } from "./CreateStory/useCreateStory";
 import StoryDetails from "./CreateStory/StoryDetails";
 import StoryContributors from "./CreateStory/StoryContributors";
 import StorySettings from "./CreateStory/StorySettings";
 import { CreateStoryFormState, Friend } from "./CreateStory/types";
+import { formatPrice } from "@/lib/collaborations";
 
 // Re-export types for consumers
 export type { CreateStoryFormState, Friend };
@@ -30,6 +31,10 @@ interface CreateStoryProps {
   groupName?: string;
   groupAvatar?: string;
   onRefreshFriends?: () => Promise<void>;
+  // Collaboration mode props
+  isCollabMode?: boolean;
+  collaborator?: Friend;
+  collabPriceCents?: number;
 }
 
 const CreateStory = ({
@@ -42,6 +47,9 @@ const CreateStory = ({
   groupName,
   groupAvatar,
   onRefreshFriends,
+  isCollabMode = false,
+  collaborator,
+  collabPriceCents = 0,
 }: CreateStoryProps) => {
   const {
     // State
@@ -99,7 +107,6 @@ const CreateStory = ({
 
   return (
     <div className="flex flex-col min-h-screen bg-black text-white" ref={refs.topRef}>
-      {/* Header */}
       <header className="sticky top-0 z-20 bg-black/90 backdrop-blur-md border-b border-gray-800 px-4 py-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
@@ -111,9 +118,25 @@ const CreateStory = ({
           </button>
           <div>
             <h1 className="text-xl font-bold text-white font-sans">
-              Create Story
+              {isCollabMode ? 'Collaboration Request' : 'Create Story'}
             </h1>
-            {groupId && groupName && (
+            {isCollabMode && collaborator ? (
+              <div className="flex items-center gap-1.5 mt-1">
+                {collaborator.avatar && (
+                  <img
+                    src={collaborator.avatar}
+                    alt={collaborator.name}
+                    className="w-4 h-4 rounded-full"
+                  />
+                )}
+                <span className="text-xs text-gray-400">
+                  with @{collaborator.name.toLowerCase().replace(/\s+/g, '_')}
+                  {collabPriceCents > 0 && (
+                    <span className="text-purple-400 ml-1">• {formatPrice(collabPriceCents)}</span>
+                  )}
+                </span>
+              </div>
+            ) : groupId && groupName && (
               <div className="flex items-center gap-1.5 mt-1">
                 {groupAvatar && (
                   <img
@@ -228,15 +251,17 @@ const CreateStory = ({
           <button
             onClick={handleCreateStory}
             disabled={isLoading}
-            className={`flex-[2] px-8 py-3 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#EC1D99]/25 ${isLoading
-              ? "opacity-70 cursor-wait bg-[#EC1D99]"
-              : "bg-[#EC1D99] hover:bg-[#D41C84] active:scale-[0.98]"
-              }`}
+            className={`flex-[2] px-8 py-3 rounded-2xl text-white font-bold text-lg flex items-center justify-center gap-2 transition-all shadow-lg ${isCollabMode ? 'shadow-purple-500/25 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90' : 'shadow-[#EC1D99]/25 bg-[#EC1D99] hover:bg-[#D41C84]'} ${isLoading ? "opacity-70 cursor-wait" : "active:scale-[0.98]"}`}
           >
             {isLoading ? (
               <>
                 <Loader className="w-5 h-5 animate-spin" />
-                Creating...
+                {isCollabMode ? 'Sending...' : 'Creating...'}
+              </>
+            ) : isCollabMode ? (
+              <>
+                <Users className="w-6 h-6" />
+                Request {collabPriceCents > 0 ? `(${formatPrice(collabPriceCents)})` : ''}
               </>
             ) : (
               <>
