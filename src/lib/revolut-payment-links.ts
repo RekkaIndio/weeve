@@ -75,6 +75,12 @@ export async function getPaymentLink(
   visibilityDays: number,
   storyId: string
 ): Promise<string | null> {
+  // Check if Revolut is configured before attempting to create payment
+  if (!process.env.REVOLUT_API_KEY) {
+    console.warn('[Revolut] Payment not configured - REVOLUT_API_KEY is not set. Skipping payment link creation.');
+    return null;
+  }
+
   const key = `${postType}-${visibilityDays}`;
   const pricing = BRAND_POST_PRICING[key];
   

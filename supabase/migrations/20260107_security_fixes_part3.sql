@@ -565,16 +565,16 @@ DECLARE
   v_days_since_change INTEGER;
 BEGIN
   IF OLD.name IS DISTINCT FROM NEW.name THEN
-    SELECT last_name_change INTO v_last_change FROM profiles WHERE user_id = NEW.user_id;
+    SELECT last_name_change_at INTO v_last_change FROM profiles WHERE user_id = NEW.user_id;
     
     IF v_last_change IS NOT NULL THEN
       v_days_since_change := EXTRACT(DAY FROM NOW() - v_last_change);
-      IF v_days_since_change < 30 THEN
-        RAISE EXCEPTION 'You can only change your name once every 30 days. Please wait % more days.', 30 - v_days_since_change;
+      IF v_days_since_change < 14 THEN
+        RAISE EXCEPTION 'You can only change your name once every 14 days. Please wait % more days.', 14 - v_days_since_change;
       END IF;
     END IF;
     
-    NEW.last_name_change := NOW();
+    NEW.last_name_change_at := NOW();
   END IF;
   
   RETURN NEW;

@@ -356,30 +356,42 @@ export default function EditProfilePage() {
                                 </p>
                                 {name.trim() && name !== currentUser?.name && (
                                     <div className="flex items-center gap-1.5">
-                                        {nameAvailability.loading && (
-                                            <p className="text-xs text-gray-400">Checking...</p>
-                                        )}
-                                        {nameAvailability.available === true && (
-                                            <p className="text-xs text-green-400 flex items-center gap-1">
-                                                <CheckCircle className="w-3 h-3" /> Available
+                                        {!canChangeName ? (
+                                            <p className="text-xs text-amber-400 flex items-center gap-1">
+                                                ⏳ {daysUntilNameChange} day{daysUntilNameChange !== 1 ? 's' : ''} remaining
                                             </p>
-                                        )}
-                                        {nameAvailability.available === false && (
-                                            <p className="text-xs text-red-400 flex items-center gap-1">
-                                                <XCircle className="w-3 h-3" /> Already taken
-                                            </p>
+                                        ) : (
+                                            <>
+                                                {nameAvailability.loading && (
+                                                    <p className="text-xs text-gray-400">Checking...</p>
+                                                )}
+                                                {nameAvailability.available === true && (
+                                                    <p className="text-xs text-green-400 flex items-center gap-1">
+                                                        <CheckCircle className="w-3 h-3" /> Available
+                                                    </p>
+                                                )}
+                                                {nameAvailability.available === false && (
+                                                    <p className="text-xs text-red-400 flex items-center gap-1">
+                                                        <XCircle className="w-3 h-3" /> Already taken
+                                                    </p>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 )}
                             </div>
                             {!canChangeName && name !== currentUser?.name && (
-                                <p className="text-xs text-amber-400">
-                                    ⚠️ You can change your name in {daysUntilNameChange} day{daysUntilNameChange !== 1 ? 's' : ''}
+                                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
+                                    <p className="text-xs text-amber-400">
+                                        ⚠️ You can change your name in {daysUntilNameChange} day{daysUntilNameChange !== 1 ? 's' : ''}. Display names can only be changed once every 14 days.
+                                    </p>
+                                </div>
+                            )}
+                            {canChangeName && (
+                                <p className="text-xs text-gray-600">
+                                    Display names must be unique and can only be changed once every 14 days
                                 </p>
                             )}
-                            <p className="text-xs text-gray-600">
-                                Display names must be unique and can only be changed once every 14 days
-                            </p>
                         </div>
                     </div>
 

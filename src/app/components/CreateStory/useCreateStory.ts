@@ -485,9 +485,13 @@ export const useCreateStory = ({
         if (paymentLink) {
           window.location.href = paymentLink;
         } else {
-          setError("Payment configuration error. Please contact support.");
-          setIsLoading(false);
+          // Payment not configured - redirect to story instead
+          console.warn('[CreateStory] Payment link not available, redirecting to story');
+          router.push(`/story/${storyId}`);
         }
+      } else {
+        // No payment required - redirect to story
+        router.push(`/story/${storyId}`);
       }
     } catch (err) {
       setError(
