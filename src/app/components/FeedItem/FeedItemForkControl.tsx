@@ -522,7 +522,7 @@ export default function FeedItemForkControl({
                 <div className="absolute inset-0 z-50 bg-black/90 flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
                     <div className="w-full max-w-sm bg-[#1a1a2e] rounded-3xl p-6 border border-white/10">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-white">Customize Weeve</h3>
+                            <h3 className="text-xl font-bold text-white">Customise Weeve</h3>
                             <button
                                 onClick={() => {
                                     setShowWeeveDetailsModal(false);
