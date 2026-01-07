@@ -35,7 +35,7 @@ export function StoryTimeline({
     const isAlreadyInvolved = story.participants.some(p => p.id === currentUser?.id);
 
     return (
-        <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-30 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
+        <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-50 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
             <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', scrollSnapType: 'x mandatory' }}>
                 {timelineEntries.map((entry, entryIndex) => {
                     // Handle empty slot entries (waiting participants or open slots)
@@ -326,17 +326,43 @@ export function StoryTimeline({
                             style={timelineItemSnapStyle}
                         >
                             <div
-                                className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 ${isActive
+                                className={`w-12 h-12 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all shrink-0 bg-gray-900 relative ${isActive
                                     ? 'border-[#EC1D99] shadow-[0_0_15px_rgba(236,29,153,0.35)]'
                                     : isCurrentTurn
                                         ? 'border-[#EC1D99]/70 shadow-[0_0_12px_rgba(236,29,153,0.25)]'
                                         : 'border-gray-700'}`}
                             >
-                                <img
-                                    src={avatar}
-                                    alt={displayName}
-                                    className="w-full h-full object-cover"
-                                />
+                                {contribution.mediaType === 'video' ? (
+                                    <video
+                                        src={contribution.mediaUrl}
+                                        className="w-full h-full object-cover"
+                                        muted
+                                        playsInline
+                                    />
+                                ) : (contribution.mediaType === 'image' || contribution.mediaType === 'drawing') ? (
+                                    <img
+                                        src={contribution.mediaUrl || avatar}
+                                        alt={displayName}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : contribution.mediaType === 'text' ? (
+                                    <div className="w-full h-full flex items-center justify-center bg-gray-800 p-1">
+                                        <span className="text-[6px] text-gray-300 leading-tight line-clamp-3 text-center">
+                                            {contribution.content}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <img
+                                        src={avatar}
+                                        alt={displayName}
+                                        className="w-full h-full object-cover"
+                                    />
+                                )}
+
+                                {/* User Avatar badge for context (small overlay) */}
+                                <div className="absolute bottom-0 right-0 w-4 h-4 rounded-full border border-black overflow-hidden z-10">
+                                    <img src={avatar} className="w-full h-full object-cover" alt="" />
+                                </div>
                             </div>
                             <span className="text-[10px] text-gray-300 font-medium max-w-[64px] truncate" title={displayName}>
                                 {displayName.split(' ').slice(0, 2).join(' ')}

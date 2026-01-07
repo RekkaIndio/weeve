@@ -1,16 +1,17 @@
-import { useRef, useState, useEffect } from "react";
-import { DrawingCanvas } from "@/app/components/DrawingCanvas";
+import { useState, useEffect, useRef } from "react";
+import { DrawingCanvas, DrawingCanvasRef } from "@/app/components/DrawingCanvas";
 import { DraggableSticker } from "@/app/components/DraggableSticker";
 import { PHOTO_FILTERS } from "../constants/filters";
 import type { PhotoSticker, MediaDraft } from "../types";
 import { Type, Smile, Trash, Scissors, Volume2, VolumeX } from "lucide-react";
+import { VideoTrimmer } from "./VideoEditor/VideoTrimmer";
 
 interface EditorCanvasProps {
     stitchMode: 'video' | 'image' | 'drawing' | 'text' | 'audio' | null;
     mediaDraft: MediaDraft | null;
     photoFilter: string;
     photoStickers: PhotoSticker[];
-    drawingCanvasRef: React.RefObject<any>;
+    drawingCanvasRef: React.RefObject<DrawingCanvasRef | null>;
     showStickerPanel: boolean;
     activeElementId: string | null;
     draggingStickerId: string | null;
@@ -22,6 +23,7 @@ interface EditorCanvasProps {
     // Video trimmer props
     onToggleTrimmer?: () => void;
     showVideoTrimmer?: boolean;
+    onTrimChange?: (start: number, end: number) => void;
     // Mute props
     isMuted?: boolean;
     onToggleMute?: () => void;
@@ -43,9 +45,11 @@ export function EditorCanvas({
     onSetDraggingStickerId,
     onToggleTrimmer,
     showVideoTrimmer = false,
+    onTrimChange,
     isMuted = false,
     onToggleMute
 }: EditorCanvasProps) {
+    // Capture the initial viewport height to prevent canvas resize when keyboard opens
     // Capture the initial viewport height to prevent canvas resize when keyboard opens
     const [fixedHeight, setFixedHeight] = useState<number | null>(null);
 
@@ -54,25 +58,75 @@ export function EditorCanvas({
         if (typeof window !== 'undefined' && fixedHeight === null) {
             setFixedHeight(window.innerHeight);
         }
-    }, [fixedHeight]);
+    }, []);
 
-    console.log('[EditorCanvas] Render', { stitchMode, isMuted, hasToggleMute: !!onToggleMute });
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [currentTime, setCurrentTime] = useState(0);
+
+    // Effect to ensure video respects trim bounds when they change
+    useEffect(() => {
+        if (videoRef.current && mediaDraft?.trimStart !== undefined) {
+            if (videoRef.current.currentTime < mediaDraft.trimStart) {
+                videoRef.current.currentTime = mediaDraft.trimStart;
+            }
+        }
+    }, [mediaDraft?.trimStart]);
 
     if (stitchMode === 'video' && mediaDraft?.previewUrl) {
         return (
             <div className="absolute inset-0 pointer-events-none">
                 <video
+                    ref={videoRef}
                     src={mediaDraft.previewUrl}
                     className="absolute inset-0 w-full h-full object-cover pointer-events-auto"
                     autoPlay
                     playsInline
-                    muted
-                    loop
+                    muted={isMuted} // Use isMuted prop
+                    loop={false} // Handle looping manually
+                    onTimeUpdate={(e) => {
+                        const time = e.currentTarget.currentTime;
+                        setCurrentTime(time);
+                        const start = mediaDraft.trimStart || 0;
+                        const end = mediaDraft.trimEnd || e.currentTarget.duration;
+
+                        if (end > 0 && time >= end) {
+                            e.currentTarget.currentTime = start;
+                            e.currentTarget.play();
+                        }
+                    }}
+                    onLoadedMetadata={(e) => {
+                        const start = mediaDraft.trimStart || 0;
+                        if (e.currentTarget.currentTime < start) {
+                            e.currentTarget.currentTime = start;
+                        }
+                    }}
                     onClick={(e) => {
                         if (e.currentTarget.paused) e.currentTarget.play();
                         else e.currentTarget.pause();
                     }}
                 />
+                {/* Video Trimmer Overlay */}
+                {showVideoTrimmer && (
+                    <div className="absolute bottom-28 left-4 right-4 z-[80] pointer-events-auto">
+                        <VideoTrimmer
+                            videoUrl={mediaDraft.previewUrl}
+                            trimStart={mediaDraft.trimStart || 0}
+                            trimEnd={mediaDraft.trimEnd || 0}
+                            onTrimChange={onTrimChange || (() => { })}
+                            currentTime={currentTime}
+                            onScrub={(time) => {
+                                if (videoRef.current) {
+                                    videoRef.current.currentTime = time;
+                                    // Avoid triggering re-renders during high-frequency scrub events
+                                    // setCurrentTime(time); 
+                                }
+                            }}
+                            onInteractionStart={() => videoRef.current?.pause()}
+                            onInteractionEnd={() => videoRef.current?.play()}
+                        />
+                    </div>
+                )}
+
                 {/* Stickers Overlay */}
                 {photoStickers.map((sticker) => (
                     <DraggableSticker

@@ -16,7 +16,7 @@ interface VideoTrimmerProps {
     maxDuration?: number; // Maximum allowed duration in seconds (default: 300 = 5 minutes)
 }
 
-const THUMBNAIL_COUNT = 8;
+const THUMBNAIL_COUNT = 10;
 const MIN_TRIM_DURATION = 1; // Minimum 1 second
 
 export function VideoTrimmer({
@@ -59,6 +59,8 @@ export function VideoTrimmer({
         video.muted = true;
         video.playsInline = true;
 
+        let cancelled = false;
+
         const generateThumbnails = async () => {
             setIsGeneratingThumbnails(true);
             const canvas = document.createElement('canvas');
@@ -72,22 +74,32 @@ export function VideoTrimmer({
             const videoDuration = video.duration;
 
             for (let i = 0; i < THUMBNAIL_COUNT; i++) {
+                if (cancelled) return;
                 const time = (videoDuration / THUMBNAIL_COUNT) * i;
                 video.currentTime = time;
 
                 await new Promise<void>((resolve) => {
                     const onSeeked = () => {
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        thumbs.push(canvas.toDataURL('image/jpeg', 0.5));
+                        if (!cancelled) {
+                            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                            thumbs.push(canvas.toDataURL('image/jpeg', 0.4));
+                        }
                         video.removeEventListener('seeked', onSeeked);
                         resolve();
                     };
                     video.addEventListener('seeked', onSeeked);
+                    // Timeout fallback in case seek fails/hangs
+                    setTimeout(() => {
+                        video.removeEventListener('seeked', onSeeked);
+                        resolve();
+                    }, 2000);
                 });
             }
 
-            setThumbnails(thumbs);
-            setIsGeneratingThumbnails(false);
+            if (!cancelled) {
+                setThumbnails(thumbs);
+                setIsGeneratingThumbnails(false);
+            }
         };
 
         video.onloadedmetadata = () => {
@@ -107,6 +119,7 @@ export function VideoTrimmer({
         video.src = videoUrl;
 
         return () => {
+            cancelled = true;
             video.src = '';
         };
     }, [videoUrl, maxDuration]);
@@ -184,7 +197,7 @@ export function VideoTrimmer({
     const playheadPercent = timeToPercent(currentTime);
 
     // Check if playhead is within trim range
-    const showPlayhead = currentTime >= (isDragging ? localStart : trimStart) && currentTime <= (isDragging ? localEnd : trimEnd);
+    const showPlayhead = !isDragging && currentTime >= (isDragging ? localStart : trimStart) && currentTime <= (isDragging ? localEnd : trimEnd);
 
     return (
         <div className="w-full px-3 py-3 bg-black/80 backdrop-blur-sm rounded-2xl flex items-center gap-3">

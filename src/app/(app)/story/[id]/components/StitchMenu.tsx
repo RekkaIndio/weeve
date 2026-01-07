@@ -7,7 +7,7 @@ interface StitchMenuProps {
 
 export function StitchMenu({ onOptionSelect, onClose }: StitchMenuProps) {
     return (
-        <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-40 flex flex-col items-center justify-end pb-12 animate-in slide-in-from-bottom duration-300">
+        <div className="absolute inset-0 bg-black/90 backdrop-blur-sm z-[60] flex flex-col items-center justify-end pb-12 animate-in slide-in-from-bottom duration-300">
             <button
                 onClick={onClose}
                 className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white"

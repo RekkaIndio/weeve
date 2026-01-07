@@ -1,5 +1,5 @@
-import { useRef } from "react";
 import { type TextElement, type TextStyle } from "@/lib/store";
+import { DrawingCanvasRef } from "@/app/components/DrawingCanvas";
 import type { PhotoSticker, MediaDraft } from "../types";
 import { EditorCanvas } from "./EditorCanvas";
 import { TextEditor } from "./TextEditor/TextEditor";
@@ -23,7 +23,7 @@ interface StitchComposerProps {
     draggingStickerId: string | null;
 
     // Refs
-    drawingCanvasRef: React.RefObject<any>;
+    drawingCanvasRef: React.RefObject<DrawingCanvasRef | null>;
     draggableRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
     justSelectedRef: React.MutableRefObject<boolean>;
 
@@ -44,11 +44,12 @@ interface StitchComposerProps {
     onSetActiveElementId: (id: string | null) => void;
     onSetActiveMenu: (menu: string | null) => void;
     onSetHasMovedInCurrentEdit: (moved: boolean) => void;
-    onUpdateTextStyle: (key: keyof TextStyle, value: any) => void;
+    onUpdateTextStyle: (key: keyof TextStyle, value: string | number) => void;
     onUpdateTextContent: (id: string, content: string) => void;
     onDeleteTextElement: (id: string) => void;
     // Video trimmer handler
     onToggleTrimmer?: () => void;
+    onTrimChange?: (start: number, end: number) => void;
 
     showVideoTrimmer?: boolean;
     // Mute props
@@ -90,6 +91,7 @@ export function StitchComposer({
     onUpdateTextContent,
     onDeleteTextElement,
     onToggleTrimmer,
+    onTrimChange,
 
     showVideoTrimmer,
     isMuted,
@@ -100,7 +102,7 @@ export function StitchComposer({
     return (
         <div
             className="absolute inset-0 z-40 pointer-events-auto overflow-hidden"
-            onClick={(e) => {
+            onClick={() => {
                 // Skip if we just selected an element via tap (prevents flashing deselection)
                 if (justSelectedRef.current) return;
                 onBackgroundClick();
@@ -121,6 +123,7 @@ export function StitchComposer({
                 onSetPhotoStickers={onSetPhotoStickers}
                 onSetDraggingStickerId={onSetDraggingStickerId}
                 onToggleTrimmer={onToggleTrimmer}
+                onTrimChange={onTrimChange}
 
                 showVideoTrimmer={showVideoTrimmer}
                 isMuted={isMuted}
