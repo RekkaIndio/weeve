@@ -10,7 +10,8 @@ export const searchHashtags = async (query: string, limit = 20): Promise<string[
         return fetchPopularHashtags(limit);
     }
 
-    const normalizedQuery = query.toLowerCase().replace(/^#+/, '').trim();
+    // Normalize and sanitize: remove hashtag prefix and special characters that could manipulate filters
+    const normalizedQuery = query.toLowerCase().replace(/^#+/, '').replace(/[.,()[\]{}]/g, '').trim();
     if (!normalizedQuery) return [];
 
     try {

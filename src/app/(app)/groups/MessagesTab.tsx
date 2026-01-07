@@ -68,10 +68,17 @@ export default function MessagesTab({ onNewMessage }: MessagesTabProps) {
         }
 
         setSearching(true);
+        // Sanitize query to prevent PostgREST filter manipulation
+        const sanitizedQuery = query.replace(/[.,()[\]{}]/g, '').trim();
+        if (!sanitizedQuery) {
+            setSearchResults([]);
+            setSearching(false);
+            return;
+        }
         const { data } = await supabase
             .from('profiles')
             .select('*')
-            .ilike('name', `%${query}%`)
+            .ilike('name', `%${sanitizedQuery}%`)
             .limit(10);
 
         if (data) {

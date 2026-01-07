@@ -2,6 +2,15 @@ import { supabase } from './supabase';
 import { User } from './store';
 import { notifyFriendRequest } from './notifications';
 
+/**
+ * Sanitize search query to prevent PostgREST filter manipulation.
+ * Removes special characters that could alter query logic.
+ */
+const sanitizeSearchQuery = (query: string): string => {
+    // Remove PostgREST operators and special characters
+    return query.replace(/[.,()[\]{}]/g, '').trim();
+};
+
 export interface Friend extends User {
     isFriend: boolean;
     isPrivate?: boolean;
@@ -81,13 +90,17 @@ export const fetchPublicUsers = async (currentUserId: string, limit = 50): Promi
 export const searchUsers = async (query: string, currentUserId: string): Promise<Friend[]> => {
     if (!query || query.length < 2) return fetchPublicUsers(currentUserId);
 
+    // Sanitize query to prevent PostgREST filter manipulation
+    const sanitizedQuery = sanitizeSearchQuery(query);
+    if (!sanitizedQuery) return fetchPublicUsers(currentUserId);
+
     // Run all queries in parallel to eliminate N+1 pattern
     const [profilesResult, friendshipsResult, sentRequestsResult, receivedRequestsResult] = await Promise.all([
         // Query 1: Search profiles
         supabase
             .from('profiles')
             .select('*')
-            .or(`name.ilike.%${query}%,invite_code.eq.${query}`)
+            .or(`name.ilike.%${sanitizedQuery}%,invite_code.eq.${sanitizedQuery}`)
             .neq('user_id', currentUserId)
             .limit(50),
         

@@ -63,11 +63,18 @@ export default function InboxPage() {
     }
 
     setSearching(true);
+    // Sanitize query to prevent PostgREST filter manipulation
+    const sanitizedQuery = query.replace(/[.,()[\]{}]/g, '').trim();
+    if (!sanitizedQuery) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
     // Search users by name or username (simulated by name query)
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .ilike('name', `%${query}%`)
+      .ilike('name', `%${sanitizedQuery}%`)
       .limit(10);
 
     if (data) {
