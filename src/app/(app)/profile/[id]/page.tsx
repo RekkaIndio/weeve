@@ -668,7 +668,18 @@ export default function UserProfilePage() {
                             </span>
                         </div>
                     </div>
+                    {/* Collaborate Button (Header) */}
+                    {collabEnabled && (
+                        <button
+                            onClick={() => router.push(`/create-story?collaboratorId=${userId}`)}
+                            className="flex-shrink-0 ml-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white p-2.5 rounded-full shadow-lg hover:opacity-90 transition-all active:scale-95 flex items-center justify-center"
+                            title={collabPriceCents > 0 ? `Collaborate • ${formatPrice(collabPriceCents)}` : 'Collaborate'}
+                        >
+                            <Users className="w-5 h-5" />
+                        </button>
+                    )}
                 </div>
+
 
                 {/* Stats - Compact Row */}
                 <div className="flex items-center justify-between py-3 border-y border-gray-800 mb-4">
@@ -736,59 +747,46 @@ export default function UserProfilePage() {
                 </div>
 
                 {/* Collaborate Button */}
-                {collabEnabled && (
-                    <button
-                        onClick={() => router.push(`/create-story?collaboratorId=${userId}`)}
-                        className="w-full mt-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold py-2.5 rounded-lg text-sm hover:opacity-90 transition-all flex items-center justify-center gap-2"
-                    >
-                        <Users className="w-4 h-4" />
-                        Collaborate {collabPriceCents > 0 ? `• ${formatPrice(collabPriceCents)}` : ''}
-                    </button>
-                )}
+                {/* Collaborate Button moved to header */}
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-gray-800 mb-1">
-                <button
-                    className="flex-1 flex justify-center py-3 border-b-2 border-white text-white transition-colors"
-                >
-                    <Grid className="w-6 h-6" />
-                </button>
-            </div>
+
 
             {/* Featured Stories Section (Brand Only) */}
-            {user?.isBrand && (featuredStories.length > 0 || (currentUser?.id === user?.id && userStories.length > 0)) && (
-                <div className="mt-6 px-4 mb-2">
-                    {featuredStories.length > 0 && (
-                        <>
-                            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                <span className="text-yellow-500">★</span> Featured Stories
-                            </h3>
-                            <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
-                                {featuredStories.map(story => (
-                                    <Link key={story.id} href={`/story/${story.id}`} className="flex-shrink-0 w-32 aspect-[3/4] relative rounded-xl overflow-hidden bg-gray-900 group border border-yellow-500/30">
-                                        <MediaWithFallback src={story.coverImage || story.contributions[0]?.mediaUrl} alt={story.title} className="w-full h-full object-cover" />
-                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                                        <div className="absolute bottom-2 left-2 right-2">
-                                            <div className="text-xs font-bold text-white truncate">{story.title}</div>
-                                            <div className="text-[10px] text-gray-400">{story.likes} likes</div>
-                                        </div>
-                                        {/* Unpin button for owner */}
-                                        {currentUser?.id === user?.id && (
-                                            <button
-                                                onClick={(e) => handlePinStory(e, story.id, true)}
-                                                className="absolute top-1 right-1 bg-black/50 hover:bg-black/80 p-1.5 rounded-full text-white backdrop-blur-sm transition-colors"
-                                            >
-                                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" /></svg>
-                                            </button>
-                                        )}
-                                    </Link>
-                                ))}
-                            </div>
-                        </>
-                    )}
-                </div>
-            )}
+            {
+                user?.isBrand && (featuredStories.length > 0 || (currentUser?.id === user?.id && userStories.length > 0)) && (
+                    <div className="mt-6 px-4 mb-2">
+                        {featuredStories.length > 0 && (
+                            <>
+                                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    <span className="text-yellow-500">★</span> Featured Stories
+                                </h3>
+                                <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+                                    {featuredStories.map(story => (
+                                        <Link key={story.id} href={`/story/${story.id}`} className="flex-shrink-0 w-32 aspect-[3/4] relative rounded-xl overflow-hidden bg-gray-900 group border border-yellow-500/30">
+                                            <MediaWithFallback src={story.coverImage || story.contributions[0]?.mediaUrl} alt={story.title} className="w-full h-full object-cover" />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                                            <div className="absolute bottom-2 left-2 right-2">
+                                                <div className="text-xs font-bold text-white truncate">{story.title}</div>
+                                                <div className="text-[10px] text-gray-400">{story.likes} likes</div>
+                                            </div>
+                                            {/* Unpin button for owner */}
+                                            {currentUser?.id === user?.id && (
+                                                <button
+                                                    onClick={(e) => handlePinStory(e, story.id, true)}
+                                                    className="absolute top-1 right-1 bg-black/50 hover:bg-black/80 p-1.5 rounded-full text-white backdrop-blur-sm transition-colors"
+                                                >
+                                                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" /></svg>
+                                                </button>
+                                            )}
+                                        </Link>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )
+            }
 
             {/* All Stories Grid */}
             {user?.isBrand && <div className="px-4 py-2 text-sm font-bold text-gray-400 uppercase tracking-wider">All Weeves</div>}
