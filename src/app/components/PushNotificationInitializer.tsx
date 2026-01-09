@@ -80,8 +80,14 @@ const PushNotificationInitializer = () => {
             // Notification tap/action listener
             await FirebaseMessaging.addListener('notificationActionPerformed', (event) => {
                 console.log('[Push] Action performed:', JSON.stringify(event));
-                // Define navigation logic here via router if needed
-                // const router = useRouter() ... need to think about how to inject router here or use window location
+                // Navigate to the action_url if present in notification data
+                const notificationData = event.notification?.data as { action_url?: string } | undefined;
+                const actionUrl = notificationData?.action_url;
+                if (actionUrl && typeof actionUrl === 'string' && actionUrl.length > 0) {
+                    console.log('[Push] Navigating to:', actionUrl);
+                    // Use window.location for navigation since we don't have access to Next.js router here
+                    window.location.href = actionUrl;
+                }
             });
         };
 

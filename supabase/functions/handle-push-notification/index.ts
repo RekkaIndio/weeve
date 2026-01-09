@@ -16,6 +16,7 @@ interface Notification {
   title: string
   message: string
   data?: Record<string, any>
+  action_url?: string
 }
 
 async function getAccessToken(serviceAccount: any) {
@@ -62,7 +63,10 @@ async function sendFCMV1(accessToken: string, projectId: string, token: string, 
         title: notification.title,
         body: notification.message,
       },
-      data: notification.data || {},
+      data: {
+        ...(notification.data || {}),
+        action_url: notification.action_url || '',
+      },
     },
   }
 
