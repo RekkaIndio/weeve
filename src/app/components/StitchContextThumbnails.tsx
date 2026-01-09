@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Contribution } from "@/lib/store";
-import { Video, Type, Pencil, Camera, Play, X, Mic } from "lucide-react";
+import { Video, Type, Pencil, Camera, X, Mic } from "lucide-react";
+import { VideoThumbnail } from "@/app/(app)/story/[id]/components/VideoThumbnail";
 
 interface StitchContextThumbnailsProps {
     contributions: Contribution[];
@@ -72,14 +73,13 @@ export default function StitchContextThumbnails({ contributions, onThumbnailClic
                                 />
                             ) : contribution.mediaUrl && contribution.mediaType === 'video' ? (
                                 <>
-                                    <video
+                                    <VideoThumbnail
                                         src={contribution.mediaUrl}
                                         className="w-full h-full object-cover pointer-events-none"
-                                        muted
-                                        preload="metadata"
                                     />
-                                    <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                                        <Play className="w-4 h-4 text-white fill-white" />
+                                    {/* Video icon indicator in corner */}
+                                    <div className="absolute bottom-0.5 left-0.5 bg-black/50 rounded p-0.5">
+                                        <Video className="w-3 h-3 text-white" />
                                     </div>
                                 </>
                             ) : (
