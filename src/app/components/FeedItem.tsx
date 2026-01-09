@@ -24,9 +24,10 @@ interface FeedItemProps {
     story: Story;
     isActive?: boolean;
     initialContributionId?: string;
+    hideOverlay?: boolean;
 }
 
-export default function FeedItem({ story, isActive: propIsActive }: FeedItemProps) {
+export default function FeedItem({ story, isActive: propIsActive, hideOverlay = false }: FeedItemProps) {
     const router = useRouter();
     const containerRef = useRef<HTMLDivElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -378,10 +379,12 @@ export default function FeedItem({ story, isActive: propIsActive }: FeedItemProp
             />
 
             {/* Overlay Layer */}
-            <FeedItemOverlay
-                story={story}
-                originalStoryTitle={null} // Pass properly if available in story object
-            />
+            {!hideOverlay && (
+                <FeedItemOverlay
+                    story={story}
+                    originalStoryTitle={null} // Pass properly if available in story object
+                />
+            )}
 
             {/* Controls Layer */}
             {!isForking && (

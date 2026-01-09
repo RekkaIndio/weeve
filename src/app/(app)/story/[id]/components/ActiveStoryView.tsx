@@ -165,6 +165,18 @@ export function ActiveStoryView({
                     <div className="flex flex-col items-center">
                         <h1 className="font-bold text-sm tracking-wide uppercase opacity-80 font-sans">Weeve Timeline</h1>
                         {story?.title && <div className="text-sm text-gray-300 mt-1 font-semibold">{story.title}</div>}
+                        {story.forkedFromStoryId && (
+                            <button
+                                onClick={() => router.push(`/story/${story.forkedFromStoryId}`)}
+                                className="flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded-full bg-[#EC1D99]/20 hover:bg-[#EC1D99]/30 transition-colors pointer-events-auto"
+                            >
+                                <GitBranch className="w-3 h-3 text-[#EC1D99]" />
+                                <span className="text-[10px] font-medium text-gray-300">Weeve of:</span>
+                                <span className="text-[10px] font-medium text-[#EC1D99] truncate max-w-[100px]">
+                                    {originalStoryTitle || 'Original'}
+                                </span>
+                            </button>
+                        )}
                         {story.groupId && (
                             <button
                                 onClick={() => router.push(`/groups/${story.groupId}`)}

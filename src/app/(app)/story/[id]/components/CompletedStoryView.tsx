@@ -111,6 +111,7 @@ export function CompletedStoryView({
                 <FeedItem
                     story={story}
                     initialContributionId={initialContributionId}
+                    hideOverlay={true}
                 />
             </div>
 
