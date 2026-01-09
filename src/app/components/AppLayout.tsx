@@ -35,8 +35,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const showHomeNotification = currentUser && pathname === "/feed";
     const isHome = pathname === "/feed";
 
-    // Hide bottom nav only on create-story page for full screen composition
-    const hideBottomNav = pathname === "/create-story";
+    // Hide bottom nav on create-story page and conversation pages for full screen experience
+    const hideBottomNav = pathname === "/create-story" || pathname?.startsWith("/inbox/");
     // Also hide nav during initial load when there are no stories yet (prevents flash)
     const isInitialLoad = pathname === "/feed" && stories.length === 0;
     const isKeyboardOpen = useKeyboard();
