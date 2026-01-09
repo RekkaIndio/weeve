@@ -1594,30 +1594,11 @@ export default function ProfilePage() {
                                                     </span>
                                                 </div>
 
-                                                {isMyTurn && (
-                                                    <div className="absolute top-2 right-2 z-20 flex items-center gap-2">
-                                                        <img
-                                                            src="/weeve-logo.png"
-                                                            alt="Your Turn"
-                                                            className="w-6 h-6 animate-glow-pulse drop-shadow-md"
-                                                        />
-                                                        <span className="hidden sm:inline-block text-[11px] font-bold text-white bg-[#EC1D99] px-2 py-0.5 rounded-full">Your turn</span>
-                                                    </div>
-                                                )}
+
                                             </div>
                                         )}
 
-                                        {/* Logo indicator - show only when it's my turn */}
-                                        {isMyTurn && (
-                                            <div className="absolute top-2 right-2 z-20 flex items-center gap-2">
-                                                <img
-                                                    src="/weeve-logo.png"
-                                                    alt="Your Turn"
-                                                    className="w-6 h-6 animate-glow-pulse drop-shadow-md"
-                                                />
-                                                <span className="hidden sm:inline-block text-[11px] font-bold text-white bg-[#EC1D99] px-2 py-0.5 rounded-full">Your turn</span>
-                                            </div>
-                                        )}
+
 
                                         {/* Media Content */}
                                         {mediaType === 'video' && mediaUrl ? (
