@@ -53,6 +53,7 @@ import {
     sendMessage,
     createConversation,
     markAsRead,
+    deleteMessage,
 } from '@/lib/messaging';
 
 describe('getConversations', () => {
@@ -332,5 +333,41 @@ describe('markAsRead', () => {
 
         expect(mockSupabaseFrom).toHaveBeenCalledWith('conversation_participants');
         expect(mock.update).toHaveBeenCalled();
+    });
+});
+
+describe('deleteMessage', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('soft deletes a message by setting deleted_at and deleted_by', async () => {
+        const mock = createChainedMock(null);
+        mock.update = vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({ error: null }),
+            }),
+        });
+        mockSupabaseFrom.mockReturnValue(mock);
+
+        await deleteMessage('msg-123', 'user-123');
+
+        expect(mockSupabaseFrom).toHaveBeenCalledWith('messages');
+        expect(mock.update).toHaveBeenCalledWith(expect.objectContaining({
+            deleted_at: expect.any(String),
+            deleted_by: 'user-123',
+        }));
+    });
+
+    it('throws error when delete fails', async () => {
+        const mock = createChainedMock(null);
+        mock.update = vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({ error: new Error('Delete failed') }),
+            }),
+        });
+        mockSupabaseFrom.mockReturnValue(mock);
+
+        await expect(deleteMessage('msg-123', 'user-123')).rejects.toThrow();
     });
 });

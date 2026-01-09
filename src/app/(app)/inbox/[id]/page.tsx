@@ -11,9 +11,13 @@ import {
     markAsRead,
     MessageWithSender,
     likeMessage,
-    unlikeMessage
+    unlikeMessage,
+    deleteMessage,
+    deleteConversation,
+    getOtherParticipant
 } from '@/lib/messaging';
-import { ArrowLeft, Send, Reply, Heart, X } from 'lucide-react';
+import { blockUser } from '@/lib/blocked';
+import { ArrowLeft, Send, Reply, Heart, X, Trash2, MoreVertical, UserX, MessageSquareX } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useKeyboard } from '@/hooks/useKeyboard';
@@ -29,7 +33,16 @@ export default function ConversationPage() {
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     const [replyingTo, setReplyingTo] = useState<MessageWithSender | null>(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [showMenu, setShowMenu] = useState(false);
+    const [showDeleteConversation, setShowDeleteConversation] = useState(false);
+    const [showBlockUser, setShowBlockUser] = useState(false);
+    const [otherUserId, setOtherUserId] = useState<string | null>(null);
+    const [otherUser, setOtherUser] = useState<{ name: string; avatar: string | null } | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
     const conversationId = Array.isArray(id) ? id[0] : id;
 
@@ -67,6 +80,44 @@ export default function ConversationPage() {
             subscription.unsubscribe();
         };
     }, [conversationId, user]);
+
+    // Load other participant ID and profile for blocking and header display
+    useEffect(() => {
+        if (!user || !conversationId) return;
+
+        const loadOtherUser = async () => {
+            const otherId = await getOtherParticipant(conversationId, user.id);
+            setOtherUserId(otherId);
+
+            if (otherId) {
+                // Fetch the other user's profile
+                const { data } = await (await import('@/lib/supabase')).supabase
+                    .from('profiles')
+                    .select('name, avatar')
+                    .eq('user_id', otherId)
+                    .single();
+
+                if (data) {
+                    setOtherUser({ name: data.name, avatar: data.avatar });
+                }
+            }
+        };
+
+        loadOtherUser();
+    }, [conversationId, user]);
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setShowMenu(false);
+            }
+        };
+        if (showMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }
+    }, [showMenu]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -128,6 +179,55 @@ export default function ConversationPage() {
         }
     };
 
+    const handleDelete = async (msgId: string) => {
+        if (!user || isDeleting) return;
+
+        setIsDeleting(true);
+        try {
+            await deleteMessage(msgId, user.id);
+            // Re-fetch messages to reflect deletion
+            const updatedMessages = await getMessages(conversationId);
+            setMessages(updatedMessages);
+            setDeleteConfirmId(null);
+        } catch (error) {
+            console.error('Failed to delete message:', error);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleDeleteConversation = async () => {
+        if (!user || isProcessing) return;
+
+        setIsProcessing(true);
+        try {
+            await deleteConversation(conversationId, user.id);
+            router.push('/groups?tab=messages');
+        } catch (error) {
+            console.error('Failed to delete conversation:', error);
+        } finally {
+            setIsProcessing(false);
+            setShowDeleteConversation(false);
+        }
+    };
+
+    const handleBlockUser = async () => {
+        if (!user || !otherUserId || isProcessing) return;
+
+        setIsProcessing(true);
+        try {
+            await blockUser(user.id, otherUserId);
+            // Also delete the conversation when blocking
+            await deleteConversation(conversationId, user.id);
+            router.push('/groups?tab=messages');
+        } catch (error) {
+            console.error('Failed to block user:', error);
+        } finally {
+            setIsProcessing(false);
+            setShowBlockUser(false);
+        }
+    };
+
     if (!user) return null;
 
     const isKeyboardOpen = useKeyboard();
@@ -162,10 +262,122 @@ export default function ConversationPage() {
                 >
                     <ArrowLeft className="w-6 h-6" />
                 </button>
-                <div className="flex-1">
-                    <h2 className="font-bold text-lg">Chat</h2>
+
+                {/* Other user avatar and name */}
+                {otherUser ? (
+                    <Link href={`/profile/${otherUserId}`} className="flex items-center gap-3 flex-1 min-w-0">
+                        {otherUser.avatar ? (
+                            <Image
+                                src={otherUser.avatar}
+                                alt={otherUser.name}
+                                width={40}
+                                height={40}
+                                className="w-10 h-10 rounded-full object-cover bg-gray-800"
+                            />
+                        ) : (
+                            <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg font-medium">
+                                {otherUser.name?.[0]?.toUpperCase()}
+                            </div>
+                        )}
+                        <h2 className="font-bold text-lg truncate">{otherUser.name}</h2>
+                    </Link>
+                ) : (
+                    <div className="flex-1">
+                        <h2 className="font-bold text-lg">Chat</h2>
+                    </div>
+                )}
+
+                {/* Three dots menu */}
+                <div className="relative" ref={menuRef}>
+                    <button
+                        onClick={() => setShowMenu(!showMenu)}
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                    >
+                        <MoreVertical className="w-5 h-5" />
+                    </button>
+
+                    {showMenu && (
+                        <div className="absolute right-0 top-full mt-2 w-48 bg-[#2A2A2A] rounded-xl shadow-xl border border-gray-700 overflow-hidden z-50">
+                            <button
+                                onClick={() => {
+                                    setShowMenu(false);
+                                    setShowDeleteConversation(true);
+                                }}
+                                className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-white/10 transition-colors text-gray-200"
+                            >
+                                <MessageSquareX className="w-4 h-4" />
+                                Delete Conversation
+                            </button>
+                            {otherUserId && (
+                                <button
+                                    onClick={() => {
+                                        setShowMenu(false);
+                                        setShowBlockUser(true);
+                                    }}
+                                    className="w-full px-4 py-3 text-left flex items-center gap-3 hover:bg-white/10 transition-colors text-red-400"
+                                >
+                                    <UserX className="w-4 h-4" />
+                                    Block User
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
+
+            {/* Delete Conversation Confirmation Modal */}
+            {showDeleteConversation && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-[#1A1A1A] rounded-2xl p-6 max-w-sm w-full border border-gray-800">
+                        <h3 className="text-lg font-bold mb-2">Delete Conversation?</h3>
+                        <p className="text-gray-400 text-sm mb-6">
+                            This will remove the conversation from your inbox. The other person will still be able to see it.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowDeleteConversation(false)}
+                                className="flex-1 py-3 rounded-xl bg-gray-800 text-gray-200 font-medium hover:bg-gray-700 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDeleteConversation}
+                                disabled={isProcessing}
+                                className="flex-1 py-3 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
+                            >
+                                {isProcessing ? 'Deleting...' : 'Delete'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Block User Confirmation Modal */}
+            {showBlockUser && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                    <div className="bg-[#1A1A1A] rounded-2xl p-6 max-w-sm w-full border border-gray-800">
+                        <h3 className="text-lg font-bold mb-2">Block User?</h3>
+                        <p className="text-gray-400 text-sm mb-6">
+                            They won't be able to message you or see your content. You can unblock them in Settings → Blocked Users.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowBlockUser(false)}
+                                className="flex-1 py-3 rounded-xl bg-gray-800 text-gray-200 font-medium hover:bg-gray-700 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleBlockUser}
+                                disabled={isProcessing}
+                                className="flex-1 py-3 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
+                            >
+                                {isProcessing ? 'Blocking...' : 'Block'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -224,41 +436,76 @@ export default function ConversationPage() {
                                     )}
 
                                     <div
-                                        className={`px-4 py-2 rounded-2xl relative group-active/message:scale-[0.98] transition-transform ${isMe
-                                            ? 'bg-[#EC1D99] text-white rounded-tr-sm'
-                                            : 'bg-[#2A2A2A] text-gray-100 rounded-tl-sm'
+                                        className={`px-4 py-2 rounded-2xl relative group-active/message:scale-[0.98] transition-transform ${msg.is_deleted
+                                            ? 'bg-[#1A1A1A] text-gray-500 italic'
+                                            : isMe
+                                                ? 'bg-[#EC1D99] text-white rounded-tr-sm'
+                                                : 'bg-[#2A2A2A] text-gray-100 rounded-tl-sm'
                                             }`}
                                     >
-                                        <p className="break-words text-sm md:text-base">{msg.content}</p>
-                                        <div className="flex items-center justify-end gap-2 mt-1">
-                                            <p className={`text-[10px] opacity-70`}>
-                                                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </p>
-                                            {/* Like Count */}
-                                            {msg.likes_count > 0 && (
-                                                <div className="flex items-center gap-0.5 bg-black/20 rounded-full px-1.5 py-0.5">
-                                                    <Heart className="w-3 h-3 fill-pink-500 text-pink-500" />
-                                                    <span className="text-[10px]">{msg.likes_count}</span>
-                                                </div>
-                                            )}
-                                        </div>
+                                        <p className="break-words text-sm md:text-base">
+                                            {msg.is_deleted ? 'This message was deleted' : msg.content}
+                                        </p>
+                                        {!msg.is_deleted && (
+                                            <div className="flex items-center justify-end gap-2 mt-1">
+                                                <p className={`text-[10px] opacity-70`}>
+                                                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </p>
+                                                {/* Like Count */}
+                                                {msg.likes_count > 0 && (
+                                                    <div className="flex items-center gap-0.5 bg-black/20 rounded-full px-1.5 py-0.5">
+                                                        <Heart className="w-3 h-3 fill-pink-500 text-pink-500" />
+                                                        <span className="text-[10px]">{msg.likes_count}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* Actions */}
-                                    <div className={`flex items-center gap-2 mt-1 px-1 transition-opacity ${isMe ? 'flex-row-reverse' : ''}`}>
-                                        <button
-                                            onClick={() => handleLike(msg)}
-                                            className={`p-1.5 rounded-full hover:bg-white/10 ${msg.has_liked ? 'text-pink-500' : 'text-gray-500 hover:text-gray-300'}`}
-                                        >
-                                            <Heart className={`w-4 h-4 ${msg.has_liked ? 'fill-current' : ''}`} />
-                                        </button>
-                                        <button
-                                            onClick={() => setReplyingTo(msg)}
-                                            className="p-1.5 rounded-full hover:bg-white/10 text-gray-500 hover:text-gray-300"
-                                        >
-                                            <Reply className="w-4 h-4" />
-                                        </button>
-                                    </div>
+                                    {/* Actions - only show for non-deleted messages */}
+                                    {!msg.is_deleted && (
+                                        <div className={`flex items-center gap-2 mt-1 px-1 transition-opacity ${isMe ? 'flex-row-reverse' : ''}`}>
+                                            <button
+                                                onClick={() => handleLike(msg)}
+                                                className={`p-1.5 rounded-full hover:bg-white/10 ${msg.has_liked ? 'text-pink-500' : 'text-gray-500 hover:text-gray-300'}`}
+                                            >
+                                                <Heart className={`w-4 h-4 ${msg.has_liked ? 'fill-current' : ''}`} />
+                                            </button>
+                                            <button
+                                                onClick={() => setReplyingTo(msg)}
+                                                className="p-1.5 rounded-full hover:bg-white/10 text-gray-500 hover:text-gray-300"
+                                            >
+                                                <Reply className="w-4 h-4" />
+                                            </button>
+                                            {/* Delete button - only for own messages */}
+                                            {isMe && (
+                                                deleteConfirmId === msg.id ? (
+                                                    <div className="flex items-center gap-1 bg-red-500/20 rounded-full px-2 py-1">
+                                                        <button
+                                                            onClick={() => handleDelete(msg.id)}
+                                                            disabled={isDeleting}
+                                                            className="text-xs text-red-400 hover:text-red-300 font-medium"
+                                                        >
+                                                            {isDeleting ? 'Deleting...' : 'Confirm'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setDeleteConfirmId(null)}
+                                                            className="text-xs text-gray-400 hover:text-gray-300"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => setDeleteConfirmId(msg.id)}
+                                                        className="p-1.5 rounded-full hover:bg-white/10 text-gray-500 hover:text-red-400"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         );

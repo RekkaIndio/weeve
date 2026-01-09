@@ -24,6 +24,7 @@ export type MessageWithSender = Message & {
     } | null;
     likes_count: number;
     has_liked: boolean;
+    is_deleted: boolean;
 };
 
 /**
@@ -201,13 +202,17 @@ export async function getMessages(conversationId: string): Promise<MessageWithSe
         const likes_count = likes.length;
         const has_liked = currentUserId ? likes.some((l: any) => l.user_id === currentUserId) : false;
 
+        // Check if message is deleted
+        const is_deleted = msg.deleted_at !== null;
+
         return {
             ...msg,
             sender,
             reply_to_id: msg.reply_to_id,
             reply_to_message,
             likes_count,
-            has_liked
+            has_liked,
+            is_deleted
         };
     });
 
@@ -319,6 +324,26 @@ export async function unlikeMessage(messageId: string, userId: string) {
 }
 
 /**
+ * Delete a message (soft delete)
+ * Only the sender can delete their own messages
+ */
+export async function deleteMessage(messageId: string, userId: string) {
+    const { error } = await supabase
+        .from('messages')
+        .update({
+            deleted_at: new Date().toISOString(),
+            deleted_by: userId
+        })
+        .eq('id', messageId)
+        .eq('sender_id', userId); // Ensure only sender can delete
+        
+    if (error) {
+        console.error('Error deleting message:', error);
+        throw error;
+    }
+}
+
+/**
  * Create a new conversation (start a chat)
  */
 export async function createConversation(creatorId: string, otherUserId: string): Promise<string> {
@@ -394,4 +419,40 @@ export function subscribeToMessages(conversationId: string, callback: (message: 
             }
         )
         .subscribe();
+}
+
+/**
+ * Get the other participant's user ID in a conversation
+ */
+export async function getOtherParticipant(conversationId: string, userId: string): Promise<string | null> {
+    const { data, error } = await supabase
+        .from('conversation_participants')
+        .select('other_user_id')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', userId)
+        .single();
+    
+    if (error || !data) {
+        console.error('Error getting other participant:', error);
+        return null;
+    }
+    
+    return data.other_user_id;
+}
+
+/**
+ * Delete a conversation (removes the current user's participation)
+ * The conversation is hidden from the user but not deleted from the database
+ */
+export async function deleteConversation(conversationId: string, userId: string) {
+    // Delete the user's participation record (this hides the conversation from them)
+    const { error } = await supabase
+        .from('conversation_participants')
+        .delete()
+        .match({ conversation_id: conversationId, user_id: userId });
+        
+    if (error) {
+        console.error('Error deleting conversation:', error);
+        throw error;
+    }
 }

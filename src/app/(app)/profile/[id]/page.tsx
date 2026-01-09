@@ -2,11 +2,12 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useStore, User } from "@/lib/store";
-import { Grid, UserPlus, ChevronLeft, Share2, Check, Clock, MoreVertical, Ban, X, UserMinus, Users } from "lucide-react";
+import { Grid, UserPlus, ChevronLeft, Share2, Check, Clock, MoreVertical, Ban, X, UserMinus, Users, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { sendFriendRequest, getFriendRequests, acceptFriendRequest, removeFriend } from "@/lib/friends";
+import { createConversation } from "@/lib/messaging";
 import { notifyNewFollower } from "@/lib/notifications";
 import VideoThumbnail from '@/app/components/VideoThumbnail';
 import MediaWithFallback from '@/app/components/MediaWithFallback';
@@ -514,6 +515,18 @@ export default function UserProfilePage() {
         }
     };
 
+    // Handle sending a message (create or open conversation)
+    const handleSendMessage = async () => {
+        if (!currentUser || !user) return;
+
+        try {
+            const conversationId = await createConversation(currentUser.id, user.id);
+            router.push(`/inbox/${conversationId}`);
+        } catch (err) {
+            console.error('[UserProfile] Error starting conversation:', err);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-black text-white pb-24 relative">
             {/* Block Confirmation Modal */}
@@ -743,6 +756,13 @@ export default function UserProfilePage() {
                         ) : (
                             'Follow'
                         )}
+                    </button>
+                    <button
+                        onClick={handleSendMessage}
+                        className="flex-1 bg-gray-800 text-white font-bold py-2 rounded-lg text-sm hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <MessageCircle className="w-4 h-4" />
+                        Message
                     </button>
                 </div>
 

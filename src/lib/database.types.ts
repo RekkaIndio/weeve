@@ -962,6 +962,8 @@ export interface Database {
                     content: string
                     created_at: string
                     is_read: boolean
+                    deleted_at: string | null
+                    deleted_by: string | null
                 }
                 Insert: {
                     id?: string
@@ -970,6 +972,8 @@ export interface Database {
                     content: string
                     created_at?: string
                     is_read?: boolean
+                    deleted_at?: string | null
+                    deleted_by?: string | null
                 }
                 Update: {
                     id?: string
@@ -978,6 +982,8 @@ export interface Database {
                     content?: string
                     created_at?: string
                     is_read?: boolean
+                    deleted_at?: string | null
+                    deleted_by?: string | null
                 }
                 Relationships: [
                     {
