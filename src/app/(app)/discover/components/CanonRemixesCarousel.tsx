@@ -87,7 +87,7 @@ export default function CanonRemixesCarousel({ stories, openStoryInOverlay }: Ca
                 </div>
             ) : (
                 <div className="bg-gray-900/50 border border-dashed border-gray-800 rounded-xl p-6 text-center mx-4">
-                    <p className="text-gray-500 text-sm">Brand Canon Stories Coming Soon. Check back soon!</p>
+                    <p className="text-gray-500 text-sm">Canon Stories are Coming. Check back soon!</p>
                 </div>
             )}
         </div>

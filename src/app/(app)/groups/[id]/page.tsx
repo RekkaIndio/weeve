@@ -133,6 +133,20 @@ export default function GroupDetailsPage() {
                             if (forkerIsWaiting) return false;
                         }
 
+                        // For all group stories: Check if the creator has completed all of their assigned slots
+                        // The creator may have multiple slots (e.g., Me-Open-Open-Me pattern)
+                        // Story should only appear in feed when creator has filled all their slots
+                        const creatorId = s.creator_id;
+                        const creatorSlotCount = (s.story_participants || []).filter(
+                            (p: any) => p.user_id === creatorId
+                        ).length;
+                        const creatorContributionCount = (s.contributions || []).filter(
+                            (c: any) => c.user_id === creatorId
+                        ).length;
+
+                        // Hide story if creator hasn't filled all their assigned slots
+                        if (creatorContributionCount < creatorSlotCount) return false;
+
                         return true;
                     });
                     setStories(filteredStories);
