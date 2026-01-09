@@ -1,6 +1,7 @@
 import { Plus } from "lucide-react";
 import { type Story, type User, type Contribution, isSlotImmutable } from "@/lib/store";
 import type { TimelineEntry } from "../types";
+import { VideoThumbnail } from "./VideoThumbnail";
 
 interface StoryTimelineProps {
     timelineEntries: TimelineEntry[];
@@ -333,11 +334,9 @@ export function StoryTimeline({
                                         : 'border-gray-700'}`}
                             >
                                 {contribution.mediaType === 'video' ? (
-                                    <video
-                                        src={contribution.mediaUrl}
+                                    <VideoThumbnail
+                                        src={contribution.mediaUrl || ''}
                                         className="w-full h-full object-cover"
-                                        muted
-                                        playsInline
                                     />
                                 ) : (contribution.mediaType === 'image' || contribution.mediaType === 'drawing') ? (
                                     <img
