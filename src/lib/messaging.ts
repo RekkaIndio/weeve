@@ -342,6 +342,7 @@ export async function createConversation(creatorId: string, otherUserId: string)
     const { data: conversation, error: convError } = await supabase
         .from('conversations')
         .insert({
+            creator_id: creatorId,
             last_message_preview: 'Started a new conversation'
         })
         .select()
