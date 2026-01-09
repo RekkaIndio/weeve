@@ -388,20 +388,47 @@ export function useStoryData(storyId: string): UseStoryDataReturn {
     }, [contributions, story?.participants, story?.maxWeeves, story?.visibility, story?.postType, story?.mode, story?.status, currentUser, maxWeeves, contributionsCount]);
 
     // Participants without contributions
+    // This only includes participants who:
+    // 1. Have not contributed yet
+    // 2. Do NOT have an assigned position in the timeline (to avoid duplicate display)
+    // 3. Are not in 'waiting' status (those show in timeline as empty slots)
     const participantsWithoutContributions = useMemo(() => {
         const contributorIds = new Set(contributions.map((contribution) => contribution.userId));
-        const waitingSlotIds = new Set((story?.participants ?? []).filter(p => p.position !== undefined && p.position !== null).map(p => p.id));
-        const list = (story?.participants ?? []).filter(
-            (participant) => !contributorIds.has(participant.id) && participant.status !== 'waiting' && (participant.position === undefined || participant.position === null)
+        
+        // Get all user IDs that have ANY position assigned (they'll appear in timeline)
+        const usersWithPositions = new Set(
+            (story?.participants ?? [])
+                .filter(p => p.position !== undefined && p.position !== null)
+                .map(p => p.id)
         );
+        
+        // Also exclude any user ID already shown in timeline entries
+        const usersInTimeline = new Set(
+            timelineEntries
+                .filter(e => e.type === 'empty' && e.participant)
+                .map(e => (e as { participant: User }).participant.id)
+        );
+        
+        const list = (story?.participants ?? []).filter((participant) => {
+            // Skip if already contributed
+            if (contributorIds.has(participant.id)) return false;
+            // Skip if they have an assigned position (shown in timeline)
+            if (usersWithPositions.has(participant.id)) return false;
+            // Skip if already shown in timeline entries
+            if (usersInTimeline.has(participant.id)) return false;
+            // Skip if in 'waiting' status (shown as empty slot in timeline)
+            if (participant.status === 'waiting') return false;
+            return true;
+        });
+        
+        // De-duplicate by user ID
         const seen = new Set<string>();
         return list.filter(p => {
-            if (waitingSlotIds.has(p.id)) return false;
             if (seen.has(p.id)) return false;
             seen.add(p.id);
             return true;
         });
-    }, [story?.participants, contributions]);
+    }, [story?.participants, contributions, timelineEntries]);
 
     return {
         story,

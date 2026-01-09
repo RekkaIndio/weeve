@@ -380,7 +380,9 @@ export function StoryTimeline({
                     );
                 })}
 
-                {participantsWithoutContributions.map((participant, idx) => {
+                {/* Only show "no part yet" section for stories WITHOUT predefined slots (maxWeeves).
+                    Stories with maxWeeves already show all participants in the timeline entries. */}
+                {!story.maxWeeves && participantsWithoutContributions.map((participant, idx) => {
                     const isCurrentTurn = story.currentTurnUserId === participant.id;
                     const isCurrentUserSlot = participant.id === currentUser?.id;
 
