@@ -105,173 +105,45 @@ export default function FeedItemFooter({
             )}
 
             <div className="flex items-center mb-3 w-fit">
-                {/* Stacked/Collapsed Avatar Display - shows current + context avatars with expand option */}
-                <div className="relative">
-                    {/* Collapsed View */}
-                    {!isAvatarsExpanded ? (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                // Expand if we have more than 1 contribution slot
-                                if (effectiveOrderedContributions.length > 1) {
-                                    setIsAvatarsExpanded(true);
+                {/* Avatar Display - shows contributors + open count badge */}
+                <div className="flex items-center gap-0 pl-2 py-1">
+                    {(() => {
+                        // Build unified slots array (Contributions + Assigned + Open)
+                        const totalSlots = story.maxWeeves || 3;
+                        const slots: Array<{
+                            type: 'contribution' | 'assigned' | 'open';
+                            data?: any;
+                            id: string;
+                            index: number;
+                        }> = [];
+
+                        for (let i = 0; i < totalSlots; i++) {
+                            const contribution = slotContentMap.get(i);
+
+                            if (contribution) {
+                                slots.push({ type: 'contribution', data: contribution, id: `c-${i}`, index: i });
+                            } else {
+                                const participant = story.participants.find(p => p.position === i);
+                                if (participant) {
+                                    slots.push({ type: 'assigned', data: participant, id: `a-${i}`, index: i });
+                                } else {
+                                    slots.push({ type: 'open', id: `o-${i}`, index: i });
                                 }
-                            }}
-                            className="flex items-center gap-0 pl-2 py-1 group"
-                        >
-                            {(() => {
-                                // Build unified slots array (Contributions + Assigned + Open)
-                                const totalSlots = story.maxWeeves || 3;
-                                const slots: Array<{
-                                    type: 'contribution' | 'assigned' | 'open';
-                                    data?: any;
-                                    id: string;
-                                    index: number;
-                                }> = [];
+                            }
+                        }
 
-                                for (let i = 0; i < totalSlots; i++) {
-                                    const contribution = slotContentMap.get(i);
+                        // Separate filled/assigned slots from open slots
+                        const filledSlots = slots.filter(s => s.type === 'contribution' || s.type === 'assigned');
+                        const openCount = slots.filter(s => s.type === 'open').length;
 
-                                    if (contribution) {
-                                        slots.push({ type: 'contribution', data: contribution, id: `c-${i}`, index: i });
-                                    } else {
-                                        const participant = story.participants.find(p => p.position === i);
-                                        if (participant) {
-                                            slots.push({ type: 'assigned', data: participant, id: `a-${i}`, index: i });
-                                        } else {
-                                            slots.push({ type: 'open', id: `o-${i}`, index: i });
-                                        }
-                                    }
-                                }
-                                const total = slots.length;
+                        const activeSlotIndex = currentContribution
+                            ? slots.findIndex(s => s.type === 'contribution' && s.data.id === currentContribution.id)
+                            : -1;
 
-                                const activeSlotIndex = currentContribution
-                                    ? slots.findIndex(s => s.type === 'contribution' && s.data.id === currentContribution.id)
-                                    : -1;
-
-                                const pivot = activeSlotIndex >= 0 ? activeSlotIndex : 0;
-
-                                const visibleIndices: number[] = [];
-                                for (let i = 0; i < total; i++) visibleIndices.push(i);
-
-                                const hiddenCount = 0;
-
-                                return (
-                                    <>
-                                        {visibleIndices.map((idx, displayIdx) => {
-                                            const slot = slots[idx];
-                                            const isActive = idx === activeSlotIndex;
-
-                                            if (slot.type === 'contribution') {
-                                                const contribution = slot.data;
-                                                const p = participantsMap.get(contribution.userId);
-                                                const avatarUrl = p?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(contribution.userName || 'Unknown')}`;
-                                                const name = p?.name || contribution.userName || 'Unknown';
-
-                                                return (
-                                                    <Link
-                                                        key={slot.id}
-                                                        href={`/profile/${contribution.userId}`}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        title={`${idx + 1}. ${name}${isActive ? ' (playing)' : ''}`}
-                                                        className={`relative rounded-full flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} ${isActive
-                                                            ? 'z-20 scale-110 opacity-100'
-                                                            : 'z-10 opacity-70 group-hover:opacity-90'
-                                                            }`}
-                                                    >
-                                                        <img
-                                                            src={avatarUrl}
-                                                            alt={name}
-                                                            className={`w-9 h-9 min-w-[36px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
-                                                                ? 'border-[#EC1D99] shadow-[0_0_10px_#EC1D99]'
-                                                                : 'border-black/80'
-                                                                }`}
-                                                        />
-                                                        {isActive && (
-                                                            <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#EC1D99] rounded-full animate-pulse" />
-                                                        )}
-                                                    </Link>
-                                                );
-                                            } else if (slot.type === 'assigned') {
-                                                const p = slot.data;
-                                                return (
-                                                    <Link
-                                                        key={slot.id}
-                                                        href={`/profile/${p.id}`}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        title={`${idx + 1}. Waiting for ${p.name}`}
-                                                        className={`relative rounded-full flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} z-10 opacity-70 group-hover:opacity-90 grayscale`}
-                                                    >
-                                                        <img
-                                                            src={p.avatar}
-                                                            alt={p.name}
-                                                            className="w-9 h-9 min-w-[36px] aspect-square object-cover block rounded-full border-2 border-dashed border-gray-400 flex-shrink-0"
-                                                        />
-                                                    </Link>
-                                                );
-                                            } else {
-                                                // Open Slot
-                                                return (
-                                                    <div
-                                                        key={slot.id}
-                                                        className={`relative flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} z-5`}
-                                                        title="Open slot"
-                                                    >
-                                                        <div className="w-9 h-9 min-w-[36px] flex items-center justify-center rounded-full border-2 border-dashed border-[#EC1D99] bg-[#EC1D99]/10 text-[#EC1D99] text-sm font-bold backdrop-blur-sm">
-                                                            +
-                                                        </div>
-                                                    </div>
-                                                );
-                                            }
-                                        })}
-
-                                        {/* +X More Badge */}
-                                        {hiddenCount > 0 && (
-                                            <div
-                                                className="-ml-2 z-30 flex items-center justify-center w-9 h-9 rounded-full bg-gray-800/90 border-2 border-gray-600 text-white text-[10px] font-bold backdrop-blur-sm group-hover:bg-gray-700 group-hover:border-[#EC1D99]/50 transition-all"
-                                                title={`${hiddenCount} more slot${hiddenCount > 1 ? 's' : ''}`}
-                                            >
-                                                +{hiddenCount}
-                                            </div>
-                                        )}
-                                    </>
-                                );
-                            })()}
-                        </button>
-                    ) : (
-                        /* Expanded View - All participants visible */
-                        <div className="flex items-center gap-0 pl-2 py-1 animate-in slide-in-from-left-2 duration-300">
-                            {(() => {
-                                // Build unified slots array (Contributions + Assigned + Open)
-                                const totalSlots = story.maxWeeves || 3;
-                                const slots: Array<{
-                                    type: 'contribution' | 'assigned' | 'open';
-                                    data?: any;
-                                    id: string;
-                                    index: number;
-                                }> = [];
-
-                                for (let i = 0; i < totalSlots; i++) {
-                                    const contribution = slotContentMap.get(i);
-
-                                    if (contribution) {
-                                        slots.push({ type: 'contribution', data: contribution, id: `c-${i}`, index: i });
-                                    } else {
-                                        const participant = story.participants.find(p => p.position === i);
-                                        if (participant) {
-                                            slots.push({ type: 'assigned', data: participant, id: `a-${i}`, index: i });
-                                        } else {
-                                            slots.push({ type: 'open', id: `o-${i}`, index: i });
-                                        }
-                                    }
-                                }
-
-                                const activeSlotIndex = currentContribution
-                                    ? slots.findIndex(s => s.type === 'contribution' && s.data.id === currentContribution.id)
-                                    : -1;
-
-                                return slots.map((slot, idx) => {
-                                    const isActive = idx === activeSlotIndex;
+                        return (
+                            <>
+                                {filledSlots.map((slot, displayIdx) => {
+                                    const isActive = slot.index === activeSlotIndex;
 
                                     if (slot.type === 'contribution') {
                                         const contribution = slot.data;
@@ -284,74 +156,59 @@ export default function FeedItemFooter({
                                                 key={slot.id}
                                                 href={`/profile/${contribution.userId}`}
                                                 onClick={(e) => e.stopPropagation()}
-                                                title={`${idx + 1}. ${name}${isActive ? ' (playing)' : ''}`}
-                                                className={`relative rounded-full flex-none transition-all duration-300 ${idx !== 0 ? '-ml-3' : ''} ${isActive
+                                                title={`${slot.index + 1}. ${name}${isActive ? ' (playing)' : ''}`}
+                                                className={`relative rounded-full flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} ${isActive
                                                     ? 'z-20 scale-110 opacity-100'
-                                                    : 'z-10 opacity-70 hover:opacity-100'
+                                                    : 'z-10 opacity-70 hover:opacity-90'
                                                     }`}
                                             >
                                                 <img
                                                     src={avatarUrl}
                                                     alt={name}
-                                                    className={`w-8 h-8 min-w-[32px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
-                                                        ? 'border-[#EC1D99] shadow-[0_0_8px_#EC1D99]'
+                                                    className={`w-9 h-9 min-w-[36px] aspect-square object-cover block rounded-full border-2 flex-shrink-0 transition-all duration-300 ${isActive
+                                                        ? 'border-[#EC1D99] shadow-[0_0_10px_#EC1D99]'
                                                         : 'border-black/80'
                                                         }`}
                                                 />
                                                 {isActive && (
-                                                    <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-[#EC1D99] rounded-full animate-pulse" />
+                                                    <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#EC1D99] rounded-full animate-pulse" />
                                                 )}
                                             </Link>
                                         );
-                                    } else if (slot.type === 'assigned') {
+                                    } else {
+                                        // Assigned slot (waiting for someone)
                                         const p = slot.data;
                                         return (
                                             <Link
                                                 key={slot.id}
                                                 href={`/profile/${p.id}`}
                                                 onClick={(e) => e.stopPropagation()}
-                                                title={`${idx + 1}. Waiting for ${p.name}`}
-                                                className={`relative rounded-full flex-none transition-all duration-300 ${idx !== 0 ? '-ml-3' : ''} z-10 opacity-70 group-hover:opacity-90 grayscale`}
+                                                title={`${slot.index + 1}. Waiting for ${p.name}`}
+                                                className={`relative rounded-full flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} z-10 opacity-70 hover:opacity-90 grayscale`}
                                             >
                                                 <img
                                                     src={p.avatar}
                                                     alt={p.name}
-                                                    className="w-8 h-8 min-w-[32px] aspect-square object-cover block rounded-full border-2 border-dashed border-gray-400 flex-shrink-0"
+                                                    className="w-9 h-9 min-w-[36px] aspect-square object-cover block rounded-full border-2 border-dashed border-gray-400 flex-shrink-0"
                                                 />
                                             </Link>
                                         );
-                                    } else {
-                                        // Open Slot
-                                        return (
-                                            <div
-                                                key={slot.id}
-                                                className={`relative flex-none transition-all duration-300 ${idx !== 0 ? '-ml-3' : ''} z-5`}
-                                                title="Open slot"
-                                            >
-                                                <div className="w-8 h-8 min-w-[32px] flex items-center justify-center rounded-full border-2 border-dashed border-[#EC1D99] bg-[#EC1D99]/10 text-[#EC1D99] text-xs font-bold backdrop-blur-sm">
-                                                    +
-                                                </div>
-                                            </div>
-                                        );
                                     }
-                                });
-                            })()}
+                                })}
 
-                            {/* Collapse button */}
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsAvatarsExpanded(false);
-                                }}
-                                className="-ml-1 z-30 flex items-center justify-center w-7 h-7 rounded-full bg-gray-800/80 border border-gray-600 text-gray-300 hover:text-white hover:bg-gray-700 transition-all"
-                                title="Collapse"
-                            >
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                </svg>
-                            </button>
-                        </div>
-                    )}
+                                {/* Open slots badge - shows count of available slots */}
+                                {openCount > 0 && (
+                                    <div
+                                        className={`${filledSlots.length > 0 ? 'ml-2' : ''} flex items-center gap-1 px-2 py-1 rounded-full bg-[#EC1D99]/20 border border-[#EC1D99]/50 text-[#EC1D99] text-xs font-medium backdrop-blur-sm`}
+                                        title={`${openCount} open slot${openCount > 1 ? 's' : ''} available`}
+                                    >
+                                        <span className="text-sm">+</span>
+                                        <span>{openCount} open</span>
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
                 </div>
             </div>
 
