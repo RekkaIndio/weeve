@@ -57,6 +57,14 @@ export async function canInitiateCollab(
     senderId: string,
     targetId: string
 ): Promise<CollabEligibility> {
+    // 0. GLOBALLY DISABLED
+    return {
+        allowed: false,
+        reason: 'Collaboration features are coming soon!',
+        priceCents: 0,
+        priceFormatted: 'Free'
+    };
+
     // 1. Can't collab with yourself
     if (senderId === targetId) {
         return {

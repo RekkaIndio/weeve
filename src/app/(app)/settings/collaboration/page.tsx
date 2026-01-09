@@ -105,104 +105,38 @@ export default function CollaborationSettingsPage() {
                         </button>
                         <h1 className="text-xl font-bold">Collaboration Settings</h1>
                     </div>
-                    {hasChanges && (
-                        <button
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            className="px-4 py-2 bg-[#EC1D99] text-white font-bold rounded-lg hover:bg-[#D41C84] disabled:opacity-50 transition-colors"
-                        >
-                            {isSaving ? 'Saving...' : 'Save'}
-                        </button>
-                    )}
                 </div>
             </header>
 
             <main className="px-4 py-6 max-w-xl mx-auto space-y-6">
-                {isLoading ? (
-                    <div className="text-center text-gray-500 py-12">Loading settings...</div>
-                ) : (
-                    <>
-                        {/* Enable/Disable Toggle */}
-                        <div className="bg-gray-900/50 rounded-2xl p-4 border border-gray-800">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
-                                        <Users className="w-5 h-5 text-purple-400" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-semibold">Accept Collaboration Requests</h3>
-                                        <p className="text-sm text-gray-400">Allow other creators to collaborate with you</p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleToggle}
-                                    className={`relative w-12 h-7 rounded-full transition-colors ${collabEnabled ? 'bg-purple-500' : 'bg-gray-700'
-                                        }`}
-                                >
-                                    <span
-                                        className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${collabEnabled ? 'left-6' : 'left-1'
-                                            }`}
-                                    />
-                                </button>
+                {/* Coming Soon State */}
+                <div className="bg-gray-900/50 rounded-2xl p-6 border border-gray-800 text-center space-y-4">
+                    <div className="w-16 h-16 rounded-full bg-purple-500/20 flex items-center justify-center mx-auto">
+                        <Users className="w-8 h-8 text-purple-400" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold mb-2">Coming Soon</h3>
+                        <p className="text-gray-400 max-w-sm mx-auto">
+                            We're working hard to bring you the best collaboration experience. Stay tuned for updates!
+                        </p>
+                    </div>
+
+                    {/* Disabled Toggle for visual context */}
+                    <div className="flex items-center justify-between bg-black/40 rounded-xl p-4 mt-6 opacity-50 pointer-events-none">
+                        <div className="flex items-center gap-3 text-left">
+                            <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center">
+                                <Users className="w-5 h-5 text-gray-500" />
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-gray-500">Accept Requests</h3>
+                                <p className="text-sm text-gray-600">Coming soon</p>
                             </div>
                         </div>
-
-                        {/* Pricing Section */}
-                        {collabEnabled && (
-                            <div className="bg-gray-900/50 rounded-2xl p-4 border border-gray-800 space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
-                                        <DollarSign className="w-5 h-5 text-green-400" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-semibold">Collaboration Price</h3>
-                                        <p className="text-sm text-gray-400">Set your rate per collaboration request</p>
-                                    </div>
-                                </div>
-
-                                <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-gray-400">$</span>
-                                    <input
-                                        type="text"
-                                        inputMode="decimal"
-                                        value={priceInput}
-                                        onChange={(e) => handlePriceChange(e.target.value)}
-                                        placeholder="0.00"
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-xl py-3 px-4 pl-8 text-xl font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                    />
-                                </div>
-
-                                {priceCents > 0 && (
-                                    <p className="text-sm text-gray-400">
-                                        Creators will pay <span className="text-purple-400 font-semibold">{formatPrice(priceCents)}</span> to request a collaboration with you
-                                    </p>
-                                )}
-
-                                {priceCents === 0 && (
-                                    <p className="text-sm text-gray-400">
-                                        Leave empty for free collaborations
-                                    </p>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Info Box */}
-                        <div className="bg-purple-500/10 rounded-2xl p-4 border border-purple-500/30">
-                            <div className="flex gap-3">
-                                <Info className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
-                                <div className="text-sm text-purple-200 space-y-2">
-                                    <p><strong>How it works:</strong></p>
-                                    <ul className="list-disc list-inside space-y-1 text-purple-200/80">
-                                        <li>Other creators can send you collaboration requests from your profile</li>
-                                        <li>If you set a price, they pay when sending the request</li>
-                                        <li>You keep the payment when you accept, or it's refunded if you decline</li>
-                                        <li>Collaboration stories are always public once complete</li>
-                                    </ul>
-                                </div>
-                            </div>
+                        <div className="w-12 h-7 rounded-full bg-gray-800 relative">
+                            <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-gray-600" />
                         </div>
-                    </>
-                )}
+                    </div>
+                </div>
             </main>
         </div>
     );
