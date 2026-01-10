@@ -10,6 +10,7 @@ import GroupShareModal from '@/app/components/GroupShareModal';
 import VerificationBadge from '@/app/components/VerificationBadge';
 import GroupChatTab from '@/app/components/GroupChatTab';
 import { formatCount } from '@/lib/format';
+import VideoThumbnail from '@/app/components/VideoThumbnail';
 
 export default function GroupDetailsPage() {
     const params = useParams();
@@ -598,12 +599,10 @@ export default function GroupDetailsPage() {
 
                                             if (mediaType === 'video' && mediaUrl) {
                                                 return (
-                                                    <video
+                                                    <VideoThumbnail
                                                         src={mediaUrl}
+                                                        poster={story.cover_image}
                                                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                                        muted
-                                                        playsInline
-                                                        preload="metadata"
                                                     />
                                                 );
                                             } else if ((mediaType === 'image' || mediaType === 'drawing') && mediaUrl) {
