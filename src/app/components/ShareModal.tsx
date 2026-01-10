@@ -751,8 +751,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                                 disabled={stitchingState !== 'idle' && stitchingState !== 'error' && stitchingState !== 'complete'}
                                                 className="w-full flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-yellow-600 to-yellow-800 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
                                             >
-                                                <Download className="w-4 h-4 text-white" />
-                                                <span className="text-xs font-bold text-white uppercase tracking-wider">Export High Quality 4K</span>
+
                                             </button>
                                         </div>
                                     )}
