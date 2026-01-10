@@ -243,7 +243,7 @@ interface AppState {
     addStoryComment: (storyId: string, content: string, parentCommentId?: string) => Promise<void>;
     logoutUser: () => void;
     fetchFriends: () => Promise<void>;
-    forkStory: (originalStoryId: string, slotIndices: number[], newParticipantId: string, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
+    forkStory: (originalStoryId: string, slotToUserAssignments: Map<number, string>, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     forkBrandPost: (originalStoryId: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     fetchStories: (reset?: boolean) => Promise<void>;
     fetchMoreStories: () => Promise<void>;
@@ -826,9 +826,16 @@ export const useStore = create<AppState>()(
                 }
             },
 
-            forkStory: async (originalStoryId: string, slotIndices: number[], newParticipantId: string, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => {
+            forkStory: async (originalStoryId: string, slotToUserAssignments: Map<number, string>, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => {
                 const { currentUser } = get();
                 if (!currentUser) return { success: false, error: "User not logged in" };
+
+                // Extract slot indices from the assignments map
+                const slotIndices = Array.from(slotToUserAssignments.keys()).sort((a, b) => a - b);
+                if (slotIndices.length === 0) return { success: false, error: "No slots selected" };
+
+                // Get the first assigned user for current_turn_user_id (ordered by slot)
+                const firstAssignedUserId = slotToUserAssignments.get(slotIndices[0])!;
 
                 try {
                     // 1. Fetch original story details
@@ -866,7 +873,7 @@ export const useStore = create<AppState>()(
                             cover_image: originalStory.cover_image,
                             theme: originalStory.theme,
                             group_id: originalStory.group_id,
-                            current_turn_user_id: newParticipantId, // Set turn to the new participant
+                            current_turn_user_id: firstAssignedUserId, // Set turn to the first assigned participant
                             // Always link to the ROOT original story, not the immediate parent
                             // If the story we're forking from is itself a fork, use its original reference
                             // This ensures all weeves in a chain point back to the originating post
@@ -917,21 +924,6 @@ export const useStore = create<AppState>()(
                             });
                         }
                     });
-                    // 5. Build a map of slot index → user ID from contributions (this is the TRUE slot mapping)
-                    // This tells us which user owns which slot based on contribution order
-                    const slotToUserMap = new Map<number, string>();
-                    sortedContributions.forEach((c: any, idx: number) => {
-                        slotToUserMap.set(idx, c.user_id);
-                    });
-                    
-                    // Determine which user IDs are being replaced based on selected slots
-                    const replacedUserIds = new Set<string>();
-                    slotIndices.forEach(slotIdx => {
-                        const userId = slotToUserMap.get(slotIdx);
-                        if (userId) {
-                            replacedUserIds.add(userId);
-                        }
-                    });
 
                     // Build participant list with strict de-duplication
                     const participantsMap = new Map<string, any>();
@@ -949,17 +941,6 @@ export const useStore = create<AppState>()(
                         // If user already exists, keep their first position (DB unique constraint)
                     };
                     
-                    // Track which positions are being excluded (for new participant placement)
-                    const excludedPositions: number[] = [];
-                    sortedContributions.forEach((c: any, originalIndex: number) => {
-                        const isExcluded = excludeIds.size > 0 
-                            ? excludeIds.has(c.id)
-                            : slotIndices.includes(originalIndex);
-                        if (isExcluded) {
-                            excludedPositions.push(originalIndex);
-                        }
-                    });
-                    
                     // Create participants from KEPT CONTRIBUTIONS
                     contributionsToCopy.forEach((c: any) => {
                          // Derive position from timestamp (timestamp = (position + 1) * 1000000)
@@ -967,17 +948,16 @@ export const useStore = create<AppState>()(
                          addParticipant(c.user_id, position, 'accepted');
                     });
 
-                    // Add the new participant at the FIRST excluded position (where the first excluded contribution was)
-                    // This ensures they're placed at the correct slot in the timeline
-                    const newParticipantPosition = excludedPositions.length > 0 ? excludedPositions[0] : slotIndices[0];
-                    
-                    // The new participant is ALWAYS 'waiting' when forking - they need to add their content
-                    // If user already exists from kept contributions, update to 'waiting' status at new position
-                    participantsMap.set(newParticipantId, {
-                        story_id: newStoryId,
-                        user_id: newParticipantId,
-                        position: newParticipantPosition,
-                        status: 'waiting' // Always waiting - they need to add content to this slot
+                    // Add new participants for each slot assignment
+                    // Each assigned user gets added at their assigned slot position with 'waiting' status
+                    slotToUserAssignments.forEach((userId, slotIndex) => {
+                        // Override any existing entry for this user with their new assignment
+                        participantsMap.set(userId, {
+                            story_id: newStoryId,
+                            user_id: userId,
+                            position: slotIndex,
+                            status: 'waiting' // Always waiting - they need to add content to this slot
+                        });
                     });
 
                     const participantsToInsert = Array.from(participantsMap.values());
@@ -1002,6 +982,23 @@ export const useStore = create<AppState>()(
                         if (contributionsError) {
                             console.error('[forkStory] Error copying contributions:', contributionsError);
                         }
+                    }
+
+                    // 7. Send notifications to all assigned users (except the current user/creator)
+                    const assignedUserIds = Array.from(new Set(slotToUserAssignments.values()));
+                    const usersToNotify = assignedUserIds.filter(id => id !== currentUser.id);
+                    
+                    if (usersToNotify.length > 0) {
+                        import('./notifications').then(({ notifyStoryInvite }) => {
+                            notifyStoryInvite(
+                                newStoryId,
+                                customTitle?.trim() || originalStory.title,
+                                currentUser.name,
+                                usersToNotify
+                            ).catch(err => {
+                                console.error('[forkStory] Failed to send invite notifications:', err);
+                            });
+                        }).catch(err => console.error('[forkStory] Failed to import notifications:', err));
                     }
 
                     // Return success - the story page will fetch the story data when it loads

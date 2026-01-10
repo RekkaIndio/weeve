@@ -4,6 +4,11 @@ import '@testing-library/jest-dom';
 process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost';
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'anon';
 
+// Mock window.alert to prevent test errors
+if (typeof window !== 'undefined') {
+  window.alert = () => {};
+}
+
 // Polyfill attachEvent/detachEvent for happy-dom compatibility with React 19
 // React's input event polyfill uses these legacy IE methods
 if (typeof window !== 'undefined') {

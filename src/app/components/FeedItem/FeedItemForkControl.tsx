@@ -34,14 +34,14 @@ export default function FeedItemForkControl({
     const forkStory = useStore((state) => state.forkStory);
 
     // Internal State
-    const [selectedSlots, setSelectedSlots] = useState<number[]>([]);
-    const [showParticipantPicker, setShowParticipantPicker] = useState(false);
+    // Map of slot index -> assigned user info (userId, avatar, name)
+    const [slotAssignments, setSlotAssignments] = useState<Map<number, { userId: string, avatar: string, name: string }>>(new Map());
+    const [activeSlotForPicker, setActiveSlotForPicker] = useState<number | null>(null);
     const [showFriendPicker, setShowFriendPicker] = useState(false);
     const [friendSearchQuery, setFriendSearchQuery] = useState("");
     const [friendSearchResults, setFriendSearchResults] = useState<any[]>([]);
     const [isSearchingFriends, setIsSearchingFriends] = useState(false);
     const [showWeeveDetailsModal, setShowWeeveDetailsModal] = useState(false);
-    const [pendingParticipantId, setPendingParticipantId] = useState<string | null>(null);
     const [weeveTitle, setWeeveTitle] = useState(story.title + (story.title.endsWith("'s Remix") ? "" : " (Remix)"));
     const [weeveDescription, setWeeveDescription] = useState(story.description || "");
     const [isCreatingWeeve, setIsCreatingWeeve] = useState(false);
@@ -104,26 +104,32 @@ export default function FeedItemForkControl({
         return () => clearTimeout(delayDebounceFn);
     }, [friendSearchQuery, friends]);
 
-    // Handle Fork Story Logic
-    const handleForkStory = async (participantId: string, customTitle?: string, customDescription?: string) => {
-        if (!participantId || selectedSlots.length === 0) return;
+    // Handle Fork Story Logic - now with per-slot assignments
+    const handleForkStory = async (customTitle?: string, customDescription?: string) => {
+        if (slotAssignments.size === 0) return;
 
         setIsCreatingWeeve(true);
 
-        // Find contribution IDs to replace based on selected slots
+        // Build the slot indices and contribution IDs to replace
+        const slotIndices = Array.from(slotAssignments.keys()).sort((a, b) => a - b);
         const contributionIdsToReplace: string[] = [];
-        selectedSlots.forEach(slotIndex => {
+        slotIndices.forEach(slotIndex => {
             const contribution = slotContentMap.get(slotIndex);
             if (contribution) {
                 contributionIdsToReplace.push(contribution.id);
             }
         });
 
+        // Build a slot -> userId map for the store function
+        const slotToUserMap = new Map<number, string>();
+        slotAssignments.forEach((assignment, slotIndex) => {
+            slotToUserMap.set(slotIndex, assignment.userId);
+        });
+
         try {
             const result = await forkStory(
                 story.id,
-                selectedSlots,
-                participantId,
+                slotToUserMap,
                 contributionIdsToReplace,
                 customTitle,
                 customDescription
@@ -138,10 +144,9 @@ export default function FeedItemForkControl({
 
                 // Reset state
                 setIsForking(false);
-                setSelectedSlots([]);
-                setShowParticipantPicker(false);
+                setSlotAssignments(new Map());
+                setActiveSlotForPicker(null);
                 setShowWeeveDetailsModal(false);
-                setPendingParticipantId(null);
 
                 // Navigate
                 router.push(`/story/${result.storyId}`);
@@ -163,26 +168,25 @@ export default function FeedItemForkControl({
         }
     };
 
-    const handleShowWeeveDetails = (participantId: string) => {
-        setPendingParticipantId(participantId);
-        setShowParticipantPicker(false);
-        setShowWeeveDetailsModal(true);
-        // Reset title/desc to defaults
-        setWeeveTitle(story.title + (story.title.endsWith("'s Remix") ? "" : " (Remix)"));
-        setWeeveDescription(story.description || "");
+    // Assign a user to the currently active slot
+    const assignUserToSlot = (userId: string, avatar: string, name: string) => {
+        if (activeSlotForPicker === null) return;
+
+        setSlotAssignments(prev => {
+            const newMap = new Map(prev);
+            newMap.set(activeSlotForPicker, { userId, avatar, name });
+            return newMap;
+        });
+        setActiveSlotForPicker(null);
+        setShowFriendPicker(false);
     };
 
-    const toggleSlotSelection = (index: number) => {
-        if (isSlotImmutable(story, index)) return;
-
-        // Toggle selection
-        setSelectedSlots(prev => {
-            if (prev.includes(index)) {
-                return prev.filter(i => i !== index);
-            } else {
-                return [...prev, index].sort((a, b) => a - b);
-            }
-        });
+    // Open user picker for a specific slot
+    const openPickerForSlot = (slotIndex: number) => {
+        if (isSlotImmutable(story, slotIndex)) return;
+        setActiveSlotForPicker(slotIndex);
+        setShowFriendPicker(false);
+        setFriendSearchQuery("");
     };
 
     return (
@@ -333,7 +337,7 @@ export default function FeedItemForkControl({
                                             e.stopPropagation();
                                             if (isActive) {
                                                 if (isLocked) return;
-                                                toggleSlotSelection(index);
+                                                openPickerForSlot(index);
                                             } else {
                                                 setCurrentSlotIndex(index);
                                             }
@@ -342,7 +346,7 @@ export default function FeedItemForkControl({
                                     >
                                         <div className={`w-64 h-64 rounded-3xl border-2 overflow-hidden transition-all bg-gray-800 relative ${isLocked
                                             ? 'border-gray-600/50 opacity-90'
-                                            : selectedSlots.includes(index)
+                                            : slotAssignments.has(index)
                                                 ? 'border-[#EC1D99] border-solid'
                                                 : 'border-dashed border-white/30 hover:border-[#EC1D99]'
                                             }`}>
@@ -393,11 +397,44 @@ export default function FeedItemForkControl({
                                                 </div>
                                             )}
 
-                                            {/* Selection Overlay */}
-                                            {selectedSlots.includes(index) && (
+                                            {/* Assignment Overlay - show assigned user */}
+                                            {slotAssignments.has(index) && (
                                                 <div className="absolute inset-0 flex items-center justify-center bg-[#EC1D99]/30 backdrop-blur-[2px]">
-                                                    <div className="bg-[#EC1D99] p-4 rounded-full shadow-lg">
-                                                        <Check className="w-8 h-8 text-white" />
+                                                    {/* Remove button - using div to avoid nested button error */}
+                                                    <div
+                                                        role="button"
+                                                        tabIndex={0}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setSlotAssignments(prev => {
+                                                                const newMap = new Map(prev);
+                                                                newMap.delete(index);
+                                                                return newMap;
+                                                            });
+                                                        }}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter' || e.key === ' ') {
+                                                                e.stopPropagation();
+                                                                setSlotAssignments(prev => {
+                                                                    const newMap = new Map(prev);
+                                                                    newMap.delete(index);
+                                                                    return newMap;
+                                                                });
+                                                            }
+                                                        }}
+                                                        className="absolute top-3 right-3 w-8 h-8 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center transition-colors z-10 cursor-pointer"
+                                                    >
+                                                        <X className="w-4 h-4 text-white" />
+                                                    </div>
+                                                    <div className="flex flex-col items-center">
+                                                        <img
+                                                            src={slotAssignments.get(index)!.avatar}
+                                                            alt={slotAssignments.get(index)!.name}
+                                                            className="w-16 h-16 rounded-full border-4 border-[#EC1D99] shadow-lg"
+                                                        />
+                                                        <p className="mt-2 text-white font-bold text-sm bg-black/50 px-3 py-1 rounded-full">
+                                                            {slotAssignments.get(index)!.name}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             )}
@@ -405,7 +442,7 @@ export default function FeedItemForkControl({
 
                                         {/* Slot Number Label */}
                                         <div className="absolute -bottom-6 left-0 right-0 text-center">
-                                            <span className={`text-sm font-bold ${selectedSlots.includes(index) ? 'text-[#EC1D99]' : 'text-white'}`}>
+                                            <span className={`text-sm font-bold ${slotAssignments.has(index) ? 'text-[#EC1D99]' : 'text-white'}`}>
                                                 Slot {index + 1}
                                             </span>
                                         </div>
@@ -432,26 +469,31 @@ export default function FeedItemForkControl({
                     {/* Continue Button */}
                     <div className="px-6 w-full max-w-md mt-4">
                         <button
-                            onClick={() => setShowParticipantPicker(true)}
-                            disabled={selectedSlots.length === 0}
-                            className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${selectedSlots.length > 0
+                            onClick={() => {
+                                // Reset title/desc to defaults and show weeve details
+                                setWeeveTitle(story.title + (story.title.endsWith("'s Remix") ? "" : " (Remix)"));
+                                setWeeveDescription(story.description || "");
+                                setShowWeeveDetailsModal(true);
+                            }}
+                            disabled={slotAssignments.size === 0}
+                            className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${slotAssignments.size > 0
                                 ? 'bg-[#EC1D99] text-white hover:bg-[#d61a88]'
                                 : 'bg-gray-800 text-gray-500 cursor-not-allowed'
                                 }`}
                         >
-                            Continue ({selectedSlots.length})
+                            Continue ({slotAssignments.size})
                         </button>
                     </div>
                 </div>
             )}
 
-            {/* Participant Picker Modal */}
-            {showParticipantPicker && (
+            {/* Slot User Picker Modal - appears when a slot is tapped */}
+            {activeSlotForPicker !== null && (
                 <div className="absolute inset-0 z-40 bg-black/90 flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
                     <div className="w-full max-w-sm bg-[#1a1a2e] rounded-3xl p-6 border border-white/10 flex flex-col max-h-[80vh]">
                         <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                            <h3 className="text-xl font-bold text-white">Who's jumping in?</h3>
-                            <button onClick={() => setShowParticipantPicker(false)} className="p-1 hover:bg-white/10 rounded-full">
+                            <h3 className="text-xl font-bold text-white">Assign Slot {activeSlotForPicker + 1}</h3>
+                            <button onClick={() => setActiveSlotForPicker(null)} className="p-1 hover:bg-white/10 rounded-full">
                                 <X className="w-5 h-5 text-gray-400" />
                             </button>
                         </div>
@@ -459,13 +501,13 @@ export default function FeedItemForkControl({
                         {!showFriendPicker ? (
                             <div className="space-y-3">
                                 <button
-                                    onClick={() => currentUser && handleShowWeeveDetails(currentUser.id)}
+                                    onClick={() => currentUser && assignUserToSlot(currentUser.id, currentUser.avatar, currentUser.name)}
                                     className="w-full flex items-center gap-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 hover:border-[#EC1D99]/50 transition-all group"
                                 >
                                     <img src={currentUser?.avatar} className="w-12 h-12 rounded-full border-2 border-[#EC1D99]" />
                                     <div className="text-left">
                                         <p className="font-bold text-white group-hover:text-[#EC1D99]">Me</p>
-                                        <p className="text-xs text-gray-400">Add myself to these slots</p>
+                                        <p className="text-xs text-gray-400">Add myself to this slot</p>
                                     </div>
                                 </button>
                                 <button
@@ -500,7 +542,7 @@ export default function FeedItemForkControl({
                                     {(friendSearchResults.length > 0 ? friendSearchResults : friends).map(friend => (
                                         <button
                                             key={friend.id}
-                                            onClick={() => handleShowWeeveDetails(friend.id)}
+                                            onClick={() => assignUserToSlot(friend.id, friend.avatar, friend.name)}
                                             className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors"
                                         >
                                             <img src={friend.avatar} className="w-10 h-10 rounded-full" />
@@ -518,7 +560,7 @@ export default function FeedItemForkControl({
             )}
 
             {/* Weeve Details Modal */}
-            {showWeeveDetailsModal && pendingParticipantId && (
+            {showWeeveDetailsModal && slotAssignments.size > 0 && (
                 <div className="absolute inset-0 z-50 bg-black/90 flex items-center justify-center p-6 animate-in zoom-in-95 duration-200">
                     <div className="w-full max-w-sm bg-[#1a1a2e] rounded-3xl p-6 border border-white/10">
                         <div className="flex items-center justify-between mb-4">
@@ -526,12 +568,24 @@ export default function FeedItemForkControl({
                             <button
                                 onClick={() => {
                                     setShowWeeveDetailsModal(false);
-                                    setIsForking(false); // Close everything on X?
                                 }}
                                 className="p-1 hover:bg-white/10 rounded-full"
                             >
                                 <X className="w-5 h-5 text-gray-400" />
                             </button>
+                        </div>
+
+                        {/* Show assigned slots summary */}
+                        <div className="mb-4 p-3 bg-white/5 rounded-xl">
+                            <p className="text-xs text-gray-400 mb-2">Assigned slots:</p>
+                            <div className="flex flex-wrap gap-2">
+                                {Array.from(slotAssignments.entries()).map(([slotIndex, assignment]) => (
+                                    <div key={slotIndex} className="flex items-center gap-1.5 bg-[#EC1D99]/20 px-2 py-1 rounded-full">
+                                        <img src={assignment.avatar} className="w-5 h-5 rounded-full" />
+                                        <span className="text-xs text-white">Slot {slotIndex + 1}</span>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
 
                         <div className="space-y-4 mb-6">
@@ -558,8 +612,8 @@ export default function FeedItemForkControl({
                         <div className="flex gap-3">
                             <button
                                 onClick={() => {
-                                    // Skip/Quick Create
-                                    handleForkStory(pendingParticipantId);
+                                    // Skip/Quick Create - use default title/desc
+                                    handleForkStory();
                                 }}
                                 disabled={isCreatingWeeve}
                                 className="flex-1 py-3 rounded-xl bg-white/5 text-white font-semibold hover:bg-white/10"
@@ -571,7 +625,6 @@ export default function FeedItemForkControl({
                                     const t = weeveTitle.trim();
                                     const d = weeveDescription.trim();
                                     handleForkStory(
-                                        pendingParticipantId,
                                         t !== story.title ? t : undefined,
                                         d !== (story.description || '') ? d : undefined
                                     );

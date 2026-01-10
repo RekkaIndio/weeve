@@ -473,3 +473,459 @@ describe('Waiting Story Display', () => {
         expect(screen.getByText(/waiting for/i)).toBeInTheDocument();
     });
 });
+
+describe('Per-Slot User Assignment', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockStoreState = {
+            currentUser: mockCurrentUser,
+            friends: mockFriends,
+            savedStoryIds: [],
+        };
+    });
+
+    const openForkingOverlay = async (story: Story = createMockStory()) => {
+        await act(async () => {
+            render(<FeedItem story={story} />);
+        });
+
+        const weeveButton = screen.getByRole('button', { name: /fork story/i });
+        await act(async () => {
+            fireEvent.click(weeveButton);
+        });
+    };
+
+    describe('Slot User Picker', () => {
+        it('opens user picker when clicking on a slot', async () => {
+            await openForkingOverlay();
+
+            // Find and click a slot (looking for Slot 1 label)
+            const slot1Label = screen.getByText('Slot 1');
+            const slotButton = slot1Label.closest('button');
+
+            if (slotButton) {
+                await act(async () => {
+                    fireEvent.click(slotButton);
+                });
+            }
+
+            // User picker modal should appear with "Assign Slot 1" title
+            await waitFor(() => {
+                expect(screen.getByText(/Assign Slot 1/i)).toBeInTheDocument();
+            });
+        });
+
+        it('shows Me option in user picker', async () => {
+            await openForkingOverlay();
+
+            // Click on slot to open picker
+            const slot1Label = screen.getByText('Slot 1');
+            const slotButton = slot1Label.closest('button');
+
+            if (slotButton) {
+                await act(async () => {
+                    fireEvent.click(slotButton);
+                });
+            }
+
+            // Should show "Me" option
+            await waitFor(() => {
+                expect(screen.getByText('Me')).toBeInTheDocument();
+            });
+        });
+
+        it('shows A Friend option in user picker', async () => {
+            await openForkingOverlay();
+
+            // Click on slot to open picker
+            const slot1Label = screen.getByText('Slot 1');
+            const slotButton = slot1Label.closest('button');
+
+            if (slotButton) {
+                await act(async () => {
+                    fireEvent.click(slotButton);
+                });
+            }
+
+            // Should show "A Friend" option
+            await waitFor(() => {
+                expect(screen.getByText('A Friend')).toBeInTheDocument();
+            });
+        });
+    });
+
+    describe('Slot Assignment', () => {
+        it('shows user avatar on slot after assignment', async () => {
+            await openForkingOverlay();
+
+            // Click on slot to open picker
+            const slot1Label = screen.getByText('Slot 1');
+            const slotButton = slot1Label.closest('button');
+
+            if (slotButton) {
+                await act(async () => {
+                    fireEvent.click(slotButton);
+                });
+            }
+
+            // Click "Me" to assign current user
+            await waitFor(() => {
+                expect(screen.getByText('Me')).toBeInTheDocument();
+            });
+
+            const meButton = screen.getByText('Me').closest('button');
+            if (meButton) {
+                await act(async () => {
+                    fireEvent.click(meButton);
+                });
+            }
+
+            // Current user's name should appear on the slot
+            await waitFor(() => {
+                expect(screen.getByText(mockCurrentUser.name)).toBeInTheDocument();
+            });
+        });
+
+        it('updates Continue button count after assignment', async () => {
+            await openForkingOverlay();
+
+            // Initially Continue (0)
+            expect(screen.getByText(/Continue \(0\)/i)).toBeInTheDocument();
+
+            // Assign user to slot 1
+            const slot1Label = screen.getByText('Slot 1');
+            const slotButton = slot1Label.closest('button');
+
+            if (slotButton) {
+                await act(async () => {
+                    fireEvent.click(slotButton);
+                });
+            }
+
+            await waitFor(() => {
+                expect(screen.getByText('Me')).toBeInTheDocument();
+            });
+
+            const meButton = screen.getByText('Me').closest('button');
+            if (meButton) {
+                await act(async () => {
+                    fireEvent.click(meButton);
+                });
+            }
+
+            // Continue button should show (1)
+            await waitFor(() => {
+                expect(screen.getByText(/Continue \(1\)/i)).toBeInTheDocument();
+            });
+        });
+    });
+
+    describe('Slot Removal', () => {
+        it('shows remove button (X) on assigned slot', async () => {
+            await openForkingOverlay();
+
+            // Assign user to slot 1
+            const slot1Label = screen.getByText('Slot 1');
+            const slotButton = slot1Label.closest('button');
+
+            if (slotButton) {
+                await act(async () => {
+                    fireEvent.click(slotButton);
+                });
+            }
+
+            await waitFor(() => {
+                expect(screen.getByText('Me')).toBeInTheDocument();
+            });
+
+            const meButton = screen.getByText('Me').closest('button');
+            if (meButton) {
+                await act(async () => {
+                    fireEvent.click(meButton);
+                });
+            }
+
+            // Wait for assignment to complete
+            await waitFor(() => {
+                expect(screen.getByText(mockCurrentUser.name)).toBeInTheDocument();
+            });
+
+            // Find remove button (X icon button in the overlay)
+            // The remove button should be present in the assignment overlay
+            const removeButtons = screen.getAllByRole('button');
+            const hasRemoveButton = removeButtons.some(button =>
+                button.className.includes('bg-black/60')
+            );
+            expect(hasRemoveButton).toBe(true);
+        });
+
+        it('removes user from slot when remove button is clicked', async () => {
+            await openForkingOverlay();
+
+            // Assign user to slot 1
+            const slot1Label = screen.getByText('Slot 1');
+            const slotButton = slot1Label.closest('button');
+
+            if (slotButton) {
+                await act(async () => {
+                    fireEvent.click(slotButton);
+                });
+            }
+
+            await waitFor(() => {
+                expect(screen.getByText('Me')).toBeInTheDocument();
+            });
+
+            const meButton = screen.getByText('Me').closest('button');
+            if (meButton) {
+                await act(async () => {
+                    fireEvent.click(meButton);
+                });
+            }
+
+            // Wait for assignment
+            await waitFor(() => {
+                expect(screen.getByText(/Continue \(1\)/i)).toBeInTheDocument();
+            });
+
+            // Find and click the remove button
+            const removeButton = screen.getAllByRole('button').find(button =>
+                button.className.includes('bg-black/60')
+            );
+
+            if (removeButton) {
+                await act(async () => {
+                    fireEvent.click(removeButton);
+                });
+            }
+
+            // Continue should go back to (0)
+            await waitFor(() => {
+                expect(screen.getByText(/Continue \(0\)/i)).toBeInTheDocument();
+            });
+        });
+    });
+
+    describe('Multiple Slot Assignments', () => {
+        it('allows assigning different users to different slots', async () => {
+            await openForkingOverlay();
+
+            // Assign current user to slot 1
+            const slot1Label = screen.getByText('Slot 1');
+            const slot1Button = slot1Label.closest('button');
+
+            if (slot1Button) {
+                await act(async () => {
+                    fireEvent.click(slot1Button);
+                });
+            }
+
+            await waitFor(() => {
+                expect(screen.getByText('Me')).toBeInTheDocument();
+            });
+
+            const meButton = screen.getByText('Me').closest('button');
+            if (meButton) {
+                await act(async () => {
+                    fireEvent.click(meButton);
+                });
+            }
+
+            // Wait for first assignment
+            await waitFor(() => {
+                expect(screen.getByText(/Continue \(1\)/i)).toBeInTheDocument();
+            });
+
+            // Navigate to and click slot 2 (via carousel navigation)
+            const slot2Indicator = screen.getAllByRole('button').find(btn =>
+                btn.className.includes('rounded-full') && btn.className.includes('bg-white/30')
+            );
+
+            if (slot2Indicator) {
+                await act(async () => {
+                    fireEvent.click(slot2Indicator);
+                });
+            }
+
+            // Now click on slot 2 to open picker
+            await waitFor(() => {
+                expect(screen.getByText('Slot 2')).toBeInTheDocument();
+            });
+
+            const slot2Label = screen.getByText('Slot 2');
+            const slot2Button = slot2Label.closest('button');
+
+            if (slot2Button) {
+                await act(async () => {
+                    fireEvent.click(slot2Button);
+                });
+            }
+
+            // Assign to slot 2
+            await waitFor(() => {
+                expect(screen.getByText(/Assign Slot 2/i)).toBeInTheDocument();
+            });
+
+            const meButton2 = screen.getByText('Me').closest('button');
+            if (meButton2) {
+                await act(async () => {
+                    fireEvent.click(meButton2);
+                });
+            }
+
+            // Continue should show (2)
+            await waitFor(() => {
+                expect(screen.getByText(/Continue \(2\)/i)).toBeInTheDocument();
+            });
+        });
+    });
+
+    describe('Weeve Details Modal', () => {
+        it('opens Weeve Details modal after Continue button is clicked', async () => {
+            await openForkingOverlay();
+
+            // Assign user to slot 1
+            const slot1Label = screen.getByText('Slot 1');
+            const slotButton = slot1Label.closest('button');
+
+            if (slotButton) {
+                await act(async () => {
+                    fireEvent.click(slotButton);
+                });
+            }
+
+            await waitFor(() => {
+                expect(screen.getByText('Me')).toBeInTheDocument();
+            });
+
+            const meButton = screen.getByText('Me').closest('button');
+            if (meButton) {
+                await act(async () => {
+                    fireEvent.click(meButton);
+                });
+            }
+
+            // Click Continue
+            await waitFor(() => {
+                expect(screen.getByText(/Continue \(1\)/i)).toBeInTheDocument();
+            });
+
+            const continueButton = screen.getByText(/Continue \(1\)/i).closest('button');
+            if (continueButton) {
+                await act(async () => {
+                    fireEvent.click(continueButton);
+                });
+            }
+
+            // Weeve Details modal should appear
+            await waitFor(() => {
+                expect(screen.getByText('Customise Weeve')).toBeInTheDocument();
+            });
+        });
+
+        it('shows assigned slots summary in Weeve Details modal', async () => {
+            await openForkingOverlay();
+
+            // Assign user to slot 1
+            const slot1Label = screen.getByText('Slot 1');
+            const slotButton = slot1Label.closest('button');
+
+            if (slotButton) {
+                await act(async () => {
+                    fireEvent.click(slotButton);
+                });
+            }
+
+            await waitFor(() => {
+                expect(screen.getByText('Me')).toBeInTheDocument();
+            });
+
+            const meButton = screen.getByText('Me').closest('button');
+            if (meButton) {
+                await act(async () => {
+                    fireEvent.click(meButton);
+                });
+            }
+
+            // Click Continue
+            await waitFor(() => {
+                expect(screen.getByText(/Continue \(1\)/i)).toBeInTheDocument();
+            });
+
+            const continueButton = screen.getByText(/Continue \(1\)/i).closest('button');
+            if (continueButton) {
+                await act(async () => {
+                    fireEvent.click(continueButton);
+                });
+            }
+
+            // Should show "Assigned slots:" text
+            await waitFor(() => {
+                expect(screen.getByText(/Assigned slots:/i)).toBeInTheDocument();
+            });
+        });
+    });
+
+    describe('forkStory Integration', () => {
+        it('calls forkStory with Map of slot assignments on Create Weeve', async () => {
+            await openForkingOverlay();
+
+            // Assign user to slot 1
+            const slot1Label = screen.getByText('Slot 1');
+            const slotButton = slot1Label.closest('button');
+
+            if (slotButton) {
+                await act(async () => {
+                    fireEvent.click(slotButton);
+                });
+            }
+
+            await waitFor(() => {
+                expect(screen.getByText('Me')).toBeInTheDocument();
+            });
+
+            const meButton = screen.getByText('Me').closest('button');
+            if (meButton) {
+                await act(async () => {
+                    fireEvent.click(meButton);
+                });
+            }
+
+            // Click Continue
+            await waitFor(() => {
+                expect(screen.getByText(/Continue \(1\)/i)).toBeInTheDocument();
+            });
+
+            const continueButton = screen.getByText(/Continue \(1\)/i).closest('button');
+            if (continueButton) {
+                await act(async () => {
+                    fireEvent.click(continueButton);
+                });
+            }
+
+            // Click Create Weeve
+            await waitFor(() => {
+                expect(screen.getByText('Create Weeve')).toBeInTheDocument();
+            });
+
+            const createButton = screen.getByText('Create Weeve').closest('button');
+            if (createButton) {
+                await act(async () => {
+                    fireEvent.click(createButton);
+                });
+            }
+
+            // Wait for forkStory to be called
+            await waitFor(() => {
+                expect(mockForkStory).toHaveBeenCalled();
+            });
+
+            // Verify the second argument is a Map
+            const callArgs = mockForkStory.mock.calls[0];
+            expect(callArgs[0]).toBe('story-123'); // storyId
+            expect(callArgs[1]).toBeInstanceOf(Map); // slotToUserAssignments
+            expect(callArgs[1].size).toBe(1); // 1 slot assigned
+            expect(callArgs[1].get(0)).toBe(mockCurrentUser.id); // slot 0 assigned to current user
+        });
+    });
+});
