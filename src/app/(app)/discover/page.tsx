@@ -45,26 +45,28 @@ function DiscoverContent() {
 
     return (
         <div className="min-h-screen bg-black text-white pb-24">
-            {/* Search Header */}
-            <DiscoverHeader
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                currentUser={currentUser}
-            />
-
-            {/* View Tabs */}
-            <ViewTabs
-                viewMode={viewMode}
-                setViewMode={setViewMode}
-            />
-
-            {/* Feed Type Filter Chips - Only show in Stories view */}
-            {viewMode === 'all' && !searchQuery.trim() && (
-                <FeedTypeFilters
-                    feedType={feedType}
-                    setFeedType={setFeedType}
+            {/* Sticky Header Container for Search, Tabs, and Filters */}
+            <div className="sticky top-0 z-20 bg-black">
+                {/* Search Header */}
+                <DiscoverHeader
+                    searchQuery={searchQuery}
+                    setSearchQuery={setSearchQuery}
+                    currentUser={currentUser}
                 />
-            )}
+                {/* View Tabs */}
+                <ViewTabs
+                    viewMode={viewMode}
+                    setViewMode={setViewMode}
+                />
+
+                {/* Feed Type Filter Chips - Only show in Stories view */}
+                {viewMode === 'all' && !searchQuery.trim() && (
+                    <FeedTypeFilters
+                        feedType={feedType}
+                        setFeedType={setFeedType}
+                    />
+                )}
+            </div>
 
             {/* Content Area */}
             {viewMode === 'groups' ? (
