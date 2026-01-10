@@ -108,7 +108,7 @@ const StorySlotItem = ({
                         }`}>
                         {participant
                             ? (isCurrentUser ? "You" : participant.name.split(" ")[0])
-                            : "Empty"
+                            : "Open"
                         }
                     </span>
                 </div>
