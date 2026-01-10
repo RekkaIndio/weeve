@@ -50,7 +50,7 @@ export default function FeedItemSidebar({
     const router = useRouter();
 
     return (
-        <div className="absolute right-4 bottom-4 flex flex-col items-center gap-4 text-white z-20">
+        <div className="absolute right-4 bottom-4 flex flex-col items-center gap-2 text-white z-20">
             {/* Like Button */}
             <div className="flex flex-col items-center gap-1">
                 <button
