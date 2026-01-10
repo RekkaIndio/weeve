@@ -312,7 +312,30 @@ export function ActiveStoryView({
                 {isUploading && (
                     <div className="absolute inset-0 bg-black/80 z-50 flex flex-col items-center justify-center">
                         <div className="relative w-24 h-24 mb-4 flex items-center justify-center">
-                            <span className="text-xl font-bold text-white">{uploadProgress}%</span>
+                            <svg className="absolute inset-0 w-full h-full -rotate-90">
+                                <circle
+                                    cx="48"
+                                    cy="48"
+                                    r="36"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="6"
+                                    className="text-gray-700"
+                                />
+                                <circle
+                                    cx="48"
+                                    cy="48"
+                                    r="36"
+                                    fill="none"
+                                    stroke="#EC1D99"
+                                    strokeWidth="6"
+                                    strokeLinecap="round"
+                                    strokeDasharray="226.2"
+                                    strokeDashoffset={226.2 - (226.2 * uploadProgress) / 100}
+                                    className="transition-all duration-300 ease-out"
+                                />
+                            </svg>
+                            <span className="text-xl font-bold text-white z-10">{uploadProgress}%</span>
                         </div>
                         <p className="font-bold text-white animate-pulse">Uploading...</p>
                     </div>
