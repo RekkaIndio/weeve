@@ -34,7 +34,7 @@ export default function AuthCallbackPage() {
             if (!isCapacitor && (isIos || isAndroid)) {
                 const scheme = isIos ? NATIVE_GOOGLE_REDIRECT_URI_IOS : NATIVE_GOOGLE_REDIRECT_URI_ANDROID;
                 const callbackUrl = `${scheme}${window.location.search}${window.location.hash}`;
-                console.info('[Callback] Attempting to open installed app with callback:', callbackUrl);
+                console.info('[Callback] Attempting to open installed app with callback.');
                 // Attempt to open the app deep link. If it fails, the browser stays on the web callback.
                 window.location.assign(callbackUrl);
                 // If the app did not open within ~1.8s, continue as web flow (no-op)
@@ -47,7 +47,7 @@ export default function AuthCallbackPage() {
         }
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
-            console.log('[Callback] Auth state change:', event, session?.user?.id);
+            console.log('[Callback] Auth state change:', event);
 
             if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
                 // Successful sign in - actively redirect to feed

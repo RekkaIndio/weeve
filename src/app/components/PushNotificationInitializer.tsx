@@ -43,11 +43,11 @@ const PushNotificationInitializer = () => {
         };
 
         const saveTokenToSupabase = async (token: string) => {
-            console.log('[Push] Token received:', token);
+            console.log('[Push] Token received');
             const user = useStore.getState().currentUser;
 
             if (user?.id) {
-                console.log('[Push] Saving token for user:', user.id);
+                console.log('[Push] Saving token for user');
                 const { error } = await supabase
                     .from('profiles')
                     .update({ push_token: token })

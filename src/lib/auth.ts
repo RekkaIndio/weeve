@@ -69,7 +69,7 @@ export async function signUp(email: string, password: string, name?: string, dat
 
         return { user: authData.user, error: null };
     } catch (error) {
-        console.error('[Auth] Signup error:', error);
+        console.error('[Auth] Signup error:', (error as Error).message);
         return { user: null, error: error as Error };
     }
 }
@@ -89,7 +89,7 @@ export async function signIn(email: string, password: string): Promise<{ user: U
 
         return { user: data.user, session: data.session, error: null };
     } catch (error) {
-        console.error('[Auth] Signin error:', error);
+        console.error('[Auth] Signin error:', (error as Error).message);
         return { user: null, session: null, error: error as Error };
     }
 }
@@ -148,7 +148,7 @@ export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise
 
         return { error: null };
     } catch (error) {
-        console.error('[Auth] Google signin error:', error);
+        console.error('[Auth] Google signin error:', (error as Error).message);
         return { error: error as Error };
     }
 }
@@ -197,7 +197,7 @@ export async function signOut(): Promise<{ error: Error | null }> {
 
         return { error: null };
     } catch (error) {
-        console.error('[Auth] Signout error:', error);
+        console.error('[Auth] Signout error:', (error as Error).message);
         return { error: error as Error };
     }
 }
@@ -211,7 +211,7 @@ export async function getCurrentUser(): Promise<User | null> {
         if (error) throw error;
         return user;
     } catch (error) {
-        console.error('[Auth] Get user error:', error);
+        console.error('[Auth] Get user error:', (error as Error).message);
         return null;
     }
 }
@@ -253,7 +253,7 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
             preferences: data.preferences as any || {},
         };
     } catch (error) {
-        console.error('[Auth] Get profile error:', error);
+        console.error('[Auth] Get profile error:', (error as Error).message);
         return null;
     }
 }
@@ -314,7 +314,7 @@ export async function fetchProfileWithAccessToken(accessToken: string, userId: s
             preferences: row.preferences || {},
         };
     } catch (err) {
-        console.warn('[Auth] fetchProfileWithAccessToken error:', err);
+        console.warn('[Auth] fetchProfileWithAccessToken error:', (err as Error).message);
         return null;
     }
 }
@@ -382,7 +382,7 @@ export async function createUserProfile(
                 lastError = result.error;
             } else {
                 // Some other error, rethrow immediately
-                console.error('[Auth] Create profile INSERT error:', JSON.stringify(result.error, null, 2));
+                console.error('[Auth] Create profile INSERT error:', (result.error as Error).message);
                 throw result.error;
             }
         }
@@ -400,7 +400,7 @@ export async function createUserProfile(
             .maybeSingle();
 
         if (selectError) {
-             console.error('[Auth] Create profile SELECT error:', JSON.stringify(selectError, null, 2));
+             console.error('[Auth] Create profile SELECT error:', (selectError as Error).message);
              throw selectError;
         }
 
@@ -419,7 +419,7 @@ export async function createUserProfile(
 
         return { data: insertedProfile ?? null, error: null };
     } catch (error) {
-        console.error('[Auth] Create profile error (full):', JSON.stringify(error, null, 2));
+        console.error('[Auth] Create profile error (full):', (error as Error).message);
         return { data: null, error: error as Error };
     }
 }
