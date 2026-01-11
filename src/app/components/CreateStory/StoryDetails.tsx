@@ -65,6 +65,7 @@ const StoryDetails = ({
                         ref={titleInputRef}
                         onChange={onTitleChange}
                         placeholder="Give your story a name..."
+                        maxLength={60}
                         className="w-full px-4 py-4 pl-11 bg-gray-800/50 border border-gray-700/50 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white text-lg font-semibold placeholder-gray-500 font-sans backdrop-blur-sm"
                         aria-describedby="title-counter"
                     />
@@ -93,6 +94,7 @@ const StoryDetails = ({
                         onChange={onDescriptionChange}
                         rows={3}
                         placeholder="What's this story about? Set the scene for your collaborators..."
+                        maxLength={200}
                         className="w-full px-4 py-4 pl-11 bg-gray-800/50 border border-gray-700/50 rounded-2xl focus:outline-none focus:border-[#EC1D99] focus:ring-4 focus:ring-[#EC1D99]/10 transition-all text-white resize-none placeholder-gray-500 font-sans backdrop-blur-sm leading-relaxed"
                         aria-describedby="desc-counter"
                     />
