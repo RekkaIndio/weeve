@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft } from "lucide-react";
 import FeedItem from "@/app/components/FeedItem";
 import type { Story } from '@/lib/store';
+import { useVideoExportOptional } from '@/app/components/VideoExport/VideoExportContext';
 
 interface DiscoveryFeedOverlayProps {
     stories: Story[];
@@ -14,6 +15,26 @@ export default function DiscoveryFeedOverlay({ stories, initialIndex, onClose }:
     const [activeIndex, setActiveIndex] = useState(initialIndex);
     const containerRef = useRef<HTMLDivElement>(null);
     const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+    // Video export progress - matches AppLayout pattern
+    const exportContext = useVideoExportOptional();
+    const [showExportBar, setShowExportBar] = useState(false);
+
+    // Track export bar visibility - matches AppLayout
+    useEffect(() => {
+        if (exportContext?.isExporting) {
+            setShowExportBar(true);
+        } else if (exportContext?.isComplete) {
+            // Keep showing for a moment then hide
+            const timer = setTimeout(() => {
+                setShowExportBar(false);
+            }, 3000);
+            return () => clearTimeout(timer);
+        } else {
+            setShowExportBar(false);
+        }
+    }, [exportContext?.isExporting, exportContext?.isComplete]);
+
 
     // Auto-scroll to initial story on mount
     useEffect(() => {
@@ -233,7 +254,10 @@ export default function DiscoveryFeedOverlay({ stories, initialIndex, onClose }:
     }, []);
 
     return (
-        <div className="fixed inset-0 z-50 bg-black" style={{ paddingBottom: 'calc(64px + env(safe-area-inset-bottom, 0px))' }}>
+        <div
+            className="fixed left-0 right-0 top-0 z-50 bg-black"
+            style={{ bottom: 'calc(3.25rem + env(safe-area-inset-bottom, 0px))' }}
+        >
             {/* Close button */}
             <button
                 onClick={onClose}
@@ -293,6 +317,21 @@ export default function DiscoveryFeedOverlay({ stories, initialIndex, onClose }:
                     </div>
                 )}
             </div>
+
+            {/* Export Progress Bar - at bottom edge of overlay (which is now at nav top) */}
+            {showExportBar && exportContext && (
+                <div
+                    className="absolute left-0 right-0 bottom-0 h-[2px] bg-gray-800 z-[60] overflow-hidden"
+                >
+                    <div
+                        className={`h-full transition-all duration-300 ease-out ${exportContext.isComplete ? 'bg-green-500' : 'bg-[#EC1D99]'}`}
+                        style={{ width: `${exportContext.progress}%` }}
+                    />
+                    {exportContext.isExporting && (
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                    )}
+                </div>
+            )}
         </div>
     );
 }

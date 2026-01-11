@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { X, Share2, MessageCircle, Send, Check, Copy, Search as SearchIcon, Download, Instagram, Facebook, Flag, Ban } from 'lucide-react';
 import { Story, useStore } from '@/lib/store';
 import { searchUsers } from '@/lib/friends';
 import { notifyStoryShared } from '@/lib/notifications';
 import { buildPublicUrl } from '@/lib/url';
 
-import { useVideoStitcher } from '@/hooks/useVideoStitcher';
+import { useVideoExport } from './VideoExport/VideoExportContext';
 import { supabase } from '@/lib/supabase';
 
 interface ShareModalProps {
@@ -50,11 +50,40 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [searching, setSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<Recipient[]>([]);
-    const { stitchStory, stitchingState, progress, videoUrl, reset } = useVideoStitcher();
-    const [downloadComplete, setDownloadComplete] = useState(false);
-    const [savedFilePath, setSavedFilePath] = useState<string | null>(null);
-    const [isSaved, setIsSaved] = useState(false);
-    const [lastAction, setLastAction] = useState<'save' | 'share' | null>(null);
+
+    // Use global video export context instead of local stitcher
+    const {
+        startExport,
+        exportState,
+        progress,
+        videoUrl,
+        isExporting,
+        isComplete,
+        saveToDevice,
+        shareVideo,
+        currentStory: exportedStory
+    } = useVideoExport();
+
+    // Check if the current story is the one being exported
+    const isThisStoryExporting = isExporting && exportedStory?.id === story.id;
+    const isThisStoryComplete = isComplete && exportedStory?.id === story.id;
+    const thisStoryVideoUrl = exportedStory?.id === story.id ? videoUrl : null;
+
+    // Track if we've auto-saved for this export
+    const hasSavedRef = useRef(false);
+
+    // Auto-save video when export completes
+    useEffect(() => {
+        if (isThisStoryComplete && thisStoryVideoUrl && !hasSavedRef.current) {
+            hasSavedRef.current = true;
+            saveToDevice();
+        }
+        // Reset the flag when starting a new export
+        if (isThisStoryExporting) {
+            hasSavedRef.current = false;
+        }
+    }, [isThisStoryComplete, isThisStoryExporting, thisStoryVideoUrl, saveToDevice]);
+
     const [isHighQualityExport, setIsHighQualityExport] = useState(false);
     const [groupInfo, setGroupInfo] = useState<{ avatar?: string; name?: string } | null>(null);
 
@@ -91,127 +120,10 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
         fetchGroupInfo();
     }, [story.groupId]);
 
-    // Automatically save video when stitching completes after a save action
-    useEffect(() => {
-        const saveVideoToDevice = async () => {
-            if (!videoUrl || lastAction !== 'save') return;
-
-            try {
-                const { Capacitor } = await import('@capacitor/core');
-                const isNative = Capacitor.isNativePlatform();
-
-                const response = await fetch(videoUrl);
-                const fileBlob = await response.blob();
-                const filename = `${story.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_weeve${isHighQualityExport ? '_HQ' : ''}.mp4`;
-
-                if (isNative) {
-                    // Save to device's media gallery (Photos/Gallery)
-                    const { Filesystem, Directory } = await import('@capacitor/filesystem');
-                    const { Media } = await import('@capacitor-community/media');
-
-                    // Convert blob to base64
-                    const base64Data = await new Promise<string>((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const res = reader.result as string;
-                            resolve(res.split(',')[1]);
-                        };
-                        reader.onerror = reject;
-                        reader.readAsDataURL(fileBlob);
-                    });
-
-                    // Save to temporary file first
-                    const tempFile = await Filesystem.writeFile({
-                        path: filename,
-                        data: base64Data,
-                        directory: Directory.Cache,
-                        recursive: true
-                    });
-
-                    // Get or create the Weeve album for organizing saved videos
-                    // Note: albumIdentifier is REQUIRED on Android, optional on iOS
-                    const platform = Capacitor.getPlatform();
-                    let albumIdentifier: string | undefined;
-                    try {
-                        const albums = await Media.getAlbums();
-                        const weeveAlbum = albums.albums.find(a => a.name === 'Weeve');
-                        if (weeveAlbum) {
-                            albumIdentifier = weeveAlbum.identifier;
-                        } else {
-                            // Create the album if it doesn't exist
-                            await Media.createAlbum({ name: 'Weeve' });
-                            const updatedAlbums = await Media.getAlbums();
-                            const newAlbum = updatedAlbums.albums.find(a => a.name === 'Weeve');
-                            albumIdentifier = newAlbum?.identifier;
-                        }
-                    } catch (albumError) {
-                        console.warn('Could not get/create Weeve album:', albumError);
-                    }
-
-                    // On Android, albumIdentifier is required - throw if we don't have it
-                    if (platform === 'android' && !albumIdentifier) {
-                        throw new Error('Could not create album for saving video on Android');
-                    }
-
-                    // Save to media gallery
-                    await Media.saveVideo({
-                        path: tempFile.uri,
-                        albumIdentifier: albumIdentifier
-                    });
-
-                    // Clean up temp file
-                    try {
-                        await Filesystem.deleteFile({
-                            path: filename,
-                            directory: Directory.Cache
-                        });
-                    } catch {
-                        // Ignore cleanup errors
-                    }
-
-                    setSavedFilePath(tempFile.uri);
-
-                } else {
-                    // Web: trigger download
-                    const downloadUrl = window.URL.createObjectURL(fileBlob);
-                    const a = document.createElement('a');
-                    a.href = downloadUrl;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    window.URL.revokeObjectURL(downloadUrl);
-
-                }
-
-                setIsSaved(true);
-            } catch (error) {
-                console.error('Failed to save video:', error);
-                console.error('Failed to save video');
-            }
-
-            setLastAction(null);
-        };
-
-        saveVideoToDevice();
-    }, [videoUrl, lastAction, story.title]);
-
-    // Reset stitcher state and local state when modal closes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // handleClose no longer resets export state - exports continue in background
     const handleClose = () => {
-        reset();
-        setDownloadComplete(false); // Retain for safety if I missed removal, or just remove if I remove the state definition.
-        setIsSaved(false);
-        setSavedFilePath(null);
         onClose();
     };
-
-    // Empty deps - only run on mount/unmount, not when reset changes
-    useEffect(() => {
-        return () => {
-            reset();
-        };
-    }, []);
 
     useEffect(() => {
         // Load friends when modal mounts or user changes so the list shows immediately
@@ -369,101 +281,9 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     };
 
     const handleShareFile = async (platform: 'whatsapp' | 'other' = 'other') => {
-        if (!videoUrl) return;
-
-
-        let fileBlob: Blob | null = null;
-        let isNative = false;
-
-        try {
-            const { Capacitor } = await import('@capacitor/core');
-            isNative = Capacitor.isNativePlatform();
-
-            let fileUri = savedFilePath;
-
-            // If we don't have a URI (native) or just need the blob (web), fetch it
-            if (!fileUri || !isNative) {
-                const response = await fetch(videoUrl);
-                fileBlob = await response.blob();
-            }
-
-            if (isNative) {
-                if (!fileUri) {
-                    // Save to FS
-                    const { Filesystem, Directory } = await import('@capacitor/filesystem');
-                    const filename = `${story.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_weeve.mp4`;
-
-                    const base64Data = await new Promise<string>((resolve, reject) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            const res = reader.result as string;
-                            resolve(res.split(',')[1]);
-                        };
-                        reader.onerror = reject;
-                        reader.readAsDataURL(fileBlob!);
-                    });
-
-                    const savedFile = await Filesystem.writeFile({
-                        path: filename,
-                        data: base64Data,
-                        directory: Directory.Documents,
-                        recursive: true
-                    });
-                    fileUri = savedFile.uri;
-                    setSavedFilePath(fileUri);
-                    // Don't set downloadComplete here to avoid changing UI state abruptly during share
-                }
-
-                // Share via Capacitor
-                const { Share } = await import('@capacitor/share');
-                await Share.share({
-                    title: story.title,
-                    text: `Check out "${story.title}" on Weeve! #weeve ${storyUrl}`,
-                    url: fileUri,
-                    dialogTitle: 'Share Video'
-                });
-            } else {
-                // Web Share
-                if (navigator.share && navigator.canShare) {
-                    const filename = `${story.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_weeve.mp4`;
-                    const file = new File([fileBlob!], filename, { type: 'video/mp4' });
-                    if (navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            files: [file],
-                            title: story.title,
-                            text: `Check out "${story.title}" on Weeve! ${storyUrl}`
-                        });
-                    } else {
-                        // Fallback to simpler download
-                        throw new Error('Web Share API does not support files');
-                    }
-                } else {
-                    throw new Error('Web Share API not supported');
-                }
-            }
-
-
-        } catch (e: any) {
-            console.error('Share failed', e);
-            if (e.name !== 'AbortError') {
-
-                // Fallback: If share fails (especially on web), trigger download
-                if (!isNative && fileBlob) {
-
-                    const downloadUrl = window.URL.createObjectURL(fileBlob);
-                    const a = document.createElement('a');
-                    a.href = downloadUrl;
-                    a.download = `${story.title.replace(/[^a-z0-9]/gi, '_')}.mp4`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    return;
-                }
-                console.error('Could not share video');
-            } else {
-
-            }
-        }
+        if (!thisStoryVideoUrl) return;
+        // Use context's shareVideo method
+        await shareVideo(platform);
     };
 
     const recipientList = useMemo(() => {
@@ -538,7 +358,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                 {/* Header */}
                 <div className="p-4 border-b border-gray-800 flex justify-between items-center">
                     <h2 className="text-lg font-bold text-white">
-                        {downloadComplete ? 'Video Saved!' : 'Share Story'}
+                        {isThisStoryComplete ? 'Video Ready!' : 'Share Story'}
                     </h2>
                     <button onClick={handleClose} className="text-gray-400 hover:text-white transition-colors">
                         <X className="w-6 h-6" />
@@ -656,9 +476,9 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                     {/* WhatsApp */}
                                     <button
                                         onClick={async () => {
-                                            if (videoUrl) {
+                                            if (thisStoryVideoUrl) {
                                                 await handleShareFile('whatsapp');
-                                            } else if (story.status === 'completed' && !downloadComplete) {
+                                            } else if (story.status === 'completed' && !isThisStoryComplete) {
                                                 // If video not ready but possible, maybe suggest downloading? 
                                                 // For WA, links work well too.
                                                 handleWhatsAppShare();
@@ -677,12 +497,12 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                     {/* Instagram */}
                                     <button
                                         onClick={() => {
-                                            if (videoUrl) {
+                                            if (thisStoryVideoUrl) {
                                                 handleShareFile('other');
                                             } else {
-                                                // Trigger Stitch if not ready
-                                                if (stitchingState === 'idle' || stitchingState === 'error') {
-                                                    stitchStory(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
+                                                // Trigger export if not already running
+                                                if (exportState === 'idle' || exportState === 'error') {
+                                                    startExport(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
                                                 }
                                             }
                                         }}
@@ -697,11 +517,11 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                     {/* TikTok */}
                                     <button
                                         onClick={() => {
-                                            if (videoUrl) {
+                                            if (thisStoryVideoUrl) {
                                                 handleShareFile('other');
                                             } else {
-                                                if (stitchingState === 'idle' || stitchingState === 'error') {
-                                                    stitchStory(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
+                                                if (exportState === 'idle' || exportState === 'error') {
+                                                    startExport(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
                                                 }
                                             }
                                         }}
@@ -720,7 +540,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                     {/* Facebook */}
                                     <button
                                         onClick={() => {
-                                            if (videoUrl) {
+                                            if (thisStoryVideoUrl) {
                                                 handleShareFile('other');
                                             } else {
                                                 // Facebook Link Share
@@ -745,10 +565,9 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                                             <button
                                                 onClick={() => {
                                                     setIsHighQualityExport(true);
-                                                    setLastAction('save');
-                                                    stitchStory(story, { highQuality: true, groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
+                                                    startExport(story, { highQuality: true, groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
                                                 }}
-                                                disabled={stitchingState !== 'idle' && stitchingState !== 'error' && stitchingState !== 'complete'}
+                                                disabled={isThisStoryExporting}
                                                 className="w-full flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-yellow-600 to-yellow-800 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
                                             >
 
@@ -767,36 +586,36 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
 
                                     {/* Download / Processing State */}
                                     {(() => {
-                                        const isProcessing = stitchingState !== 'idle' && stitchingState !== 'complete' && stitchingState !== 'error';
-
                                         return (
                                             <div
                                                 className="relative p-[3px] rounded-xl transition-all"
-                                                style={isProcessing ? {
+                                                style={isThisStoryExporting ? {
                                                     background: `conic-gradient(from 0deg, #EC1D99 ${progress * 3.6}deg, rgba(255,255,255,0.15) ${progress * 3.6}deg)`
                                                 } : undefined}
                                             >
                                                 <button
-                                                    onClick={() => {
-                                                        if (videoUrl) {
+                                                    onClick={async () => {
+                                                        if (isThisStoryComplete && thisStoryVideoUrl) {
+                                                            // Already complete - save again
+                                                            await saveToDevice();
+                                                        } else if (thisStoryVideoUrl) {
                                                             handleShareFile('other'); // "More"
                                                         } else {
                                                             setIsHighQualityExport(false);
-                                                            setLastAction('save');
-                                                            stitchStory(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
+                                                            startExport(story, { groupAvatarUrl: groupInfo?.avatar, groupName: groupInfo?.name });
                                                         }
                                                     }}
-                                                    disabled={isProcessing}
-                                                    className={`flex items-center justify-center gap-2 p-3 rounded-[9px] transition-colors w-full ${isSaved ? 'bg-[#EC1D99] hover:bg-[#D41C84]' : 'bg-gray-800 hover:bg-gray-700'}`}
+                                                    disabled={isThisStoryExporting}
+                                                    className={`flex items-center justify-center gap-2 p-3 rounded-[9px] transition-colors w-full ${isThisStoryComplete ? 'bg-[#EC1D99] hover:bg-[#D41C84]' : 'bg-gray-800 hover:bg-gray-700'}`}
                                                 >
-                                                    {isProcessing ? (
+                                                    {isThisStoryExporting ? (
                                                         <span className="text-sm font-bold text-[#EC1D99]">{Math.round(progress)}%</span>
-                                                    ) : isSaved ? (
+                                                    ) : isThisStoryComplete ? (
                                                         <>
-                                                            <Check className="w-4 h-4 text-white" />
-                                                            <span className="text-xs font-medium text-white">Saved</span>
+                                                            <Download className="w-4 h-4 text-white" />
+                                                            <span className="text-xs font-medium text-white">Save Again</span>
                                                         </>
-                                                    ) : videoUrl ? (
+                                                    ) : thisStoryVideoUrl ? (
                                                         <>
                                                             <Share2 className="w-4 h-4 text-white" />
                                                             <span className="text-xs font-medium text-white">More Options</span>
@@ -842,6 +661,6 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                     </>
                 )}
             </div>
-        </div>
+        </div >
     );
 }

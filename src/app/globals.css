@@ -153,6 +153,20 @@ video.weeve-inline-video[style*="visibility: hidden"] {
   animation: glow-pulse 2s ease-in-out infinite;
 }
 
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
 /* Feed snap improvements */
 .weeve-snap-container {
   scroll-snap-type: y mandatory;

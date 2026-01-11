@@ -42,6 +42,7 @@ import StoreInitializer from "./components/StoreInitializer";
 import InviteHandler from "./components/InviteHandler";
 import CrashlyticsInitializer from "./components/CrashlyticsInitializer";
 import PushNotificationInitializer from "./components/PushNotificationInitializer";
+import { VideoExportProvider } from "./components/VideoExport/VideoExportContext";
 
 export default function RootLayout({
   children,
@@ -58,10 +59,13 @@ export default function RootLayout({
           <InviteHandler />
           <CrashlyticsInitializer />
           <PushNotificationInitializer />
-          {children}
+          <VideoExportProvider>
+            {children}
+          </VideoExportProvider>
           <Analytics />
         </AuthProvider>
       </body>
     </html>
   );
 }
+
