@@ -168,6 +168,7 @@ export function calculateFeedScore(
       social: calculateSocialScore(story, user, friends),
       engagement: calculateEngagementScore(story, user, userMetrics),
       quality: calculateQualityScore(story, brandMetrics),
+      interest: 0, // Interest scoring is applied in core.ts for brand posts
       recency: calculateRecencyScore(story),
       forkDiversity: 0,
       originalBoost: 0,
@@ -188,6 +189,7 @@ export function calculateFeedScore(
       social: calculateSocialScore(story, user, friends),
       engagement: calculateUserEngagement(story),
       quality: 0,
+      interest: 0, // User content doesn't use interest scoring
       recency: calculateRecencyScore(story),
       forkDiversity: 0,
       originalBoost: 0,

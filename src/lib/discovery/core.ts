@@ -13,6 +13,7 @@ import {
   calculateSocialScore,
   calculateEngagementScore,
   calculateQualityScore,
+  calculateInterestScore,
   calculateRecencyScore,
 } from './scoring';
 import type {
@@ -47,6 +48,7 @@ export function calculateDiscoveryScore(
         social: 0,
         engagement: 0,
         quality: 0,
+        interest: 0,
         recency: 0,
       },
       metadata: {
@@ -59,6 +61,7 @@ export function calculateDiscoveryScore(
   }
 
   // Calculate individual factors
+  const userInterests = user.preferences?.interests || [];
   const factors: ScoringFactors = {
     payment: calculatePaymentScore(story),
     urgency: calculateUrgencyScore(story),
@@ -66,17 +69,19 @@ export function calculateDiscoveryScore(
     social: calculateSocialScore(story, user, friends),
     engagement: calculateEngagementScore(story, user, userMetrics),
     quality: calculateQualityScore(story, brandMetrics),
+    interest: calculateInterestScore(story, userInterests),
     recency: calculateRecencyScore(story),
   };
 
   // Calculate total weighted score
-const totalScore =
+  const totalScore =
     factors.payment +
     factors.urgency +
     factors.completion +
     factors.social +
     factors.engagement +
     factors.quality +
+    factors.interest +
     factors.recency;
 
   // Extract metadata
@@ -222,7 +227,7 @@ export function explainRanking(rankedStory: RankedStory): string {
   const { factors, metadata, totalScore } = score;
 
   const lines = [
-    `Rank #${rank} (Score: ${totalScore.toFixed(0)}/1000)`,
+    `Rank #${rank} (Score: ${totalScore.toFixed(0)}/1080)`,
     ``,
     `Factors:`,
     `  💰 Payment: ${factors.payment.toFixed(0)}/250 (${metadata.paymentTier})`,
@@ -231,6 +236,7 @@ export function explainRanking(rankedStory: RankedStory): string {
     `  👥 Social: ${factors.social.toFixed(0)}/150${metadata.isFriend ? ' 💙' : ''}`,
     `  📊 Engagement: ${factors.engagement.toFixed(0)}/100`,
     `  ✨ Quality: ${factors.quality.toFixed(0)}/80`,
+    `  ❤️ Interest: ${factors.interest.toFixed(0)}/80`,
     `  🆕 Recency: ${factors.recency.toFixed(0)}/70`,
   ];
 

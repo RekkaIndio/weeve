@@ -174,6 +174,45 @@ export function calculateRecencyScore(story: Story): number {
 }
 
 /**
+ * Calculate interest-based personalization score (8% of total)
+ * Matches user's selected interests against story content
+ */
+export function calculateInterestScore(story: Story, userInterests: string[]): number {
+  if (!userInterests || userInterests.length === 0) return 0;
+
+  let matchCount = 0;
+  const normalizedInterests = userInterests.map(i => i.toLowerCase());
+
+  // Primary: Match against hashtags
+  if (story.hashtags && story.hashtags.length > 0) {
+    for (const tag of story.hashtags) {
+      const normalizedTag = tag.toLowerCase();
+      if (normalizedInterests.some(interest => 
+        normalizedTag.includes(interest) || interest.includes(normalizedTag)
+      )) {
+        matchCount++;
+      }
+    }
+  }
+
+  // Fallback: Match against title and description if no hashtag matches
+  if (matchCount === 0) {
+    const titleLower = (story.title || '').toLowerCase();
+    const descLower = (story.description || '').toLowerCase();
+    const contentToSearch = `${titleLower} ${descLower}`;
+
+    for (const interest of normalizedInterests) {
+      if (contentToSearch.includes(interest)) {
+        matchCount++;
+      }
+    }
+  }
+
+  // 20 points per match, capped at 4 matches (80 points max)
+  return Math.min(matchCount * 20, 80);
+}
+
+/**
  * Helper: Count how many of user's friends have engaged with this story
  */
 function countFriendEngagements(story: Story, friends: User[]): number {
