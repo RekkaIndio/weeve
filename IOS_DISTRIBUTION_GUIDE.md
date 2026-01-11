@@ -53,14 +53,29 @@ Before building, ensure your app points to your production server, not your loca
 8.  Click **Upload**.
 
 ## Step 5: Invite Testers in TestFlight
-
-1.  Once the upload completes and processes (you'll get an email from Apple), go back to [App Store Connect](https://appstoreconnect.apple.com/).
-2.  Select your app and go to the **TestFlight** tab.
-3.  **Internal Testing**:
-    *   Click **(+)** next to Internal Testing.
-    *   Create a group (e.g., "Team").
-    *   Add yourself and your friend (via email).
-    *   They will receive an email with a code to install the app via the TestFlight app on their phone.
+ 
+Once your build is "Processing" (this can take 5-15 minutes), you can add testers.
+ 
+### Option A: Internal Testing (Immediate)
+*Best for: You and your designated team (Admins, Developers).*
+1.  Go to the **TestFlight** tab in App Store Connect.
+2.  Select **Internal Testing** in the sidebar.
+3.  Click **(+)** to add testers.
+4.  Select users from your App Store Connect team.
+5.  **Result**: They receive an email immediately. No Apple review required.
+ 
+### Option B: External Testing (Friends, Public)
+*Best for: Sending to people outside your developer team.*
+1.  Go to the **TestFlight** tab.
+2.  Select **External Testing** in the sidebar.
+3.  Click **(+)** to create a Group (e.g., "Beta Testers").
+4.  Click **(+)** inside the Build section to add your latest build.
+5.  **CRITICAL**: You must click **Submit for Review**.
+    *   Apple must review your beta build before it can be sent to external testers.
+    *   This usually takes 24-48 hours.
+6.  Once approved:
+    *   **Email Invite**: Add specific emails to the group.
+    *   **Public Link**: Enable "Public Link" in the group settings to get a URL you can share anywhere.
 
 ## Troubleshooting Common Issues
 
