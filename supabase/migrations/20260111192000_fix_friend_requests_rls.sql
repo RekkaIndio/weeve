@@ -77,6 +77,41 @@ CREATE POLICY "friend_requests_delete_involved" ON friend_requests
   FOR DELETE USING (sender_id = auth.uid()::text OR receiver_id = auth.uid()::text);
 
 -- ============================================
+-- FRIENDSHIPS TABLE - Fix Insert Policy for Bidirectional
+-- ============================================
+
+DROP POLICY IF EXISTS "Users can create friendships" ON friendships;
+DROP POLICY IF EXISTS "Users can delete their friendships" ON friendships;
+
+-- DROP new policies if they exist
+DROP POLICY IF EXISTS "friendships_insert_with_check" ON friendships;
+DROP POLICY IF EXISTS "friendships_delete_own" ON friendships;
+
+-- INSERT: Allow inserting if:
+-- 1. It's my own friendship (user_id = me)
+-- 2. OR it's the reverse friendship (friend_id = me) AND there is a matching accepted request
+CREATE POLICY "friendships_insert_with_check" ON friendships
+  FOR INSERT WITH CHECK (
+    -- Case 1: I am adding a friend (standard)
+    user_id = auth.uid()::text
+    OR
+    -- Case 2: The system/trigger is adding me as a friend to someone else
+    (
+      friend_id = auth.uid()::text AND
+      EXISTS (
+        SELECT 1 FROM friend_requests 
+        WHERE sender_id = friendships.user_id 
+        AND receiver_id = friendships.friend_id 
+        AND status = 'accepted'
+      )
+    )
+  );
+
+-- DELETE: Users can delete their friendships
+CREATE POLICY "friendships_delete_own" ON friendships
+  FOR DELETE USING (user_id = auth.uid()::text);
+
+-- ============================================
 -- NOTIFICATIONS - Fix Type CHECK Constraint  
 -- ============================================
 -- The constraint was missing several notification types used in notifications.ts

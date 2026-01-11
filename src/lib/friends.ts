@@ -326,7 +326,7 @@ export const sendFriendRequest = async (senderId: string, receiverId: string): P
 
                 if (updateError) throw updateError;
                 
-                await notifyFriendRequest(senderId, receiverId);
+                await notifyFriendRequest(senderId, receiverId, existingRequest.id);
                 return true;
             } else {
                 // If the other person sent it (and it's declined/stale), I cannot update it (RLS policy).

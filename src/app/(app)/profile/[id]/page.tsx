@@ -771,7 +771,7 @@ export default function UserProfilePage() {
                         ) : friendStatus === 'requested' ? (
                             <>
                                 <X className="w-4 h-4" />
-                                Cancel Request
+                                Cancel
                             </>
                         ) : friendStatus === 'incoming' ? (
                             <>

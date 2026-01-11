@@ -191,6 +191,24 @@ export const notifyFriendRequest = async (senderId: string, receiverId: string, 
 
     if (!sender) return;
 
+    // Check for existing unread friend request notification from this sender
+    const { data: existingNotifications } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', receiverId)
+        .eq('type', 'friend_request')
+        .eq('read', false)
+        .contains('data', { sender_id: senderId }); // Filter by sender_id in JSONB data
+
+    // If duplicates exist, delete them to avoid clutter
+    if (existingNotifications && existingNotifications.length > 0) {
+        const idsToDelete = existingNotifications.map((n: { id: string }) => n.id);
+        await supabase
+            .from('notifications')
+            .delete()
+            .in('id', idsToDelete);
+    }
+
     await createNotification({
         user_id: receiverId,
         type: 'friend_request',
