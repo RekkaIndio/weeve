@@ -32,6 +32,7 @@ export interface ScoringFactors {
   social: number;       // 0-150 points (15% weight)
   engagement: number;   // 0-100 points (10% weight)
   quality: number;      // 0-80 points (8% weight)
+  interest: number;     // 0-80 points (8% weight) - user preference matching
   recency: number;      // 0-70 points (7% weight)
 }
 
