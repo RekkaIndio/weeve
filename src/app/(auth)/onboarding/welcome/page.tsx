@@ -31,7 +31,7 @@ export default function WelcomePage() {
     };
 
     const handleSkip = async () => {
-        console.log('[WelcomePage] Skip button pressed, user:', user?.id);
+        console.log('[WelcomePage] Skip button pressed');
 
         // Update store FIRST for immediate state change (prevents redirect back)
         const { setCurrentUser, currentUser: storeUser } = useStore.getState();

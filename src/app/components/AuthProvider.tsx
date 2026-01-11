@@ -420,7 +420,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         const setupListener = () => {
             listenerHandle = App.addListener('appUrlOpen', async ({ url }: { url: string }) => {
                 if (isProcessingDeepLink.current) {
-                    console.log('[AuthProvider] Already processing a deep link, ignoring duplicate:', url);
+                    console.log('[AuthProvider] Already processing a deep link, ignoring duplicate.');
                     return;
                 }
                 // Handle Password Reset - navigate within the app
