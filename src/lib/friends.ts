@@ -347,18 +347,20 @@ export const sendFriendRequest = async (senderId: string, receiverId: string): P
         }
 
         // Create friend request
-        const { error } = await supabase
+        const { data: newRequest, error } = await supabase
             .from('friend_requests')
             .insert({
                 sender_id: senderId,
                 receiver_id: receiverId,
                 status: 'pending'
-            });
+            })
+            .select('id')
+            .single();
 
         if (error) throw error;
 
         // Send notification to receiver
-        await notifyFriendRequest(senderId, receiverId);
+        await notifyFriendRequest(senderId, receiverId, newRequest.id);
 
         return true;
     } catch (error) {

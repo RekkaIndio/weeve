@@ -365,13 +365,27 @@ export default function UserProfilePage() {
             console.log('You are already friends!');
             return;
         }
-        if (friendStatus === 'requested') {
-            console.log('Friend request already sent');
-            return;
-        }
 
         setProcessingFriendAction(true);
         try {
+            if (friendStatus === 'requested') {
+                // Cancel Request
+                const { sent } = await getFriendRequests(currentUser.id);
+                const myRequest = sent.find(r => r.receiver_id === userId);
+                if (myRequest) {
+                    const { error } = await supabase
+                        .from('friend_requests')
+                        .delete()
+                        .eq('id', myRequest.id);
+
+                    if (error) throw error;
+
+                    setFriendStatus('none');
+                    // toast removed
+                }
+                return;
+            }
+
             if (friendStatus === 'incoming' && incomingRequestId) {
                 // Accept Request
                 const success = await acceptFriendRequest(incomingRequestId);
@@ -430,11 +444,39 @@ export default function UserProfilePage() {
     };
 
     // Only show stories where this user has actually contributed content
-    // (not just being listed as a participant with no contributions yet)
-    const userStories = stories.filter(s =>
-        s.participants.some(p => p.id === user?.id) &&
-        s.contributions.some(c => c.userId === user?.id)
-    );
+    // AND apply the same filtering as the main profile "Weeves" tab:
+    // - Hide if user status is 'waiting'
+    // - Hide if it's the user's turn (active & turn)
+    // - Hide if not accepted/completed
+    // - PRIVACY: If private content, ONLY show if currentUser is also a participant
+    const userStories = stories.filter(s => {
+        // 1. Core check: Profile owner must be a participant and have contributed
+        const ownerParticipant = s.participants.find(p => p.id === user?.id);
+        const ownerContributed = s.contributions?.some(c => c.userId === user?.id);
+
+        if (!ownerParticipant || !ownerContributed) return false;
+
+        // 2. Privacy Check
+        // If the story is private, the VIEWER (currentUser) must be a participant to see it.
+        // (Even if we are on the owner's profile, we shouldn't see their private stories unless we are in them)
+        if (s.visibility === 'private') {
+            const viewerIsParticipant = s.participants.some(p => p.id === currentUser?.id);
+            if (!viewerIsParticipant) return false;
+        }
+
+        // 3. Status/Grid Logic (Align with "Weeves" tab in profile/page.tsx)
+
+        // If story is not completed, only show when owner is accepted
+        if (s.status !== 'completed' && ownerParticipant.status !== 'accepted' && ownerParticipant.status !== undefined) return false;
+
+        // Exclude stories where the owner has a pending waiting slot (belongs in their "Waiting" tab)
+        if (ownerParticipant.status === 'waiting') return false;
+
+        // Exclude stories where it's the owner's turn (belongs in their "Waiting" tab / Timer)
+        if (s.status === 'active' && s.currentTurnUserId === user?.id) return false;
+
+        return true;
+    });
 
     // Separate featured stories (only for brand profiles)
     const featuredStories = userStories.filter(s => s.isFeatured && user?.isBrand);
@@ -718,8 +760,8 @@ export default function UserProfilePage() {
                 <div className="flex gap-2">
                     <button
                         onClick={handleFriendAction}
-                        disabled={processingFriendAction || friendStatus === 'friend' || friendStatus === 'requested'}
-                        className={`flex-1 ${friendStatus === 'friend' ? 'bg-emerald-600' : (friendStatus === 'requested' || friendStatus === 'incoming' ? 'bg-gray-700' : 'bg-[#EC1D99]')} text-white font-bold py-2 rounded-lg text-sm text-center ${friendStatus === 'friend' || friendStatus === 'requested' ? '' : 'hover:opacity-90'} transition-all flex items-center justify-center gap-2`}
+                        disabled={processingFriendAction || friendStatus === 'friend'}
+                        className={`flex-1 ${friendStatus === 'friend' ? 'bg-emerald-600' : (friendStatus === 'requested' || friendStatus === 'incoming' ? 'bg-gray-700' : 'bg-[#EC1D99]')} text-white font-bold py-2 rounded-lg text-sm text-center ${friendStatus === 'friend' ? '' : 'hover:opacity-90'} transition-all flex items-center justify-center gap-2`}
                     >
                         {friendStatus === 'friend' ? (
                             <>
@@ -728,8 +770,8 @@ export default function UserProfilePage() {
                             </>
                         ) : friendStatus === 'requested' ? (
                             <>
-                                <Clock className="w-4 h-4" />
-                                Requested
+                                <X className="w-4 h-4" />
+                                Cancel Request
                             </>
                         ) : friendStatus === 'incoming' ? (
                             <>
