@@ -385,3 +385,112 @@ export async function updateStoryParticipants(
         return { success: false, error: 'An unexpected error occurred' };
     }
 }
+
+/**
+ * Remove a participant and their contributions from a story.
+ * This frees up the slot and removes the content.
+ * Matches by userId AND optionally position/slotIndex to support multiple contributions by same user.
+ */
+export async function removeParticipant(
+    storyId: string,
+    userId: string,
+    userName: string,
+    position?: number,
+    contributionId?: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        // Fetch story details to determine behavior (Public vs Private logic)
+        const { data: story, error: storyError } = await supabase
+            .from('stories')
+            .select('visibility, mode, creator_id, current_turn_user_id, title')
+            .eq('id', storyId)
+            .single();
+
+        if (storyError || !story) {
+            console.error('Error fetching story:', storyError);
+            return { success: false, error: 'Story not found' };
+        }
+
+        // 1. Remove from contributions (Content first) - ALWAYS delete content
+        let contribQuery = supabase
+            .from('contributions')
+            .delete()
+            .match({ story_id: storyId, user_id: userId });
+        
+        if (contributionId) {
+            contribQuery = contribQuery.eq('id', contributionId);
+        } else if (typeof position === 'number') {
+             // Fallback if needed, but risky as discussed
+        }
+
+        const { error: contribError } = await contribQuery;
+
+        if (contribError) {
+             console.error('Error removing contributions:', contribError);
+             return { success: false, error: 'Failed to remove content' };
+        }
+
+        // 2. Handle Participant Row (Delete vs Reset to Waiting)
+        // If Private/Invite: Reset to 'waiting' so it goes back to Waiting tab
+        // If Public/Open: Delete row so slot is open for feed
+        const isPrivate = story.visibility === 'private' || story.mode === 'invite';
+        
+        // If I am the creator removing a participant, I probably want to clear the slot (delete row) so I can invite someone else?
+        // OR does "Waiting" mean waiting for THAT specific user? 
+        // If I assigned "John", and I delete "John's part", do I want "John" to try again? Or do I want slot open?
+        // User request: "If its a slot from a private story... put this back inside the users waiting tab."
+        // "Users waiting tab" implies the participant's waiting tab. So we must keep them as a participant.
+        
+        if (isPrivate) {
+            // Update status to waiting
+            let updateQuery = supabase
+                .from('story_participants')
+                .update({ status: 'waiting' }) // Reset to waiting
+                .match({ story_id: storyId, user_id: userId });
+            
+            if (typeof position === 'number') {
+                updateQuery = updateQuery.eq('position', position);
+            }
+            
+            const { error: updateError } = await updateQuery;
+            if (updateError) {
+                console.error('Error resetting participant status:', updateError);
+                return { success: false, error: 'Failed to update participant status' };
+            }
+        } else {
+            // Public: Delete the participant row entirely
+            let partQuery = supabase
+                .from('story_participants')
+                .delete()
+                .match({ story_id: storyId, user_id: userId });
+
+            if (typeof position === 'number') {
+                partQuery = partQuery.eq('position', position);
+            }
+
+            const { error: partError } = await partQuery;
+            if (partError) {
+                console.error('Error removing participant:', partError);
+                return { success: false, error: 'Failed to remove participant' };
+            }
+        }
+
+        // 3. Reset turn if it was theirs
+        if (story.current_turn_user_id === userId) {
+            await supabase
+                .from('stories')
+                .update({ current_turn_user_id: null })
+                .eq('id', storyId);
+        }
+
+        // 4. Notify creator (if not the one leaving/removed)
+        if (story && story.creator_id !== userId) {
+             await notifyParticipantLeft(storyId, story.title, story.creator_id, userName);
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('Error in removeParticipant:', error);
+        return { success: false, error: 'An unexpected error occurred' };
+    }
+}

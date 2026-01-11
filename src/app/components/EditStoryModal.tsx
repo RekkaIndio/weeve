@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Search, Plus, Trash2, SkipForward, Lock } from 'lucide-react';
-import { Story, User, useStore, isSlotImmutable } from '@/lib/store';
-import { skipTurn } from '@/lib/stories';
+import React, { useState } from 'react';
+import { X, Trash, Play, Video, Image as ImageIcon, Maximize2, PenTool, Type } from 'lucide-react';
+import { Story, User, useStore, isSlotImmutable, MediaType } from '@/lib/store';
+import { removeParticipant } from '@/lib/stories';
+import { ConfirmModal } from '../(app)/story/[id]/components/Modals';
 
 interface EditStoryModalProps {
     story: Story;
@@ -9,111 +10,141 @@ interface EditStoryModalProps {
 }
 
 export default function EditStoryModal({ story, onClose }: EditStoryModalProps) {
-    const { friends, updateStory, currentUser } = useStore();
-    const [participants, setParticipants] = useState<User[]>(story.participants);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [showDropdown, setShowDropdown] = useState(false);
-    const [isSkipping, setIsSkipping] = useState(false);
-    const searchRef = useRef<HTMLDivElement>(null);
+    const { currentUser, setStories, stories } = useStore();
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [previewMedia, setPreviewMedia] = useState<{ url: string, type: MediaType } | null>(null);
+    const [confirmAction, setConfirmAction] = useState<{
+        type: 'remove';
+        userId: string;
+        userName: string;
+        position?: number;
+        contributionId?: string;
+    } | null>(null);
 
-    // Filter friends who are NOT already in the story
-    const availableFriends = friends.filter(
-        friend =>
-            !participants.some(p => p.id === friend.id) &&
-            friend.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    // Unified Slot Management
+    // We merge participants and contributions to ensure we show EVERYTHING.
+    // Enhanced logic: Handle cases where slotIndex is missing or mismatches.
 
-    const handleAddParticipant = (friend: User) => {
-        setParticipants([...participants, friend]);
-        setSearchQuery('');
-        setShowDropdown(false);
-    };
+    const mergedSlots = React.useMemo(() => {
+        const slotsMap = new Map<number, { participant?: User, contribution?: any }>();
+        const occupiedPositions = new Set<number>();
 
-    const handleRemoveParticipant = (userId: string) => {
-        if (userId === currentUser?.id) return; // Can't remove self
-
-        // Defensive check for immutable slots
-        const participant = participants.find(p => p.id === userId);
-        if (participant && typeof participant.position === 'number') {
-            if (isSlotImmutable(story, participant.position)) {
-                console.error("Cannot remove brand content");
-                return;
+        // 1. Map Participants to Positions
+        story.participants.forEach(p => {
+            if (typeof p.position === 'number') {
+                slotsMap.set(p.position, { participant: p });
+                occupiedPositions.add(p.position);
             }
-        }
+        });
 
-        setParticipants(participants.filter(p => p.id !== userId));
-    };
-
-    const handleSkipTurn = async (userId: string) => {
-        if (!currentUser || story.creatorId !== currentUser.id) {
-            console.error('Only the story creator can skip turns');
-            return;
-        }
-
-        if (story.currentTurnUserId !== userId) {
-            console.error('This user does not have the current turn');
-            return;
-        }
-
-        setIsSkipping(true);
-        try {
-            const result = await skipTurn(story.id, userId, 'manual_skip');
-            if (result.success) {
-                // toast removed
-                onClose(); // Close modal to refresh the view
+        // 2. Map Contributions with explicit slotIndex
+        const unmappedContributions: any[] = [];
+        story.contributions.forEach(c => {
+            if (typeof c.slotIndex === 'number') {
+                const existing = slotsMap.get(c.slotIndex) || {};
+                slotsMap.set(c.slotIndex, { ...existing, contribution: c });
+                occupiedPositions.add(c.slotIndex);
             } else {
-                console.error(result.error || 'Failed to skip turn');
+                unmappedContributions.push(c);
+            }
+        });
+
+        // 3. Handle unmapped contributions (missing slotIndex)
+        // Try to match them to existing participant slots of the same user that don't have a contribution yet
+        // If no slot exists, create a new "virtual" slot at a new position
+        unmappedContributions.sort((a, b) => a.timestamp - b.timestamp); // Sort by time
+
+        unmappedContributions.forEach(c => {
+            // Find a slot for this user that doesn't have a contribution yet
+            let assignedPos: number | undefined;
+
+            // Find unmatched participant slot for this user
+            const matchedPos = Array.from(slotsMap.entries()).find(([pos, data]) =>
+                data.participant?.id === c.userId && !data.contribution
+            )?.[0];
+
+            if (matchedPos !== undefined) {
+                assignedPos = matchedPos;
+                const existing = slotsMap.get(assignedPos)!;
+                slotsMap.set(assignedPos, { ...existing, contribution: c });
+            } else {
+                // No existing slot found, find next available position
+                let nextPos = 0;
+                while (occupiedPositions.has(nextPos)) nextPos++;
+
+                assignedPos = nextPos;
+                slotsMap.set(assignedPos, { contribution: c }); // Virtual slot (no participant data known)
+                occupiedPositions.add(assignedPos);
+            }
+        });
+
+        return Array.from(slotsMap.entries())
+            .map(([pos, data]) => ({ position: pos, ...data }))
+            .sort((a, b) => a.position - b.position);
+    }, [story.participants, story.contributions]);
+
+    const handleRemoveParticipant = async (userId: string, userName: string, position?: number, contributionId?: string) => {
+        setIsProcessing(true);
+        try {
+            const result = await removeParticipant(story.id, userId, userName, position, contributionId);
+            if (result.success) {
+                // Optimistic update locally
+                const isPrivate = story.visibility === 'private' || story.mode === 'invite';
+
+                const newStories = stories.map(s => {
+                    if (s.id === story.id) {
+                        let newParticipants = [...s.participants];
+
+                        if (isPrivate) {
+                            // Private: Reset status to 'waiting' (keep the slot/row)
+                            newParticipants = newParticipants.map(p => {
+                                if (p.id === userId && (position === undefined || p.position === position)) {
+                                    // We need to cast or ensure status type matches User interface
+                                    return { ...p, status: 'waiting' as any };
+                                }
+                                return p;
+                            });
+                        } else {
+                            // Public: Remove participant (free the slot entirely)
+                            newParticipants = newParticipants.filter(p => !((p.id === userId) && (position === undefined || p.position === position)));
+                        }
+
+                        return {
+                            ...s,
+                            participants: newParticipants,
+                            // Remove from contributions
+                            contributions: s.contributions.filter(c => !((c.userId === userId) && (c.id === contributionId || (position !== undefined && c.slotIndex === position))))
+                        };
+                    }
+                    return s;
+                });
+                setStories(newStories);
+
+                // Close if empty (checking merged length approx)
+                const remaining = newStories.find(s => s.id === story.id)?.participants.length || 0;
+                if (remaining <= 0 && mergedSlots.length <= 1) {
+                    onClose();
+                }
+            } else {
+                console.error(result.error || 'Failed to remove participant');
+                alert(result.error || 'Failed to remove participant');
             }
         } catch (error) {
-            console.error('Error skipping turn:', error);
-            console.error('An error occurred while skipping turn');
+            console.error('Error removing participant:', error);
         } finally {
-            setIsSkipping(false);
+            setIsProcessing(false);
+            setConfirmAction(null);
         }
     };
-
-    const [isSaving, setIsSaving] = useState(false);
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        try {
-            // updateStoryParticipants handles the diffing and Supabase calls
-            const { updateStoryParticipants } = await import('@/lib/stories');
-            const result = await updateStoryParticipants(story.id, participants);
-
-            if (result.success) {
-                // Optimistically update local store
-                updateStory(story.id, { participants });
-                // toast removed
-                onClose();
-            } else {
-                console.error(result.error || 'Failed to update story');
-            }
-        } catch (error) {
-            console.error('Error saving story:', error);
-            console.error('An error occurred while saving');
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    // Close dropdown when clicking outside
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-                setShowDropdown(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
             <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
                 {/* Header */}
-                <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-                    <h2 className="text-lg font-bold text-white font-sans">Edit Story</h2>
+                <div className="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900 z-10">
+                    <h2 className="text-lg font-bold text-white font-sans">
+                        {story.creatorId === currentUser?.id ? 'Manage Story Parts' : 'Your Contributions'}
+                    </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-white">
                         <X className="w-6 h-6" />
                     </button>
@@ -121,125 +152,167 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
 
                 {/* Content */}
                 <div className="p-4 flex-1 overflow-y-auto">
-                    {/* Add Friend Input */}
-                    <div className="mb-6 relative" ref={searchRef}>
-                        <label className="block text-sm font-medium text-gray-400 mb-2 font-sans">
-                            Add Participants
-                        </label>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => {
-                                    setSearchQuery(e.target.value);
-                                    setShowDropdown(true);
-                                }}
-                                onFocus={() => setShowDropdown(true)}
-                                placeholder="Search friends..."
-                                className="w-full bg-gray-800 border border-gray-700 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99] font-sans"
-                            />
-                        </div>
+                    <div className="space-y-3">
+                        {mergedSlots.map(({ position, participant, contribution }, index) => {
+                            // Derive user info from participant OR contribution
+                            const userId = participant?.id || contribution?.userId;
+                            const userName = participant?.name || contribution?.userName || 'Unknown User';
+                            const userAvatar = participant?.avatar || ''; // Fallback avatar if missing?
 
-                        {/* Dropdown */}
-                        {showDropdown && availableFriends.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 mt-2 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-10 max-h-48 overflow-y-auto">
-                                {availableFriends.map(friend => (
-                                    <button
-                                        key={friend.id}
-                                        onClick={() => handleAddParticipant(friend)}
-                                        className="w-full flex items-center gap-3 p-3 hover:bg-gray-700 transition-colors text-left"
-                                    >
-                                        <img
-                                            src={friend.avatar}
-                                            alt={friend.name}
-                                            className="w-8 h-8 rounded-full"
-                                        />
-                                        <span className="text-white font-medium font-sans">{friend.name}</span>
-                                        <Plus className="w-4 h-4 text-gray-400 ml-auto" />
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                            const isMe = userId === currentUser?.id;
+                            const isCreator = story.creatorId === currentUser?.id;
 
-                    {/* Current Participants */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-400 mb-3 font-sans">
-                            Current Participants ({participants.length})
-                        </label>
-                        <div className="space-y-2">
-                            {participants.map(participant => {
-                                const isCurrentTurnUser = story.currentTurnUserId === participant.id;
-                                const isCreator = story.creatorId === currentUser?.id;
-                                const canSkip = isCreator && isCurrentTurnUser && story.status === 'active';
+                            // Visibility Logic
+                            if (!isCreator && !isMe) return null;
 
-                                const isLocked = typeof participant.position === 'number' && isSlotImmutable(story, participant.position);
+                            const isLocked = typeof position === 'number' && isSlotImmutable(story, position);
 
-                                return (
-                                    <div
-                                        key={participant.id}
-                                        className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl border border-gray-800"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <img
-                                                src={participant.avatar}
-                                                alt={participant.name}
-                                                className="w-10 h-10 rounded-full border border-gray-700"
-                                            />
-                                            <div>
-                                                <p className="text-white font-medium font-sans">
-                                                    {participant.name}
-                                                    {participant.id === currentUser?.id && <span className="text-gray-500 text-xs ml-2">(You)</span>}
-                                                    {isCurrentTurnUser && <span className="text-[#EC1D99] text-xs ml-2">• Current Turn</span>}
-                                                    {isLocked && <span className="text-gray-500 text-xs ml-2 bg-gray-700 px-1.5 py-0.5 rounded">Fixed</span>}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-                                            {canSkip && (
-                                                <button
-                                                    onClick={() => handleSkipTurn(participant.id)}
-                                                    disabled={isSkipping}
-                                                    className="p-2 text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    title="Skip this person's turn"
-                                                >
-                                                    <SkipForward className="w-5 h-5" />
-                                                </button>
+                            return (
+                                <div
+                                    key={`${userId}-${position}-${index}`}
+                                    className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl border border-gray-800"
+                                >
+                                    <div className="flex items-center gap-3 overflow-hidden flex-1">
+                                        {/* Thumbnail with Click-to-Preview */}
+                                        <button
+                                            className="relative w-16 h-16 flex-shrink-0 bg-black rounded-lg overflow-hidden border border-gray-700 group cursor-zoom-in"
+                                            onClick={() => contribution && setPreviewMedia({
+                                                url: contribution.mediaUrl || '',
+                                                type: contribution.mediaType
+                                            })}
+                                            disabled={!contribution}
+                                        >
+                                            {contribution ? (
+                                                contribution.mediaType === 'video' ? (
+                                                    <div className="w-full h-full flex items-center justify-center bg-black relative">
+                                                        {contribution.mediaUrl && (
+                                                            <video
+                                                                src={`${contribution.mediaUrl}#t=0.1`}
+                                                                preload="metadata"
+                                                                className="absolute inset-0 w-full h-full object-cover opacity-90"
+                                                                muted
+                                                                playsInline
+                                                            />
+                                                        )}
+                                                        <Video className="relative z-10 w-6 h-6 text-white drop-shadow-md" />
+                                                    </div>
+                                                ) : contribution.mediaType === 'image' ? (
+                                                    <div className="w-full h-full flex items-center justify-center bg-black relative">
+                                                        <img src={contribution.mediaUrl} className="absolute inset-0 w-full h-full object-cover opacity-90" alt="Contribution" />
+                                                        <ImageIcon className="relative z-10 w-6 h-6 text-white drop-shadow-md" />
+                                                    </div>
+                                                ) : contribution.mediaType === 'drawing' ? (
+                                                    <div className="w-full h-full flex items-center justify-center bg-black relative">
+                                                        <img src={contribution.mediaUrl} className="absolute inset-0 w-full h-full object-cover opacity-90" alt="Contribution" />
+                                                        <PenTool className="relative z-10 w-6 h-6 text-white drop-shadow-md" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-[8px] p-1 text-gray-300 overflow-hidden break-words leading-tight bg-gray-900">
+                                                        {contribution.content?.slice(0, 50)}...
+                                                    </div>
+                                                )
+                                            ) : (
+                                                <img src={userAvatar} className="w-full h-full object-cover opacity-50 grayscale" alt={userName} />
                                             )}
-                                            {participant.id !== currentUser?.id && (
-                                                <button
-                                                    onClick={() => !isLocked && handleRemoveParticipant(participant.id)}
-                                                    disabled={isLocked}
-                                                    className={`p-2 rounded-lg transition-colors ${isLocked
-                                                        ? 'text-gray-600 cursor-not-allowed'
-                                                        : 'text-gray-500 hover:text-red-500 hover:bg-red-500/10'
-                                                        }`}
-                                                    title={isLocked ? "Fixed brand content cannot be removed" : "Remove from story"}
-                                                >
-                                                    {isLocked ? <Lock className="w-4 h-4" /> : <Trash2 className="w-5 h-5" />}
-                                                </button>
+
+                                            {/* Overlay Icon */}
+                                            {contribution && (
+                                                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 z-20">
+                                                    <Maximize2 className="w-5 h-5 text-white/90" />
+                                                </div>
+                                            )}
+                                        </button>
+
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-white font-medium font-sans truncate text-sm">
+                                                    {userName}
+                                                </p>
+                                                {isMe && <span className="bg-gray-700 text-gray-300 text-[10px] px-1.5 py-0.5 rounded-full">You</span>}
+                                                {typeof position === 'number' && <span className="text-gray-600 text-[10px] font-mono">#{position + 1}</span>}
+                                            </div>
+                                            {!contribution && (
+                                                <p className="text-xs text-gray-500 truncate mt-0.5">
+                                                    {story.currentTurnUserId === userId ? 'Starting their turn...' : 'Waiting to post...'}
+                                                </p>
                                             )}
                                         </div>
                                     </div>
-                                );
-                            })}
-                        </div>
+
+                                    <div className="ml-3">
+                                        {!isLocked && (isCreator || isMe) ? (
+                                            <button
+                                                onClick={() => setConfirmAction({
+                                                    type: 'remove',
+                                                    userId: userId,
+                                                    userName: userName,
+                                                    position: position,
+                                                    contributionId: contribution?.id
+                                                })}
+                                                disabled={isProcessing}
+                                                className="p-2.5 bg-gray-800 text-gray-400 hover:text-red-400 hover:bg-red-900/20 rounded-xl transition-all border border-transparent hover:border-red-900/30 group"
+                                                title="Delete this part"
+                                            >
+                                                <Trash className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                            </button>
+                                        ) : isLocked && (
+                                            <span className="text-xs text-gray-600 italic px-2 py-1 bg-gray-800 rounded border border-gray-700 select-none">Fixed</span>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {mergedSlots.length === 0 && (
+                            <div className="text-center py-12 text-gray-500">
+                                No parts found.
+                            </div>
+                        )}
                     </div>
                 </div>
-
-                {/* Footer */}
-                <div className="p-4 border-t border-gray-800 bg-gray-900">
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving}
-                        className={`w-full font-bold py-3 rounded-xl transition-colors font-sans ${isSaving ? 'bg-gray-700 text-gray-400 cursor-not-allowed' : 'bg-[#EC1D99] hover:bg-[#D41C84] text-white'}`}
-                    >
-                        {isSaving ? 'Saving...' : 'Save Changes'}
-                    </button>
-                </div>
             </div>
+
+            {/* Media Preview Overlay */}
+            {previewMedia && (
+                <div className="fixed inset-0 z-[60] bg-black/95 flex flex-col items-center justify-center animate-in fade-in duration-200" onClick={() => setPreviewMedia(null)}>
+                    <button
+                        onClick={() => setPreviewMedia(null)}
+                        className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+
+                    <div className="w-full max-w-4xl h-full col-span-1 p-4 flex items-center justify-center p-8" onClick={(e) => e.stopPropagation()}>
+                        {previewMedia.type === 'video' ? (
+                            <video
+                                key={previewMedia.url}
+                                src={previewMedia.url}
+                                controls
+                                autoPlay
+                                playsInline
+                                className="max-w-full max-h-[85vh] rounded-lg shadow-2xl bg-black"
+                            />
+                        ) : previewMedia.type === 'image' || previewMedia.type === 'drawing' ? (
+                            <img src={previewMedia.url} className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl" alt="Preview" />
+                        ) : (
+                            <div className="bg-white text-black p-8 rounded-2xl max-w-2xl text-xl font-medium shadow-2xl text-center min-w-[300px]">
+                                {story.contributions.find(c => c.mediaUrl === previewMedia.url)?.content}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Confirmation Modal */}
+            <ConfirmModal
+                isOpen={!!confirmAction}
+                title="Delete this part?"
+                message={`Are you sure you want to delete this contribution by ${confirmAction?.userName}? This action cannot be undone.`}
+                confirmLabel={isProcessing ? "Deleting..." : "Delete Part"}
+                onConfirm={() => confirmAction && handleRemoveParticipant(confirmAction.userId, confirmAction.userName, confirmAction.position, confirmAction.contributionId)}
+                onClose={() => setConfirmAction(null)}
+                variant="danger"
+            />
         </div>
     );
 }
