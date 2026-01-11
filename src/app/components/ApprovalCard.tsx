@@ -6,6 +6,7 @@ import { Check, X, Loader2, Play } from 'lucide-react';
 import Link from 'next/link';
 import { approveBrandContribution } from '@/lib/brand-approval';
 import VerificationBadge from './VerificationBadge';
+import VideoThumbnail from './VideoThumbnail';
 
 interface ApprovalCardProps {
     contribution?: {
@@ -141,11 +142,9 @@ export default function ApprovalCard({
                 <div className="relative aspect-[9/16] bg-gray-800">
                     {mediaType === 'video' && mediaUrl ? (
                         <div className="relative w-full h-full">
-                            <video
+                            <VideoThumbnail
                                 src={mediaUrl}
                                 className="w-full h-full object-cover"
-                                muted
-                                playsInline
                             />
                             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                                 <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">

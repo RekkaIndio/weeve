@@ -23,7 +23,7 @@ export default function VideoThumbnail({ src, poster, className = "" }: VideoThu
         video.setAttribute('webkit-playsinline', 'true');
         video.setAttribute('x-webkit-airplay', 'deny');
         video.muted = true;
-        
+
         // Load video metadata
         video.load();
     }, [src]);
@@ -33,8 +33,15 @@ export default function VideoThumbnail({ src, poster, className = "" }: VideoThu
     const [shouldLoad, setShouldLoad] = useState(false);
 
     useEffect(() => {
-        if (isVisible) setShouldLoad(true);
-    }, [isVisible]);
+        if (isVisible) {
+            setShouldLoad(true);
+            if (isLoaded) {
+                videoRef.current?.play().catch(() => null);
+            }
+        } else {
+            videoRef.current?.pause();
+        }
+    }, [isVisible, isLoaded]);
 
     // Try to generate a poster frame by preloading the video offscreen only when we plan to load
     useEffect(() => {
@@ -100,7 +107,7 @@ export default function VideoThumbnail({ src, poster, className = "" }: VideoThu
     const posterToUse = poster && !poster.includes('placehold.co') ? poster : generatedPoster;
 
     return (
-        <div ref={containerRef as any} className={`relative ${className}`}> 
+        <div ref={containerRef as any} className={`relative ${className}`}>
             {/* Poster fallback */}
             {posterToUse && (
                 <img src={posterToUse} alt="thumbnail" className="absolute inset-0 w-full h-full object-cover" />
@@ -108,32 +115,32 @@ export default function VideoThumbnail({ src, poster, className = "" }: VideoThu
             <video
                 ref={videoRef}
                 src={shouldLoad ? src : undefined}
-            className={`weeve-inline-video object-cover ${className}`}
-            loop
-            muted
-            playsInline
+                className={`weeve-inline-video object-cover ${className}`}
+                loop
+                muted
+                playsInline
                 preload={shouldLoad ? 'auto' : 'none'}
-            controls={false}
-            disablePictureInPicture
-            disableRemotePlayback
-            poster={posterToUse}
-            onError={() => setHasError(true)}
-            onCanPlay={(e) => {
-                const video = e.currentTarget;
-                setIsLoaded(true);
-                video.play().catch(() => null);
-            }}
-            style={{
-                opacity: isLoaded ? 0.6 : 0,
-                visibility: isLoaded ? 'visible' : 'hidden',
-                transform: isLoaded ? 'translate3d(0,0,0)' : 'translate3d(-9999px,-9999px,0)',
-                transition: 'none',
-                backgroundColor: '#000000',
-                WebkitAppearance: 'none',
-                appearance: 'none',
-                backgroundImage: 'none'
-            }}
-        />
+                controls={false}
+                disablePictureInPicture
+                disableRemotePlayback
+                poster={posterToUse}
+                onError={() => setHasError(true)}
+                onCanPlay={(e) => {
+                    const video = e.currentTarget;
+                    setIsLoaded(true);
+                    video.play().catch(() => null);
+                }}
+                style={{
+                    opacity: isLoaded ? 0.6 : 0,
+                    visibility: isLoaded ? 'visible' : 'hidden',
+                    transform: isLoaded ? 'translate3d(0,0,0)' : 'translate3d(-9999px,-9999px,0)',
+                    transition: 'none',
+                    backgroundColor: '#000000',
+                    WebkitAppearance: 'none',
+                    appearance: 'none',
+                    backgroundImage: 'none'
+                }}
+            />
         </div>
     );
 }
