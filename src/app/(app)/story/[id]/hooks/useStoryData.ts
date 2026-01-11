@@ -62,7 +62,7 @@ export function useStoryData(storyId: string): UseStoryDataReturn {
         return originalStory?.title || null;
     }, [story?.forkedFromStoryId, stories]);
 
-    // Handle payment success/failure from Stripe redirect
+    // Handle payment success/failure redirect
     useEffect(() => {
         const handlePaymentStatus = async () => {
             const urlParams = new URLSearchParams(window.location.search);

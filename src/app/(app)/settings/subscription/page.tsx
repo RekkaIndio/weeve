@@ -18,7 +18,7 @@ export default function SubscriptionPage() {
 
         setLoading(true);
         try {
-            // For MVP: Directly activate premium (placeholder for Stripe integration)
+            // For MVP: Directly activate premium (placeholder for payment integration)
             const { error } = await supabase
                 .from('profiles')
                 .update({ brand_subscription_status: 'active' })
