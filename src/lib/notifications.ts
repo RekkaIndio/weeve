@@ -181,7 +181,7 @@ export const subscribeToNotifications = (
 /**
  * Notify user of a friend request
  */
-export const notifyFriendRequest = async (senderId: string, receiverId: string) => {
+export const notifyFriendRequest = async (senderId: string, receiverId: string, requestId?: string) => {
     // Get sender's name
     const { data: sender } = await supabase
         .from('profiles')
@@ -196,7 +196,7 @@ export const notifyFriendRequest = async (senderId: string, receiverId: string) 
         type: 'friend_request',
         title: 'New Friend Request',
         message: `${sender.name} sent you a friend request`,
-        data: { sender_id: senderId },
+        data: { sender_id: senderId, request_id: requestId },
         action_url: '/activity',
         read: false,
     });

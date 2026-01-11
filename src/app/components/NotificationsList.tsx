@@ -35,11 +35,15 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
             setNotifications(prev => {
                 const updated = [newNotification, ...prev];
                 if (onNotificationCountChange) {
-                    const unreadCount = updated.filter(n => !n.read).length + friendRequests.length;
+                    const unreadCount = updated.filter(n => !n.read).length;
                     onNotificationCountChange(unreadCount);
                 }
                 return updated;
             });
+            // Reload friend requests if a new one comes in
+            if (newNotification.type === 'friend_request') {
+                getFriendRequests(userId).then(({ received }) => setFriendRequests(received));
+            }
         });
 
         return () => unsubscribe();
@@ -54,7 +58,7 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
         setNotifications(notifs);
         setFriendRequests(requests.received);
 
-        const unreadCount = notifs.filter(n => !n.read).length + requests.received.length;
+        const unreadCount = notifs.filter(n => !n.read).length;
         if (onNotificationCountChange) {
             onNotificationCountChange(unreadCount);
         }
@@ -67,7 +71,7 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
             prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
         );
         if (onNotificationCountChange) {
-            const unreadCount = notifications.filter(n => !n.read && n.id !== notificationId).length + friendRequests.length;
+            const unreadCount = notifications.filter(n => !n.read && n.id !== notificationId).length;
             onNotificationCountChange(unreadCount);
         }
     };
@@ -76,7 +80,7 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
         await markAllAsRead(userId);
         setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         if (onNotificationCountChange) {
-            onNotificationCountChange(friendRequests.length);
+            onNotificationCountChange(0);
         }
         // toast removed
     };
@@ -85,13 +89,19 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
         if (!notification.read) {
             await handleMarkAsRead(notification.id);
         }
+
+        // Special handling for friend requests - don't navigate, just expand/actions are visible
+        if (notification.type === 'friend_request') {
+            return;
+        }
+
         if (notification.action_url) {
             router.push(notification.action_url);
         } else if (notification.data) {
             // Fallback navigation logic
             const { type, data } = notification;
 
-            if (type === 'friend_accepted' || type === 'friend_request' || type === 'new_follower') {
+            if (type === 'friend_accepted' || type === 'new_follower') {
                 const profileId = data.sender_id || data.user_id || data.friend_id || data.follower_id;
                 if (profileId) router.push(`/profile/${profileId}`);
             }
@@ -104,29 +114,27 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
         }
     };
 
-    const handleAcceptRequest = async (requestId: string) => {
+    const handleAcceptRequest = async (e: React.MouseEvent, requestId: string, notificationId: string) => {
+        e.stopPropagation();
         const success = await acceptFriendRequest(requestId);
         if (success) {
             // toast removed
             setFriendRequests(prev => prev.filter(r => r.id !== requestId));
-            if (onNotificationCountChange) {
-                const unreadCount = notifications.filter(n => !n.read).length + friendRequests.length - 1;
-                onNotificationCountChange(unreadCount);
-            }
+            // Also delete the notification or mark it read/handled
+            await handleDeleteNotification(notificationId);
         } else {
             console.error('Failed to accept request');
         }
     };
 
-    const handleDeclineRequest = async (requestId: string) => {
+    const handleDeclineRequest = async (e: React.MouseEvent, requestId: string, notificationId: string) => {
+        e.stopPropagation();
         const success = await declineFriendRequest(requestId);
         if (success) {
             // toast removed
             setFriendRequests(prev => prev.filter(r => r.id !== requestId));
-            if (onNotificationCountChange) {
-                const unreadCount = notifications.filter(n => !n.read).length + friendRequests.length - 1;
-                onNotificationCountChange(unreadCount);
-            }
+            // Also delete the notification or mark it read/handled
+            await handleDeleteNotification(notificationId);
         } else {
             console.error('Failed to decline request');
         }
@@ -139,7 +147,7 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
         // Optimistic UI update
         setNotifications(prev => prev.filter(n => n.id !== notificationId));
         if (onNotificationCountChange) {
-            const unreadCount = original.filter(n => !n.read && n.id !== notificationId).length + friendRequests.length;
+            const unreadCount = original.filter(n => !n.read && n.id !== notificationId).length;
             onNotificationCountChange(unreadCount);
         }
 
@@ -188,7 +196,11 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
         return true;
     });
 
-    const showFriendRequests = filter === 'all' || filter === 'requests';
+    // Helper to find associated friend request for a notification
+    const getFriendRequestForNotification = (notification: Notification) => {
+        if (notification.type !== 'friend_request' || !notification.data?.sender_id) return null;
+        return friendRequests.find(r => r.sender_id === notification.data?.sender_id && r.status === 'pending');
+    };
 
     if (loading) {
         return (
@@ -203,7 +215,7 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl font-bold text-white">Notifications</h1>
-                {(notifications.some(n => !n.read) || friendRequests.length > 0) && (
+                {(notifications.some(n => !n.read)) && (
                     <button
                         onClick={handleMarkAllAsRead}
                         className="text-sm text-[#EC1D99] hover:underline"
@@ -229,103 +241,99 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
                 ))}
             </div>
 
-            {/* Friend Requests Section */}
-            {showFriendRequests && friendRequests.length > 0 && (
-                <div className="mb-6">
-                    <h2 className="text-lg font-semibold text-white mb-3">Friend Requests</h2>
-                    <div className="space-y-3">
-                        {friendRequests.map(request => (
-                            <div
-                                key={request.id}
-                                className="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center gap-4"
-                            >
-                                <img
-                                    src={request.sender_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${request.sender_name}`}
-                                    alt={request.sender_name}
-                                    className="w-12 h-12 rounded-full"
-                                />
-                                <div className="flex-1">
-                                    <p className="text-white font-medium">{request.sender_name}</p>
-                                    <p className="text-sm text-gray-400">Sent you a friend request</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => handleAcceptRequest(request.id)}
-                                        className="p-2 bg-[#EC1D99] hover:bg-[#D41C84] text-white rounded-full transition-colors"
-                                    >
-                                        <Check className="w-5 h-5" />
-                                    </button>
-                                    <button
-                                        onClick={() => handleDeclineRequest(request.id)}
-                                        className="p-2 bg-gray-700 hover:bg-gray-600 text-white rounded-full transition-colors"
-                                    >
-                                        <X className="w-5 h-5" />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
             {/* Notifications List */}
             {filteredNotifications.length > 0 ? (
                 <div className="space-y-2">
                     <AnimatePresence>
-                        {filteredNotifications.map(notification => (
-                            <motion.div
-                                key={notification.id}
-                                layout
-                                initial={{ x: 0, opacity: 1 }}
-                                exit={{ x: -500, opacity: 0, transition: { duration: 0.18 } }}
-                                whileTap={{ scale: 0.995 }}
-                                drag="x"
-                                dragMomentum={false}
-                                dragConstraints={{ left: -240, right: 0 }}
-                                dragElastic={0.08}
-                                style={{ touchAction: 'pan-y' }}
-                                onDragStart={() => setIsDraggingId(notification.id)}
-                                onDragEnd={(event, info) => {
-                                    setIsDraggingId(null);
-                                    // Lowered delete threshold for mobile, and use offset to detect left swipe
-                                    if (info.offset.x < -60) {
-                                        handleDeleteNotification(notification.id);
-                                    }
-                                }}
-                                onClick={() => { if (!isDraggingId) handleNotificationClick(notification); }}
-                                className={`group relative p-4 rounded-lg border cursor-pointer transition-colors overflow-hidden ${notification.read
-                                    ? 'bg-gray-900 border-gray-800 hover:bg-gray-850'
-                                    : 'bg-gray-800 border-[#EC1D99]/30 hover:bg-gray-750'
-                                    }`}
-                            >
-                                <div className="flex items-start gap-3">
-                                    <div className={`p-2 rounded-full ${notification.read ? 'bg-gray-800' : 'bg-[#EC1D99]/20'}`}>
-                                        {getIcon(notification.type)}
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="text-white font-medium">{notification.title}</p>
-                                        <p className="text-sm text-gray-400 mt-1">{notification.message}</p>
-                                        <p className="text-xs text-gray-500 mt-2">
-                                            {new Date(notification.created_at).toLocaleDateString()} at {new Date(notification.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </p>
-                                    </div>
-                                    {!notification.read && (
-                                        <div className="w-2 h-2 bg-[#EC1D99] rounded-full"></div>
-                                    )}
-                                </div>
+                        {filteredNotifications.map(notification => {
+                            const friendRequest = getFriendRequestForNotification(notification);
 
-                                {/* Delete button (visible on hover or when dragging) */}
-                                <div className="absolute inset-y-0 right-3 flex items-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); handleDeleteNotification(notification.id); }}
-                                        className="p-2 bg-red-600 hover:bg-red-500 text-white rounded-full"
-                                        aria-label="Delete notification"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </motion.div>
-                        ))}
+                            return (
+                                <motion.div
+                                    key={notification.id}
+                                    layout
+                                    initial={{ x: 0, opacity: 1 }}
+                                    exit={{ x: -500, opacity: 0, transition: { duration: 0.18 } }}
+                                    whileTap={{ scale: 0.995 }}
+                                    drag="x"
+                                    dragMomentum={false}
+                                    dragConstraints={{ left: -240, right: 0 }}
+                                    dragElastic={0.08}
+                                    style={{ touchAction: 'pan-y' }}
+                                    onDragStart={() => setIsDraggingId(notification.id)}
+                                    onDragEnd={(event, info) => {
+                                        setIsDraggingId(null);
+                                        // Lowered delete threshold for mobile, and use offset to detect left swipe
+                                        if (info.offset.x < -60) {
+                                            handleDeleteNotification(notification.id);
+                                        }
+                                    }}
+                                    onClick={() => { if (!isDraggingId) handleNotificationClick(notification); }}
+                                    className={`group relative p-4 rounded-lg border cursor-pointer transition-colors overflow-hidden ${notification.read
+                                        ? 'bg-gray-900 border-gray-800 hover:bg-gray-850'
+                                        : 'bg-gray-800 border-[#EC1D99]/30 hover:bg-gray-750'
+                                        }`}
+                                >
+                                    <div className="flex items-start gap-3">
+                                        {notification.type === 'friend_request' && friendRequest ? (
+                                            <div className="shrink-0">
+                                                <img
+                                                    src={friendRequest.sender_avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${friendRequest.sender_name}`}
+                                                    alt={friendRequest.sender_name}
+                                                    className="w-10 h-10 rounded-full object-cover border border-gray-700"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className={`p-2 rounded-full ${notification.read ? 'bg-gray-800' : 'bg-[#EC1D99]/20'}`}>
+                                                {getIcon(notification.type)}
+                                            </div>
+                                        )}
+                                        <div className="flex-1">
+                                            <p className="text-white font-medium">{notification.title}</p>
+                                            <p className="text-sm text-gray-400 mt-1">{notification.message}</p>
+
+                                            {/* Friend Request Actions */}
+                                            {notification.type === 'friend_request' && (friendRequest || notification.data?.request_id) && (
+                                                <div className="flex gap-3 mt-3">
+                                                    <button
+                                                        onClick={(e) => handleAcceptRequest(e, friendRequest?.id || notification.data?.request_id, notification.id)}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#EC1D99] hover:bg-[#D41C84] text-white rounded-md text-sm font-medium transition-colors"
+                                                    >
+                                                        <Check className="w-4 h-4" />
+                                                        Accept
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => handleDeclineRequest(e, friendRequest?.id || notification.data?.request_id, notification.id)}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-md text-sm font-medium transition-colors"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                        Decline
+                                                    </button>
+                                                </div>
+                                            )}
+
+                                            <p className="text-xs text-gray-500 mt-2">
+                                                {new Date(notification.created_at).toLocaleDateString()} at {new Date(notification.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </p>
+                                        </div>
+                                        {!notification.read && (
+                                            <div className="w-2 h-2 bg-[#EC1D99] rounded-full"></div>
+                                        )}
+                                    </div>
+
+                                    {/* Delete button (visible on hover or when dragging) */}
+                                    <div className="absolute inset-y-0 right-3 flex items-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteNotification(notification.id); }}
+                                            className="p-2 bg-red-600 hover:bg-red-500 text-white rounded-full"
+                                            aria-label="Delete notification"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            );
+                        })}
                     </AnimatePresence>
                 </div>
             ) : (
