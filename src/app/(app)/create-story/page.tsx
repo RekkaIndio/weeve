@@ -461,7 +461,7 @@ function CreateStoryContent() {
       console.log('Story created and added to store');
 
       // For brand posts requiring payment, return the ID without redirecting
-      // The CreateStory component will handle the redirect to Stripe
+      // The CreateStory component will handle the redirect to payment
       if (requiresPayment) {
         return newStoryId;
       }

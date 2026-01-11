@@ -264,8 +264,7 @@ export async function declineCollabRequest(
 
     // 2. Refund payment if price was paid
     // NOTE: For now we're using dollar-based pricing. In production, this would
-    // trigger a Stripe refund. For MVP, we'll just mark it as declined.
-    // The actual payment/refund will be handled when Stripe integration is added.
+    // trigger a payment refund. For MVP, we'll just mark it as declined.
 
     // 3. Update story status to declined
     const { error: updateError } = await supabase
@@ -331,7 +330,7 @@ export async function cancelCollabRequest(
         return { success: false, error: 'Failed to cancel collaboration' };
     }
 
-    // NOTE: Refund handling would go here when Stripe is integrated
+    // NOTE: Refund handling would go here when payment integration is complete
 
     return { success: true };
 }

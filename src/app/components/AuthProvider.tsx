@@ -440,7 +440,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     return;
                 }
 
-                // Handle Stripe
+                // Handle payment success
                 if (url.includes('payment-success')) {
                     isProcessingDeepLink.current = true;
                     try {
