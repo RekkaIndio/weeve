@@ -10,7 +10,7 @@ interface DiscoverHeaderProps {
 
 export default function DiscoverHeader({ searchQuery, setSearchQuery, currentUser }: DiscoverHeaderProps) {
     return (
-        <div className="sticky top-0 z-20 bg-black/80 backdrop-blur-md py-2 px-4 mb-2">
+        <div className="sticky top-0 z-20 bg-black/80 backdrop-blur-md py-4 px-4 mb-2">
             <div className="flex items-center gap-3">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
@@ -19,7 +19,7 @@ export default function DiscoverHeader({ searchQuery, setSearchQuery, currentUse
                         placeholder="Search stories, people, tags..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-800 rounded-full py-3 pl-10 pr-4 text-base focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99]/30 transition-all"
+                        className="w-full bg-gray-900 border border-gray-800 rounded-full py-2 pl-10 pr-4 text-base focus:outline-none focus:border-[#EC1D99] focus:ring-1 focus:ring-[#EC1D99]/30 transition-all"
                     />
                 </div>
                 {currentUser && (
