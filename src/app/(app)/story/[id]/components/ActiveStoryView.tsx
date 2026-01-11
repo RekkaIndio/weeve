@@ -198,17 +198,17 @@ export function ActiveStoryView({
                         </button>
                         {showMenu && (
                             <div className="absolute top-full right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden pointer-events-auto z-50">
+                                {(story.creatorId === currentUser?.id || isUserParticipant) && (
+                                    <button onClick={() => { setShowEditModal(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors">
+                                        <Edit2 className="w-4 h-4 text-gray-400" />
+                                        <span className="text-sm font-medium text-white">{story.creatorId === currentUser?.id ? 'Edit Story' : 'Manage Contribution'}</span>
+                                    </button>
+                                )}
                                 {story.creatorId === currentUser?.id && (
-                                    <>
-                                        <button onClick={() => { setShowEditModal(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors">
-                                            <Edit2 className="w-4 h-4 text-gray-400" />
-                                            <span className="text-sm font-medium text-white">Edit Story</span>
-                                        </button>
-                                        <button onClick={() => { setShowDeleteConfirm(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-t border-gray-800">
-                                            <Trash className="w-4 h-4 text-red-400" />
-                                            <span className="text-sm font-medium text-red-400">Delete Story</span>
-                                        </button>
-                                    </>
+                                    <button onClick={() => { setShowDeleteConfirm(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-t border-gray-800">
+                                        <Trash className="w-4 h-4 text-red-400" />
+                                        <span className="text-sm font-medium text-red-400">Delete Story</span>
+                                    </button>
                                 )}
                                 {isUserParticipant && (
                                     <button onClick={() => { setShowLeaveConfirm(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-t border-gray-800">
