@@ -8,7 +8,7 @@ import { useAuth } from "@/app/components/AuthProvider";
 import { useStore } from "@/lib/store";
 import { capturePhoto } from "@/lib/camera";
 import { supabase } from "@/lib/supabase";
-import { Camera, Check, X, Loader2 } from "lucide-react";
+import { Camera, Check, X, Loader2, LogOut } from "lucide-react";
 
 export default function SetupPage() {
     const router = useRouter();
@@ -206,6 +206,18 @@ export default function SetupPage() {
                     <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
                 </div>
             </div>
+
+            {/* Sign Out / Cancel Button - Top Left */}
+            <button
+                onClick={async () => {
+                    await supabase.auth.signOut();
+                    window.location.href = '/login';
+                }}
+                className="absolute top-4 left-4 z-50 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full backdrop-blur-sm"
+                title="Sign Out"
+            >
+                <LogOut className="w-5 h-5" />
+            </button>
 
             {/* Setup Form */}
             <div className="relative z-10 w-full max-w-md px-6 flex flex-col items-center">
