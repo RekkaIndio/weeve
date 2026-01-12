@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 56;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -17,6 +17,7 @@
 		69CCC9CE2ED8DA66007A3ADA /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 69CCC9CD2ED8DA66007A3ADA /* AuthenticationServices.framework */; };
 		69CCC9D82ED8DA66007A3ADA /* Weeve.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 69CCC9CC2ED8DA66007A3ADA /* Weeve.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7DE5F1782F043C5500A490DF /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 7DE5F1772F043C5500A490DF /* GoogleService-Info.plist */; };
+		86E077D8F03377EDC9DC8AB7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C6925B57169F96C96556D16C /* PrivacyInfo.xcprivacy */; };
 		A084ECDBA7D38E1E42DFC39D /* Pods_App.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */; };
 /* End PBXBuildFile section */
 
@@ -59,11 +60,12 @@
 		7DE5F1772F043C5500A490DF /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		AF277DCFFFF123FFC6DF26C7 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AF51FD2D460BCFE21FA515B2 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
+		C6925B57169F96C96556D16C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		FC68EB0AF532CFC21C3344DD /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		69CCC9D92ED8DA67007A3ADA /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		69CCC9D92ED8DA67007A3ADA /* Exceptions for "Weeve" folder in "Weeve" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -73,7 +75,18 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		69CCC9CF2ED8DA66007A3ADA /* Weeve */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (69CCC9D92ED8DA67007A3ADA /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Weeve; sourceTree = "<group>"; };
+		69CCC9CF2ED8DA66007A3ADA /* Weeve */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				69CCC9D92ED8DA67007A3ADA /* Exceptions for "Weeve" folder in "Weeve" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = Weeve;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,6 +150,7 @@
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 				7DE5F1772F043C5500A490DF /* GoogleService-Info.plist */,
+				C6925B57169F96C96556D16C /* PrivacyInfo.xcprivacy */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -190,8 +204,6 @@
 				69CCC9CF2ED8DA66007A3ADA /* Weeve */,
 			);
 			name = Weeve;
-			packageProductDependencies = (
-			);
 			productName = Weeve;
 			productReference = 69CCC9CC2ED8DA66007A3ADA /* Weeve.appex */;
 			productType = "com.apple.product-type.app-extension";
@@ -225,8 +237,6 @@
 				Base,
 			);
 			mainGroup = 504EC2FB1FED79650016851F;
-			packageReferences = (
-			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -249,6 +259,7 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+				86E077D8F03377EDC9DC8AB7 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

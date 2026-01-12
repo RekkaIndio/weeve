@@ -31,6 +31,8 @@ end
 target 'App' do
   capacitor_pods
   # Add your Pods here
+  pod 'GoogleSignIn', '>= 7.1.0'
+  pod 'GTMAppAuth', '>= 4.1.1'
 end
 
 post_install do |installer|
