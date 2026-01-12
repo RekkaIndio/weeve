@@ -135,14 +135,20 @@ export default function GroupSettingsPage() {
     const handleSave = async () => {
         setSaving(true);
         try {
+            const updates: any = {
+                name,
+                description,
+                is_private: isPrivate,
+            };
+
+            // Only update avatar if name changes AND it's currently a generated avatar
+            if (name !== group.name && (group.avatar?.includes('dicebear') || !group.avatar)) {
+                updates.avatar = `https://api.dicebear.com/7.x/identicon/svg?seed=${name}`;
+            }
+
             const { error } = await supabase
                 .from('groups')
-                .update({
-                    name,
-                    description,
-                    is_private: isPrivate,
-                    avatar: `https://api.dicebear.com/7.x/identicon/svg?seed=${name}` // Update avatar if name changes
-                })
+                .update(updates)
                 .eq('id', id);
 
             if (error) throw error;
