@@ -168,13 +168,15 @@ export default function EditProfilePage() {
                 website: trimmedWebsite.length > 0 ? trimmedWebsite : undefined
             };
 
-            const { error } = await updateUserProfile(currentUser.id, {
+            const payload = {
                 name: name.trim(),
                 tagline: tagline.trim() || null,
                 avatar: avatar || null,
                 preferences: updatedPrefs,
                 interactionCost: null, // Feature removed
-            });
+            };
+
+            const { error } = await updateUserProfile(currentUser.id, payload);
 
             if (error) {
                 const errorMessage = (error.message || String(error)).toLowerCase();
@@ -279,7 +281,7 @@ export default function EditProfilePage() {
     }
 
     return (
-        <div className="min-h-screen bg-black text-white pb-8">
+        <div className="min-h-screen bg-black text-white pb-32">
             {/* Header */}
             <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center border-b border-gray-800">
                 <button

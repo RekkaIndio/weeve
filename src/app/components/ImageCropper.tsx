@@ -66,6 +66,10 @@ const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect }: ImageCropp
                 throw new Error('No 2d context');
             }
 
+            // Enable high quality image scaling
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
             // Calculate the scale between natural size and displayed size
             const scaleX = image.naturalWidth / image.width;
             const scaleY = image.naturalHeight / image.height;
@@ -112,6 +116,8 @@ const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect }: ImageCropp
                     onChange={(_, percentCrop) => setCrop(percentCrop)}
                     onComplete={(c) => setCompletedCrop(c)}
                     aspect={aspect}
+                    circularCrop={aspect === 1}
+                    keepSelection={true}
                     className="max-h-full"
                 >
                     <img
@@ -131,7 +137,7 @@ const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect }: ImageCropp
             </div>
 
             {/* Controls */}
-            <div className="bg-gray-900 p-6 pb-12">
+            <div className="bg-gray-900 p-6 pb-24 safe-area-bottom">
                 <div className="flex justify-between gap-4">
                     <button
                         onClick={onCancel}
