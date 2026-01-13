@@ -229,15 +229,35 @@ function CreateStoryContent() {
       if (isPublicStoryWithSlots) {
         console.log('[CreateStory] Public Story Detected. Ordered Slots:', slotsWithUser);
         // For public stories: add ALL assigned participants (creator + friends)
-        // Creator slots get 'accepted', friend slots get 'waiting' (they need to accept invite)
+        // Creator's first slot slot gets 'accepted' (they will fill it when creating)
+        // Creator's additional slots get 'waiting' (they haven't filled those yet)
+        // Friend slots always get 'waiting' (they need to accept invite)
         // Empty/null slots are left open for public users to contribute
+        let creatorFirstSlotFound = false;
         participantsToInsert = slotsWithUser
-          .map((slot, idx) => slot ? ({
-            story_id: newStoryId,
-            user_id: slot.id,
-            position: idx,
-            status: slot.id === currentUser.id ? ('accepted' as 'accepted') : ('waiting' as 'waiting'),
-          }) : null)
+          .map((slot, idx) => {
+            if (!slot) return null;
+
+            let status: 'accepted' | 'waiting';
+            if (slot.id === currentUser.id) {
+              // Creator's first slot is 'accepted', subsequent slots are 'waiting'
+              if (!creatorFirstSlotFound) {
+                status = 'accepted';
+                creatorFirstSlotFound = true;
+              } else {
+                status = 'waiting'; // Creator has more slots to fill later
+              }
+            } else {
+              status = 'waiting'; // Friends need to accept invite
+            }
+
+            return {
+              story_id: newStoryId,
+              user_id: slot.id,
+              position: idx,
+              status,
+            };
+          })
           .filter((p): p is NonNullable<typeof p> => p !== null);
         console.log('[CreateStory] Inserted Participants (Public):', participantsToInsert);
       } else {
@@ -390,6 +410,23 @@ function CreateStoryContent() {
       }
 
       // 3. Update Local Store for immediate feedback
+      // Build participant statuses consistently with DB insert logic
+      let localCreatorFirstSlotFound = false;
+      const participantsForStore = finalParticipants.map((p, index) => {
+        let status: 'accepted' | 'waiting';
+        if (p.id === currentUser.id) {
+          if (!localCreatorFirstSlotFound) {
+            status = 'accepted';
+            localCreatorFirstSlotFound = true;
+          } else {
+            status = 'waiting'; // Creator's additional slots
+          }
+        } else {
+          status = 'waiting';
+        }
+        return { ...p, position: index, status };
+      });
+
       const newStory: Story = {
         id: newStoryId,
         title: data.title,
@@ -399,7 +436,7 @@ function CreateStoryContent() {
         status: 'active',
         currentTurnUserId: finalParticipants[0]?.id ?? currentUser.id,
         contributions: [],
-        participants: finalParticipants.map((p, index) => ({ ...p, position: index, status: p.id === currentUser.id ? 'accepted' as 'accepted' : 'waiting' as 'waiting' })),
+        participants: participantsForStore,
 
         maxWeeves: computedMaxWeeves,
         groupId: groupId || undefined,

@@ -17,6 +17,23 @@ const actions = {
             // Must have at least one contribution (completed content)
             if (!story.contributions || story.contributions.length === 0) return false;
 
+            // Hide stories where the creator has assigned slots to themselves but hasn't filled them yet
+            // These should NOT appear in the public feed yet (even for the creator)
+            // Check 1: Creator has explicit 'waiting' status on any participant entry
+            const creatorHasWaitingSlot = story.participants.some(p => p.id === story.creatorId && p.status === 'waiting');
+            // Check 2: Creator has more participant entries (slots) than contributions
+            const creatorParticipantCount = story.participants.filter(p => p.id === story.creatorId).length;
+            const creatorContributionCount = story.contributions.filter(c => c.userId === story.creatorId).length;
+            const creatorHasUnfilledSlots = creatorParticipantCount > creatorContributionCount;
+            // Check 3: It's currently the creator's turn to post (story is active and waiting for creator)
+            // NOTE: Skip this check for 'open' mode stories - currentTurnUserId doesn't mean much there
+            // since anyone can contribute. We only rely on checks 1 & 2 for open mode.
+            const isCreatorsTurn = story.mode !== 'open' && story.status !== 'completed' && story.currentTurnUserId === story.creatorId;
+            
+            if (creatorHasWaitingSlot || creatorHasUnfilledSlots || isCreatorsTurn) {
+                return false;
+            }
+
             // Check if this is a public story with reserved slots (invited friends)
             // Reserved slots are participants who are NOT the creator
             const reservedParticipants = story.participants.filter(p => p.id !== story.creatorId);
