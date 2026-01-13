@@ -6,6 +6,7 @@ import DiscoverHeader from './components/DiscoverHeader';
 import ViewTabs from './components/ViewTabs';
 import FeedTypeFilters from './components/FeedTypeFilters';
 import GroupStoriesView from './components/GroupStoriesView';
+import OpenStoriesView from './components/OpenStoriesView';
 import PeopleView from './components/PeopleView';
 import AllStoriesView from './components/AllStoriesView';
 import CreateGroupModal from './components/CreateGroupModal';
@@ -33,6 +34,7 @@ function DiscoverContent() {
         filteredStories,
         trendingStories,
         groupStories,
+        openStories,
         selectedStoryIndex,
 
         // Actions
@@ -78,6 +80,12 @@ function DiscoverContent() {
                     currentUser={currentUser}
                     openStoryInOverlay={openStoryInOverlay}
                     setShowCreateGroup={setShowCreateGroup}
+                />
+            ) : viewMode === 'open' ? (
+                <OpenStoriesView
+                    stories={openStories}
+                    openStoryInOverlay={openStoryInOverlay}
+                    searchQuery={searchQuery}
                 />
             ) : viewMode === 'people' ? (
                 <PeopleView

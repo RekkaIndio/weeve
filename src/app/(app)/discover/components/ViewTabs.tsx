@@ -1,7 +1,7 @@
 
 interface ViewTabsProps {
-    viewMode: 'all' | 'groups' | 'people';
-    setViewMode: (mode: 'all' | 'groups' | 'people') => void;
+    viewMode: 'all' | 'open' | 'groups' | 'people';
+    setViewMode: (mode: 'all' | 'open' | 'groups' | 'people') => void;
 }
 
 export default function ViewTabs({ viewMode, setViewMode }: ViewTabsProps) {
@@ -13,6 +13,15 @@ export default function ViewTabs({ viewMode, setViewMode }: ViewTabsProps) {
             >
                 Stories
                 {viewMode === 'all' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#EC1D99] rounded-t-full" />
+                )}
+            </button>
+            <button
+                onClick={() => setViewMode('open')}
+                className={`pb-3 text-sm font-medium transition-all relative ${viewMode === 'open' ? 'text-white' : 'text-gray-400 hover:text-gray-300'}`}
+            >
+                Open
+                {viewMode === 'open' && (
                     <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#EC1D99] rounded-t-full" />
                 )}
             </button>
