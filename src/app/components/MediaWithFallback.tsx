@@ -7,6 +7,8 @@ interface MediaWithFallbackProps extends React.HTMLAttributes<HTMLElement> {
     alt?: string;
     className?: string;
     videoClassName?: string;
+    loop?: boolean;
+    onEnded?: () => void;
 }
 
 export default function MediaWithFallback({
@@ -14,6 +16,8 @@ export default function MediaWithFallback({
     alt = "",
     className = "",
     videoClassName = "",
+    loop = true,
+    onEnded,
     ...props
 }: MediaWithFallbackProps) {
     const [hasError, setHasError] = useState(false);
@@ -73,7 +77,8 @@ export default function MediaWithFallback({
                         onError={onError}
                         muted
                         playsInline
-                        loop
+                        loop={loop}
+                        onEnded={onEnded}
                         preload={shouldLoad ? 'auto' : 'metadata'}
                         controls={false}
                         disablePictureInPicture
