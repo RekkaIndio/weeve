@@ -102,7 +102,7 @@ const CreateStory = ({
 
   return (
     <div className="flex flex-col min-h-screen bg-black text-white" ref={refs.topRef}>
-      <header className="sticky top-0 z-20 bg-black/90 backdrop-blur-md border-b border-gray-800 px-4 py-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center justify-between gap-3">
+      <header className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-gray-800 px-4 py-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button
             onClick={handleBack}
@@ -227,7 +227,7 @@ const CreateStory = ({
       </main>
 
       {/* Footer Actions */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent z-10 pb-[calc(env(safe-area-inset-bottom,0px)+24px)]">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent z-50 pb-[calc(env(safe-area-inset-bottom,0px)+24px)]">
         <div className="max-w-xl mx-auto flex gap-3">
           <button
             onClick={handleBack}
