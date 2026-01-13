@@ -450,11 +450,16 @@ export default function UserProfilePage() {
     // - Hide if not accepted/completed
     // - PRIVACY: If private content, ONLY show if currentUser is also a participant
     const userStories = stories.filter(s => {
-        // 1. Core check: Profile owner must be a participant and have contributed
+        // 1. Core check: Profile owner must be a participant and have contributed OR be the creator
         const ownerParticipant = s.participants.find(p => p.id === user?.id);
         const ownerContributed = s.contributions?.some(c => c.userId === user?.id);
+        const isCreator = s.creatorId === user?.id;
 
-        if (!ownerParticipant || !ownerContributed) return false;
+        // If generic user (not creator), must be participant AND contributed
+        if (!isCreator && (!ownerParticipant || !ownerContributed)) return false;
+
+        // If creator, we show it even if they haven't "contributed" a specific turn yet 
+        // (creating the story counts as ownership), unless filtering rules below hide it.
 
         // 2. Privacy Check
         // If the story is private, the VIEWER (currentUser) must be a participant to see it.
@@ -466,11 +471,11 @@ export default function UserProfilePage() {
 
         // 3. Status/Grid Logic (Align with "Weeves" tab in profile/page.tsx)
 
-        // If story is not completed, only show when owner is accepted
-        if (s.status !== 'completed' && ownerParticipant.status !== 'accepted' && ownerParticipant.status !== undefined) return false;
+        // If story is not completed, only show when owner is accepted (or is creator)
+        if (s.status !== 'completed' && !isCreator && ownerParticipant?.status !== 'accepted' && ownerParticipant?.status !== undefined) return false;
 
         // Exclude stories where the owner has a pending waiting slot (belongs in their "Waiting" tab)
-        if (ownerParticipant.status === 'waiting') return false;
+        if (ownerParticipant?.status === 'waiting') return false;
 
         // Exclude stories where it's the owner's turn (belongs in their "Waiting" tab / Timer)
         if (s.status === 'active' && s.currentTurnUserId === user?.id) return false;
