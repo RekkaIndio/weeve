@@ -5,7 +5,7 @@ import { rankStories } from '@/lib/discovery/core';
 import { searchUsers, fetchPublicUsers, sendFriendRequest, Friend as FriendType } from '@/lib/friends';
 import { supabase } from '@/lib/supabase';
 
-export type ViewMode = 'all' | 'groups' | 'people';
+export type ViewMode = 'all' | 'open' | 'groups' | 'people';
 export type FeedType = 'forYou' | 'trending' | 'new' | 'friends' | 'seeds' | 'canon';
 
 
@@ -130,8 +130,46 @@ export function useDiscoverLogic() {
         return engagementScore * (1 + decay);
     }, []);
 
+    const getInterestScore = useCallback((story: typeof stories[0]) => {
+        let score = 0;
+        const userInterests = currentUser?.preferences?.interests || [];
+        
+        // Base score for being an open story
+        score += 100;
+
+        // Heavy weighting for interest matches
+        if (userInterests.length > 0 && story.hashtags) {
+            const matchingInterests = story.hashtags.filter(tag => 
+                userInterests.some((interest: string) => tag.toLowerCase().includes(interest.toLowerCase()))
+            );
+            // 50 points per matching interest (higher than regular feed)
+            score += matchingInterests.length * 50; 
+        }
+
+        // Slight bonus for recent activity to keep it fresh
+        const createdAt = story.created_at ? new Date(story.created_at).getTime() : Date.now();
+        const ageHours = (Date.now() - createdAt) / 3600000;
+        const recencyMultiplier = Math.max(0.7, 1 - (ageHours / (24 * 7))); // Slower decay for open stories (1 week)
+        
+        return score * recencyMultiplier;
+    }, [currentUser?.preferences?.interests]);
+
     // Filter Stories
     const publicStories = useMemo(() => actions.getPublicStories(stories), [stories]);
+
+    const openStories = useMemo(() => {
+        return publicStories.filter(story => {
+             // Basic check: must be open mode
+            if (story.mode !== 'open') return false;
+            
+            // Should verify it's not completed? Usually open stories are ongoing.
+            // But if it's 'completed' it might not be relevant for "Open" tab unless we want to show examples.
+            // Let's hide completed ones from "Open" tab so users only see actionable ones.
+            if (story.status === 'completed') return false;
+
+            return true;
+        }).sort((a, b) => getInterestScore(b) - getInterestScore(a));
+    }, [publicStories, getInterestScore]);
 
     const filteredStories = useMemo(() => {
         // 1. Filter by search query
@@ -372,6 +410,7 @@ export function useDiscoverLogic() {
         filteredStories,
         trendingStories,
         groupStories,
+        openStories,
         selectedStoryIndex,
         friendIds,
 
