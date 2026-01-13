@@ -496,13 +496,16 @@ export default function ProfilePage() {
     // Main tab: Show stories where user is a participant BUT exclude stories where it's their turn (those go in timer tab)
     const myStories = currentUser ? stories.filter(s => {
         const userParticipant = s.participants.find(p => p.id === currentUser.id);
-        if (!userParticipant) return false;
+        const isCreator = s.creatorId === currentUser.id;
+
+        // User must be a participant OR the creator
+        if (!userParticipant && !isCreator) return false;
 
         // If story is not completed, only show when participant is accepted (or status undefined)
-        if (s.status !== 'completed' && userParticipant.status !== 'accepted' && userParticipant.status !== undefined) return false;
+        if (userParticipant && s.status !== 'completed' && userParticipant.status !== 'accepted' && userParticipant.status !== undefined) return false;
 
         // Exclude stories where the user has a pending waiting slot — these belong in the Waiting tab
-        if (userParticipant.status === 'waiting') return false;
+        if (userParticipant?.status === 'waiting') return false;
 
         // Exclude stories where it's the user's turn (those belong in the timer tab)
         if (s.status === 'active' && s.currentTurnUserId === currentUser.id) return false;
