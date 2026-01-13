@@ -75,59 +75,43 @@ const UserContributors = ({
         <>
             {/* Story Visibility Selection - Hidden if groupId is present */}
             {!groupId && (
-                <fieldset aria-labelledby="story-visibility-legend">
-                    <legend
-                        id="story-visibility-legend"
-                        className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 font-sans pl-1"
-                    >
-                        Visibility
-                    </legend>
-                    <div className="flex gap-3">
-                        {/* Option 1: Private */}
-                        <div
-                            onClick={() => onVisibilityChange("private")}
-                            className={`flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-3 p-4 rounded-2xl cursor-pointer transition-all border ${formState.visibility === "private" ? "bg-[#EC1D99]/10 border-[#EC1D99] shadow-[0_0_20px_rgba(236,29,153,0.1)]" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600 hover:bg-gray-800"}`}
-                        >
-                            <div className={`p-2.5 rounded-xl ${formState.visibility === "private" ? "bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/20" : "bg-gray-700 text-gray-400"}`}>
-                                <Lock className="w-5 h-5" />
-                            </div>
-                            <div className="text-center sm:text-left">
-                                <label
-                                    className={`text-sm font-bold cursor-pointer block font-sans ${formState.visibility === "private" ? "text-white" : "text-gray-300"}`}
-                                >
-                                    Private
-                                </label>
-                                <p
-                                    className="text-xs text-gray-500 mt-0.5 font-sans leading-relaxed"
-                                >
-                                    Only invited friends can view and contribute
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Option 2: Public */}
-                        <div
-                            onClick={() => onVisibilityChange("public")}
-                            className={`flex-1 flex flex-col sm:flex-row items-center sm:items-start gap-3 p-4 rounded-2xl cursor-pointer transition-all border ${formState.visibility === "public" ? "bg-[#EC1D99]/10 border-[#EC1D99] shadow-[0_0_20px_rgba(236,29,153,0.1)]" : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600 hover:bg-gray-800"}`}
-                        >
-                            <div className={`p-2.5 rounded-xl ${formState.visibility === "public" ? "bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/20" : "bg-gray-700 text-gray-400"}`}>
-                                <Globe className="w-5 h-5" />
-                            </div>
-                            <div className="text-center sm:text-left">
-                                <label
-                                    className={`text-sm font-bold cursor-pointer block font-sans ${formState.visibility === "public" ? "text-white" : "text-gray-300"}`}
-                                >
-                                    Public
-                                </label>
-                                <p
-                                    className="text-xs text-gray-500 mt-0.5 font-sans leading-relaxed"
-                                >
-                                    Anyone can view and contribute
-                                </p>
-                            </div>
-                        </div>
+                <div className="flex items-center justify-between p-4 bg-gray-800/50 border border-gray-700/50 rounded-2xl mb-6">
+                    <div className="flex flex-col">
+                        <span className="text-sm font-bold text-white flex items-center gap-2 font-sans">
+                            {formState.visibility === "public" ? (
+                                <>
+                                    <Globe className="w-4 h-4 text-[#EC1D99]" />
+                                    Public Story
+                                </>
+                            ) : (
+                                <>
+                                    <Lock className="w-4 h-4 text-[#EC1D99]" />
+                                    Private Story
+                                </>
+                            )}
+                        </span>
+                        <span className="text-xs text-gray-500 mt-1 font-sans">
+                            {formState.visibility === "public"
+                                ? "Anyone can view and contribute"
+                                : "Only invited friends can view and contribute"}
+                        </span>
                     </div>
-                </fieldset>
+
+                    {/* Custom Toggle Switch */}
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={formState.visibility === "public"}
+                        onClick={() => onVisibilityChange(formState.visibility === "public" ? "private" : "public")}
+                        className={`w-12 h-7 rounded-full transition-colors duration-200 ease-in-out relative focus:outline-none focus:ring-2 focus:ring-[#EC1D99] focus:ring-offset-2 focus:ring-offset-gray-900 ${formState.visibility === "public" ? 'bg-[#EC1D99]' : 'bg-gray-700'
+                            }`}
+                    >
+                        <div
+                            className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ease-in-out absolute top-1 left-1 ${formState.visibility === "public" ? 'translate-x-5' : 'translate-x-0'
+                                }`}
+                        />
+                    </button>
+                </div>
             )}
 
             {/* Standard Slots UI */}

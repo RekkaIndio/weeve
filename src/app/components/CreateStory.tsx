@@ -57,11 +57,7 @@ const CreateStory = ({
     setFormState,
     slots,
     setSlots,
-    hashtagInput,
-    setHashtagInput,
     hashtagSuggestions,
-    showHashtagDropdown,
-    setShowHashtagDropdown,
     isSearchingHashtags,
     isLoading,
     error,
@@ -75,6 +71,7 @@ const CreateStory = ({
     setIsReordering,
     filteredFriends,
     isSearchingFriends,
+    activeField,
 
     // Handlers
     handleTitleChange,
@@ -85,8 +82,6 @@ const CreateStory = ({
     handleAddFriend,
     handleRemoveFriend,
     handleSlotCountChange,
-    handleAddHashtag,
-    handleRemoveHashtag,
     handleSelectHashtagSuggestion,
     handleCreateStory,
     handleBack,
@@ -173,27 +168,21 @@ const CreateStory = ({
           )}
 
           {/* Section 1: Story Details */}
-          <div className="bg-gray-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-sm shadow-xl">
+          <div className="bg-gray-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-sm shadow-xl relative z-30">
             <StoryDetails
               formState={formState}
               onTitleChange={handleTitleChange}
               onDescriptionChange={handleDescriptionChange}
-              hashtagInput={hashtagInput}
-              onHashtagInputChange={setHashtagInput}
-              onAddHashtag={handleAddHashtag}
-              onRemoveHashtag={handleRemoveHashtag}
               hashtagSuggestions={hashtagSuggestions}
-              showHashtagDropdown={showHashtagDropdown}
-              setShowHashtagDropdown={setShowHashtagDropdown}
               isSearchingHashtags={isSearchingHashtags}
               onSelectHashtagSuggestion={handleSelectHashtagSuggestion}
               titleInputRef={refs.titleInputRef}
-              hashtagInputRef={refs.hashtagInputRef}
+              activeField={activeField}
             />
           </div>
 
           {/* Section 2: Participants */}
-          <div className={`bg-gray-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-sm shadow-xl transition-all duration-300 ${showFriendDropdown ? 'pb-96' : 'pb-6'}`}>
+          <div className={`bg-gray-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-sm shadow-xl transition-all duration-300 relative z-20 ${showFriendDropdown ? 'pb-96' : 'pb-6'}`}>
             <StoryContributors
               formState={formState}
               setFormState={setFormState}
@@ -224,7 +213,7 @@ const CreateStory = ({
           </div>
 
           {/* Section 3: Extras */}
-          <div className="bg-gray-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-sm shadow-xl">
+          <div className="bg-gray-900/40 border border-white/5 rounded-3xl p-6 backdrop-blur-sm shadow-xl relative z-10">
             <StorySettings
               formState={formState}
               setFormState={setFormState}
