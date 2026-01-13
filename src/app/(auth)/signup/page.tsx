@@ -404,7 +404,7 @@ export default function SignUpPage() {
                             disabled={loading}
                         />
                         <span className="text-sm text-gray-300">
-                            I agree to Weeve's <a href="/terms" className="text-teal-400 hover:text-teal-300 underline">Terms of Service</a> and <a href="/partnership" className="text-teal-400 hover:text-teal-300 underline">Partnership Agreement</a>.
+                            I agree to Weeve's <a href="/terms" className="text-teal-400 hover:text-teal-300 underline">Terms of Service</a>.
                         </span>
                     </label>
 
