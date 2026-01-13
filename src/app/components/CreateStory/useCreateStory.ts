@@ -42,7 +42,7 @@ export const useCreateStory = ({
   const handleBack = onBack ?? (() => router.back());
 
   // Refs
-  const hashtagInputRef = useRef<HTMLInputElement>(null) as RefObject<HTMLInputElement>;
+  // const hashtagInputRef = useRef<HTMLInputElement>(null) as RefObject<HTMLInputElement>;
   const friendsInputRef = useRef<HTMLInputElement>(null) as RefObject<HTMLInputElement>;
   const titleInputRef = useRef<HTMLInputElement>(null) as RefObject<HTMLInputElement>;
   const errorTimeoutRef = useRef<number | null>(null);
@@ -89,10 +89,12 @@ export const useCreateStory = ({
     }));
   }, [slots]);
 
-  const [hashtagInput, setHashtagInput] = useState("");
+  // const [hashtagInput, setHashtagInput] = useState("");
   const [hashtagSuggestions, setHashtagSuggestions] = useState<string[]>([]);
-  const [showHashtagDropdown, setShowHashtagDropdown] = useState(false);
+  // const [showHashtagDropdown, setShowHashtagDropdown] = useState(false);
   const [isSearchingHashtags, setIsSearchingHashtags] = useState(false);
+  const [hashtagQuery, setHashtagQuery] = useState("");
+  const [activeField, setActiveField] = useState<'title' | 'description' | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -217,15 +219,50 @@ export const useCreateStory = ({
 
 
   // Handlers
+  const extractHashtags = (text: string): string[] => {
+    const regex = /#[\w-]+/g;
+    const matches = text.match(regex);
+    if (!matches) return [];
+    return Array.from(new Set(matches.map(tag => tag.slice(1).toLowerCase()))).slice(0, 10); // Limit to 10 unique tags
+  };
+
+  // Autocomplete Logic
+  const checkForHashtag = (text: string, cursorPosition: number, field: 'title' | 'description') => {
+    // Find the word being typed at the cursor position
+    const textUpToCursor = text.slice(0, cursorPosition);
+    const words = textUpToCursor.split(/\s+/);
+    const activeWord = words[words.length - 1];
+
+    if (activeWord && activeWord.startsWith('#') && activeWord.length > 1) {
+      setHashtagQuery(activeWord);
+      setActiveField(field);
+    } else {
+      setHashtagQuery("");
+      setActiveField(null);
+      setHashtagSuggestions([]);
+    }
+  };
+
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.slice(0, 60);
-    setFormState((prev) => ({ ...prev, title: value }));
+    const cursorPosition = e.target.selectionStart || value.length;
+
+    setFormState((prev) => {
+        const hashtags = extractHashtags(value + " " + prev.description);
+        return { ...prev, title: value, hashtags };
+    });
+    checkForHashtag(value, cursorPosition, 'title');
     setError("");
   };
 
   const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value.slice(0, 200);
-    setFormState((prev) => ({ ...prev, description: value }));
+    const cursorPosition = e.target.selectionStart || value.length;
+    setFormState((prev) => {
+        const hashtags = extractHashtags(prev.title + " " + value);
+        return { ...prev, description: value, hashtags };
+    });
+    checkForHashtag(value, cursorPosition, 'description');
   };
 
   const handleVisibilityChange = (visibility: "public" | "private") => {
@@ -361,7 +398,7 @@ export const useCreateStory = ({
   // Hashtag Search
   useEffect(() => {
     const searchForHashtags = async () => {
-      const normalizedInput = hashtagInput.trim().replace(/^#+/, '').toLowerCase();
+      const normalizedInput = hashtagQuery.trim().replace(/^#+/, '').toLowerCase();
       if (!normalizedInput) {
         setHashtagSuggestions([]);
         setIsSearchingHashtags(false);
@@ -369,10 +406,9 @@ export const useCreateStory = ({
       }
       setIsSearchingHashtags(true);
       try {
-        const results = await searchHashtags(normalizedInput, 10);
-        const existingTags = formState.hashtags ?? [];
-        const filtered = results.filter(tag => !existingTags.includes(tag));
-        setHashtagSuggestions(filtered);
+        const results = await searchHashtags(normalizedInput, 5); // Limit to 5 suggestions
+        // Filter out tags already in the text? Maybe not, context matters. keeping logic simple for now.
+        setHashtagSuggestions(results);
       } catch (err) {
         console.error('Hashtag search failed', err);
         setHashtagSuggestions([]);
@@ -382,45 +418,50 @@ export const useCreateStory = ({
     };
     const timeoutId = setTimeout(searchForHashtags, 300);
     return () => clearTimeout(timeoutId);
-  }, [hashtagInput, formState.hashtags]);
-
-  const normalizeTag = (tag: string) => tag.trim().replace(/^#+/, "").replace(/\s+/g, "").toLowerCase();
-
-  const handleAddHashtag = (rawTag?: string) => {
-    const t = rawTag ?? hashtagInput;
-    const val = normalizeTag(t);
-    if (!val) return;
-    if (val.length > 30) {
-        setError("Hashtag cannot be longer than 30 characters.");
-        return;
-    }
-    const existing = formState.hashtags ?? [];
-    if (existing.includes(val)) {
-        setError("Hashtag already added.");
-        return;
-    }
-    if (existing.length >= 10) {
-        setError("You can only add up to 10 hashtags.");
-        return;
-    }
-    setFormState((prev) => ({
-      ...prev,
-      hashtags: [...(prev.hashtags ?? []), val],
-    }));
-    setHashtagInput("");
-  };
-
-  const handleRemoveHashtag = (tag: string) => {
-    setFormState((prev) => ({
-      ...prev,
-      hashtags: (prev.hashtags ?? []).filter((t) => t !== tag),
-    }));
-  };
+  }, [hashtagQuery]);
 
   const handleSelectHashtagSuggestion = (tag: string) => {
-    handleAddHashtag(tag);
-    setShowHashtagDropdown(false);
+    if (!activeField) return;
+
+    if (activeField === 'title') {
+      const text = formState.title;
+      // We need to replace the active word with the tag
+      // This is a bit tricky without knowing the exact cursor pos stored in state,
+      // but we can assume the last word ending with the query is the one active (simplification).
+      // Or we could store cursor pos in state.
+      // Better approach: regex replace the last occurrence of the query if multiple?
+      // No, let's use the hashtagQuery active state.
+
+      // Simplest robust implementation: replace the last occurrence of substring matching hashtagQuery
+      const lastIndex = text.lastIndexOf(hashtagQuery);
+      if (lastIndex !== -1) {
+          const newTitle = text.substring(0, lastIndex) + '#' + tag + ' ' + text.substring(lastIndex + hashtagQuery.length);
+          // Recalculate hashtags
+          setFormState(prev => {
+              const hashtags = extractHashtags(newTitle + " " + prev.description);
+              return { ...prev, title: newTitle, hashtags };
+          });
+      }
+    } else {
+       const text = formState.description;
+       const lastIndex = text.lastIndexOf(hashtagQuery);
+       if (lastIndex !== -1) {
+           const newDesc = text.substring(0, lastIndex) + '#' + tag + ' ' + text.substring(lastIndex + hashtagQuery.length);
+           setFormState(prev => {
+               const hashtags = extractHashtags(prev.title + " " + newDesc);
+               return { ...prev, description: newDesc, hashtags };
+           });
+       }
+    }
+
+    setHashtagQuery("");
+    setActiveField(null);
     setHashtagSuggestions([]);
+    
+    // Attempt to refocus
+    if (activeField === 'title' && titleInputRef.current) {
+        titleInputRef.current.focus();
+    }
   };
 
   const handleCreateStory = async () => {
@@ -513,12 +554,13 @@ export const useCreateStory = ({
     setFormState,
     slots,
     setSlots,
-    hashtagInput,
-    setHashtagInput,
+    // hashtagInput,
+    // setHashtagInput,
     hashtagSuggestions,
-    showHashtagDropdown,
-    setShowHashtagDropdown,
+    // showHashtagDropdown,
+    // setShowHashtagDropdown,
     isSearchingHashtags,
+    activeField,
     isLoading,
     error,
     friendSearchInput,
@@ -541,8 +583,8 @@ export const useCreateStory = ({
     handleAddFriend,
     handleRemoveFriend,
     handleSlotCountChange,
-    handleAddHashtag,
-    handleRemoveHashtag,
+    // handleAddHashtag,
+    // handleRemoveHashtag,
     handleSelectHashtagSuggestion,
     handleCreateStory,
     handleBack,
@@ -564,7 +606,7 @@ export const useCreateStory = ({
     refs: {
         titleInputRef,
         friendsInputRef,
-        hashtagInputRef,
+        // hashtagInputRef,
         participantsRef,
         topRef
     }
