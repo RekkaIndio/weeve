@@ -213,7 +213,9 @@ export function StoryTimeline({
 
                         // For 'open' mode stories, users can contribute to their assigned slots anytime
                         // For 'invite' mode stories, must wait for turn
-                        const canContributeToThisSlot = isCurrentUser && !isStoryComplete && (isMyTurn || (isOpenModeStory && participant.status === 'accepted'));
+                        // IMPORTANT: For the current user, 'waiting' status means "this is my slot but I haven't filled it yet"
+                        // So we should allow the current user to contribute to their own 'waiting' slots
+                        const canContributeToThisSlot = isCurrentUser && !isStoryComplete && (isMyTurn || (isOpenModeStory && (participant.status === 'accepted' || participant.status === 'waiting')));
 
                         // Show clickable + button for current user's empty slot
                         if (canContributeToThisSlot) {

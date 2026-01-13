@@ -1375,6 +1375,13 @@ export const useStore = create<AppState>()(
                                 // Show ORIGINAL brand posts (not forks) to everyone even without contributions
                                 // This allows users to see and fork Canon posts as soon as they're created
                                 const isOriginalBrandPost = isBrandPost && !s.forked_from_story_id;
+
+                                // Hide stories where the creator has assigned slots to themselves but hasn't filled them yet
+                                // These should stay in "Waiting" (visible only to participants) until the creator completes their parts
+                                const creatorHasWaitingSlot = (s.story_participants ?? []).some((p: any) => p.user_id === s.creator_id && p.status === 'waiting');
+                                if (creatorHasWaitingSlot) {
+                                    return isParticipant;
+                                }
                                 
                                 return hasContributions || isParticipant || isBrandPostCreator || isOriginalBrandPost;
                             }

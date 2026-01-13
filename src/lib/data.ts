@@ -793,10 +793,38 @@ export async function createStoryContribution(options: CreateStoryContributionOp
     // Update participant status from 'waiting' to 'accepted' after contributing
     // OR insert as new participant if they don't exist (for brand posts where public users contribute)
     try {
-        // Skip this for the story creator - they're automatically a participant
         const isCreator = storyData?.creator_id === options.userId;
         
-        if (!isCreator) {
+        // For creators: update their 'waiting' slot to 'accepted' based on the contribution position
+        // This is important for the new multi-slot creator feature
+        if (isCreator) {
+            // Extract position from timestamp if encoded
+            let contributionPosition: number | null = null;
+            if (timestamp >= 1000000 && timestamp < 100000000) {
+                contributionPosition = Math.floor(timestamp / 1000000) - 1;
+            }
+            
+            // If we have a specific position, update that slot
+            if (contributionPosition !== null) {
+                await supabase
+                    .from('story_participants')
+                    .update({ status: 'accepted' })
+                    .eq('story_id', options.storyId)
+                    .eq('user_id', options.userId)
+                    .eq('position', contributionPosition)
+                    .eq('status', 'waiting');
+            } else {
+                // Fallback: update any waiting slot for the creator (shouldn't happen often)
+                await supabase
+                    .from('story_participants')
+                    .update({ status: 'accepted' })
+                    .eq('story_id', options.storyId)
+                    .eq('user_id', options.userId)
+                    .eq('status', 'waiting')
+                    .limit(1);
+            }
+        } else {
+            // For non-creators: original logic
             // First try to update existing 'waiting' participant
             const { data: updated } = await supabase
                 .from('story_participants')
