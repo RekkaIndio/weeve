@@ -79,7 +79,20 @@ export default function FeedItemFooter({
             {story.description && (
                 <div className="mb-2 max-w-[85%]">
                     <p className={`text-sm text-gray-200 ${isDescriptionExpanded ? '' : 'line-clamp-1'}`}>
-                        {story.description}
+                        {story.description.split(/(#[\w-]+)/g).map((part, index) =>
+                            part.startsWith('#') ? (
+                                <Link
+                                    key={index}
+                                    href={`/discover?search=${encodeURIComponent(part.slice(1))}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-[#EC1D99] font-medium hover:underline"
+                                >
+                                    {part}
+                                </Link>
+                            ) : (
+                                <span key={index}>{part}</span>
+                            )
+                        )}
                     </p>
                     {story.description.length > 50 && (
                         <button
@@ -212,15 +225,7 @@ export default function FeedItemFooter({
                 </div>
             </div>
 
-            {story.hashtags && story.hashtags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-3">
-                    {story.hashtags.map((tag, index) => (
-                        <span key={index} className="text-xs font-medium text-[#EC1D99] drop-shadow-md">
-                            #{tag}
-                        </span>
-                    ))}
-                </div>
-            )}
+            {/* Hashtags are now highlighted inline within the description */}
         </div>
     );
 }
