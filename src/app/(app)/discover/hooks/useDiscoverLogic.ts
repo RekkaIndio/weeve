@@ -44,9 +44,10 @@ export function useDiscoverLogic() {
     // URL Params
     const tabParam = searchParams?.get('tab');
     const storyIdParam = searchParams?.get('storyId');
+    const searchParam = searchParams?.get('search');
 
     // State
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(searchParam || '');
     const [viewMode, setViewMode] = useState<ViewMode>(tabParam === 'groups' ? 'groups' : 'all');
     const [feedType, setFeedType] = useState<FeedType>('forYou');
     

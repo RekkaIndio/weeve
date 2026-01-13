@@ -51,8 +51,7 @@ export default function AllStoriesView({
                 <CanonRemixesCarousel stories={stories} openStoryInOverlay={openStoryInOverlay} />
             )}
 
-            {/* People Results when searching */}
-            <PeopleSearchResults searchQuery={searchQuery} peopleResults={peopleResults} />
+            {/* People Results removed - use People tab instead */}
 
             {/* All Stories Header */}
             {!searchQuery.trim() && (
