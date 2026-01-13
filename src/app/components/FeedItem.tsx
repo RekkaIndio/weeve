@@ -35,12 +35,20 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
 
     // Store Actions & State
     const currentUser = useStore((state) => state.currentUser);
+    const stories = useStore((state) => state.stories);
     const toggleStoryLike = useStore((state) => state.toggleStoryLike);
     const addStoryComment = useStore((state) => state.addStoryComment);
     const toggleCommentLike = useStore((state) => state.toggleCommentLike);
     const savedStoryIds = useStore((state) => state.savedStoryIds);
     const toggleStorySave = useStore((state) => state.toggleStorySave);
     const forkBrandPost = useStore((state) => state.forkBrandPost);
+
+    // Look up original story title for forked stories (weeves)
+    const originalStoryTitle = useMemo(() => {
+        if (!story.forkedFromStoryId) return null;
+        const originalStory = stories.find(s => s.id === story.forkedFromStoryId);
+        return originalStory?.title ?? null;
+    }, [story.forkedFromStoryId, stories]);
 
     // Local State
     const [isVisible, setIsVisible] = useState(false);
@@ -379,7 +387,7 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
             {!hideOverlay && (
                 <FeedItemOverlay
                     story={story}
-                    originalStoryTitle={null} // Pass properly if available in story object
+                    originalStoryTitle={originalStoryTitle}
                 />
             )}
 
