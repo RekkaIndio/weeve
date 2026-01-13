@@ -119,38 +119,35 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
     const mediaUrl = currentContribution?.mediaUrl;
 
     // Slot Content Map - passed to children
+    // Derives slot positions from timestamp encoding to match useStoryData.ts logic
     const slotContentMap = useMemo(() => {
         const map = new Map<number, Contribution>();
-        // Re-implement the mapping logic correctly
-        // Assuming contributions have slotIndex, or if not, we try to map them
-        // Original logic was complex (lines 1060-1120).
-        // For now, simple mapping if slotIndex exists
         const slots = story.maxWeeves || 3;
         const contributions = story.contributions || [];
-        const usedIds = new Set<string>();
 
-        // 1. Explicit slots
-        contributions.forEach(c => {
-            if (typeof c.slotIndex === 'number' && c.slotIndex >= 0) {
-                map.set(c.slotIndex, c);
-                usedIds.add(c.id);
+        // Sort contributions by timestamp to get correct order
+        const sortedContributions = [...contributions].sort((a, b) => a.timestamp - b.timestamp);
+
+        sortedContributions.forEach((c, sortedIndex) => {
+            // Derive position from timestamp encoding (matching useStoryData.ts logic)
+            // Timestamp convention: (position + 1) * 1000000
+            let position: number;
+            if (c.timestamp >= 1000000 && c.timestamp < 100000000) {
+                position = Math.floor(c.timestamp / 1000000) - 1;
+            } else if (typeof c.slotIndex === 'number' && c.slotIndex >= 0) {
+                // Fallback to explicit slotIndex if available
+                position = c.slotIndex;
+            } else {
+                // Last resort: use sorted index
+                position = sortedIndex;
+            }
+
+            // Only add if within slot range and not already occupied
+            if (position >= 0 && position < slots && !map.has(position)) {
+                map.set(position, c);
             }
         });
 
-        // 2. Implicit filling for remaining
-        let cIdx = 0;
-        for (let i = 0; i < slots; i++) {
-            if (!map.has(i)) {
-                // find next unused contribution
-                while (cIdx < contributions.length && usedIds.has(contributions[cIdx].id)) {
-                    cIdx++;
-                }
-                if (cIdx < contributions.length) {
-                    map.set(i, contributions[cIdx]);
-                    usedIds.add(contributions[cIdx].id);
-                }
-            }
-        }
         return map;
     }, [story.contributions, story.maxWeeves]);
 
