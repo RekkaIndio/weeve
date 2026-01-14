@@ -14,7 +14,7 @@ export default function Home() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
-  const { stories, fetchStories, fetchMoreStories, hasMoreStories, currentUser, setGroups, fetchFriends, isStoriesLoading, groups, reportedStoryIds, friends } = useStore();
+  const { stories, fetchStories, fetchMoreStories, hasMoreStories, currentUser, setGroups, fetchFriends, isStoriesLoading, groups, reportedStoryIds } = useStore();
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -158,6 +158,7 @@ export default function Home() {
     const groupMembershipIds = new Set(groups.map(g => g.id));
 
     // Get friend list from store
+    const friends = useStore.getState().friends;
 
     return rankFeedStories(stories, {
       feedType: activeTab,
@@ -173,7 +174,7 @@ export default function Home() {
         prioritizeOriginals: true,
       },
     });
-  }, [stories, activeTab, currentUser?.id, groups, reportedStoryIds, friends]);
+  }, [stories, activeTab, currentUser?.id, groups, reportedStoryIds]);
 
   // ===== AUTOMATIC INFINITE SCROLL =====
   // Auto-load more stories when approaching the end of the feed
