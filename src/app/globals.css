@@ -11,6 +11,19 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Header spacing system */
+  --header-safe-area: env(safe-area-inset-top, 0px);
+  --header-padding-base: 1rem;
+  --header-padding-large: 1.5rem;
+  --header-padding-small: 0.5rem;
+  --header-overlay-offset: 1.75rem;
+
+  /* Computed header top paddings */
+  --header-pt-base: calc(var(--header-safe-area) + var(--header-padding-base));
+  --header-pt-large: calc(var(--header-safe-area) + var(--header-padding-large));
+  --header-pt-small: calc(var(--header-safe-area) + var(--header-padding-small));
+  --header-pt-overlay: calc(var(--header-safe-area) + var(--header-overlay-offset));
 }
 
 @media (prefers-color-scheme: dark) {

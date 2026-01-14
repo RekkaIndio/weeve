@@ -13,7 +13,7 @@ export default function FeedItemOverlay({ story, originalStoryTitle }: FeedItemO
     if (!story.forkedFromStoryId) return null;
 
     return (
-        <div className="absolute top-0 left-0 right-0 z-20 flex justify-center pt-[calc(env(safe-area-inset-top)+1rem)] pointer-events-none">
+        <div className="absolute top-0 left-0 right-0 z-20 flex justify-center pointer-events-none" style={{ paddingTop: 'var(--header-pt-overlay)' }}>
             <button
                 onClick={(e) => {
                     e.stopPropagation();

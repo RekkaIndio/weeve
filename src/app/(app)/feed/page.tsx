@@ -534,7 +534,7 @@ export default function Home() {
   return (
     <>
       {/* Floating Tab Switcher */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex justify-center items-center pb-4 pointer-events-none" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}>
+      <div className="absolute top-0 left-0 right-0 z-50 flex justify-center items-center pb-4 pointer-events-none" style={{ paddingTop: 'var(--header-pt-small)' }}>
         <div className="flex gap-4 pointer-events-auto drop-shadow-md">
           <button
             onClick={() => setActiveTab('following')}
