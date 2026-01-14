@@ -155,8 +155,23 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
         const initialize = async () => {
             try {
-                // 1. Get initial session
-                const { data: { session }, error } = await supabase.auth.getSession();
+                // 1. Get initial session with iOS retry logic
+                // On iOS, Capacitor Preferences may need time to load after cold start
+                let session = null;
+                const maxAttempts = Capacitor.isNativePlatform() ? 3 : 1;
+
+                for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                    const result = await supabase.auth.getSession();
+                    session = result.data?.session;
+
+                    if (session) break;
+
+                    // On iOS, wait and retry if no session found
+                    if (attempt < maxAttempts - 1) {
+                        console.log(`[AuthProvider] iOS: No session on attempt ${attempt + 1}, retrying...`);
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                    }
+                }
 
                 if (session?.user) {
                     // OPTIMISTIC LOGIN: Set state immediately
@@ -403,6 +418,83 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
             }
         };
     }, [setCurrentUser, syncProfile, router, logoutUser]);
+
+
+    // ---------------------------------------------------------------------------
+    // iOS App Resume Session Validation
+    // ---------------------------------------------------------------------------
+    useEffect(() => {
+        if (!Capacitor.isNativePlatform()) return;
+
+        let cleanup: (() => void) | undefined;
+
+        const setupAppStateListener = async () => {
+            try {
+                const listener = await App.addListener('appStateChange', async (state) => {
+                    if (state.isActive) {
+                        console.log('[AuthProvider] iOS: App resumed - validating session...');
+
+                        // Small delay for Preferences to sync after resume
+                        await new Promise(resolve => setTimeout(resolve, 200));
+
+                        try {
+                            const { data: { session } } = await supabase.auth.getSession();
+
+                            if (session?.user) {
+                                // Session valid - update state
+                                setUser(session.user);
+                                setLatestSession(session);
+
+                                // Proactively refresh if token is nearing expiry (< 5 min)
+                                if (session.expires_at) {
+                                    const expiresInMs = (session.expires_at * 1000) - Date.now();
+                                    if (expiresInMs < 5 * 60 * 1000) {
+                                        console.log('[AuthProvider] iOS: Token expiring soon, refreshing...');
+                                        const { data: refreshData } = await supabase.auth.refreshSession();
+                                        if (refreshData?.session) {
+                                            setUser(refreshData.session.user);
+                                            setLatestSession(refreshData.session);
+                                        }
+                                    }
+                                }
+                            } else {
+                                // No session found - try refresh before giving up
+                                const currentUser = useStore.getState().currentUser;
+                                if (currentUser) {
+                                    console.log('[AuthProvider] iOS: No session on resume but had user, attempting refresh...');
+                                    const { data: refreshData } = await supabase.auth.refreshSession();
+                                    if (refreshData?.session) {
+                                        setUser(refreshData.session.user);
+                                        setLatestSession(refreshData.session);
+                                        console.log('[AuthProvider] iOS: Session recovered via refresh');
+                                    } else {
+                                        // Session truly gone - log out cleanly
+                                        console.warn('[AuthProvider] iOS: Session lost on resume - logging out');
+                                        setUser(null);
+                                        setLatestSession(null);
+                                        logoutUser();
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            console.warn('[AuthProvider] iOS: App resume session check failed:', err);
+                        }
+                    }
+                });
+
+                cleanup = () => listener.remove();
+                console.log('[AuthProvider] iOS: App state listener attached for session validation');
+            } catch (error) {
+                console.warn('[AuthProvider] iOS: Failed to set up app state listener:', error);
+            }
+        };
+
+        setupAppStateListener();
+
+        return () => {
+            if (cleanup) cleanup();
+        };
+    }, [logoutUser]);
 
 
     // ---------------------------------------------------------------------------
