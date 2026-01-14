@@ -355,10 +355,10 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
         if (Math.abs(diff) > 50) {
             // Swipe!
             // User requested invert:
-            if (diff > 0) { // Right -> Next
-                handleVideoEnded();
-            } else { // Left -> Prev
+            if (diff > 0) { // Right -> Prev
                 setCurrentIndex(prev => (prev - 1 + displayOrderedContributions.length) % displayOrderedContributions.length);
+            } else { // Left -> Next
+                handleVideoEnded();
             }
         }
     };
