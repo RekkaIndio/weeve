@@ -55,7 +55,7 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isCommentsOpen, setIsCommentsOpen] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [isMuted, setIsMuted] = useState(true);
+    const [isMuted] = useState(false); // Default unmuted as requested
     const [hasInteracted, setHasInteracted] = useState(false);
 
     // Video Playback State
@@ -263,6 +263,7 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
 
         const handleReady = () => {
             setIsVideoReady(true);
+            setIsVideoVisible(true); // Ensure video becomes visible when ready
             if (effectiveIsVisible && !isCommentsOpen && !isForking) {
                 videoRef.current?.play().catch(() => { });
             }
@@ -278,12 +279,12 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
                 videoRef.current.src = mediaUrl;
                 videoRef.current.load();
 
-                // Check if ready in cache
-                if (videoReadyRef.current.get(mediaUrl)) {
-                    setIsVideoReady(true);
-                    setIsVideoVisible(true);
+                // Check if ready in cache OR if the element already has enough data (HAVE_CURRENT_DATA = 2)
+                if (videoReadyRef.current.get(mediaUrl) || videoRef.current.readyState >= 2) {
+                    handleReady(); // Use the common handler
                 } else {
-                    // Wait for load
+                    // Wait for load - use onloadeddata for faster first-frame responsiveness
+                    videoRef.current.onloadeddata = handleReady;
                     videoRef.current.oncanplay = handleReady;
                 }
             }
@@ -317,9 +318,17 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
 
     const handleContainerClick = useCallback((e: React.MouseEvent) => {
         if (mediaType === 'video' && videoRef.current) {
-            if (videoRef.current.muted) {
-                videoRef.current.muted = false; // Unmute
+            // Since we default to unmuted, this can serve as a "play" trigger if autoplay was blocked
+            if (videoRef.current.paused) {
+                videoRef.current.play().catch(() => { });
                 setHasInteracted(true);
+            }
+            // User can optionally pause? 
+            // For now, let's just assume click is to help it play if stuck, 
+            // or maybe we leave it empty if we don't want pause interaction. 
+            // Let's implement Play/Pause toggle for better UX.
+            else {
+                // videoRef.current.pause(); // Standard behavior
             }
         }
     }, [mediaType]);
@@ -409,6 +418,7 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
                 waitingForFirstContribution={waitingForFirstContribution}
                 waitingParticipant={waitingParticipant}
                 currentUser={currentUser}
+                isMuted={isMuted}
             />
 
             {/* Overlay Layer */}

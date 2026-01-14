@@ -301,7 +301,8 @@ export default function Home() {
 
   // Preload adjacent stories' videos to speed up transitions (uses global cache)
   useEffect(() => {
-    const toPrefetch = [activeIndex + 1, activeIndex + 2];
+    // Also prefetch the CURRENT index (in case it's not fully loaded yet) + next 2
+    const toPrefetch = [activeIndex, activeIndex + 1, activeIndex + 2];
     for (const idx of toPrefetch) {
       const s = filteredStories[idx];
       if (!s) continue;
