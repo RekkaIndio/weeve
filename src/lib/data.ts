@@ -824,9 +824,9 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                     .limit(1);
             }
         } else {
-            // For non-creators: original logic
+            // For non-creators: ensure they become a participant after contributing
             // First try to update existing 'waiting' participant
-            const { data: updated } = await supabase
+            const { data: updated, error: updateError } = await supabase
                 .from('story_participants')
                 .update({ status: 'accepted' })
                 .eq('story_id', options.storyId)
@@ -834,24 +834,37 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                 .eq('status', 'waiting')
                 .select();
 
+            if (updateError) {
+                console.warn('[Upload] Failed to update waiting participant status:', updateError);
+            }
+
             // If no rows were updated, check if participant exists at all
             if (!updated || updated.length === 0) {
-                const { data: existing } = await supabase
+                const { data: existing, error: existError } = await supabase
                     .from('story_participants')
                     .select('user_id')
                     .eq('story_id', options.storyId)
                     .eq('user_id', options.userId)
-                    .single();
+                    .maybeSingle();
 
-                // If participant doesn't exist, insert them (common for brand posts)
+                if (existError) {
+                    console.warn('[Upload] Failed to check existing participant:', existError);
+                }
+
+                // If participant doesn't exist, insert them
+                // This is critical for profile display - contributors MUST be participants
                 if (!existing) {
                     // Get the next position
-                    const { count: participantCount } = await supabase
+                    const { count: participantCount, error: countError } = await supabase
                         .from('story_participants')
                         .select('*', { count: 'exact', head: true })
                         .eq('story_id', options.storyId);
 
-                    await supabase
+                    if (countError) {
+                        console.warn('[Upload] Failed to count participants:', countError);
+                    }
+
+                    const { error: insertError } = await supabase
                         .from('story_participants')
                         .insert({
                             story_id: options.storyId,
@@ -859,6 +872,26 @@ export async function createStoryContribution(options: CreateStoryContributionOp
                             status: 'accepted',
                             position: participantCount || 0,
                         });
+
+                    if (insertError) {
+                        console.error('[Upload] CRITICAL: Failed to insert participant for contributor:', insertError, {
+                            storyId: options.storyId,
+                            userId: options.userId
+                        });
+                        // Try one more time after a brief delay
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        const { error: retryError } = await supabase
+                            .from('story_participants')
+                            .insert({
+                                story_id: options.storyId,
+                                user_id: options.userId,
+                                status: 'accepted',
+                                position: (participantCount || 0) + 1,
+                            });
+                        if (retryError) {
+                            console.error('[Upload] Retry also failed:', retryError);
+                        }
+                    }
                 }
             }
         }
