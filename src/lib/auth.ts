@@ -154,6 +154,55 @@ export async function signInWithGoogle(redirectPath = '/auth/callback'): Promise
 }
 
 /**
+ * Initiate Apple Sign In
+ */
+export async function signInWithApple(redirectPath = '/auth/callback'): Promise<{ error: Error | null }> {
+    try {
+        const isCapacitor = Capacitor.isNativePlatform();
+
+        if (isCapacitor) {
+            const { SignInWithApple } = await import('@capacitor-community/apple-sign-in');
+            
+            const result = await SignInWithApple.authorize({
+                clientId: 'com.tryweeve.app',
+                redirectURI: 'https://fvyhyexdndynoonkzwbd.supabase.co/auth/v1/callback',
+                scopes: 'email name',
+            });
+
+            if (result.response && result.response.identityToken) {
+                const { data, error } = await supabase.auth.signInWithIdToken({
+                    provider: 'apple',
+                    token: result.response.identityToken,
+                });
+                
+                if (error) throw error;
+                return { error: null };
+            } else {
+                throw new Error('Apple Sign In failed');
+            }
+        } else {
+            // Web Flow
+            const redirectTo = (() => {
+                if (!redirectPath) return undefined;
+                if (redirectPath.startsWith('http')) return redirectPath;
+                return buildPublicUrl(redirectPath);
+            })();
+
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'apple',
+                options: { redirectTo },
+            });
+
+            if (error) throw error;
+            return { error: null };
+        }
+    } catch (error) {
+        console.error('[Auth] Apple signin error:', (error as Error).message);
+        return { error: error as Error };
+    }
+}
+
+/**
  * Sign out the current user
  */
 export async function signOut(): Promise<{ error: Error | null }> {

@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.933.0",
+    "@capacitor-community/apple-sign-in": "^7.1.0",
     "@capacitor-community/media": "^8.0.1",
     "@capacitor-community/video-recorder": "^7.5.0",
     "@capacitor-firebase/crashlytics": "^8.0.1",
@@ -59,6 +60,7 @@
     "form-data": "^4.0.5",
     "framer-motion": "^12.23.24",
     "ioredis": "^5.8.2",
+    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.554.0",
     "mailgun.js": "^12.4.1",
     "micro": "^10.0.1",

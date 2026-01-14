@@ -19,6 +19,8 @@ PODS:
     - Capacitor
   - CapacitorCamera (7.0.2):
     - Capacitor
+  - CapacitorCommunityAppleSignIn (7.1.0):
+    - Capacitor
   - CapacitorCommunityMedia (8.0.1):
     - Capacitor
     - SDWebImage
@@ -143,6 +145,7 @@ DEPENDENCIES:
   - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
   - "CapacitorBrowser (from `../../node_modules/@capacitor/browser`)"
   - "CapacitorCamera (from `../../node_modules/@capacitor/camera`)"
+  - "CapacitorCommunityAppleSignIn (from `../../node_modules/@capacitor-community/apple-sign-in`)"
   - "CapacitorCommunityMedia (from `../../node_modules/@capacitor-community/media`)"
   - "CapacitorCommunityVideoRecorder (from `../../node_modules/@capacitor-community/video-recorder`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
@@ -192,6 +195,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/browser"
   CapacitorCamera:
     :path: "../../node_modules/@capacitor/camera"
+  CapacitorCommunityAppleSignIn:
+    :path: "../../node_modules/@capacitor-community/apple-sign-in"
   CapacitorCommunityMedia:
     :path: "../../node_modules/@capacitor-community/media"
   CapacitorCommunityVideoRecorder:
@@ -225,6 +230,7 @@ SPEC CHECKSUMS:
   CapacitorApp: 846d4b4a1dbb19dd1e9029c08ba6f028aa7be862
   CapacitorBrowser: 45c681e7abc3b4384e54eb52bafeef1347d98fa8
   CapacitorCamera: 6e18d54c8ab30d7dc7b8cd93d96f9b4f57e9202a
+  CapacitorCommunityAppleSignIn: 59bc8ade5677e6ea60a14bdca8d3f4bdc91069e2
   CapacitorCommunityMedia: a3ee57c1452d352d8013e5bff2668f7154b379a4
   CapacitorCommunityVideoRecorder: c656559281115b28a42720917ff59f88b9e45c9c
   CapacitorCordova: bf648a636f3c153f652d312ae145fb508b6ffced
@@ -256,6 +262,6 @@ SPEC CHECKSUMS:
   PromisesSwift: 9d77319bbe72ebf6d872900551f7eeba9bce2851
   SDWebImage: e9c98383c7572d713c1a0d7dd2783b10599b9838
 
-PODFILE CHECKSUM: b6a5f12678c2f56d9e85a84ef1501e0f7f82b3cf
+PODFILE CHECKSUM: 53e213f67bc320a40834e1622b68bd04ea9cfc35
 
 COCOAPODS: 1.16.2
