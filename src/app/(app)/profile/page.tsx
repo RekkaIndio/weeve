@@ -493,22 +493,30 @@ export default function ProfilePage() {
         };
     }, []);
 
-    // Main tab: Show stories where user is a participant BUT exclude stories where it's their turn (those go in timer tab)
+    // Main tab: Show stories where user is a participant or has contributed
+    // This includes completed stories, and active stories where it's NOT their turn
     const myStories = currentUser ? stories.filter(s => {
         const userParticipant = s.participants.find(p => p.id === currentUser.id);
         const isCreator = s.creatorId === currentUser.id;
+        const hasContributed = s.contributions?.some(c => c.userId === currentUser.id);
 
-        // User must be a participant OR the creator
-        if (!userParticipant && !isCreator) return false;
+        // User must be a participant OR the creator OR have contributed
+        if (!userParticipant && !isCreator && !hasContributed) return false;
+
+        // Exclude stories where it's the user's turn (those belong in the timer tab)
+        if (s.status === 'active' && s.currentTurnUserId === currentUser.id) return false;
+
+        // If user has contributed, they should see it in their profile main tab
+        // This ensures multi-slot stories (where a future slot is 'waiting') are not hidden
+        if (hasContributed) return true;
+
+        // Logic for users who haven't contributed yet (e.g. invitees / creators waiting for start):
 
         // If story is not completed, only show when participant is accepted (or status undefined)
         if (userParticipant && s.status !== 'completed' && userParticipant.status !== 'accepted' && userParticipant.status !== undefined) return false;
 
         // Exclude stories where the user has a pending waiting slot — these belong in the Waiting tab
         if (userParticipant?.status === 'waiting') return false;
-
-        // Exclude stories where it's the user's turn (those belong in the timer tab)
-        if (s.status === 'active' && s.currentTurnUserId === currentUser.id) return false;
 
         return true;
     }) : [];
