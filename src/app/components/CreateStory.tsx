@@ -193,7 +193,18 @@ const CreateStory = ({
               onToggleCanonSlot={handleToggleCanonSlot}
               onVisibilityChange={handleVisibilityChange}
               onSlotCountChange={handleSlotCountChange}
-              onReorderSlots={(newSlots) => setSlots(newSlots)}
+              onReorderSlots={(newSlots) => {
+                const isLocked = formState.visibility === 'public' || !!groupId;
+                if (isLocked && slots.length > 0) {
+                  const firstSlot = slots[0];
+                  // Filter out the locked slot from the new order
+                  const reorderedOthers = newSlots.filter((s) => s.id !== firstSlot.id);
+                  // Force the first slot to remain at the top
+                  setSlots([firstSlot, ...reorderedOthers]);
+                } else {
+                  setSlots(newSlots);
+                }
+              }}
               onRemoveFriend={handleRemoveFriend}
               onFillSlot={handleFillSlot}
               isReordering={isReordering}
