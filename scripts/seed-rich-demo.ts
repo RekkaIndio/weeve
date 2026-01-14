@@ -324,19 +324,20 @@ async function seedRichDemo() {
             }
 
             // Assign visibility/mode dynamically to ensure mix
+            // All stories are PUBLIC so they appear on the feed and discovery page
             // Stories 0, 3, 6, 9...: Public Open
             // Stories 1, 4, 7, 10...: Public Invite
-            // Stories 2, 5, 8, 11...: Private Invite (with 'me' added)
+            // Stories 2, 5, 8, 11...: Public Invite (was private, changed for visibility)
             
             const storyIndex = STORIES.indexOf(storyData)
-            let visibility = 'public'
+            let visibility = 'public' // Always public for demo content
             let mode = 'open'
             
             if (storyIndex % 3 === 2) {
-                visibility = 'private'
+                visibility = 'public' // Changed from 'private' to ensure visibility
                 mode = 'invite'
             } else if (storyIndex % 3 === 1) {
-                visibility = 'public' // or private? Let's keep public invite
+                visibility = 'public'
                 mode = 'invite'
             } else {
                 visibility = 'public'

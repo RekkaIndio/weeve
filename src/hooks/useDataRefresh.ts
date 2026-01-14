@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '@/lib/store';
+import { usePathname } from 'next/navigation';
 import { Capacitor } from '@capacitor/core';
 import { fetchGroups } from '@/lib/data';
 
@@ -19,7 +20,8 @@ const BACKGROUND_RETURN_DEBOUNCE_MS = 500; // Debounce rapid focus/visibility ev
  * 4. Works with Supabase real-time subscriptions as a fallback/supplement
  */
 export function useDataRefresh() {
-    const { currentUser, fetchStories, setGroups, fetchFriends, isStoriesLoading } = useStore();
+    const pathname = usePathname();
+    const { currentUser, fetchStories, fetchDiscoveryStories, setGroups, fetchFriends, isStoriesLoading } = useStore();
     const lastRefreshRef = useRef<number>(0);
     const isRefreshingRef = useRef(false);
     const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -51,8 +53,9 @@ export function useDataRefresh() {
             console.log(`[DataRefresh] Refreshing data from ${source}...`);
 
             // Fetch all data in parallel for speed
+            const isDiscovery = pathname === '/discover';
             const results = await Promise.allSettled([
-                fetchStories(),
+                isDiscovery ? fetchDiscoveryStories() : fetchStories(),
                 fetchGroups(currentUser?.id).then(groups => setGroups(groups)),
                 fetchFriends(),
             ]);
@@ -71,7 +74,7 @@ export function useDataRefresh() {
         } finally {
             isRefreshingRef.current = false;
         }
-    }, [currentUser, fetchStories, setGroups, fetchFriends, isStoriesLoading]);
+    }, [currentUser, fetchStories, fetchDiscoveryStories, setGroups, fetchFriends, isStoriesLoading, pathname]);
 
     // Set up Capacitor app state listener for native platforms
     useEffect(() => {

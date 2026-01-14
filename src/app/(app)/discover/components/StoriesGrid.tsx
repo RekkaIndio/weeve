@@ -3,9 +3,51 @@ import MediaWithFallback from "@/app/components/MediaWithFallback";
 import { Story } from "@/lib/store";
 import { useState, useEffect, useRef } from "react";
 
+import useOnScreen from "@/hooks/useOnScreen";
+
 interface StoriesGridProps {
     stories: Story[];
     openStoryInOverlay: (id: string) => void;
+}
+
+function LazyStoryGridItem({
+    story,
+    index,
+    openStoryInOverlay
+}: {
+    story: Story;
+    index: number;
+    openStoryInOverlay: (id: string) => void;
+}) {
+    const [isLoaded, setIsLoaded] = useState(false);
+    // Use a larger rootMargin to preload items before they scroll into view
+    const [containerRef, isVisible] = useOnScreen<HTMLDivElement>({
+        threshold: 0.01,
+        rootMargin: '400px'
+    });
+
+    useEffect(() => {
+        if (isVisible && !isLoaded) {
+            setIsLoaded(true);
+        }
+    }, [isVisible, isLoaded]);
+
+    return (
+        <div
+            ref={containerRef}
+            className={`relative rounded-xl overflow-hidden ${index % 3 === 0 ? 'row-span-2 aspect-[9/16]' : 'aspect-square'}`}
+        >
+            {isLoaded ? (
+                <StoryGridItem
+                    story={story}
+                    index={index}
+                    openStoryInOverlay={openStoryInOverlay}
+                />
+            ) : (
+                <div className="w-full h-full bg-gray-900/50 animate-pulse rounded-xl" />
+            )}
+        </div>
+    );
 }
 
 function StoryGridItem({
@@ -54,7 +96,7 @@ function StoryGridItem({
             onClick={() => openStoryInOverlay(story.id)}
             onMouseEnter={() => setIsHovering(true)}
             onMouseLeave={() => setIsHovering(false)}
-            className={`relative rounded-xl overflow-hidden group cursor-pointer ${index % 3 === 0 ? 'row-span-2 aspect-[9/16]' : 'aspect-square'}`}
+            className="w-full h-full relative group cursor-pointer"
         >
             <MediaWithFallback
                 key={`${story.id}-${currentMediaIndex}`} // Re-mount on index change to ensure clean state
@@ -120,7 +162,7 @@ export default function StoriesGrid({ stories, openStoryInOverlay }: StoriesGrid
     return (
         <>
             {stories.map((story, idx) => (
-                <StoryGridItem
+                <LazyStoryGridItem
                     key={story.id}
                     story={story}
                     index={idx}
