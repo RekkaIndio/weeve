@@ -569,8 +569,8 @@ export default function UserProfilePage() {
         try {
             const conversationId = await createConversation(currentUser.id, user.id);
             router.push(`/inbox/${conversationId}`);
-        } catch (err) {
-            console.error('[UserProfile] Error starting conversation:', err);
+        } catch (err: any) {
+            console.error('[UserProfile] Error starting conversation:', err?.message || err);
         }
     };
 

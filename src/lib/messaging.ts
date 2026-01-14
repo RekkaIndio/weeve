@@ -357,23 +357,23 @@ export async function createConversation(creatorId: string, otherUserId: string)
         .single();
 
     if (existingParticipation) {
-        console.log('[createConversation] Found existing conversation:', existingParticipation.conversation_id);
         return existingParticipation.conversation_id;
     }
     
-    console.log('[createConversation] Creating new conversation between', creatorId, 'and', otherUserId);
-    
     // No existing conversation found, create new one
+    // Note: creator_id defaults to auth.uid() in the database
     const { data: conversation, error: convError } = await supabase
         .from('conversations')
         .insert({
-            creator_id: creatorId,
             last_message_preview: 'Started a new conversation'
         })
         .select()
         .single();
 
-    if (convError) throw convError;
+    if (convError) {
+        console.error('[createConversation] Error creating conversation:', convError.message, convError.details, convError.hint);
+        throw new Error(`Failed to create conversation: ${convError.message}`);
+    }
 
     // 2. Add participants with other_user_id for easy lookup
     const { error: partError } = await supabase
@@ -383,7 +383,10 @@ export async function createConversation(creatorId: string, otherUserId: string)
             { conversation_id: conversation.id, user_id: otherUserId, other_user_id: creatorId }
         ]);
 
-    if (partError) throw partError;
+    if (partError) {
+        console.error('[createConversation] Error adding participants:', partError.message, partError.details, partError.hint);
+        throw new Error(`Failed to add participants: ${partError.message}`);
+    }
 
     return conversation.id;
 }
