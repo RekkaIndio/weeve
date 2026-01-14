@@ -268,6 +268,26 @@ export const useCreateStory = ({
   const handleVisibilityChange = (visibility: "public" | "private") => {
     setFormState((prev) => ({ ...prev, visibility }));
     setError("");
+
+    // When switching to public, ensure the creator is in the first slot (locked position)
+    if (visibility === "public" && currentUser) {
+      setSlots((prevSlots) => {
+        const creatorIndex = prevSlots.findIndex(s => s.friend?.id === currentUser.id);
+        
+        // Creator is already in first slot or not in any slot - no change needed
+        if (creatorIndex <= 0) {
+          return prevSlots;
+        }
+        
+        // Swap creator to first slot
+        const newSlots = [...prevSlots];
+        const temp = newSlots[0];
+        newSlots[0] = newSlots[creatorIndex];
+        newSlots[creatorIndex] = temp;
+        
+        return newSlots;
+      });
+    }
   };
 
   const handlePostTypeChange = (postType: 'normal' | 'canon' | 'seed') => {
