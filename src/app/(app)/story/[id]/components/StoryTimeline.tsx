@@ -215,7 +215,39 @@ export function StoryTimeline({
                         // For 'invite' mode stories, must wait for turn
                         // IMPORTANT: For the current user, 'waiting' status means "this is my slot but I haven't filled it yet"
                         // So we should allow the current user to contribute to their own 'waiting' slots
-                        const canContributeToThisSlot = isCurrentUser && !isStoryComplete && (isMyTurn || (isOpenModeStory && (participant.status === 'accepted' || participant.status === 'waiting')));
+
+                        // Check if this is the NEXT slot that can be filled (sequential requirement)
+                        // Only show "Your turn" for the immediate next actionable slot
+                        const isNextSequentialSlotForUser = entry.position === contributions.length;
+
+                        // For open mode stories, check if previous assigned slots are filled
+                        let isPreviousSlotsFilledForThisEntry = true;
+                        if (isOpenModeStory && isCurrentUser) {
+                            // For open mode: only wait if there are unfilled ASSIGNED slots before this one
+                            // from OTHER participants (not yourself)
+                            const assignedSlotsBeforeThis = story.participants.filter(p => {
+                                const theirPosition = p.position ?? -1;
+                                // Exclude your own previous slots - you can fill them in any order
+                                return p.id !== currentUser?.id && theirPosition !== -1 && theirPosition < entry.position;
+                            }).length;
+
+                            const contributionsBeforeThis = contributions.filter(c => {
+                                if (c.timestamp >= 1000000 && c.timestamp < 100000000) {
+                                    const contribPosition = Math.floor(c.timestamp / 1000000) - 1;
+                                    return c.userId !== currentUser?.id && contribPosition < entry.position;
+                                }
+                                return false;
+                            }).length;
+
+                            isPreviousSlotsFilledForThisEntry = contributionsBeforeThis >= assignedSlotsBeforeThis;
+                        } else if (!isOpenModeStory) {
+                            // For invite mode: must be the next sequential slot
+                            isPreviousSlotsFilledForThisEntry = isNextSequentialSlotForUser;
+                        }
+
+                        const canContributeToThisSlot = isCurrentUser && !isStoryComplete &&
+                            isPreviousSlotsFilledForThisEntry &&
+                            (isMyTurn || (isOpenModeStory && (participant.status === 'accepted' || participant.status === 'waiting')));
 
                         // Show clickable + button for current user's empty slot
                         if (canContributeToThisSlot) {
@@ -297,13 +329,13 @@ export function StoryTimeline({
                                     {participant.name.split(' ').slice(0, 2).join(' ')}
                                 </span>
                                 <span className="text-[9px] uppercase tracking-wide text-gray-600">Part {entry.position + 1}</span>
-                                {isWaitingForPreviousParts ? (
+                                {isWaitingForPreviousParts || (isCurrentUser && !isStoryComplete) ? (
                                     <span className="text-[9px] text-yellow-500 font-medium">
                                         Waiting for Part {contributionsCount + 1}
                                     </span>
-                                ) : isCurrentTurn && (
+                                ) : isCurrentTurn && !isCurrentUser && (
                                     <span className="text-[10px] text-[#EC1D99] font-semibold">
-                                        {participant.id === currentUser?.id ? 'Your turn' : (isAlreadyInvolved ? 'Their turn' : null)}
+                                        {isAlreadyInvolved ? 'Their turn' : null}
                                     </span>
                                 )}
                             </button>

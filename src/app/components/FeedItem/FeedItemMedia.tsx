@@ -90,11 +90,26 @@ export default function FeedItemMedia({
                             transition: 'opacity 160ms linear',
                             zIndex: 9
                         }}
-                    />
+                    >
+                        {story.coverImage && (
+                            <img
+                                src={story.coverImage}
+                                alt={story.title}
+                                className="w-full h-full object-cover opacity-50 blur-xl"
+                            />
+                        )}
+                        {story.coverImage && (
+                            <img
+                                src={story.coverImage}
+                                alt={story.title}
+                                className="absolute inset-0 w-full h-full object-contain"
+                            />
+                        )}
+                    </div>
                     <video
                         ref={videoRef}
                         src={currentVideoSrc}
-                        poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23000000'/%3E%3C/svg%3E"
+                        poster={story.coverImage || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23000000'/%3E%3C/svg%3E"}
                         className="weeve-inline-video absolute inset-0 w-full h-full object-cover"
                         autoPlay
                         playsInline
@@ -160,7 +175,7 @@ export default function FeedItemMedia({
                     />
                     <video
                         ref={bufferVideoRef}
-                        poster="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23000000'/%3E%3C/svg%3E"
+                        poster={story.coverImage || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23000000'/%3E%3C/svg%3E"}
                         className="weeve-inline-video absolute inset-0 w-full h-full object-cover pointer-events-none"
                         playsInline
                         preload="auto"
