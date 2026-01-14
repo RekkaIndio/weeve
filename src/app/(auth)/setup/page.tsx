@@ -103,7 +103,7 @@ export default function SetupPage() {
 
             return urlData.publicUrl;
         } catch (err) {
-            console.error('[Setup] Avatar upload error:', err);
+            console.error('[Setup] Avatar upload error FULL DETAIL:', err);
             throw err;
         } finally {
             setUploadingAvatar(false);
