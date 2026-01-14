@@ -97,16 +97,29 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
         let effective: Contribution[] = [];
 
         // Fill slots logic
+        // Fill slots logic
         contributions.forEach(c => {
-            const slotIndex = typeof c.slotIndex === 'number' ? c.slotIndex : -1;
-            if (slotIndex >= 0 && slotIndex < slots) {
-                ordered[slotIndex] = c;
+            let position = -1;
+
+            // Try to get position from timestamp encoding first (primary source of truth for legacy/current data)
+            if (c.timestamp >= 1000000 && c.timestamp < 100000000) {
+                position = Math.floor(c.timestamp / 1000000) - 1;
+            }
+            // Fallback to explicit slotIndex if available
+            else if (typeof c.slotIndex === 'number' && c.slotIndex >= 0) {
+                position = c.slotIndex;
+            }
+
+            if (position >= 0 && position < slots) {
+                ordered[position] = c;
             }
         });
 
-        // Fallback for linear if no slot info
+        // Fallback for linear if no slot info found at all
+        // If ordered is empty (all nulls), it means we couldn't map any contributions to slots via timestamp or slotIndex.
+        // In this case, we just sort them by timestamp and assume sequential.
         if (ordered.every(x => x === null) && contributions.length > 0) {
-            ordered = [...contributions]; // Just use list
+            ordered = [...contributions].sort((a, b) => a.timestamp - b.timestamp);
         }
 
         // Filter out nulls for display
@@ -204,21 +217,35 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
         return () => observer.disconnect();
     }, [mediaType]);
 
-    // 2. Preload Videos
+    // 2. Preload Videos (Optimized: Only adjacent items)
     useEffect(() => {
         if (!effectiveIsVisible) return;
-        // Logic to preload next videos
-        displayOrderedContributions.forEach(c => {
-            if (c.mediaType === 'video' && c.mediaUrl && !videoReadyRef.current.has(c.mediaUrl)) {
+
+        // Only preload the immediate next video to save bandwidth
+        const nextIndex = currentIndex + 1;
+
+        if (nextIndex < displayOrderedContributions.length) {
+            const nextContribution = displayOrderedContributions[nextIndex];
+
+            if (nextContribution &&
+                nextContribution.mediaType === 'video' &&
+                nextContribution.mediaUrl &&
+                !videoReadyRef.current.has(nextContribution.mediaUrl)
+            ) {
+                const url = nextContribution.mediaUrl;
                 const v = document.createElement('video');
-                v.src = c.mediaUrl;
+                v.src = url;
                 v.preload = 'auto';
                 v.muted = true;
-                v.oncanplay = () => videoReadyRef.current.set(c.mediaUrl!, true);
-                // Cache logic...
+                v.oncanplay = () => videoReadyRef.current.set(url, true);
+
+                // Store in cache to prevent GC and ensure it stays loaded
+                if (!videoPreloadCache.current.has(url)) {
+                    videoPreloadCache.current.set(url, v);
+                }
             }
-        });
-    }, [effectiveIsVisible, displayOrderedContributions]);
+        }
+    }, [effectiveIsVisible, displayOrderedContributions, currentIndex]);
 
     // 3. Playback Control (The big transition effect)
     useEffect(() => {
@@ -318,10 +345,11 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
         const diff = e.changedTouches[0].clientX - mediaTouchStartX.current;
         if (Math.abs(diff) > 50) {
             // Swipe!
-            if (diff > 0) { // Right prev
-                setCurrentIndex(prev => (prev - 1 + displayOrderedContributions.length) % displayOrderedContributions.length);
-            } else { // Left next
+            // User requested invert:
+            if (diff > 0) { // Right -> Next
                 handleVideoEnded();
+            } else { // Left -> Prev
+                setCurrentIndex(prev => (prev - 1 + displayOrderedContributions.length) % displayOrderedContributions.length);
             }
         }
     };

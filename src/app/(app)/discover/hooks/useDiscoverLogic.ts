@@ -54,7 +54,7 @@ const actions = {
 };
 
 export function useDiscoverLogic() {
-    const { stories, groups, addGroup, currentUser, friends, blockedUserIds } = useStore();
+    const { stories, groups, addGroup, currentUser, friends, blockedUserIds, fetchDiscoveryStories } = useStore();
     const searchParams = useSearchParams();
     const router = useRouter();
     
@@ -89,6 +89,11 @@ export function useDiscoverLogic() {
             setViewMode('groups');
         }
     }, [tabParam]);
+
+    // Initial optimized fetch for Discovery page
+    useEffect(() => {
+        fetchDiscoveryStories();
+    }, [fetchDiscoveryStories]);
 
     // Ranking Helpers
     const getForYouScore = useCallback((story: typeof stories[0]) => {

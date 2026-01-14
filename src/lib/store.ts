@@ -246,6 +246,7 @@ interface AppState {
     forkStory: (originalStoryId: string, slotToUserAssignments: Map<number, string>, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     forkBrandPost: (originalStoryId: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     fetchStories: (reset?: boolean) => Promise<void>;
+    fetchDiscoveryStories: (reset?: boolean) => Promise<void>;
     fetchMoreStories: () => Promise<void>;
     setProfileUpdateInProgress: (value: boolean) => void;
 
@@ -1521,6 +1522,176 @@ export const useStore = create<AppState>()(
 
                 } catch (err) {
                     console.error('Failed to fetch stories:', err);
+                } finally {
+                    set({ isStoriesLoading: false });
+                }
+            },
+
+            fetchDiscoveryStories: async (reset = true) => {
+                const PAGE_SIZE = 30;
+                const { isStoriesLoading, storiesPage } = get();
+
+                if (isStoriesLoading) {
+                    return;
+                }
+
+                const page = reset ? 0 : storiesPage;
+                const offset = page * PAGE_SIZE;
+
+                set({ isStoriesLoading: true });
+                
+                try { await get().fetchBlockedUsers(); } catch (e) { /* ignore */ }
+                const { blockedUserIds } = get();
+
+                try {
+                    const runQuery = async (timeoutMs: number) => {
+                        const storiesQueryPromise = supabase
+                            .from('stories')
+                            .select(`
+                                id, title, description, creator_id, visibility, mode, status,
+                                max_weeves, cover_image, hashtags, created_at, updated_at,
+                                forked_from_story_id, post_type, canon_slots, brand_id, 
+                                is_featured, group_id, current_turn_user_id, allow_comments, 
+                                allow_reuse, turn_timer_hours, monetization_cost,
+                                scheduled_for, visibility_days,
+                                groups (name, avatar, is_private),
+                                contributions (id, user_id, user_name, content, media_type, media_url, timestamp, text_style, slot_index),
+                                story_participants (user_id, status, position, profiles:user_id (id, name, avatar, is_influencer, is_private, is_brand)),
+                                story_likes (user_id),
+                                forks:stories!forked_from_story_id(count)
+                            `)
+                            .eq('visibility', 'public')
+                            .order('created_at', { ascending: false })
+                            .range(offset, offset + PAGE_SIZE - 1);
+
+                        return Promise.race([
+                            storiesQueryPromise,
+                            new Promise<{ data: any[] | null; error: any }>((resolve) => 
+                                setTimeout(() => resolve({ data: null, error: new Error(`Stories query timeout (${timeoutMs}ms)`) }), timeoutMs)
+                            ),
+                        ]);
+                    };
+
+                    let result = await runQuery(10000);
+                    let { data: storiesData, error } = result as { data: any[] | null; error: any };
+
+                    if (error) {
+                        const refreshPromise = supabase.auth.refreshSession();
+                        await Promise.race([
+                            refreshPromise,
+                            new Promise(r => setTimeout(r, 15000))
+                        ]);
+                        
+                        result = await runQuery(20000);
+                        storiesData = (result as any).data;
+                        error = (result as any).error;
+                    }
+
+                    if (error) {
+                        console.error('[Store] Error fetching discovery stories (final):', error);
+                        return;
+                    }
+
+                    if (!storiesData) return;
+
+                    const hasMore = storiesData.length === PAGE_SIZE;
+
+                    const formattedStories: Story[] = storiesData
+                        .filter((s: any) => {
+                            if (blockedUserIds.includes(s.creator_id)) return false;
+                            
+                            if (s.scheduled_for) {
+                                  const isScheduledFuture = new Date(s.scheduled_for) > new Date();
+                                  if (isScheduledFuture) return false;
+                             }
+                             
+                             const hasContributions = s.contributions && s.contributions.length > 0;
+                             const isBrand = s.post_type === 'canon' || s.post_type === 'seed';
+                             if (!hasContributions && !isBrand) return false;
+
+                             return true;
+                        })
+                        .map((s: any) => {
+                             const participants = (s.story_participants || []).map((sp: any) => {
+                                 const profile = sp.profiles || { name: 'Unknown', avatar: '' };
+                                 return {
+                                     id: sp.user_id,
+                                     name: profile.name,
+                                     avatar: profile.avatar,
+                                     tokens: 0,
+                                     isInfluencer: profile.is_influencer,
+                                     isBrand: profile.is_brand,
+                                     isPrivate: profile.is_private === true,
+                                     status: sp.status,
+                                     position: sp.position
+                                 };
+                             }).sort((a: any, b: any) => (a.position || 0) - (b.position || 0));
+
+                             const contributions = (s.contributions || [])
+                                 .sort((a: any, b: any) => (a.timestamp || 0) - (b.timestamp || 0))
+                                 .map((c: any) => ({
+                                 id: c.id,
+                                 userId: c.user_id,
+                                 userName: c.user_name,
+                                 content: c.content,
+                                 mediaType: c.media_type,
+                                 mediaUrl: c.media_url?.trim() || undefined,
+                                 timestamp: c.timestamp,
+                                 textStyle: c.text_style,
+                                 slotIndex: c.slot_index
+                             }));
+
+                             const likedBy = (s.story_likes || []).map((l: any) => l.user_id);
+
+                             return {
+                                 id: s.id,
+                                 title: s.title,
+                                 description: s.description,
+                                 creatorId: s.creator_id,
+                                 visibility: s.visibility,
+                                 mode: s.mode ?? 'invite',
+                                 status: s.status,
+                                 currentTurnUserId: s.current_turn_user_id,
+                                 contributions,
+                                 participants,
+                                 maxWeeves: s.max_weeves,
+                                 coverImage: s.cover_image,
+                                 theme: s.theme,
+                                 groupId: s.group_id,
+                                 groupName: s.groups?.name,
+                                 groupAvatar: s.groups?.avatar,
+                                 groupIsPrivate: s.groups?.is_private,
+                                 likes: likedBy.length,
+                                 likedBy,
+                                 comments: [],
+                                 created_at: s.created_at,
+                                 updated_at: s.updated_at,
+                                 hashtags: s.hashtags,
+                                 monetizationCost: s.monetization_cost,
+                                 allowComments: s.allow_comments,
+                                 allowReuse: s.allow_reuse,
+                                 turnTimerHours: s.turn_timer_hours,
+                                 forkedFromStoryId: s.forked_from_story_id ?? undefined,
+                                 postType: s.post_type ?? 'normal',
+                                 canonSlots: s.canon_slots ?? undefined,
+                                 visibilityDays: s.visibility_days ?? undefined,
+                                 brandId: s.brand_id ?? undefined,
+                                 isFeatured: s.is_featured ?? false,
+                                 scheduledFor: s.scheduled_for ?? undefined,
+                                 forksCount: (s.forks && s.forks[0]) ? s.forks[0].count : 0
+                             };
+                        });
+
+                    if (reset) {
+                        set({ stories: formattedStories, storiesPage: 1, hasMoreStories: hasMore });
+                    } else {
+                        const existingStories = get().stories;
+                        const existingIds = new Set(existingStories.map(s => s.id));
+                        const newStories = formattedStories.filter(s => !existingIds.has(s.id));
+                        set({ stories: [...existingStories, ...newStories], storiesPage: page + 1, hasMoreStories: hasMore });
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch discovery stories:', err);
                 } finally {
                     set({ isStoriesLoading: false });
                 }
