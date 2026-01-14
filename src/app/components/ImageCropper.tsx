@@ -32,13 +32,13 @@ function centerAspectCrop(
             mediaHeight,
         );
     }
-    // Free aspect - default to 90% of the image
+    // Free aspect - default to 100% of the image (no zoom)
     return {
         unit: '%' as const,
-        x: 5,
-        y: 5,
-        width: 90,
-        height: 90,
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
     };
 }
 
