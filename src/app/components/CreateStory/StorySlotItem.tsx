@@ -30,10 +30,20 @@ const StorySlotItem = ({
     return (
         <Reorder.Item
             value={slot}
-            dragListener={isReordering && !isLocked} // Only drag when Reorder Mode is active and slot is not locked
+            layout="position"
+            dragListener={isReordering && !isLocked}
             dragControls={controls}
+            dragElastic={0.1}
+            dragTransition={{ bounceStiffness: 300, bounceDamping: 25 }}
+            transition={{
+                layout: { type: "spring", stiffness: 350, damping: 30 }
+            }}
             className="flex items-start relative group"
-            style={{ touchAction: isReordering ? "none" : "pan-x" }}
+            style={{
+                touchAction: isReordering ? "none" : "manipulation",
+                willChange: isReordering ? "transform" : "auto",
+                transform: "translateZ(0)"
+            }}
         >
             <div
                 className={`flex flex-col items-center transition-all duration-200 relative ${isReordering ? "animate-pulse" : ""}`}

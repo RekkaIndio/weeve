@@ -100,7 +100,12 @@ const NormalStorySlots = ({
                     layoutScroll
                     values={slots}
                     onReorder={onReorderSlots}
-                    className="flex items-start py-2 overflow-x-auto pb-4 no-scrollbar px-5"
+                    className={`flex items-start py-2 pb-4 no-scrollbar px-5 ${isReordering ? "overflow-x-hidden" : "overflow-x-auto"
+                        }`}
+                    style={{
+                        transform: "translateZ(0)",
+                        willChange: isReordering ? "transform" : "auto"
+                    }}
                 >
                     {slots.map((slot, idx) => {
                         const participant = slot.friend;
