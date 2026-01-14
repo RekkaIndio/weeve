@@ -121,7 +121,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     id: authUser.id,
                     name: authUser.user_metadata?.name || 'User',
                     avatar: authUser.user_metadata?.picture,
-                    tokens: 0
+                    tokens: 0,
+                    completedOnboarding: false,
+                    onboardingStep: 0
                 };
                 setCurrentUser(tempUser);
                 return tempUser;
@@ -134,7 +136,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 id: authUser.id,
                 name: authUser.user_metadata?.name || 'User',
                 avatar: authUser.user_metadata?.picture,
-                tokens: 0
+                tokens: 0,
+                completedOnboarding: false,
+                onboardingStep: 0
             };
             setCurrentUser(tempUser);
             return tempUser;
@@ -297,13 +301,42 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                     localStorage.setItem('weeve_last_login_timestamp', Date.now().toString());
                                 }
 
-                                console.log(`[AuthProvider] Redirecting to /feed after ${event} event from ${currentPath}`);
+                                console.log(`[AuthProvider] Processing redirect after ${event} event from ${currentPath}`);
 
                                 // Clean up the key after navigation (short timeout)
                                 setTimeout(() => sessionStorage.removeItem(redirectKey), 2000);
 
-                                // Use next/navigation router for client-side transition (preserves state)
-                                router.replace('/feed');
+                                // IMPORTANT: Wait for sync to complete so we have the correct onboarding step
+                                // The optimistic update above (lines 259-270) only sets defaults, which might be wrong for a new user
+                                try {
+                                    const syncedUser = await syncProfile(session.user, { access_token: session.access_token });
+
+                                    // Determine redirect destination based on REAL profile data
+                                    let destination = '/feed';
+
+                                    if (syncedUser) {
+                                        if (!syncedUser.completedOnboarding) {
+                                            if (syncedUser.onboardingStep === 0 || syncedUser.onboardingStep == null) {
+                                                destination = '/setup';
+                                            } else if (syncedUser.onboardingStep === 1) {
+                                                destination = '/onboarding/welcome';
+                                            }
+                                        }
+                                    } else {
+                                        // If sync failed returning null, fallback to setup is safer than feed
+                                        // because it usually means profile creation might be needed
+                                        console.warn('[AuthProvider] Sync returned null, defaulting to /setup');
+                                        destination = '/setup';
+                                    }
+
+                                    console.log(`[AuthProvider] Redirecting to ${destination}`);
+                                    router.replace(destination);
+
+                                } catch (err) {
+                                    console.error('[AuthProvider] Sync failed during redirect logic:', err);
+                                    // Fallback to feed if everything fails, but this might be risky
+                                    router.replace('/feed');
+                                }
                             }
                         }
 
