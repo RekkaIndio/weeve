@@ -429,6 +429,12 @@ export async function createUserProfile(
                 // Append random 4 characters
                 currentName = `${name.slice(0, 20)}_${Math.random().toString(36).substr(2, 4)}`;
                 lastError = result.error;
+            } else if (result.error?.message?.includes('14 days')) {
+                // If we hit the 14-day name change restriction, it means the profile exists.
+                // We should just accept it and NOT fail the login/creation.
+                console.warn('[Auth] Hit 14-day name change limit during create/upsert. fetching existing profile instead.');
+                success = true; // Pretend success to fall through to select
+                break;
             } else {
                 // Some other error, rethrow immediately
                 console.error('[Auth] Create profile INSERT error:', (result.error as Error).message);

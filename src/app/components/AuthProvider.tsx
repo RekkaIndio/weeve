@@ -164,33 +164,53 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     setLatestSession(session);
 
                     // Check if we already have a persisted user with the correct ID
-                    // If so, preserve their avatar to avoid the intermittent avatar bug
                     const existingUser = useStore.getState().currentUser;
-                    const preserveAvatar = existingUser && existingUser.id === session.user.id ? existingUser.avatar : undefined;
+                    const isReturningUser = existingUser && existingUser.id === session.user.id; // Check ID match
 
-                    // Create minimal temp user to unblock routing immediately
-                    // Preserve existing avatar and onboarding state if available to prevent flash
-                    const optimisticUser = {
-                        id: session.user.id,
-                        name: existingUser?.name || session.user.user_metadata?.name || 'User',
-                        avatar: preserveAvatar || session.user.user_metadata?.picture,
-                        tokens: existingUser?.tokens || 0,
-                        // IMPORTANT: Preserve existing onboarding state if we have it
-                        // Don't assume true for new users - this prevents feed flash before setup
-                        completedOnboarding: existingUser?.completedOnboarding ?? false,
-                        onboardingStep: existingUser?.onboardingStep,
-                    };
+                    if (isReturningUser) {
+                        // --------------------------------------------------------
+                        // A. RETURNING USER: Optimistic Load (Instant)
+                        // --------------------------------------------------------
+                        console.log('[AuthProvider] Returning user detected, loading optimistically.');
 
-                    // Only set optimistic user if store is empty or if we're updating the same user
-                    setCurrentUser(optimisticUser as any);
+                        // Create minimal temp user to unblock routing immediately
+                        const optimisticUser = {
+                            id: session.user.id,
+                            name: existingUser.name || session.user.user_metadata?.name || 'User',
+                            avatar: existingUser.avatar || session.user.user_metadata?.picture,
+                            tokens: existingUser.tokens || 0,
+                            completedOnboarding: existingUser.completedOnboarding ?? false,
+                            onboardingStep: existingUser.onboardingStep,
+                        };
 
-                    // Release UI Block
-                    setLoading(false);
+                        // Update store if needed (though usually persisted)
+                        setCurrentUser(optimisticUser as any);
 
-                    // BACKGROUND Sync: Fetch full profile
-                    syncProfile(session.user, { access_token: session.access_token }).catch((err: any) => {
-                        console.warn('[AuthProvider] Background sync failed:', err);
-                    });
+                        // Release UI Block immediately
+                        setLoading(false);
+
+                        // BACKGROUND Sync: Fetch full profile to get updates
+                        syncProfile(session.user, { access_token: session.access_token }).catch((err: any) => {
+                            console.warn('[AuthProvider] Background sync failed:', err);
+                        });
+
+                    } else {
+                        // --------------------------------------------------------
+                        // B. FRESH LOGIN / NEW USER: Blocking Load (Wait for Profile)
+                        // --------------------------------------------------------
+                        console.log('[AuthProvider] Fresh login detected, waiting for profile sync...');
+
+                        // We MUST await this so we know if they need onboarding (Step 0)
+                        try {
+                            await syncProfile(session.user, { access_token: session.access_token });
+                        } catch (err) {
+                            console.warn('[AuthProvider] Initial sync failed:', err);
+                            // Even if it fails, we let it proceed, but hopefully syncProfile returned a temp user
+                        }
+
+                        // Release UI Block ONLY after we have the profile data
+                        setLoading(false);
+                    }
                 } else {
                     // No session
                     console.log('[AuthProvider] No session found');
@@ -358,7 +378,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     sessionStorage.removeItem('weeve_oauth_in_progress');
                 }
 
-                setLoading(false);
+                // Only unlock UI for significant events that modify flow or when we are sure
+                // preventing TOKEN_REFRESHED from disabling loading ensures initial sync isn't interrupted
+                if (event !== 'TOKEN_REFRESHED') {
+                    setLoading(false);
+                }
 
                 // Handle redirects on change
                 if (event === 'SIGNED_OUT') {
@@ -560,18 +584,48 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                             if (access_token && refresh_token) {
                                 setTimeout(async () => {
                                     try {
-                                        // Add timeout to setSession
+                                        // Add timeout to setSession - Reduced to 4s to prevent long delays
                                         const sessionPromise = supabase.auth.setSession({ access_token, refresh_token });
                                         const timeoutPromise = new Promise<{ data: { session: null }, error: Error }>((resolve) => {
                                             setTimeout(() => {
                                                 resolve({ data: { session: null }, error: new Error('setSession timed out') });
-                                            }, 15000);
+                                            }, 4000); // 4 second max wait
                                         });
 
                                         const result = await Promise.race([sessionPromise, timeoutPromise]);
                                         const { data, error } = result as any;
 
-                                        if (error) console.error('[AuthProvider] setSession error', error);
+                                        if (error) {
+                                            console.warn('[AuthProvider] setSession error/timeout:', error);
+                                            // Fallback: Check if session was set despite the error/timeout
+                                            // Sometimes the socket hangs but the local storage was updated
+                                            const { data: checkData } = await supabase.auth.getSession();
+                                            if (checkData.session) {
+                                                console.log('[AuthProvider] Recovered session despite setSession error');
+                                                // Proceed as if successful using checkData
+                                                setUser(checkData.session.user);
+                                                setLatestSession(checkData.session);
+
+                                                if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
+
+                                                try {
+                                                    const syncPromise = syncProfile(checkData.session.user, { access_token: checkData.session.access_token });
+                                                    const syncTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000));
+                                                    await Promise.race([syncPromise, syncTimeout]);
+                                                } catch (err) {
+                                                    console.warn('[AuthProvider] Deep link sync profile error', err);
+                                                }
+
+                                                setLoading(false);
+                                                router.push('/feed');
+                                                router.refresh();
+                                                setTimeout(() => { isProcessingDeepLink.current = false; }, 2000);
+                                                return; // DONE
+                                            }
+
+                                            // If really failed:
+                                            throw error;
+                                        }
 
                                         if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
 
@@ -601,6 +655,26 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                                         setTimeout(() => { isProcessingDeepLink.current = false; }, 5000);
                                     } catch (innerErr) {
                                         console.error('[AuthProvider] Implicit flow error:', innerErr);
+
+                                        // Final recovery attempt in catch block
+                                        try {
+                                            const { data: fwData } = await supabase.auth.getSession();
+                                            if (fwData?.session?.user) {
+                                                console.log('[AuthProvider] Caught error but session exists - recovering.');
+                                                setUser(fwData.session.user);
+                                                setLatestSession(fwData.session);
+                                                if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
+
+                                                syncProfile(fwData.session.user, { access_token: fwData.session.access_token }).catch(() => { });
+
+                                                setLoading(false);
+                                                router.push('/feed');
+                                                router.refresh();
+                                                setTimeout(() => { isProcessingDeepLink.current = false; }, 2000);
+                                                return;
+                                            }
+                                        } catch (recErr) { /* ignore */ }
+
                                         isProcessingDeepLink.current = false; // Reset lock on error
 
                                         if (typeof window !== 'undefined') sessionStorage.removeItem('weeve_oauth_in_progress');
@@ -725,6 +799,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         }
 
         // 2. Logged in logic
+        if (user && !currentUser) {
+            // We used to block here with isRedirecting = true, caused infinite spinner if profile sync failed
+            // Now we allow fallthrough; components should handle missing profile gracefully or route protection will redirect
+        }
+
         if (user && currentUser) {
             const onboardingStep = currentUser.onboardingStep;
             const isCompleted = currentUser.completedOnboarding;

@@ -43,8 +43,8 @@ export default function SetupPage() {
         const checkUsername = async () => {
             setCheckingUsername(true);
             try {
-                // Use shared availability check
-                const { available, error } = await checkDisplayNameAvailability(trimmedName);
+                // Use shared availability check - exclude current user so they can keep their own pre-filled name
+                const { available, error } = await checkDisplayNameAvailability(trimmedName, user?.id);
 
                 if (error) throw error;
                 setUsernameAvailable(available);
