@@ -26,6 +26,7 @@ interface StitchComposerProps {
     drawingCanvasRef: React.RefObject<DrawingCanvasRef | null>;
     draggableRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
     justSelectedRef: React.MutableRefObject<boolean>;
+    stageRef: React.RefObject<HTMLDivElement | null>;
 
     // Handlers
     onBackgroundClick: () => void;
@@ -73,6 +74,7 @@ export function StitchComposer({
     drawingCanvasRef,
     draggableRefs,
     justSelectedRef,
+    stageRef,
     onBackgroundClick,
     onAddText,
     onToggleStickers,
@@ -101,6 +103,7 @@ export function StitchComposer({
 
     return (
         <div
+            ref={stageRef}
             className="absolute inset-0 z-40 pointer-events-auto overflow-hidden"
             onClick={() => {
                 // Skip if we just selected an element via tap (prevents flashing deselection)

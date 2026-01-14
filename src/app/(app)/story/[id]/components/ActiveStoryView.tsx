@@ -403,6 +403,7 @@ export function ActiveStoryView({
                 drawingCanvasRef={drawingCanvasRef}
                 draggableRefs={draggableRefs}
                 justSelectedRef={justSelectedRef}
+                stageRef={composer.stageRef}
                 onBackgroundClick={() => { if (activeElementId) { setActiveElementId(null); setActiveMenu(null); setHasMovedInCurrentEdit(false); } }}
                 onAddText={addTextElement}
                 onToggleStickers={() => {
