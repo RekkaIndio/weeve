@@ -211,13 +211,15 @@ export default function FeedItemFooter({
 
                                 {/* Open slots badge - shows count of available slots */}
                                 {openCount > 0 && (
-                                    <div
-                                        className={`${filledSlots.length > 0 ? 'ml-2' : ''} flex items-center gap-1 px-2 py-1 rounded-full bg-[#EC1D99]/20 border border-[#EC1D99]/50 text-[#EC1D99] text-xs font-medium backdrop-blur-sm`}
+                                    <Link
+                                        href={`/story/${story.id}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={`${filledSlots.length > 0 ? 'ml-2' : ''} flex items-center gap-1 px-2 py-1 rounded-full bg-[#EC1D99]/20 border border-[#EC1D99]/50 text-[#EC1D99] text-xs font-medium backdrop-blur-sm hover:bg-[#EC1D99]/30 transition-colors z-20`}
                                         title={`${openCount} open slot${openCount > 1 ? 's' : ''} available`}
                                     >
                                         <span className="text-sm">+</span>
                                         <span>{openCount} open</span>
-                                    </div>
+                                    </Link>
                                 )}
                             </>
                         );
