@@ -15,6 +15,7 @@ export const FONT_SIZE_OPTIONS = [18, 24, 32, 40, 48, 56] as const;
 
 export const TEXT_COLOR_OPTIONS = [
     "#FFFFFF",
+    "#000000",
     "#EC1D99",
     "#FFD166",
     "#06D6A0",

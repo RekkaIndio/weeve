@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Contribution } from "@/lib/store";
 import { Video, Type, Pencil, Camera, X, Mic } from "lucide-react";
 import { VideoThumbnail } from "@/app/(app)/story/[id]/components/VideoThumbnail";
+import { useKeyboard } from "@/hooks/useKeyboard";
 
 interface StitchContextThumbnailsProps {
     contributions: Contribution[];
@@ -18,6 +19,7 @@ interface StitchContextThumbnailsProps {
  */
 export default function StitchContextThumbnails({ contributions, onThumbnailClick, className }: StitchContextThumbnailsProps) {
     const [previewContribution, setPreviewContribution] = useState<Contribution | null>(null);
+    const isKeyboardOpen = useKeyboard();
 
     if (contributions.length === 0) return null;
 
@@ -49,9 +51,17 @@ export default function StitchContextThumbnails({ contributions, onThumbnailClic
         setPreviewContribution(null);
     };
 
+    // When keyboard is open, position at bottom of viewport (which shrinks when keyboard opens)
+    // When keyboard is closed, use the default className positioning
+    const positionClass = isKeyboardOpen
+        ? 'bottom-2' // Small offset from bottom of shrunken viewport
+        : (className || 'bottom-[70px]');
+
     return (
         <>
-            <div className={`fixed left-0 right-0 z-[100] pointer-events-auto ${className || 'bottom-[70px]'}`}>
+            <div
+                className={`fixed left-0 right-0 z-[100] pointer-events-auto transition-all duration-200 ${positionClass}`}
+            >
                 {/* Thumbnail strip - horizontal scrolling */}
                 <div
                     className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-hide"

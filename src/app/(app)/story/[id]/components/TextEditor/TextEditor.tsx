@@ -64,7 +64,9 @@ export function TextEditor({
                             top: showCentered ? '20%' : 0,
                             transform: showCentered
                                 ? 'translate3d(-50%, 0, 0)'
-                                : `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
+                                : element.position.unit === '%'
+                                    ? `translate3d(${element.position.left}vw, ${element.position.top}vh, 0)`
+                                    : `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
                         }}
                         onPointerDown={(e) => {
                             if (!isEditing) onDragStart(e, element.id);
@@ -103,7 +105,7 @@ export function TextEditor({
                                     fontSize: element.style.fontSize,
                                     color: element.style.textColor,
                                     textAlign: element.style.textAlign,
-                                    backgroundColor: element.style.backgroundColor,
+                                    backgroundColor: isEditing ? element.style.backgroundColor : 'transparent',
                                     cursor: isEditing ? 'text' : 'pointer',
                                 }}
                                 onClick={(e) => {
@@ -131,7 +133,16 @@ export function TextEditor({
                                         rows={3}
                                     />
                                 ) : (
-                                    <span style={{ whiteSpace: 'pre-wrap' }}>
+                                    <span style={{
+                                        whiteSpace: 'pre-wrap',
+                                        backgroundColor: element.style.backgroundColor !== 'transparent' ? element.style.backgroundColor : undefined,
+                                        boxDecorationBreak: 'clone',
+                                        WebkitBoxDecorationBreak: 'clone',
+                                        padding: '0.3em 0.5em',
+                                        borderRadius: '0.5em',
+                                        lineHeight: '1.4',
+                                        display: 'inline'
+                                    }}>
                                         {element.content || ''}
                                     </span>
                                 )}

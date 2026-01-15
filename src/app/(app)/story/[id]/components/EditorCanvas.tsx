@@ -214,7 +214,7 @@ export function EditorCanvas({
                 <img
                     src={mediaDraft.previewUrl}
                     alt="Selected media preview"
-                    className="absolute inset-0 w-full h-full object-cover pointer-events-auto transition-all duration-300"
+                    className="absolute inset-0 w-full h-full object-contain bg-black pointer-events-auto transition-all duration-300"
                     style={{ filter: PHOTO_FILTERS.find(f => f.id === photoFilter)?.filter || 'none' }}
                 />
                 {/* Stickers Overlay */}

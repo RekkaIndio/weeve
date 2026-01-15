@@ -168,11 +168,11 @@ export function ActiveStoryView({
                         {story.forkedFromStoryId && (
                             <button
                                 onClick={() => router.push(`/story/${story.forkedFromStoryId}`)}
-                                className="flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded-full bg-[#EC1D99]/20 hover:bg-[#EC1D99]/30 transition-colors pointer-events-auto"
+                                className="flex items-center gap-1.5 mt-1 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full text-xs text-gray-200 hover:bg-black/60 hover:text-white transition-all border border-white/10 pointer-events-auto shadow-lg"
                             >
                                 <GitBranch className="w-3 h-3 text-[#EC1D99]" />
-                                <span className="text-[10px] font-medium text-gray-300">Weeve of:</span>
-                                <span className="text-[10px] font-medium text-[#EC1D99] truncate max-w-[100px]">
+                                <span className="opacity-80">Weeve of</span>
+                                <span className="font-bold text-white max-w-[150px] truncate">
                                     {originalStoryTitle || 'Original'}
                                 </span>
                             </button>
@@ -239,10 +239,10 @@ export function ActiveStoryView({
                         {activeSegment.mediaType === 'video' ? (
                             <VideoPlayer key={activeSegment.id} src={activeSegment.mediaUrl} onComplete={handleNext} isPlaying={isPlaying} />
                         ) : (activeSegment.mediaType === 'image' || activeSegment.mediaType === 'drawing') ? (
-                            <div className={`relative w-full h-full ${activeSegment.mediaType === 'drawing' ? 'flex items-center justify-center bg-gray-900' : ''}`}>
+                            <div className={`relative w-full h-full flex items-center justify-center bg-black`}>
                                 <img
                                     src={activeSegment.mediaUrl || "https://via.placeholder.com/400x800"}
-                                    className={activeSegment.mediaType === 'drawing' ? 'w-full h-auto max-h-full object-contain' : 'w-full h-full object-cover'}
+                                    className={`w-full h-full ${activeSegment.mediaType === 'drawing' ? 'object-contain' : 'object-contain'}`}
                                     alt="Story segment"
                                 />
                                 <AutoAdvance onComplete={handleNext} isPlaying={isPlaying} duration={NON_VIDEO_AUTO_ADVANCE_MS} />
@@ -260,9 +260,28 @@ export function ActiveStoryView({
                         {activeSegment.textStyle?.elements && activeSegment.textStyle.elements.length > 0 ? (
                             <>
                                 {activeSegment.textStyle.elements.map((element) => (
-                                    <div key={element.id} className="absolute pointer-events-none" style={{ left: 0, top: 0, transform: `translate3d(${element.position.left}px, ${element.position.top}px, 0)`, zIndex: 20 }}>
-                                        <div className="min-w-[200px] max-w-[80vw] text-center" style={{ ...element.style, backgroundColor: element.style.backgroundColor === 'transparent' ? 'rgba(0,0,0,0.45)' : element.style.backgroundColor, padding: '1rem 1.25rem', borderRadius: '1.5rem', backdropFilter: 'blur(4px)', whiteSpace: 'pre-wrap' }}>
-                                            {element.content}
+                                    <div key={element.id} className="absolute pointer-events-none" style={{
+                                        left: 0,
+                                        top: 0,
+                                        transform: element.position.unit === '%'
+                                            ? `translate3d(${element.position.left}vw, ${element.position.top}vh, 0)`
+                                            : `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
+                                        zIndex: 20
+                                    }}>
+                                        <div className="min-w-[200px] max-w-[80vw] text-center" style={{ ...element.style, backgroundColor: 'transparent', padding: 0 }}>
+                                            <span style={{
+                                                backgroundColor: element.style.backgroundColor,
+                                                padding: '0.4em 0.6em',
+                                                borderRadius: '0.5em',
+                                                backdropFilter: 'blur(4px)',
+                                                whiteSpace: 'pre-wrap',
+                                                boxDecorationBreak: 'clone',
+                                                WebkitBoxDecorationBreak: 'clone',
+                                                lineHeight: '1.5',
+                                                display: 'inline'
+                                            }}>
+                                                {element.content}
+                                            </span>
                                         </div>
                                     </div>
                                 ))}
@@ -274,7 +293,7 @@ export function ActiveStoryView({
                             <>
                                 {activeSegment.mediaType === 'text' && activeSegment.content && (
                                     <div className="absolute inset-0 flex items-center justify-center p-8 pointer-events-none">
-                                        <div className="max-w-xl w-full mx-auto rounded-3xl px-6 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.45)]" style={{ ...legacyTextStyle, backgroundColor: legacyTextStyle.backgroundColor === 'transparent' ? 'rgba(0,0,0,0.35)' : legacyTextStyle.backgroundColor, whiteSpace: 'pre-line' }}>
+                                        <div className="max-w-xl w-full mx-auto rounded-3xl px-6 py-8 shadow-[0_20px_60px_rgba(0,0,0,0.45)]" style={{ ...legacyTextStyle, backgroundColor: legacyTextStyle.backgroundColor, whiteSpace: 'pre-line' }}>
                                             {activeSegment.content}
                                         </div>
                                     </div>
@@ -366,7 +385,7 @@ export function ActiveStoryView({
             {isComposerOpen && (
                 <StitchContextThumbnails
                     contributions={contributions}
-                    className="bottom-20"
+                    className="bottom-[70px]"
                 />
             )}
 
