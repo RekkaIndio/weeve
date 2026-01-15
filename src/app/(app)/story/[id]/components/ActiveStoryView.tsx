@@ -121,6 +121,12 @@ export function ActiveStoryView({
         } as const;
     }, [mediaSourcePicker]);
 
+    // Computed
+    const userHasContributed = useMemo(() => {
+        if (!currentUser || !contributions) return false;
+        return contributions.some(c => c.userId === currentUser.id);
+    }, [currentUser, contributions]);
+
     // Handlers
     const handleNext = () => {
         if (activeIndex < contributions.length - 1) {
@@ -198,7 +204,7 @@ export function ActiveStoryView({
                         </button>
                         {showMenu && (
                             <div className="absolute top-full right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden pointer-events-auto z-50">
-                                {(story.creatorId === currentUser?.id || isUserParticipant) && (
+                                {(story.creatorId === currentUser?.id || isUserParticipant || userHasContributed) && (
                                     <button onClick={() => { setShowEditModal(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors">
                                         <Edit2 className="w-4 h-4 text-gray-400" />
                                         <span className="text-sm font-medium text-white">{story.creatorId === currentUser?.id ? 'Edit Story' : 'Manage Contribution'}</span>
