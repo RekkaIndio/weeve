@@ -262,6 +262,7 @@ interface AppState {
     toggleStoryLike: (storyId: string) => Promise<void>;
     toggleCommentLike: (storyId: string, commentId: string) => Promise<void>;
     addStoryComment: (storyId: string, content: string, parentCommentId?: string) => Promise<void>;
+    deleteStoryComment: (storyId: string, commentId: string) => Promise<void>;
     logoutUser: () => void;
     fetchFriends: () => Promise<void>;
     forkStory: (originalStoryId: string, slotToUserAssignments: Map<number, string>, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
@@ -836,6 +837,48 @@ export const useStore = create<AppState>()(
 
                     return { stories: updatedStories };
                 });
+            },
+
+            deleteStoryComment: async (storyId, commentId) => {
+                const { currentUser } = get();
+                if (!currentUser) return;
+
+                // 1. Optimistic update
+                set((state) => {
+                    const storyIndex = state.stories.findIndex((s) => s.id === storyId);
+                    if (storyIndex === -1) return state;
+
+                    const baseStory = state.stories[storyIndex];
+                    
+                    // Filter out the comment and any replies that have this comment as parent
+                    // Note: This simple check works for one level of nesting. 
+                    // If we support deeper nesting, we'd need recursive deletion or rely on DB cascade + refetch.
+                    // Given the current UI, recursive checks might be overkill but safe to filter by parentCommentId too.
+                    const updatedComments = baseStory.comments.filter(
+                        c => c.id !== commentId && c.parentCommentId !== commentId
+                    );
+
+                    const updatedStory: Story = {
+                        ...baseStory,
+                        comments: updatedComments
+                    };
+
+                    const updatedStories = [...state.stories];
+                    updatedStories[storyIndex] = updatedStory;
+
+                    return { stories: updatedStories };
+                });
+
+                // 2. DB Update
+                const { error } = await supabase
+                    .from('story_comments')
+                    .delete()
+                    .match({ id: commentId, user_id: currentUser.id });
+
+                if (error) {
+                    console.error('Failed to delete comment:', error);
+                    // Optionally revert optimistic update here if needed
+                }
             },
 
             logoutUser: () => set({ 

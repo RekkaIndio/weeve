@@ -39,6 +39,7 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
     const stories = useStore((state) => state.stories);
     const toggleStoryLike = useStore((state) => state.toggleStoryLike);
     const addStoryComment = useStore((state) => state.addStoryComment);
+    const deleteStoryComment = useStore((state) => state.deleteStoryComment);
     const toggleCommentLike = useStore((state) => state.toggleCommentLike);
     const savedStoryIds = useStore((state) => state.savedStoryIds);
     const toggleStorySave = useStore((state) => state.toggleStorySave);
@@ -520,6 +521,7 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
                 setCommentText={setCommentText}
                 handleCommentSubmit={handleCommentSubmit}
                 participantsMap={participantsMap}
+                deleteStoryComment={deleteStoryComment}
             />
 
             <FeedItemForkControl

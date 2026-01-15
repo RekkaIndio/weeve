@@ -1,4 +1,4 @@
-import { X, Heart } from "lucide-react";
+import { X, Heart, Trash2 } from "lucide-react";
 import VerificationBadge from "../VerificationBadge"; // Assumed sibling
 import { createPortal } from "react-dom";
 import { Story } from "@/lib/store";
@@ -18,6 +18,7 @@ interface FeedItemCommentsProps {
     setCommentText: (text: string) => void;
     handleCommentSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
     participantsMap: Map<string, any>;
+    deleteStoryComment: (storyId: string, commentId: string) => Promise<void>;
 }
 
 export default function FeedItemComments({
@@ -32,7 +33,8 @@ export default function FeedItemComments({
     commentText,
     setCommentText,
     handleCommentSubmit,
-    participantsMap
+    participantsMap,
+    deleteStoryComment
 }: FeedItemCommentsProps) {
     if (!isCommentsOpen || typeof document === 'undefined') return null;
 
@@ -118,6 +120,20 @@ export default function FeedItemComments({
                                                             Reply
                                                         </button>
                                                     )}
+                                                    {currentUser && currentUser.id === comment.userId && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                if (window.confirm("Delete this comment?")) {
+                                                                    deleteStoryComment(story.id, comment.id);
+                                                                }
+                                                            }}
+                                                            className="text-gray-500 hover:text-red-500 transition-colors"
+                                                            aria-label="Delete comment"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -158,6 +174,20 @@ export default function FeedItemComments({
                                                                     <Heart className={`w-3 h-3 ${currentUser && reply.likedBy?.includes(currentUser.id) ? 'fill-current' : ''}`} />
                                                                     {reply.likes > 0 && <span>{reply.likes}</span>}
                                                                 </button>
+                                                                {currentUser && currentUser.id === reply.userId && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            if (window.confirm("Delete this reply?")) {
+                                                                                deleteStoryComment(story.id, reply.id);
+                                                                            }
+                                                                        }}
+                                                                        className="text-gray-500 hover:text-red-500 transition-colors ml-2"
+                                                                        aria-label="Delete reply"
+                                                                    >
+                                                                        <Trash2 className="w-3 h-3" />
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
