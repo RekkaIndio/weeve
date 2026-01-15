@@ -149,13 +149,19 @@ export default function FeedItemFooter({
                         const filledSlots = slots.filter(s => s.type === 'contribution' || s.type === 'assigned');
                         const openCount = slots.filter(s => s.type === 'open').length;
 
+                        // Calculate overflow logic
+                        const MAX_VISIBLE_AVATARS = 3;
+                        const visibleSlots = filledSlots.slice(0, MAX_VISIBLE_AVATARS);
+                        const hiddenAvatarCount = Math.max(0, filledSlots.length - MAX_VISIBLE_AVATARS);
+                        const totalCount = hiddenAvatarCount + openCount;
+
                         const activeSlotIndex = currentContribution
                             ? slots.findIndex(s => s.type === 'contribution' && s.data.id === currentContribution.id)
                             : -1;
 
                         return (
                             <>
-                                {filledSlots.map((slot, displayIdx) => {
+                                {visibleSlots.map((slot, displayIdx) => {
                                     const isActive = slot.index === activeSlotIndex;
 
                                     if (slot.type === 'contribution') {
@@ -209,16 +215,15 @@ export default function FeedItemFooter({
                                     }
                                 })}
 
-                                {/* Open slots badge - shows count of available slots */}
-                                {openCount > 0 && (
+                                {/* Combined overflow + open slots pill */}
+                                {totalCount > 0 && (
                                     <Link
                                         href={`/story/${story.id}`}
                                         onClick={(e) => e.stopPropagation()}
-                                        className={`${filledSlots.length > 0 ? 'ml-2' : ''} flex items-center gap-1 px-2 py-1 rounded-full bg-[#EC1D99]/20 border border-[#EC1D99]/50 text-[#EC1D99] text-xs font-medium backdrop-blur-sm hover:bg-[#EC1D99]/30 transition-colors z-20`}
-                                        title={`${openCount} open slot${openCount > 1 ? 's' : ''} available`}
+                                        className={`${visibleSlots.length > 0 ? 'ml-2' : ''} flex items-center justify-center min-w-[32px] h-[32px] px-2 rounded-full bg-[#EC1D99]/20 border border-[#EC1D99]/50 text-[#EC1D99] text-xs font-bold backdrop-blur-sm hover:bg-[#EC1D99]/30 transition-colors z-20`}
+                                        title={`${openCount} open slots, ${hiddenAvatarCount} more participants`}
                                     >
-                                        <span className="text-sm">+</span>
-                                        <span>{openCount} open</span>
+                                        +{totalCount}
                                     </Link>
                                 )}
                             </>
