@@ -127,12 +127,10 @@ export default function SetupPage() {
                 throw fetchError;
             }
 
-            // Get public URL
-            const { data: urlData } = supabase.storage
-                .from('avatars')
-                .getPublicUrl(filePath);
+            // Construct public URL manually - avoid SDK completely
+            const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/avatars/${filePath}`;
 
-            return urlData.publicUrl;
+            return publicUrl;
         } catch (err) {
             console.error('[Setup] Avatar upload error:', err);
             throw err;
