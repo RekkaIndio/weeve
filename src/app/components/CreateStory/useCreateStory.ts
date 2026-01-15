@@ -69,7 +69,7 @@ export const useCreateStory = ({
   const [formState, setFormState] = useState<CreateStoryFormState>({
     title: "",
     description: "",
-    visibility: "private",
+    visibility: "public",
     selectedFriends: [],
     orderedParticipants: slots.map(s => s.friend),
     inviteCount: 1,

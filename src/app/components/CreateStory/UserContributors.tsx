@@ -80,7 +80,7 @@ const UserContributors = ({
                         <span className="text-sm font-bold text-white flex items-center gap-2 font-sans">
                             {formState.visibility === "public" ? (
                                 <>
-                                    <Globe className="w-4 h-4 text-[#EC1D99]" />
+                                    <Globe className="w-4 h-4 text-gray-400" />
                                     Public Story
                                 </>
                             ) : (
@@ -101,13 +101,13 @@ const UserContributors = ({
                     <button
                         type="button"
                         role="switch"
-                        aria-checked={formState.visibility === "public"}
+                        aria-checked={formState.visibility === "private"}
                         onClick={() => onVisibilityChange(formState.visibility === "public" ? "private" : "public")}
-                        className={`w-12 h-7 rounded-full transition-colors duration-200 ease-in-out relative focus:outline-none focus:ring-2 focus:ring-[#EC1D99] focus:ring-offset-2 focus:ring-offset-gray-900 ${formState.visibility === "public" ? 'bg-[#EC1D99]' : 'bg-gray-700'
+                        className={`w-12 h-7 rounded-full transition-colors duration-200 ease-in-out relative focus:outline-none focus:ring-2 focus:ring-[#EC1D99] focus:ring-offset-2 focus:ring-offset-gray-900 ${formState.visibility === "private" ? 'bg-[#EC1D99]' : 'bg-gray-700'
                             }`}
                     >
                         <div
-                            className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ease-in-out absolute top-1 left-1 ${formState.visibility === "public" ? 'translate-x-5' : 'translate-x-0'
+                            className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ease-in-out absolute top-1 left-1 ${formState.visibility === "private" ? 'translate-x-5' : 'translate-x-0'
                                 }`}
                         />
                     </button>
