@@ -88,20 +88,12 @@ export default function SetupPage() {
         }
     };
 
-    const uploadAvatarToStorage = async (file: File, userId: string): Promise<string | null> => {
+    const uploadAvatarToStorage = async (file: File, userId: string, accessToken: string): Promise<string | null> => {
         try {
             setUploadingAvatar(true);
             const fileExt = file.name.split('.').pop() || 'jpg';
             const fileName = `${userId}-${Date.now()}.${fileExt}`;
             const filePath = `user-avatars/${fileName}`;
-
-            // Get the current session for auth token
-            const { data: sessionData } = await supabase.auth.getSession();
-            const accessToken = sessionData?.session?.access_token;
-
-            if (!accessToken) {
-                throw new Error('No active session. Please log in again.');
-            }
 
             // Use REST API with AbortController - more reliable on iOS than SDK
             const url = `${SUPABASE_URL}/storage/v1/object/avatars/${filePath}?cacheControl=3600&upsert=true`;
@@ -181,7 +173,7 @@ export default function SetupPage() {
 
             // Upload avatar if a file was selected
             if (uploadedAvatarFile) {
-                const uploadedUrl = await uploadAvatarToStorage(uploadedAvatarFile, user.id);
+                const uploadedUrl = await uploadAvatarToStorage(uploadedAvatarFile, user.id, accessToken);
                 if (uploadedUrl) {
                     finalAvatar = uploadedUrl;
                 }
