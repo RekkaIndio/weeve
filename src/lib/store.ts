@@ -388,7 +388,22 @@ export const useStore = create<AppState>()(
 
 
             addStory: (story) =>
-                set((state) => ({ stories: [story, ...state.stories] })),
+                set((state) => {
+                    const existingIndex = state.stories.findIndex((s) => s.id === story.id);
+                    if (existingIndex !== -1) {
+                        // Merge: prefer new story data but preserve comments if the new story has fewer
+                        const existing = state.stories[existingIndex];
+                        const mergedComments = story.comments.length >= existing.comments.length
+                            ? story.comments
+                            : existing.comments;
+                        const mergedStory = { ...story, comments: mergedComments };
+                        const updatedStories = [...state.stories];
+                        updatedStories[existingIndex] = mergedStory;
+                        return { stories: updatedStories };
+                    }
+                    // New story - prepend as before
+                    return { stories: [story, ...state.stories] };
+                }),
 
             addGroup: (group) =>
                 set((state) => ({ groups: [group, ...state.groups] })),
@@ -1449,7 +1464,7 @@ export const useStore = create<AppState>()(
                         });
 
                         // Map comments
-                        const comments = s.story_comments.map((cm: any) => ({
+                        const comments = (s.story_comments || []).map((cm: any) => ({
                             id: cm.id,
                             userId: cm.user_id,
                             userName: cm.user_name || cm.profiles?.name || 'Unknown',
@@ -1508,13 +1523,40 @@ export const useStore = create<AppState>()(
                     // If reset, replace stories; otherwise append
                     if (reset) {
                         set((state) => {
-                            // When resetting, we might want to preserve stories that are NOT in the new batch 
-                            // but were loaded for other reasons (like profile views).
-                            // However, simple reset is safer for now to avoid unlimited growth.
-                            // But to avoid "flashing" or losing profile stories, we could merge.
-                            // Let's stick to safe reset but ensure NO duplicates in the new batch itself (though unlikely)
+                            // When resetting, we merge with existing stories to preserve local updates (like optimistic comments)
+                            // or detailed data loaded from individual story views.
+                            
+                            // Create map for O(1) lookup
+                            const existingStoriesMap = new Map(state.stories.map(s => [s.id, s]));
+                            
+                            const mergedStories = formattedStories.map(newStory => {
+                                const existing = existingStoriesMap.get(newStory.id);
+                                if (existing) {
+                                    // Preserve comments if existing (local/cached) has more than incoming
+                                    // STRICTER CHECK: Only take server comments if strictly GREATER than local.
+                                    // This prevents server latency (0/equal comments) from overwriting local optimistic updates.
+                                    const mergedComments = newStory.comments.length > existing.comments.length
+                                        ? newStory.comments
+                                        : existing.comments;
+                                    
+                                    if (existing.comments.length > newStory.comments.length) {
+                                        console.log(`[Store] Preserving local comments for ${newStory.id}. Local: ${existing.comments.length}, Server: ${newStory.comments.length}`);
+                                    }
+
+                                    // Could merge other fields here if needed, but comments are the main dynamic issue
+                                    return { ...newStory, comments: mergedComments };
+                                }
+                                return newStory;
+                            });
+
+                             // NEW: Preserve stories from state that are NOT in the new batch.
+                             // This prevents older stories (that were loaded individually via useStoryData)
+                             // from being dropped when the feed refreshes Page 1.
+                             const newIds = new Set(formattedStories.map(s => s.id));
+                             const keptStories = state.stories.filter(s => !newIds.has(s.id));
+
                              return { 
-                                stories: formattedStories, 
+                                stories: [...mergedStories, ...keptStories], 
                                 storiesPage: 1, 
                                 hasMoreStories: hasMore 
                             };
@@ -1613,7 +1655,7 @@ export const useStore = create<AppState>()(
                                  textStyle: c.text_style
                              }));
      
-                             const comments = s.story_comments.map((cm: any) => ({
+                             const comments = (s.story_comments || []).map((cm: any) => ({
                                  id: cm.id,
                                  userId: cm.user_id,
                                  userName: cm.user_name || cm.profiles?.name || 'Unknown',

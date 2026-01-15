@@ -378,11 +378,37 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
     // Comments
     const organizedComments = useMemo(() => {
         if (!story.comments) return [];
-        // Group comments logic (simplified for brevity)
-        // In real app, re-use the exact logic from original or verify
-        const comments = [...story.comments].sort((a, b) => b.timestamp - a.timestamp);
-        // ... (grouping logic) ...
-        return comments;
+
+        // 1. Create a map of all comments with initialized replies array
+        const map = new Map();
+        story.comments.forEach(c => {
+            map.set(c.id, { ...c, replies: [] });
+        });
+
+        const roots: any[] = [];
+
+        // 2. Sort by timestamp DESC (Newest first) for the main list iteration
+        // This ensures the roots array ends up sorted Newest -> Oldest
+        const rawComments = [...story.comments].sort((a, b) => b.timestamp - a.timestamp);
+
+        rawComments.forEach(c => {
+            const comment = map.get(c.id);
+            if (c.parentCommentId) {
+                const parent = map.get(c.parentCommentId);
+                if (parent) {
+                    parent.replies.push(comment);
+                    // Sort replies: Oldest first (ASC) is standard for conversation threads
+                    parent.replies.sort((a: any, b: any) => a.timestamp - b.timestamp);
+                } else {
+                    // Orphaned reply (parent deleted?) - treat as root
+                    roots.push(comment);
+                }
+            } else {
+                roots.push(comment);
+            }
+        });
+
+        return roots;
     }, [story.comments]);
 
     const handleCommentSubmit = async (e: FormEvent<HTMLFormElement>) => {

@@ -48,7 +48,7 @@ export default function StoreInitializer() {
                 { event: '*', schema: 'public', table: 'stories' },
                 (payload: RealtimePostgresChangesPayload<any>) => {
                     console.log('Stories table changed:', payload);
-                    fetchStories();
+                    // fetchStories(); // Disabled to prevent state overwrites
                 }
             )
             .subscribe();
@@ -61,7 +61,7 @@ export default function StoreInitializer() {
                 { event: '*', schema: 'public', table: 'contributions' },
                 (payload: RealtimePostgresChangesPayload<any>) => {
                     console.log('Contributions table changed:', payload);
-                    fetchStories();
+                    // fetchStories(); // Disabled to prevent state overwrites
                 }
             )
             .subscribe();
@@ -74,7 +74,7 @@ export default function StoreInitializer() {
                 { event: '*', schema: 'public', table: 'story_participants' },
                 (payload: RealtimePostgresChangesPayload<any>) => {
                     console.log('Story participants table changed:', payload);
-                    fetchStories();
+                    // fetchStories(); // Disabled to prevent state overwrites
                 }
             )
             .subscribe();
