@@ -98,16 +98,19 @@ export function useDiscoverLogic() {
         fetchDiscoveryStories();
     }, [fetchDiscoveryStories]);
 
-    // Fetch stories from user's groups (separate from discovery since group stories may have private visibility)
+    // Fetch stories from user's groups (separate from discovery since group stories may be private visibility)
     useEffect(() => {
         const fetchGroupStories = async () => {
-            if (!currentUser || groups.length === 0) {
+            // Filter to only groups the user is a member of
+            const memberGroups = groups.filter(g => g.isMember);
+            
+            if (!currentUser || memberGroups.length === 0) {
                 setGroupStoriesData([]);
                 return;
             }
 
             try {
-                const groupIds = groups.map(g => g.id);
+                const groupIds = memberGroups.map(g => g.id);
                 
                 const { data: storiesData, error } = await supabase
                     .from('stories')
