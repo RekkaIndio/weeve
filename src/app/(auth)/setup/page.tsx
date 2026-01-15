@@ -203,7 +203,6 @@ export default function SetupPage() {
                         name: displayName.trim(),
                         avatar: finalAvatar,
                         onboarding_step: 1,
-                        last_name_change_at: null,
                     }),
                 }
             );
