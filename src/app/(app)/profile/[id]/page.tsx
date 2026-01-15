@@ -475,10 +475,7 @@ export default function UserProfilePage() {
         if (s.status !== 'completed' && !isCreator && ownerParticipant?.status !== 'accepted' && ownerParticipant?.status !== undefined) return false;
 
         // Exclude stories where the owner has a pending waiting slot (belongs in their "Waiting" tab)
-        if (ownerParticipant?.status === 'waiting') return false;
-
-        // Exclude stories where it's the owner's turn (belongs in their "Waiting" tab / Timer)
-        if (s.status === 'active' && s.currentTurnUserId === user?.id) return false;
+        if (ownerParticipant?.status === 'waiting' && !ownerContributed) return false;
 
         return true;
     });
