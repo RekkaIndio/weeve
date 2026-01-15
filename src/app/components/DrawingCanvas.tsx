@@ -81,6 +81,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             updateUndoRedoState();
         };
 
+        // Keep track of isErasing in a ref for the event listener
+        const isErasingRef = useRef(isErasing);
+        useEffect(() => {
+            isErasingRef.current = isErasing;
+        }, [isErasing]);
+
         // Initialize fabric canvas
         useEffect(() => {
             if (!canvasRef.current || !containerRef.current) return;
@@ -108,7 +114,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             saveHistory(canvas);
 
             // Track drawing changes for undo/redo
-            canvas.on('path:created', () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            canvas.on('path:created', (e: any) => {
+                const path = e.path;
+                if (isErasingRef.current && path) {
+                    path.globalCompositeOperation = 'destination-out';
+                    // Ensure the stroke is opaque for the eraser to work effectively
+                    path.stroke = 'black';
+                }
                 saveHistory(canvas);
             });
 
@@ -119,6 +132,28 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             };
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, []);
+
+        // Update brush settings when state changes
+        useEffect(() => {
+            const canvas = fabricCanvasRef.current;
+            if (!canvas) return;
+
+            canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+            canvas.freeDrawingBrush.width = currentBrushSize;
+
+            if (isErasing) {
+                // When erasing, we still draw a path, but we'll set its composition in the event handler
+                // We set the brush color to something visible (or match background if possible, but transparent won't work perfectly for preview)
+                // Actually, for the PREVIEW to look like erasing, we can try setting GCO on the brush too.
+                canvas.freeDrawingBrush.color = 'rgba(0,0,0,1)';
+                // @ts-expect-error - globalCompositeOperation might not work on brush preview but worth keeping
+                canvas.freeDrawingBrush.globalCompositeOperation = 'destination-out';
+            } else {
+                canvas.freeDrawingBrush.color = currentColor;
+                // @ts-expect-error - globalCompositeOperation
+                canvas.freeDrawingBrush.globalCompositeOperation = 'source-over';
+            }
+        }, [currentColor, currentBrushSize, isErasing]);
 
         const handleUndo = async () => {
             const canvas = fabricCanvasRef.current;

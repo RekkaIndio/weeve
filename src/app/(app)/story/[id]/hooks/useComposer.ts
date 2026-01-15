@@ -103,7 +103,14 @@ export function useComposer(
     }, []);
 
     const addTextElement = useCallback(() => {
-        if (textElements.length >= 5) {
+        // Prune empty text elements first
+        const nonEmptyElements = textElements.filter(el => el.content.trim().length > 0);
+        
+        if (nonEmptyElements.length !== textElements.length) {
+            setTextElements(nonEmptyElements);
+        }
+
+        if (nonEmptyElements.length >= 5) {
             console.error("Maximum 5 text boxes allowed");
             return;
         }
@@ -113,14 +120,14 @@ export function useComposer(
             id,
             content: "",
             style: { ...DEFAULT_TEXT_STYLE },
-            position: { left: -1, top: -1 }
+            position: { left: 50, top: 40, unit: '%' }
         };
 
         setTextElements(prev => [...prev, newElement]);
         setActiveElementId(id);
         setHasMovedInCurrentEdit(false);
         setShowStickerPanel(false);
-    }, [textElements.length]);
+    }, [textElements]);
 
     const updateTextStyle = useCallback((key: keyof TextStyle, value: string | number) => {
         if (!activeElementId) return;
@@ -208,7 +215,7 @@ export function useComposer(
             if (isClickRef.current) {
                 justSelectedRef.current = true;
                 setActiveElementId(id);
-                if (!activeMenu) setActiveMenu('font');
+                // Don't auto-open a menu - let user choose from toolbar
                 setTimeout(() => { justSelectedRef.current = false; }, 100);
             } else {
                 let rawLeft = event.clientX - dragState.viewportLeft - dragState.offsetX;
@@ -224,7 +231,11 @@ export function useComposer(
                 if (rawTop < 60) rawTop = 60;
                 if (rawTop + height > viewH - 100) rawTop = viewH - 100 - height;
 
-                updateElement(id, { position: { left: rawLeft, top: rawTop } });
+                // Convert to percentages
+                const percentLeft = (rawLeft / viewW) * 100;
+                const percentTop = (rawTop / viewH) * 100;
+                
+                updateElement(id, { position: { left: percentLeft, top: percentTop, unit: '%' } });
             }
         }
         isDragging.current = null;
@@ -461,18 +472,18 @@ export function useComposer(
         // Text Styles
         const textStylePayload: TextStyle = { ...DEFAULT_TEXT_STYLE };
         if (textElements.length > 0) {
+             textStylePayload.elements = textElements.map(el => ({
+                   id: el.id,
+                   content: el.content,
+                   position: el.position,
+                   style: el.style
+             }));
+             
+             // For backward compatibility (if needed by older clients for simple text posts),
+             // populate root styles from the first element if it exists.
              if (textElements.length === 1) {
-                  // Single text element - legacy format
-                  const el = textElements[0];
-                  Object.assign(textStylePayload, el.style);
-             } else {
-                  // Multi-text elements
-                  textStylePayload.elements = textElements.map(el => ({
-                        id: el.id,
-                        content: el.content,
-                        position: el.position,
-                        style: el.style
-                  }));
+                  const firstEl = textElements[0];
+                  Object.assign(textStylePayload, firstEl.style);
              }
         }
 

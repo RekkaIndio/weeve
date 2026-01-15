@@ -1,4 +1,4 @@
-import { Type, Trash, Check, Palette, AlignCenter, Layers } from "lucide-react";
+import { Type, Trash, Check, Palette, AlignCenter, Layers, ALargeSmall, CaseSensitive } from "lucide-react";
 import { type TextElement } from "@/lib/store";
 
 interface ActiveElementToolbarProps {
@@ -40,7 +40,33 @@ export function ActiveElementToolbar({
                     <Type className="w-5 h-5 text-white" />
                 </button>
 
-                {/* Style (opens color/font options) */}
+                {/* Font Family (text style) */}
+                <button
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSetActiveMenu('font');
+                    }}
+                    className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
+                    aria-label="Font Style"
+                >
+                    <CaseSensitive className="w-5 h-5 text-white" />
+                </button>
+
+                {/* Text Size */}
+                <button
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSetActiveMenu('size');
+                    }}
+                    className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
+                    aria-label="Text Size"
+                >
+                    <ALargeSmall className="w-5 h-5 text-white" />
+                </button>
+
+                {/* Text Color */}
                 <button
                     onClick={(e) => {
                         e.preventDefault();
@@ -48,7 +74,7 @@ export function ActiveElementToolbar({
                         onSetActiveMenu('color');
                     }}
                     className="w-10 h-10 rounded-full bg-gray-800/90 backdrop-blur-sm border-2 border-white/30 flex items-center justify-center shadow-lg transition-all hover:bg-gray-700"
-                    aria-label="Style"
+                    aria-label="Text Color"
                 >
                     <Palette className="w-5 h-5 text-white" />
                 </button>

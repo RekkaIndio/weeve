@@ -56,7 +56,7 @@ export interface TextElement {
     id: string;
     content: string;
     style: TextStyle;
-    position: { left: number; top: number };
+    position: { left: number; top: number; unit?: 'px' | '%' };
 }
 
 export interface TextStyle {
