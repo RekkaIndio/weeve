@@ -17,13 +17,22 @@
   --header-padding-base: 1rem;
   --header-padding-large: 1.5rem;
   --header-padding-small: 0.5rem;
-  --header-overlay-offset: 1.75rem;
+  --header-text-height: 1.5rem;
+  /* Approx height of header text + internal padding */
+  --header-bottom-padding: 1rem;
+  /* pb-4 on the header */
+
+  /* Header height = safe-area + top-padding + text-height + bottom-padding */
+  --header-height: calc(var(--header-safe-area) + var(--header-padding-small) + var(--header-text-height) + var(--header-bottom-padding));
+
+  /* Pill position: directly below header with small gap */
+  --header-overlay-gap: 0.5rem;
+  --header-pt-overlay: calc(var(--header-height) + var(--header-overlay-gap));
 
   /* Computed header top paddings */
   --header-pt-base: calc(var(--header-safe-area) + var(--header-padding-base));
   --header-pt-large: calc(var(--header-safe-area) + var(--header-padding-large));
   --header-pt-small: calc(var(--header-safe-area) + var(--header-padding-small));
-  --header-pt-overlay: calc(var(--header-safe-area) + var(--header-overlay-offset));
 }
 
 @media (prefers-color-scheme: dark) {
