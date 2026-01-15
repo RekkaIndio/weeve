@@ -478,6 +478,17 @@ export default function UserProfilePage() {
         if (ownerParticipant?.status === 'waiting' && !ownerContributed) return false;
 
         return true;
+    }).sort((a, b) => {
+        // Sort by most recent contribution (or creation date if no contributions)
+        const getLastActivity = (story: typeof stories[0]) => {
+            if (story.contributions && story.contributions.length > 0) {
+                // Find the latest contribution timestamp
+                return Math.max(...story.contributions.map(c => c.timestamp));
+            }
+            // Fallback to creation date
+            return new Date(story.created_at || 0).getTime();
+        };
+        return getLastActivity(b) - getLastActivity(a);
     });
 
     // Separate featured stories (only for brand profiles)
