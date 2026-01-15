@@ -149,11 +149,12 @@ export default function FeedItemFooter({
                         const filledSlots = slots.filter(s => s.type === 'contribution' || s.type === 'assigned');
                         const openCount = slots.filter(s => s.type === 'open').length;
 
-                        // Calculate overflow logic
-                        const MAX_VISIBLE_AVATARS = 3;
+                        // For completed stories (no open slots), show all avatars
+                        // For stories with open slots, limit to 3 visible avatars
+                        const isComplete = openCount === 0;
+                        const MAX_VISIBLE_AVATARS = isComplete ? filledSlots.length : 3;
                         const visibleSlots = filledSlots.slice(0, MAX_VISIBLE_AVATARS);
                         const hiddenAvatarCount = Math.max(0, filledSlots.length - MAX_VISIBLE_AVATARS);
-                        const totalCount = hiddenAvatarCount + openCount;
 
                         const activeSlotIndex = currentContribution
                             ? slots.findIndex(s => s.type === 'contribution' && s.data.id === currentContribution.id)
@@ -215,15 +216,15 @@ export default function FeedItemFooter({
                                     }
                                 })}
 
-                                {/* Combined overflow + open slots pill */}
-                                {totalCount > 0 && (
+                                {/* Open slots pill - only show if there are ACTUALLY open slots */}
+                                {openCount > 0 && (
                                     <Link
                                         href={`/story/${story.id}`}
                                         onClick={(e) => e.stopPropagation()}
                                         className={`${visibleSlots.length > 0 ? 'ml-2' : ''} flex items-center justify-center min-w-[32px] h-[32px] px-2 rounded-full bg-[#EC1D99]/20 border border-[#EC1D99]/50 text-[#EC1D99] text-xs font-bold backdrop-blur-sm hover:bg-[#EC1D99]/30 transition-colors z-20`}
-                                        title={`${openCount} open slots, ${hiddenAvatarCount} more participants`}
+                                        title={`${openCount} open slots`}
                                     >
-                                        +{totalCount}
+                                        +{openCount}
                                     </Link>
                                 )}
                             </>
