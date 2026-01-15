@@ -43,10 +43,18 @@ export default function SetupPage() {
         const checkUsername = async () => {
             setCheckingUsername(true);
             try {
-                // Use shared availability check - exclude current user so they can keep their own pre-filled name
-                const { available, error } = await checkDisplayNameAvailability(trimmedName, user?.id);
+                // Add timeout to prevent hanging on iOS
+                const checkPromise = checkDisplayNameAvailability(trimmedName, user?.id);
+                const timeoutPromise = new Promise<{ available: boolean; error: Error }>((resolve) => {
+                    setTimeout(() => resolve({
+                        available: true, // Default to available on timeout so user can proceed
+                        error: new Error('Check timed out')
+                    }), 5000);
+                });
 
-                if (error) throw error;
+                const { available, error } = await Promise.race([checkPromise, timeoutPromise]);
+
+                if (error && error.message !== 'Check timed out') throw error;
                 setUsernameAvailable(available);
             } catch (err) {
                 console.error('[Setup] Error checking username:', err);
