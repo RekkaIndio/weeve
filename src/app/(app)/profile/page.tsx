@@ -509,8 +509,9 @@ export default function ProfilePage() {
         // User must be a participant OR the creator OR have contributed
         if (!userParticipant && !isCreator && !hasContributed) return false;
 
-        // Exclude stories where it's the user's turn (those belong in the timer tab)
-        if (s.status === 'active' && s.currentTurnUserId === currentUser.id) return false;
+        // Exclude stories where it's the user's turn ONLY if they haven't contributed yet
+        // If they have contributed, it should show in main tab (as history) AND in timer tab (as action item)
+        if (s.status === 'active' && s.currentTurnUserId === currentUser.id && !hasContributed) return false;
 
         // If user has contributed, they should see it in their profile main tab
         // This ensures multi-slot stories (where a future slot is 'waiting') are not hidden
