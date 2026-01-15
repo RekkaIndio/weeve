@@ -246,17 +246,7 @@ export default function SetupPage() {
                 </div>
             </div>
 
-            {/* Sign Out / Cancel Button - Top Left */}
-            <button
-                onClick={async () => {
-                    await supabase.auth.signOut();
-                    window.location.href = '/login';
-                }}
-                className="absolute top-4 left-4 z-50 p-2 text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full backdrop-blur-sm"
-                title="Sign Out"
-            >
-                <LogOut className="w-5 h-5" />
-            </button>
+
 
             {/* Setup Form */}
             <div className="relative z-10 w-full max-w-md px-6 flex flex-col items-center">
@@ -375,6 +365,17 @@ export default function SetupPage() {
                         className="w-full rounded-lg bg-white text-black py-4 font-bold text-lg transition-all hover:bg-gray-100 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {loading || uploadingAvatar ? "Setting up..." : "Complete Setup"}
+                    </button>
+
+                    {/* Back / Sign Out link */}
+                    <button
+                        onClick={async () => {
+                            await supabase.auth.signOut();
+                            window.location.href = '/login';
+                        }}
+                        className="mt-4 text-gray-400 hover:text-white transition-colors text-sm"
+                    >
+                        ← Back to Login
                     </button>
                 </div>
             </div>
