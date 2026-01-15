@@ -17,7 +17,7 @@ import { canInitiateCollab, formatPrice } from "@/lib/collaborations";
 export default function UserProfilePage() {
     const params = useParams();
     const router = useRouter();
-    const { currentUser, friends, stories, fetchFriends, fetchStories } = useStore();
+    const { currentUser, friends, stories, fetchFriends, fetchStories, fetchUserStories } = useStore();
 
     const userId = params?.id as string;
 
@@ -114,6 +114,13 @@ export default function UserProfilePage() {
 
         fetchProfile();
     }, [userId, user, currentUser]);
+
+    // Fetch user stories to ensure we have their contributions
+    useEffect(() => {
+        if (userId) {
+            fetchUserStories(userId);
+        }
+    }, [userId, fetchUserStories]);
 
     // Check block status
     useEffect(() => {
@@ -475,10 +482,14 @@ export default function UserProfilePage() {
         if (s.status !== 'completed' && !isCreator && ownerParticipant?.status !== 'accepted' && ownerParticipant?.status !== undefined) return false;
 
         // Exclude stories where the owner has a pending waiting slot (belongs in their "Waiting" tab)
-        if (ownerParticipant?.status === 'waiting') return false;
+        // Only if they haven't contributed yet? If they have contributed, we probably want to show it.
+        // But if status is 'waiting', it means they have an ACTION to take. 
+        // For public profile, if they have contributed, we should show it regardless of current status.
+        if (ownerParticipant?.status === 'waiting' && !ownerContributed) return false;
 
-        // Exclude stories where it's the owner's turn (belongs in their "Waiting" tab / Timer)
-        if (s.status === 'active' && s.currentTurnUserId === user?.id) return false;
+        // REMOVED: Exclude stories where it's the owner's turn (belongs in their "Waiting" tab / Timer)
+        // We want to show these on the public profile so visitors can see their active stories.
+        // if (s.status === 'active' && s.currentTurnUserId === user?.id) return false;
 
         return true;
     });

@@ -1556,7 +1556,12 @@ export const useStore = create<AppState>()(
                     contributedRes.data?.forEach((r: any) => ids.add(r.story_id));
 
                     // Filter out already loaded stories
-                    const existingIds = new Set(stories.map(s => s.id));
+                    // IMPORTANT: We must re-read stories from get() just in case, though we destructured above.
+                    // Actually, destructuring 'stories' captures the state at the start.
+                    // If we want fresh state, we should use get().stories inside the loop if we were iterating async,
+                    // but here we just want to know what to fetch.
+                    const currentStories = get().stories;
+                    const existingIds = new Set(currentStories.map(s => s.id));
                     const missingIds = Array.from(ids).filter(id => !existingIds.has(id));
 
                     if (missingIds.length === 0) return;
