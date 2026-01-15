@@ -17,8 +17,8 @@ export const HEADER = {
   /** Small header padding (0.5rem) - feed tab switcher */
   paddingSmall: 'var(--header-padding-small)',
   
-  /** Overlay offset (1.75rem) - FeedItemOverlay pill */
-  overlayOffset: 'var(--header-overlay-offset)',
+  /** Total header height (safe-area + padding + text + bottom-padding) */
+  height: 'var(--header-height)',
   
   /** Computed: safe-area + base padding */
   ptBase: 'var(--header-pt-base)',
@@ -29,6 +29,6 @@ export const HEADER = {
   /** Computed: safe-area + small padding */
   ptSmall: 'var(--header-pt-small)',
   
-  /** Computed: safe-area + overlay offset */
+  /** Computed: header-height + gap (for elements below header) */
   ptOverlay: 'var(--header-pt-overlay)',
 } as const;
