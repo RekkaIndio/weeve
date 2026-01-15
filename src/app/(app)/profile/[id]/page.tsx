@@ -78,9 +78,16 @@ export default function UserProfilePage() {
 
     useEffect(() => {
         async function fetchProfile() {
-            if (user || userId === currentUser?.id) return;
+            if (userId === currentUser?.id) return;
 
-            setLoadingProfile(true);
+            // Skip fetch if we have user data WITH tags already
+            if (user && user.tags && user.tags.length > 0) return;
+
+            // Only show loading if we don't have any cached user data
+            if (!user) {
+                setLoadingProfile(true);
+            }
+
             try {
                 const { data, error } = await supabase
                     .from('profiles')
@@ -102,7 +109,8 @@ export default function UserProfilePage() {
                         interactionCost: data.interaction_cost || undefined,
                         inviteCode: data.invite_code || undefined,
                         isBrand: data.is_brand || false,
-                        isPrivate: false // Assuming default for now
+                        isPrivate: false, // Assuming default for now
+                        tags: data.tags || []
                     });
                 }
             } catch (err) {
@@ -113,7 +121,7 @@ export default function UserProfilePage() {
         }
 
         fetchProfile();
-    }, [userId, user, currentUser]);
+    }, [userId, currentUser]);
 
     // Check block status
     useEffect(() => {
@@ -703,7 +711,10 @@ export default function UserProfilePage() {
                         <img
                             src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
                             alt={user.name}
-                            className="w-20 h-20 rounded-full border-2 border-[#EC1D99] bg-gray-800 object-cover"
+                            className={`w-20 h-20 rounded-full border-2 bg-gray-800 object-cover ${user.tags?.includes('Founder')
+                                    ? 'border-amber-500'
+                                    : 'border-[#EC1D99]'
+                                }`}
                         />
                         {user.isInfluencer && (
                             <div className="absolute -bottom-1 -right-1 bg-yellow-500 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-black">
@@ -714,9 +725,16 @@ export default function UserProfilePage() {
 
                     {/* User Info */}
                     <div className="flex-1 min-w-0">
-                        <h2 className="text-lg font-bold truncate">
-                            @{user.name.toLowerCase().replace(/\s+/g, '_')}
-                        </h2>
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-lg font-bold truncate">
+                                @{user.name.toLowerCase().replace(/\s+/g, '_')}
+                            </h2>
+                            {user.tags?.includes('OG') && (
+                                <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 text-black">
+                                    OG
+                                </span>
+                            )}
+                        </div>
                         <p className="text-sm text-gray-400 line-clamp-2 mt-0.5">
                             {user.tagline || 'Weeve user'}
                         </p>
