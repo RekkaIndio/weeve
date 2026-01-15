@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { checkDisplayNameAvailability } from "@/lib/auth";
 import { processReferralCode } from "@/lib/referral";
 import { useAuth } from "@/app/components/AuthProvider";
 import { useStore } from "@/lib/store";
 import { capturePhoto } from "@/lib/camera";
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabase";
+import { getLatestSession } from "@/lib/auth-session";
 import { Camera, Check, X, Loader2, LogOut } from "lucide-react";
 
 export default function SetupPage() {
@@ -24,7 +24,7 @@ export default function SetupPage() {
     const [checkingUsername, setCheckingUsername] = useState(false);
     const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
 
-    // Check username availability with debounce
+    // Check username availability with debounce - using REST API for speed
     useEffect(() => {
         const trimmedName = displayName.trim();
 
@@ -43,19 +43,33 @@ export default function SetupPage() {
         const checkUsername = async () => {
             setCheckingUsername(true);
             try {
-                // Add timeout to prevent hanging on iOS
-                const checkPromise = checkDisplayNameAvailability(trimmedName, user?.id);
-                const timeoutPromise = new Promise<{ available: boolean; error: Error }>((resolve) => {
-                    setTimeout(() => resolve({
-                        available: true, // Default to available on timeout so user can proceed
-                        error: new Error('Check timed out')
-                    }), 5000);
+                // Use REST API directly - SDK can be slow on iOS
+                const session = getLatestSession();
+                const accessToken = session?.access_token;
+
+                if (!accessToken) {
+                    setUsernameAvailable(null);
+                    return;
+                }
+
+                const url = user?.id
+                    ? `${SUPABASE_URL}/rest/v1/profiles?select=user_id&name=eq.${encodeURIComponent(trimmedName)}&user_id=neq.${encodeURIComponent(user.id)}`
+                    : `${SUPABASE_URL}/rest/v1/profiles?select=user_id&name=eq.${encodeURIComponent(trimmedName)}`;
+
+                const response = await fetch(url, {
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${accessToken}`,
+                    },
                 });
 
-                const { available, error } = await Promise.race([checkPromise, timeoutPromise]);
-
-                if (error && error.message !== 'Check timed out') throw error;
-                setUsernameAvailable(available);
+                if (response.ok) {
+                    const data = await response.json();
+                    // If no results, name is available
+                    setUsernameAvailable(data.length === 0);
+                } else {
+                    setUsernameAvailable(null);
+                }
             } catch (err) {
                 console.error('[Setup] Error checking username:', err);
                 setUsernameAvailable(null);
@@ -64,7 +78,7 @@ export default function SetupPage() {
             }
         };
 
-        const timeoutId = setTimeout(checkUsername, 500);
+        const timeoutId = setTimeout(checkUsername, 300); // Reduced debounce for faster response
         return () => clearTimeout(timeoutId);
     }, [displayName]);
 
@@ -115,8 +129,6 @@ export default function SetupPage() {
                 clearTimeout(timeoutId);
 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('[Setup] Upload response error:', response.status, errorText);
                     throw new Error(`Upload failed: ${response.status}`);
                 }
             } catch (fetchError: any) {
@@ -159,9 +171,9 @@ export default function SetupPage() {
         setError("");
 
         try {
-            // Get session for REST API auth
-            const { data: sessionData } = await supabase.auth.getSession();
-            const accessToken = sessionData?.session?.access_token;
+            // Use cached session - SDK getSession() hangs on iOS
+            const session = getLatestSession();
+            const accessToken = session?.access_token;
 
             if (!accessToken) {
                 throw new Error('Session expired. Please log in again.');
@@ -177,8 +189,24 @@ export default function SetupPage() {
                 }
             }
 
-            // Use REST API directly - SDK hangs on iOS
-            // Update profile with name, avatar, onboarding_step, and clear last_name_change_at
+            // First clear the name change restriction (for initial setup)
+            await fetch(
+                `${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${encodeURIComponent(user.id)}`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal',
+                    },
+                    body: JSON.stringify({
+                        last_name_change_at: null,
+                    }),
+                }
+            );
+
+            // Now update profile with name, avatar, onboarding_step
             const response = await fetch(
                 `${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${encodeURIComponent(user.id)}`,
                 {
@@ -198,8 +226,6 @@ export default function SetupPage() {
             );
 
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('[Setup] Profile update failed:', response.status, errorText);
                 throw new Error('Failed to update profile. Please try again.');
             }
 
