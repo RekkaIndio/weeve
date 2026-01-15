@@ -169,6 +169,14 @@ export default function SetupPage() {
         setError("");
 
         try {
+            // Get session for REST API auth
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData?.session?.access_token;
+
+            if (!accessToken) {
+                throw new Error('Session expired. Please log in again.');
+            }
+
             let finalAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`;
 
             // Upload avatar if a file was selected
@@ -179,25 +187,32 @@ export default function SetupPage() {
                 }
             }
 
-            // First, clear last_name_change_at to allow the name update (bypasses 14-day restriction)
-            // This is necessary because AuthProvider may have created the profile with a default name
-            await supabase
-                .from('profiles')
-                .update({ last_name_change_at: null })
-                .eq('user_id', user.id);
+            // Use REST API directly - SDK hangs on iOS
+            // Update profile with name, avatar, onboarding_step, and clear last_name_change_at
+            const response = await fetch(
+                `${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${encodeURIComponent(user.id)}`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=minimal',
+                    },
+                    body: JSON.stringify({
+                        name: displayName.trim(),
+                        avatar: finalAvatar,
+                        onboarding_step: 1,
+                        last_name_change_at: null,
+                    }),
+                }
+            );
 
-            // Now update the profile with the user's chosen username and avatar
-            // Also advance onboarding_step to 1 to progress to the welcome carousel
-            const { error: updateError } = await supabase
-                .from('profiles')
-                .update({
-                    name: displayName.trim(),
-                    avatar: finalAvatar,
-                    onboarding_step: 1, // Advance to welcome carousel step
-                })
-                .eq('user_id', user.id);
-
-            if (updateError) throw updateError;
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('[Setup] Profile update failed:', response.status, errorText);
+                throw new Error('Failed to update profile. Please try again.');
+            }
 
             // CRITICAL: Update the store BEFORE redirecting to prevent AuthProvider
             // from seeing stale onboardingStep and bouncing back to /setup
@@ -211,12 +226,10 @@ export default function SetupPage() {
                 });
             }
 
-            // Process any pending referral code to connect with referrer
-            try {
-                await processReferralCode(user.id);
-            } catch (refErr) {
-                console.warn('[Setup] processReferralCode failed:', refErr);
-            }
+            // Process referral code (non-critical, fire and forget)
+            processReferralCode(user.id).catch(err => {
+                console.warn('[Setup] processReferralCode failed:', err);
+            });
 
             // Redirect to onboarding welcome carousel
             router.push("/onboarding/welcome");
