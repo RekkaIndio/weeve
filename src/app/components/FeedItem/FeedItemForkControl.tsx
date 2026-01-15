@@ -263,7 +263,7 @@ export default function FeedItemForkControl({
 
             {/* Fork Selection Overlay */}
             {isForking && (
-                <div className="absolute inset-0 bg-black/90 z-30 animate-in fade-in duration-200 flex flex-col items-center justify-center">
+                <div className="absolute inset-0 bg-black/90 z-30 animate-in fade-in duration-200 flex flex-col items-center justify-center pt-20">
                     <button
                         onClick={() => setIsForking(false)}
                         className="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors z-40"
