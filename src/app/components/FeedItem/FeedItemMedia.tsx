@@ -1,4 +1,4 @@
-import { Story, Contribution } from "@/lib/store";
+import { Story, Contribution, TextStyle } from "@/lib/store";
 import { RefObject } from "react";
 
 interface FeedItemMediaProps {
@@ -45,6 +45,10 @@ export default function FeedItemMedia({
     currentUser,
     isMuted
 }: FeedItemMediaProps) {
+    // Helper for legacy text styles
+    const hasCustomTextStyle = currentContribution?.textStyle && Object.keys(currentContribution.textStyle).length > 0;
+    const legacyTextStyle = (currentContribution?.textStyle || {}) as TextStyle;
+
     return (
         <>
             {/* Media Background */}
@@ -88,7 +92,7 @@ export default function FeedItemMedia({
                         ref={videoRef}
                         src={currentVideoSrc}
                         poster={story.coverImage || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23000000'/%3E%3C/svg%3E"}
-                        className="weeve-inline-video absolute inset-0 w-full h-full object-cover"
+                        className="weeve-inline-video absolute inset-0 w-full h-full object-contain"
                         autoPlay
                         playsInline
                         muted={isMuted}
@@ -155,7 +159,7 @@ export default function FeedItemMedia({
                     <video
                         ref={bufferVideoRef}
                         poster={story.coverImage || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23000000'/%3E%3C/svg%3E"}
-                        className="weeve-inline-video absolute inset-0 w-full h-full object-cover pointer-events-none"
+                        className="weeve-inline-video absolute inset-0 w-full h-full object-contain pointer-events-none"
                         playsInline
                         preload="auto"
                         controls={false}
@@ -186,7 +190,7 @@ export default function FeedItemMedia({
                     key={mediaUrl}
                     src={mediaUrl}
                     alt={story.title}
-                    className="absolute inset-0 w-full h-full object-cover"
+                    className="absolute inset-0 w-full h-full object-contain"
                 />
             ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-6 text-center">
@@ -198,6 +202,63 @@ export default function FeedItemMedia({
 
             {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/90 pointer-events-none" />
+
+            {/* Text Overlays (Stickers & Captions) - Ported from ActiveStoryView */}
+            {currentContribution && currentContribution.textStyle?.elements && currentContribution.textStyle.elements.length > 0 ? (
+                <>
+                    {currentContribution.textStyle.elements.map((element) => (
+                        <div key={element.id} className="absolute pointer-events-none" style={{
+                            left: 0,
+                            top: 0,
+                            transform: element.position.unit === '%'
+                                ? `translate3d(${element.position.left}vw, ${element.position.top}vh, 0)`
+                                : `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
+                            zIndex: 20
+                        }}>
+                            <div className="min-w-[200px] max-w-[80vw] text-center" style={{ ...element.style, backgroundColor: 'transparent', padding: 0 }}>
+                                <span style={{
+                                    backgroundColor: element.style.backgroundColor,
+                                    padding: '0.4em 0.6em',
+                                    borderRadius: '0.5em',
+                                    backdropFilter: 'blur(4px)',
+                                    whiteSpace: 'pre-wrap',
+                                    boxDecorationBreak: 'clone',
+                                    WebkitBoxDecorationBreak: 'clone',
+                                    lineHeight: '1.5',
+                                    display: 'inline'
+                                }}>
+                                    {element.content}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                    {/* Username overlay for stickers mode */}
+                    <div className="absolute bottom-32 left-6 z-10 pointer-events-none">
+                        <span className="font-bold text-shadow-sm font-sans text-white">{currentContribution.userName}</span>
+                    </div>
+                </>
+            ) : (
+                <>
+                    {/* Legacy Caption Overlay (if not Text media type, which handles its own center text) */}
+                    {mediaType !== 'text' && currentContribution?.content && (
+                        <div className="absolute bottom-32 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/60 to-transparent pointer-events-none">
+                            <div className="mb-2"><span className="font-bold text-shadow-sm font-sans text-white">{currentContribution.userName}</span></div>
+                            <div className="w-full" style={{ textAlign: hasCustomTextStyle ? legacyTextStyle.textAlign : 'left' as const }}>
+                                <span
+                                    className="text-lg font-medium leading-snug text-shadow-sm font-sans text-white"
+                                    style={hasCustomTextStyle ? {
+                                        ...legacyTextStyle,
+                                        backgroundColor: legacyTextStyle.backgroundColor !== 'transparent' ? legacyTextStyle.backgroundColor : undefined,
+                                        padding: '0.75rem 1.25rem', borderRadius: '1.5rem', display: 'inline-block', whiteSpace: 'pre-line'
+                                    } : {}}
+                                >
+                                    {currentContribution.content}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
         </>
     );
 }
