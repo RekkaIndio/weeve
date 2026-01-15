@@ -129,10 +129,10 @@ export function ActiveStoryView({
 
     // Handlers
     const handleNext = () => {
-        if (activeIndex < contributions.length - 1) {
-            setActiveIndex(prev => prev + 1);
-        } else {
-            setIsPlaying(false);
+        // Cycle to next index, wrapping to 0 at the end
+        if (contributions.length > 0) {
+            setActiveIndex(prev => (prev + 1) % contributions.length);
+            setIsPlaying(true);
         }
     };
 

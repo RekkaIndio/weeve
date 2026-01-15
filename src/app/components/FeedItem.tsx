@@ -33,6 +33,7 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
     const videoRef = useRef<HTMLVideoElement>(null);
     const bufferVideoRef = useRef<HTMLVideoElement>(null);
 
+
     // Store Actions & State
     const currentUser = useStore((state) => state.currentUser);
     const stories = useStore((state) => state.stories);
@@ -57,6 +58,7 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
     const [isPlaying, setIsPlaying] = useState(false);
     const [isMuted] = useState(false); // Default unmuted as requested
     const [hasInteracted, setHasInteracted] = useState(false);
+    const lastIndexRef = useRef(currentIndex);
 
     // Video Playback State
     const [isVideoReady, setIsVideoReady] = useState(false);
@@ -270,6 +272,7 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
         };
 
         // If switching videos
+        const indexChanged = lastIndexRef.current !== currentIndex;
         if (currentVideoSrc !== mediaUrl) {
             setIsVideoReady(false);
             setIsVideoVisible(false); // Fade out old
@@ -293,8 +296,17 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
             if (!isVideoVisible && isVideoReady) {
                 setIsVideoVisible(true);
             }
+            // Ensure we replay if we cycled back to the same video slot or a new slot with same video
+            if (indexChanged && videoRef.current && isVideoReady) {
+                videoRef.current.currentTime = 0;
+                if (effectiveIsVisible && !isCommentsOpen && !isForking) {
+                    videoRef.current.play().catch(() => { });
+                }
+            }
         }
-    }, [mediaType, mediaUrl, effectiveIsVisible, isCommentsOpen, isForking, currentVideoSrc]);
+
+        lastIndexRef.current = currentIndex;
+    }, [mediaType, mediaUrl, effectiveIsVisible, isCommentsOpen, isForking, currentVideoSrc, currentIndex]);
 
     // 4. Auto Advance (Images/Text)
     useEffect(() => {
