@@ -1169,7 +1169,10 @@ export default function ProfilePage() {
                         <img
                             src={isEditing ? editAvatar : currentUser.avatar}
                             alt={currentUser.name}
-                            className={`w-20 h-20 rounded-full border-2 border-[#EC1D99] bg-gray-800 object-cover ${uploadingAvatar ? 'opacity-50' : ''}`}
+                            className={`w-20 h-20 rounded-full border-2 bg-gray-800 object-cover ${uploadingAvatar ? 'opacity-50' : ''} ${currentUser.tags?.includes('Founder')
+                                    ? 'border-amber-500'
+                                    : 'border-[#EC1D99]'
+                                }`}
                             onError={(e) => {
                                 (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${editName}`;
                             }}
@@ -1217,6 +1220,11 @@ export default function ProfilePage() {
                                 tier={currentUser.verificationTier}
                                 size="sm"
                             />
+                            {currentUser.tags?.includes('OG') && (
+                                <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-500 text-black">
+                                    OG
+                                </span>
+                            )}
                         </h2>
                         <p className="text-sm text-gray-400 line-clamp-2 mt-0.5">
                             {currentUser.tagline || 'Storyteller, dreamer, and weaver of tales. 🌌'}

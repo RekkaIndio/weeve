@@ -56,6 +56,7 @@ export interface User {
     // Collaboration fields
     collabEnabled?: boolean;
     collabPriceCents?: number; // Price in cents (e.g., 500 = $5.00)
+    tags?: string[]; // Profile tags like "OG", "Beta Tester", etc.
 }
 
 export interface Group {

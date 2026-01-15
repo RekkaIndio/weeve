@@ -111,6 +111,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     onboardingStep: (profile.onboardingStep === null) ? undefined : profile.onboardingStep,
                     website: (profile.preferences as any)?.website,
                     preferences: profile.preferences,
+                    tags: profile.tags || [],
                 };
                 setCurrentUser(appUser);
                 return appUser;
