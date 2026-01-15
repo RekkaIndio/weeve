@@ -21,7 +21,6 @@ export default function SignUpPage() {
         setIsAndroid(Capacitor.getPlatform() === 'android');
     }, []);
     const [acceptTerms, setAcceptTerms] = useState(false);
-    const [confirmAge, setConfirmAge] = useState(false);
 
     // DOB State
     const [dobDay, setDobDay] = useState("");
@@ -86,11 +85,6 @@ export default function SignUpPage() {
 
         if (password !== confirmPassword) {
             setError("Passwords do not match");
-            return;
-        }
-
-        if (!confirmAge) {
-            setError("Please confirm that you are at least 13 years old.");
             return;
         }
 
@@ -431,22 +425,8 @@ export default function SignUpPage() {
                         </div>
                     </div>
 
-                    {/* Age Confirmation Checkbox */}
-                    <label className="flex items-start gap-3 cursor-pointer p-3 bg-white/5 rounded-lg border border-white/10 mt-4">
-                        <input
-                            type="checkbox"
-                            checked={confirmAge}
-                            onChange={(e) => setConfirmAge(e.target.checked)}
-                            className="mt-1 w-4 h-4 rounded border-gray-600 text-teal-500 focus:ring-teal-500 focus:ring-offset-0 bg-transparent"
-                            disabled={loading}
-                        />
-                        <span className="text-sm text-gray-300">
-                            I confirm that I am at least <strong className="text-white">13 years old</strong>.
-                        </span>
-                    </label>
-
                     {/* Terms Checkbox */}
-                    <label className="flex items-start gap-3 cursor-pointer p-3 bg-white/5 rounded-lg border border-white/10">
+                    <label className="flex items-start gap-3 cursor-pointer p-3 bg-white/5 rounded-lg border border-white/10 mt-4">
                         <input
                             type="checkbox"
                             checked={acceptTerms}
