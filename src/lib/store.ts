@@ -1555,7 +1555,7 @@ export const useStore = create<AppState>()(
                                 allow_reuse, turn_timer_hours, monetization_cost,
                                 scheduled_for, visibility_days,
                                 groups (name, avatar, is_private),
-                                contributions (id, user_id, user_name, content, media_type, media_url, timestamp, text_style, slot_index),
+                                contributions (id, user_id, user_name, content, media_type, media_url, timestamp, text_style),
                                 story_participants (user_id, status, position, profiles:user_id (id, name, avatar, is_influencer, is_private, is_brand)),
                                 story_likes (user_id),
                                 forks:stories!forked_from_story_id(count)
@@ -1637,8 +1637,7 @@ export const useStore = create<AppState>()(
                                  mediaType: c.media_type,
                                  mediaUrl: c.media_url?.trim() || undefined,
                                  timestamp: c.timestamp,
-                                 textStyle: c.text_style,
-                                 slotIndex: c.slot_index
+                                 textStyle: c.text_style
                              }));
 
                              const likedBy = (s.story_likes || []).map((l: any) => l.user_id);

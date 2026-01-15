@@ -79,6 +79,9 @@ export function useDiscoverLogic() {
     const [peopleResults, setPeopleResults] = useState<FriendType[]>([]);
     const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
+    // Group Stories State (fetched separately since they may be private visibility)
+    const [groupStoriesData, setGroupStoriesData] = useState<Story[]>([]);
+
     // Derived Data
     const friendIds = useMemo(() => new Set((friends || []).map(f => f.id)), [friends]);
     const userGroupIds = useMemo(() => new Set((groups || []).map(g => g.id)), [groups]);
@@ -94,6 +97,114 @@ export function useDiscoverLogic() {
     useEffect(() => {
         fetchDiscoveryStories();
     }, [fetchDiscoveryStories]);
+
+    // Fetch stories from user's groups (separate from discovery since group stories may have private visibility)
+    useEffect(() => {
+        const fetchGroupStories = async () => {
+            if (!currentUser || groups.length === 0) {
+                setGroupStoriesData([]);
+                return;
+            }
+
+            try {
+                const groupIds = groups.map(g => g.id);
+                
+                const { data: storiesData, error } = await supabase
+                    .from('stories')
+                    .select(`
+                        id, title, description, creator_id, visibility, mode, status,
+                        max_weeves, cover_image, hashtags, created_at, updated_at,
+                        forked_from_story_id, post_type, group_id, current_turn_user_id,
+                        groups (name, avatar, is_private),
+                        contributions (id, user_id, user_name, content, media_type, media_url, timestamp, text_style),
+                        story_participants (user_id, status, position, profiles:user_id (id, name, avatar, is_influencer, is_private)),
+                        story_likes (user_id)
+                    `)
+                    .in('group_id', groupIds)
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+
+                if (error) {
+                    console.error('[useDiscoverLogic] Error fetching group stories:', error);
+                    return;
+                }
+
+                if (!storiesData) return;
+
+                const formattedStories: Story[] = storiesData
+                    .filter((s: any) => {
+                        // Must have contributions
+                        if (!s.contributions || s.contributions.length === 0) return false;
+                        // Filter blocked users
+                        if (blockedUserIds.includes(s.creator_id)) return false;
+                        return true;
+                    })
+                    .map((s: any) => {
+                        const participants = (s.story_participants || []).map((sp: any) => {
+                            const profile = sp.profiles || { name: 'Unknown', avatar: '' };
+                            return {
+                                id: sp.user_id,
+                                name: profile.name,
+                                avatar: profile.avatar,
+                                tokens: 0,
+                                isInfluencer: profile.is_influencer,
+                                isPrivate: profile.is_private === true,
+                                status: sp.status,
+                                position: sp.position
+                            };
+                        }).sort((a: any, b: any) => (a.position || 0) - (b.position || 0));
+
+                        const contributions = (s.contributions || [])
+                            .sort((a: any, b: any) => (a.timestamp || 0) - (b.timestamp || 0))
+                            .map((c: any) => ({
+                                id: c.id,
+                                userId: c.user_id,
+                                userName: c.user_name,
+                                content: c.content,
+                                mediaType: c.media_type,
+                                mediaUrl: c.media_url?.trim() || undefined,
+                                timestamp: c.timestamp,
+                                textStyle: c.text_style
+                            }));
+
+                        const likedBy = (s.story_likes || []).map((l: any) => l.user_id);
+
+                        return {
+                            id: s.id,
+                            title: s.title,
+                            description: s.description,
+                            creatorId: s.creator_id,
+                            visibility: s.visibility,
+                            mode: s.mode ?? 'invite',
+                            status: s.status,
+                            currentTurnUserId: s.current_turn_user_id,
+                            contributions,
+                            participants,
+                            maxWeeves: s.max_weeves,
+                            coverImage: s.cover_image,
+                            groupId: s.group_id,
+                            groupName: s.groups?.name,
+                            groupAvatar: s.groups?.avatar,
+                            groupIsPrivate: s.groups?.is_private,
+                            likes: likedBy.length,
+                            likedBy,
+                            comments: [],
+                            created_at: s.created_at,
+                            updated_at: s.updated_at,
+                            hashtags: s.hashtags,
+                            forkedFromStoryId: s.forked_from_story_id ?? undefined,
+                            postType: s.post_type ?? 'normal'
+                        } as Story;
+                    });
+
+                setGroupStoriesData(formattedStories);
+            } catch (err) {
+                console.error('[useDiscoverLogic] Failed to fetch group stories:', err);
+            }
+        };
+
+        fetchGroupStories();
+    }, [currentUser, groups, blockedUserIds]);
 
     // Ranking Helpers
     const getForYouScore = useCallback((story: typeof stories[0]) => {
@@ -249,9 +360,19 @@ export function useDiscoverLogic() {
             .slice(0, 6)
     , [publicStories, getTrendingScore]);
 
-    const groupStories = useMemo(() => 
-        filteredStories.filter(story => story.groupId)
-    , [filteredStories]);
+    // Group stories come from separate fetch (not filtered by public visibility)
+    // Apply search filter if user is searching
+    const groupStories = useMemo(() => {
+        if (!searchQuery.trim()) return groupStoriesData;
+        const query = searchQuery.toLowerCase();
+        return groupStoriesData.filter(story => {
+            if (story.title.toLowerCase().includes(query)) return true;
+            if (story.description.toLowerCase().includes(query)) return true;
+            if (story.hashtags?.some(tag => tag.toLowerCase().includes(query))) return true;
+            if (story.groupName?.toLowerCase().includes(query)) return true;
+            return false;
+        });
+    }, [groupStoriesData, searchQuery]);
 
     const selectedStoryIndex = useMemo(() => {
         if (!storyIdParam) return null;
