@@ -7,7 +7,7 @@ import { processReferralCode } from "@/lib/referral";
 import { useAuth } from "@/app/components/AuthProvider";
 import { useStore } from "@/lib/store";
 import { capturePhoto } from "@/lib/camera";
-import { supabase } from "@/lib/supabase";
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabase";
 import { Camera, Check, X, Loader2, LogOut } from "lucide-react";
 
 export default function SetupPage() {
@@ -83,27 +83,58 @@ export default function SetupPage() {
     const uploadAvatarToStorage = async (file: File, userId: string): Promise<string | null> => {
         try {
             setUploadingAvatar(true);
-            const fileExt = file.name.split('.').pop();
+            const fileExt = file.name.split('.').pop() || 'jpg';
             const fileName = `${userId}-${Date.now()}.${fileExt}`;
             const filePath = `user-avatars/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from('avatars')
-                .upload(filePath, file, {
-                    upsert: true,
-                    cacheControl: '3600',
-                    contentType: file.type,
+            // Get the current session for auth token
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData?.session?.access_token;
+
+            if (!accessToken) {
+                throw new Error('No active session. Please log in again.');
+            }
+
+            // Use REST API with AbortController - more reliable on iOS than SDK
+            const url = `${SUPABASE_URL}/storage/v1/object/avatars/${filePath}?cacheControl=3600&upsert=true`;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': file.type || 'application/octet-stream',
+                    },
+                    body: file,
+                    signal: controller.signal,
                 });
+                clearTimeout(timeoutId);
 
-            if (uploadError) throw uploadError;
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('[Setup] Upload response error:', response.status, errorText);
+                    throw new Error(`Upload failed: ${response.status}`);
+                }
+            } catch (fetchError: any) {
+                clearTimeout(timeoutId);
+                if (fetchError?.name === 'AbortError') {
+                    throw new Error('Upload timed out. Please check your connection and try again.');
+                }
+                throw fetchError;
+            }
 
+            // Get public URL
             const { data: urlData } = supabase.storage
                 .from('avatars')
                 .getPublicUrl(filePath);
 
             return urlData.publicUrl;
         } catch (err) {
-            console.error('[Setup] Avatar upload error FULL DETAIL:', err);
+            console.error('[Setup] Avatar upload error:', err);
             throw err;
         } finally {
             setUploadingAvatar(false);

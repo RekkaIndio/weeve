@@ -404,11 +404,7 @@ export function StoryTimeline({
                                 Part {entry.position !== undefined ? entry.position + 1 : ((story.postType === 'canon' || story.postType === 'seed') ? (index !== undefined ? index + 1 : occurrence) : occurrence)}
                             </span>
                             {/* Only show "Their turn" for other users - current user sees the + button with "Your turn" */}
-                            {isCurrentTurn && contribution.userId !== currentUser?.id && isAlreadyInvolved && (
-                                <span className="text-[10px] text-[#EC1D99] font-semibold">
-                                    Their turn
-                                </span>
-                            )}
+
                         </button>
                     );
                 })}
