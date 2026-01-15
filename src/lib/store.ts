@@ -3,6 +3,27 @@ import { persist } from 'zustand/middleware';
 import { supabase } from './supabase';
 import { getFriends } from './friends';
 
+export const STORY_SELECT_QUERY = `
+    *,
+    groups (
+        name,
+        avatar,
+        is_private
+    ),
+    contributions (*),
+    story_participants (
+        *,
+        profiles:user_id (id, name, avatar, is_influencer, is_private, is_brand)
+    ),
+    story_likes (user_id),
+    story_comments (
+        *,
+        profiles:user_id (name, avatar),
+        comment_likes (user_id)
+    ),
+    forks:stories!forked_from_story_id(count)
+`;
+
 export interface User {
     id: string;
     name: string;
@@ -246,6 +267,7 @@ interface AppState {
     forkStory: (originalStoryId: string, slotToUserAssignments: Map<number, string>, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     forkBrandPost: (originalStoryId: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     fetchStories: (reset?: boolean) => Promise<void>;
+    fetchUserStories: (userId: string) => Promise<void>;
     fetchDiscoveryStories: (reset?: boolean) => Promise<void>;
     fetchMoreStories: () => Promise<void>;
     setProfileUpdateInProgress: (value: boolean) => void;
@@ -1236,26 +1258,7 @@ export const useStore = create<AppState>()(
                     const runQuery = async (timeoutMs: number) => {
                         const storiesQueryPromise = supabase
                             .from('stories')
-                            .select(`
-                                *,
-                                groups (
-                                    name,
-                                    avatar,
-                                    is_private
-                                ),
-                                contributions (*),
-                                story_participants (
-                                    *,
-                                    profiles:user_id (id, name, avatar, is_influencer, is_private, is_brand)
-                                ),
-                                story_likes (user_id),
-                                story_comments (
-                                    *,
-                                    profiles:user_id (name, avatar),
-                                    comment_likes (user_id)
-                                ),
-                                forks:stories!forked_from_story_id(count)
-                            `)
+                            .select(STORY_SELECT_QUERY)
                             .order('created_at', { ascending: false })
                             .range(offset, offset + PAGE_SIZE - 1); // Pagination limit
                         return Promise.race([
@@ -1504,19 +1507,27 @@ export const useStore = create<AppState>()(
 
                     // If reset, replace stories; otherwise append
                     if (reset) {
-                        set({ 
-                            stories: formattedStories, 
-                            storiesPage: 1, 
-                            hasMoreStories: hasMore 
+                        set((state) => {
+                            // When resetting, we might want to preserve stories that are NOT in the new batch 
+                            // but were loaded for other reasons (like profile views).
+                            // However, simple reset is safer for now to avoid unlimited growth.
+                            // But to avoid "flashing" or losing profile stories, we could merge.
+                            // Let's stick to safe reset but ensure NO duplicates in the new batch itself (though unlikely)
+                             return { 
+                                stories: formattedStories, 
+                                storiesPage: 1, 
+                                hasMoreStories: hasMore 
+                            };
                         });
                     } else {
-                        const existingStories = get().stories;
-                        const existingIds = new Set(existingStories.map(s => s.id));
-                        const newStories = formattedStories.filter(s => !existingIds.has(s.id));
-                        set({ 
-                            stories: [...existingStories, ...newStories], 
-                            storiesPage: page + 1, 
-                            hasMoreStories: hasMore 
+                        set((state) => {
+                            const existingIds = new Set(state.stories.map(s => s.id));
+                            const newStories = formattedStories.filter(s => !existingIds.has(s.id));
+                            return { 
+                                stories: [...state.stories, ...newStories], 
+                                storiesPage: page + 1, 
+                                hasMoreStories: hasMore 
+                            };
                         });
                     }
 
@@ -1524,6 +1535,147 @@ export const useStore = create<AppState>()(
                     console.error('Failed to fetch stories:', err);
                 } finally {
                     set({ isStoriesLoading: false });
+                }
+            },
+
+            fetchUserStories: async (userId: string) => {
+                const { stories } = get();
+                // 1. Fetch IDs where user is creator, participant, or contributor
+                // use separate queries to keep it simple and efficient enough
+                
+                try {
+                    const [createdRes, participatedRes, contributedRes] = await Promise.all([
+                        supabase.from('stories').select('id').eq('creator_id', userId),
+                        supabase.from('story_participants').select('story_id').eq('user_id', userId),
+                        supabase.from('contributions').select('story_id').eq('user_id', userId)
+                    ]);
+
+                    const ids = new Set<string>();
+                    createdRes.data?.forEach((r: any) => ids.add(r.id));
+                    participatedRes.data?.forEach((r: any) => ids.add(r.story_id));
+                    contributedRes.data?.forEach((r: any) => ids.add(r.story_id));
+
+                    // Filter out already loaded stories
+                    const existingIds = new Set(stories.map(s => s.id));
+                    const missingIds = Array.from(ids).filter(id => !existingIds.has(id));
+
+                    if (missingIds.length === 0) return;
+
+                    // Fetch missing stories
+                    // Process in chunks of 20 to avoid URL length issues if many
+                    const CHUNK_SIZE = 20;
+                    const chunks = [];
+                    for (let i = 0; i < missingIds.length; i += CHUNK_SIZE) {
+                        chunks.push(missingIds.slice(i, i + CHUNK_SIZE));
+                    }
+
+                    for (const chunk of chunks) {
+                        const { data: storiesData, error } = await supabase
+                            .from('stories')
+                            .select(STORY_SELECT_QUERY)
+                            .in('id', chunk);
+
+                        if (error) {
+                            console.error('[Store] Error fetching user stories chunk:', error);
+                            continue;
+                        }
+                        
+                        if (!storiesData) continue;
+
+                        // Process and add to store (share format logic if possible, but for now duplicate the mapping)
+                        // It is identical to fetchStories mapping
+                        
+                        const formattedStories: Story[] = storiesData.map((s: any) => {
+                             // Map participants
+                             const participants = s.story_participants.map((sp: any) => {
+                                 const profile = sp.profiles || { name: 'Unknown', avatar: '' };
+                                 return {
+                                     id: sp.user_id,
+                                     name: profile.name,
+                                     avatar: profile.avatar,
+                                     tokens: 0,
+                                     isInfluencer: profile.is_influencer,
+                                     isBrand: profile.isBrand,
+                                     isPrivate: profile.is_private === true,
+                                     status: (sp.status === 'accepted' || sp.status === 'waiting' || sp.status === 'declined') ? sp.status : undefined,
+                                     position: sp.position
+                                 };
+                             }).sort((a: any, b: any) => (a.position || 0) - (b.position || 0));
+     
+                             const contributions = s.contributions.map((c: any) => ({
+                                 id: c.id,
+                                 userId: c.user_id,
+                                 userName: c.user_name,
+                                 content: c.content,
+                                 mediaType: c.media_type,
+                                 mediaUrl: c.media_url?.trim() || undefined,
+                                 timestamp: c.timestamp,
+                                 textStyle: c.text_style
+                             }));
+     
+                             const comments = s.story_comments.map((cm: any) => ({
+                                 id: cm.id,
+                                 userId: cm.user_id,
+                                 userName: cm.user_name || cm.profiles?.name || 'Unknown',
+                                 userAvatar: cm.profiles?.avatar || undefined,
+                                 content: cm.content,
+                                 timestamp: cm.timestamp,
+                                 parentCommentId: cm.parent_comment_id,
+                                 likes: cm.comment_likes?.length ?? 0,
+                                 likedBy: (cm.comment_likes ?? []).map((l: any) => l.user_id),
+                             }));
+     
+                             const likedBy = s.story_likes.map((l: any) => l.user_id);
+     
+                             return {
+                                 id: s.id,
+                                 title: s.title,
+                                 description: s.description,
+                                 creatorId: s.creator_id,
+                                 visibility: s.visibility,
+                                 mode: s.mode ?? 'invite',
+                                 status: ((s.post_type === 'canon' || s.post_type === 'seed') && s.visibility_days && (new Date(s.created_at).getTime() + (s.visibility_days * 86400000) < Date.now())) ? 'completed' : s.status,
+                                 currentTurnUserId: s.current_turn_user_id,
+                                 contributions,
+                                 participants,
+                                 maxWeeves: s.max_weeves,
+                                 coverImage: s.cover_image,
+                                 theme: s.theme,
+                                 groupId: s.group_id,
+                                 groupName: s.groups?.name,
+                                 groupAvatar: s.groups?.avatar,
+                                 groupIsPrivate: s.groups?.is_private,
+                                 likes: likedBy.length,
+                                 likedBy,
+                                 comments,
+                                 created_at: s.created_at,
+                                 updated_at: s.updated_at,
+                                 hashtags: s.hashtags,
+                                 monetizationCost: s.monetization_cost,
+                                 allowComments: s.allow_comments,
+                                 allowReuse: s.allow_reuse,
+                                 turnTimerHours: s.turn_timer_hours,
+                                 forkedFromStoryId: s.forked_from_story_id ?? undefined,
+                                 postType: s.post_type ?? 'normal',
+                                 canonSlots: s.canon_slots ?? undefined,
+                                 visibilityDays: s.visibility_days ?? undefined,
+                                 brandId: s.brand_id ?? undefined,
+                                 isFeatured: s.is_featured ?? false,
+                                 scheduledFor: s.scheduled_for ?? undefined,
+                                 forksCount: (s.forks && s.forks[0]) ? s.forks[0].count : 0
+                             };
+                        });
+
+                        set((state) => {
+                            const existingIds = new Set(state.stories.map(s => s.id));
+                            const uniqueNewStories = formattedStories.filter(s => !existingIds.has(s.id));
+                            return { 
+                                stories: [...state.stories, ...uniqueNewStories] 
+                            };
+                        });
+                    }
+                } catch (err) {
+                    console.error('[Store] fetchUserStories failed:', err);
                 }
             },
 
@@ -1684,10 +1836,11 @@ export const useStore = create<AppState>()(
                     if (reset) {
                         set({ stories: formattedStories, storiesPage: 1, hasMoreStories: hasMore });
                     } else {
-                        const existingStories = get().stories;
-                        const existingIds = new Set(existingStories.map(s => s.id));
-                        const newStories = formattedStories.filter(s => !existingIds.has(s.id));
-                        set({ stories: [...existingStories, ...newStories], storiesPage: page + 1, hasMoreStories: hasMore });
+                        set((state) => {
+                            const existingIds = new Set(state.stories.map(s => s.id));
+                            const newStories = formattedStories.filter(s => !existingIds.has(s.id));
+                            return { stories: [...state.stories, ...newStories], storiesPage: page + 1, hasMoreStories: hasMore };
+                        });
                     }
                 } catch (err) {
                     console.error('Failed to fetch discovery stories:', err);

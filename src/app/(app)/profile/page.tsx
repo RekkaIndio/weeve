@@ -415,8 +415,14 @@ const formatDurationShort = (ms: number): string => {
 };
 
 export default function ProfilePage() {
-    const { currentUser, stories, setCurrentUser, friends, fetchFriends, setProfileUpdateInProgress, savedStoryIds, fetchSavedStories, fetchStories } = useStore();
+    const { currentUser, stories, setCurrentUser, friends, fetchFriends, setProfileUpdateInProgress, savedStoryIds, fetchSavedStories, fetchStories, fetchUserStories } = useStore();
     const [activeTab, setActiveTab] = useState<'weeves' | 'saved' | 'waiting'>('weeves');
+
+    useEffect(() => {
+        if (currentUser) {
+            fetchUserStories(currentUser.id);
+        }
+    }, [currentUser, fetchUserStories]);
 
     useEffect(() => {
         fetchFriends();
