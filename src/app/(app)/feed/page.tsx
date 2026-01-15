@@ -562,6 +562,32 @@ export default function Home() {
         </div>
       )}
 
+      {/* Weeve Of Pill - Positioned at page level for consistent spacing */}
+      {filteredStories[activeIndex]?.forkedFromStoryId && (
+        <div
+          className="absolute left-0 right-0 z-40 flex justify-center pointer-events-none"
+          style={{ top: 'calc(var(--header-pt-small) + 2.5rem)' }}
+        >
+          <button
+            onClick={() => {
+              const story = filteredStories[activeIndex];
+              if (story?.forkedFromStoryId) {
+                router.push(`/story/${story.forkedFromStoryId}`);
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full text-xs text-gray-200 hover:bg-black/60 hover:text-white transition-all border border-white/10 pointer-events-auto shadow-lg"
+          >
+            <svg className="w-3 h-3 text-[#EC1D99]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+            <span className="opacity-80">Weeve of</span>
+            <span className="font-bold text-white max-w-[150px] truncate">
+              {stories.find(s => s.id === filteredStories[activeIndex]?.forkedFromStoryId)?.title || 'Original'}
+            </span>
+          </button>
+        </div>
+      )}
+
       <div ref={containerRef} className="h-full w-full overflow-hidden scrollbar-hide">
         {filteredStories.map((story, index) => (
           <div
@@ -574,7 +600,7 @@ export default function Home() {
             data-index={index}
           >
             {Math.abs(index - activeIndex) <= 1 ? (
-              <FeedItem key={story.id} story={story} isActive={index === activeIndex} />
+              <FeedItem key={story.id} story={story} isActive={index === activeIndex} hideOverlay />
             ) : (
               <div className="h-full w-full bg-black" />
             )}
