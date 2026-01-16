@@ -1797,6 +1797,11 @@ export const useStore = create<AppState>()(
                                 contributions (id, user_id, user_name, content, media_type, media_url, timestamp, text_style),
                                 story_participants (user_id, status, position, profiles:user_id (id, name, avatar, is_influencer, is_private, is_brand)),
                                 story_likes (user_id),
+                                story_comments (
+                                    *,
+                                    profiles:user_id (name, avatar),
+                                    comment_likes (user_id)
+                                ),
                                 forks:stories!forked_from_story_id(count)
                             `)
                             .eq('visibility', 'public')
@@ -1881,6 +1886,19 @@ export const useStore = create<AppState>()(
 
                              const likedBy = (s.story_likes || []).map((l: any) => l.user_id);
 
+                             // Map comments
+                             const comments = (s.story_comments || []).map((cm: any) => ({
+                                 id: cm.id,
+                                 userId: cm.user_id,
+                                 userName: cm.user_name || cm.profiles?.name || 'Unknown',
+                                 userAvatar: cm.profiles?.avatar || undefined,
+                                 content: cm.content,
+                                 timestamp: cm.timestamp,
+                                 parentCommentId: cm.parent_comment_id,
+                                 likes: cm.comment_likes?.length ?? 0,
+                                 likedBy: (cm.comment_likes ?? []).map((l: any) => l.user_id),
+                             }));
+
                              return {
                                  id: s.id,
                                  title: s.title,
@@ -1901,7 +1919,7 @@ export const useStore = create<AppState>()(
                                  groupIsPrivate: s.groups?.is_private,
                                  likes: likedBy.length,
                                  likedBy,
-                                 comments: [],
+                                 comments,
                                  created_at: s.created_at,
                                  updated_at: s.updated_at,
                                  hashtags: s.hashtags,
