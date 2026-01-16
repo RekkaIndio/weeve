@@ -57,20 +57,19 @@ export default function GroupStoriesView({
                                     </div>
                                 )}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent p-3 flex flex-col justify-end">
-                                    {group && (
-                                        <div className="flex items-center gap-1.5 mb-2 bg-black/40 backdrop-blur-sm p-1.5 rounded-full w-fit max-w-[90%]">
+                                    <h3 className="font-bold text-sm line-clamp-2 mb-1">{story.title}</h3>
+                                    <div className="flex items-center gap-2">
+                                        {group && (
                                             <MediaWithFallback
                                                 src={group.avatar}
                                                 alt={group.name}
                                                 className="w-4 h-4 rounded-full border border-white/20"
                                             />
-                                            <span className="text-[10px] font-medium text-white/90 truncate">{group.name}</span>
+                                        )}
+                                        <div className="flex items-center gap-1 text-xs text-gray-300">
+                                            <Users className="w-3 h-3" />
+                                            <span>{story.participants.length}</span>
                                         </div>
-                                    )}
-                                    <h3 className="font-bold text-sm line-clamp-2 mb-1">{story.title}</h3>
-                                    <div className="flex items-center gap-1 text-xs text-gray-300">
-                                        <Users className="w-3 h-3" />
-                                        <span>{story.participants.length}</span>
                                     </div>
                                 </div>
                                 <div className="absolute inset-0 ring-1 ring-inset ring-white/5 rounded-xl group-hover/card:ring-[#EC1D99]/50 group-hover/card:shadow-lg group-hover/card:shadow-[#EC1D99]/20 transition-all duration-300" />
