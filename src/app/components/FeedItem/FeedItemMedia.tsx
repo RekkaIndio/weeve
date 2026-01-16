@@ -232,17 +232,13 @@ export default function FeedItemMedia({
                             </div>
                         </div>
                     ))}
-                    {/* Username overlay for stickers mode */}
-                    <div className="absolute bottom-32 left-6 z-10 pointer-events-none">
-                        <span className="font-bold text-shadow-sm font-sans text-white">{currentContribution.userName}</span>
-                    </div>
+
                 </>
             ) : (
                 <>
                     {/* Legacy Caption Overlay (if not Text media type, which handles its own center text) */}
                     {mediaType !== 'text' && currentContribution?.content && (
                         <div className="absolute bottom-32 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/60 to-transparent pointer-events-none">
-                            <div className="mb-2"><span className="font-bold text-shadow-sm font-sans text-white">{currentContribution.userName}</span></div>
                             <div className="w-full" style={{ textAlign: hasCustomTextStyle ? legacyTextStyle.textAlign : 'left' as const }}>
                                 <span
                                     className="text-lg font-medium leading-snug text-shadow-sm font-sans text-white"
