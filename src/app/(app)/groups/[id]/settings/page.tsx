@@ -182,26 +182,43 @@ export default function GroupSettingsPage() {
         }
     };
 
+    const [approvingUserId, setApprovingUserId] = useState<string | null>(null);
+
     const handleApproveRequest = async (memberId: string) => {
+        if (approvingUserId) return; // Prevent double-clicks
+        setApprovingUserId(memberId);
+
         try {
-            const { error } = await supabase
+            console.log('[GroupSettings] Approving request for user:', memberId, 'in group:', id);
+
+            const { data, error } = await supabase
                 .from('group_members')
                 .update({ status: 'active' })
                 .eq('group_id', id)
-                .eq('user_id', memberId);
+                .eq('user_id', memberId)
+                .select()
+                .single();
 
-            if (error) throw error;
-            // toast removed
-
-            // Move from requests to members
-            const request = requests.find(r => r.user_id === memberId);
-            if (request) {
-                setRequests(requests.filter(r => r.user_id !== memberId));
-                setMembers([...members, { ...request, status: 'active' }]);
+            if (error) {
+                console.error('[GroupSettings] Update error:', error);
+                throw error;
             }
+
+            if (!data) {
+                console.error('[GroupSettings] No data returned from update - row may not exist');
+                throw new Error('Failed to update member status');
+            }
+
+            console.log('[GroupSettings] Update successful, returned data:', data);
+
+            // Refresh data from server to ensure UI is synced
+            await fetchGroupData();
+
         } catch (error) {
             console.error('Error approving request:', error);
-            console.error('Failed to approve request');
+            // Could show a toast here in the future
+        } finally {
+            setApprovingUserId(null);
         }
     };
 
@@ -623,14 +640,20 @@ export default function GroupSettingsPage() {
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => handleApproveRequest(request.user_id)}
-                                            className="p-2 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded-full transition-colors"
+                                            disabled={approvingUserId === request.user_id}
+                                            className={`p-2 bg-green-500/10 text-green-500 hover:bg-green-500/20 rounded-full transition-colors ${approvingUserId === request.user_id ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             title="Approve"
                                         >
-                                            <Check className="w-4 h-4" />
+                                            {approvingUserId === request.user_id ? (
+                                                <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <Check className="w-4 h-4" />
+                                            )}
                                         </button>
                                         <button
                                             onClick={() => handleDeclineRequest(request.user_id)}
-                                            className="p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-full transition-colors"
+                                            disabled={approvingUserId === request.user_id}
+                                            className={`p-2 bg-red-500/10 text-red-500 hover:bg-red-500/20 rounded-full transition-colors ${approvingUserId === request.user_id ? 'opacity-50 cursor-not-allowed' : ''}`}
                                             title="Decline"
                                         >
                                             <X className="w-4 h-4" />
