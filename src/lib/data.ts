@@ -1140,6 +1140,7 @@ export async function fetchGroups(userId?: string): Promise<Group[]> {
             storyCount: storyCountMap[group.id] || 0,
             ownerIsVerified: group.owner?.is_verified || group.owner?.is_brand || false,
             ownerVerificationTier: group.owner?.verification_tier || (group.owner?.is_brand ? 'gold' : null),
+            createdAt: group.created_at,
         }));
     } catch (error) {
         console.error('Unexpected error fetching groups:', error);

@@ -70,6 +70,7 @@ export interface Group {
     storyCount?: number;
     ownerIsVerified?: boolean;
     ownerVerificationTier?: 'bronze' | 'silver' | 'gold' | null;
+    createdAt?: string;
 }
 
 export type MediaType = 'video' | 'image' | 'text' | 'drawing' | 'audio';

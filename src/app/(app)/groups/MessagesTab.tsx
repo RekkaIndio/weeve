@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/components/AuthProvider';
 import { useStore } from '@/lib/store';
 import { getConversations, createConversation, ConversationWithParticipants } from '@/lib/messaging';
-import { Plus, X, MessageCircle, Search } from 'lucide-react';
+import { Plus, X, MessageCircle, Search, ArrowUpDown } from 'lucide-react';
 import Image from 'next/image';
 import SearchBar from '@/app/components/SearchBar';
 import { supabase } from '@/lib/supabase';
@@ -25,6 +25,7 @@ export default function MessagesTab({ onNewMessage }: MessagesTabProps) {
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [searching, setSearching] = useState(false);
     const [conversationFilter, setConversationFilter] = useState('');
+    const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'alphabetical'>('newest');
 
     useEffect(() => {
         if (!user) return;
@@ -117,22 +118,56 @@ export default function MessagesTab({ onNewMessage }: MessagesTabProps) {
         const otherParticipant = conv.participants.find(p => p.user.user_id !== user?.id)?.user;
         if (!otherParticipant) return false;
         return otherParticipant.name.toLowerCase().includes(conversationFilter.toLowerCase());
+    }).sort((a, b) => {
+        const participantA = a.participants.find(p => p.user.user_id !== user?.id)?.user;
+        const participantB = b.participants.find(p => p.user.user_id !== user?.id)?.user;
+
+        switch (sortBy) {
+            case 'newest':
+                return new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime();
+            case 'oldest':
+                return new Date(a.last_message_at || 0).getTime() - new Date(b.last_message_at || 0).getTime();
+            case 'alphabetical':
+                return (participantA?.name || '').localeCompare(participantB?.name || '');
+            default:
+                return 0;
+        }
     });
 
     return (
         <>
             {/* Search Bar for Conversations */}
-            <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-5 w-5 text-gray-500 group-focus-within:text-[#EC1D99] transition-colors" />
+            <div className="flex gap-3 mb-4">
+                <div className="relative group flex-1">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Search className="h-5 w-5 text-gray-500 group-focus-within:text-[#EC1D99] transition-colors" />
+                    </div>
+                    <input
+                        type="text"
+                        value={conversationFilter}
+                        onChange={(e) => setConversationFilter(e.target.value)}
+                        className="block w-full pl-10 pr-3 py-3 h-12 border border-gray-800 rounded-xl leading-5 bg-gradient-to-br from-gray-900 to-gray-900/50 text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-all font-medium sm:text-sm"
+                        placeholder="Search conversations..."
+                    />
                 </div>
-                <input
-                    type="text"
-                    value={conversationFilter}
-                    onChange={(e) => setConversationFilter(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-800 rounded-xl leading-5 bg-gradient-to-br from-gray-900 to-gray-900/50 text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-all font-medium sm:text-sm"
-                    placeholder="Search conversations..."
-                />
+
+                {/* Sort Dropdown */}
+                <div className="relative">
+                    {/* Visual Icon (Behind the select) */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                        <ArrowUpDown className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors" />
+                    </div>
+                    <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as any)}
+                        className="appearance-none w-12 py-3 pl-8 pr-1 h-12 bg-gradient-to-br from-gray-900 to-gray-900/50 border border-gray-800 rounded-xl text-transparent focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-all cursor-pointer hover:bg-white/5 relative z-20"
+                        aria-label="Sort by"
+                    >
+                        <option className="text-black" value="newest">Newest</option>
+                        <option className="text-black" value="oldest">Oldest</option>
+                        <option className="text-black" value="alphabetical">A-Z</option>
+                    </select>
+                </div>
             </div>
 
             {/* Conversations List */}

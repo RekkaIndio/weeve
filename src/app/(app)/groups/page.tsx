@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Users, Plus, X, Search, MessageCircle } from "lucide-react";
+import { Users, Plus, X, Search, MessageCircle, ArrowUpDown } from "lucide-react";
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { getLatestSession } from '@/lib/auth-session';
 import { useAuth } from '@/app/components/AuthProvider';
@@ -27,6 +27,7 @@ export default function GroupsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const tabParam = searchParams?.get('tab');
     const [activeTab, setActiveTab] = useState<'groups' | 'messages'>(tabParam === 'messages' ? 'messages' : 'groups');
+    const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'members' | 'alphabetical'>('newest');
 
     useEffect(() => {
         let isActive = true;
@@ -250,6 +251,21 @@ export default function GroupsPage() {
         (group.description && group.description.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
+    const sortedGroups = [...filteredGroups].sort((a, b) => {
+        switch (sortBy) {
+            case 'newest':
+                return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+            case 'oldest':
+                return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+            case 'members':
+                return (b.memberCount || 0) - (a.memberCount || 0);
+            case 'alphabetical':
+                return a.name.localeCompare(b.name);
+            default:
+                return 0;
+        }
+    });
+
     return (
         <div className="min-h-screen bg-black text-white p-4 md:p-6 pb-24">
             <div className="max-w-7xl mx-auto space-y-6">
@@ -305,18 +321,39 @@ export default function GroupsPage() {
                 {/* Tab Content */}
                 {activeTab === 'groups' ? (
                     <>
-                        {/* Search Section */}
-                        <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Search className="h-5 w-5 text-gray-500 group-focus-within:text-[#EC1D99] transition-colors" />
+                        {/* Search and Sort Section */}
+                        <div className="flex gap-3 mb-6">
+                            <div className="relative group flex-1">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Search className="h-5 w-5 text-gray-500 group-focus-within:text-[#EC1D99] transition-colors" />
+                                </div>
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="block w-full pl-10 pr-3 py-3 h-12 border border-gray-800 rounded-xl leading-5 bg-gradient-to-br from-gray-900 to-gray-900/50 text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-all font-medium sm:text-sm"
+                                    placeholder="Search for groups..."
+                                />
                             </div>
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="block w-full pl-10 pr-3 py-3 border border-gray-800 rounded-xl leading-5 bg-gradient-to-br from-gray-900 to-gray-900/50 text-gray-300 placeholder-gray-500 focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-all font-medium sm:text-sm"
-                                placeholder="Search for groups..."
-                            />
+
+                            {/* Sort Dropdown */}
+                            <div className="relative">
+                                {/* Visual Icon (Behind the select) */}
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                                    <ArrowUpDown className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors" />
+                                </div>
+                                <select
+                                    value={sortBy}
+                                    onChange={(e) => setSortBy(e.target.value as any)}
+                                    className="appearance-none w-12 py-3 pl-8 pr-1 h-12 bg-gradient-to-br from-gray-900 to-gray-900/50 border border-gray-800 rounded-xl text-transparent focus:outline-none focus:border-[#EC1D99]/50 focus:ring-1 focus:ring-[#EC1D99]/50 transition-all cursor-pointer hover:bg-white/5 relative z-20"
+                                    aria-label="Sort by"
+                                >
+                                    <option className="text-black" value="newest">Newest</option>
+                                    <option className="text-black" value="oldest">Oldest</option>
+                                    <option className="text-black" value="members">Most Members</option>
+                                    <option className="text-black" value="alphabetical">A-Z</option>
+                                </select>
+                            </div>
                         </div>
 
                         {/* Groups Grid */}
@@ -328,7 +365,7 @@ export default function GroupsPage() {
                             <>
                                 {filteredGroups.length > 0 ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {filteredGroups.map(group => (
+                                        {sortedGroups.map(group => (
                                             <GroupCard
                                                 key={group.id}
                                                 group={group}
@@ -384,11 +421,15 @@ export default function GroupsPage() {
 
                             <form onSubmit={handleCreateGroup} className="space-y-5">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Group Name</label>
+                                    <div className="flex justify-between items-center mb-1.5">
+                                        <label className="block text-sm font-medium text-gray-300">Group Name</label>
+                                        <span className="text-xs text-gray-500">{newGroupName.length}/50</span>
+                                    </div>
                                     <input
                                         type="text"
                                         value={newGroupName}
                                         onChange={(e) => setNewGroupName(e.target.value)}
+                                        maxLength={50}
                                         className="w-full bg-black/50 border border-gray-800 rounded-xl p-3 focus:border-[#EC1D99] focus:outline-none focus:ring-1 focus:ring-[#EC1D99] transition-all text-white placeholder-gray-600"
                                         placeholder="e.g. Photography Lovers"
                                         required
@@ -396,10 +437,14 @@ export default function GroupsPage() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-300 mb-1.5">Description</label>
+                                    <div className="flex justify-between items-center mb-1.5">
+                                        <label className="block text-sm font-medium text-gray-300">Description</label>
+                                        <span className="text-xs text-gray-500">{newGroupDesc.length}/300</span>
+                                    </div>
                                     <textarea
                                         value={newGroupDesc}
                                         onChange={(e) => setNewGroupDesc(e.target.value)}
+                                        maxLength={300}
                                         className="w-full bg-black/50 border border-gray-800 rounded-xl p-3 focus:border-[#EC1D99] focus:outline-none focus:ring-1 focus:ring-[#EC1D99] transition-all h-28 resize-none text-white placeholder-gray-600"
                                         placeholder="What is this group about?"
                                     />
