@@ -1,4 +1,4 @@
-import { ExternalLink, ChevronDown, UserPlus, Lock } from "lucide-react";
+import { ExternalLink, ChevronDown, ChevronUp, UserPlus, Lock } from "lucide-react";
 import { Story, Contribution } from "@/lib/store";
 import { formatRelativeTime } from "@/lib/format";
 import Link from "next/link";
@@ -21,6 +21,8 @@ interface FeedItemFooterProps {
     setIsDescriptionExpanded: (expanded: boolean) => void;
     isAvatarsExpanded: boolean;
     setIsAvatarsExpanded: (expanded: boolean) => void;
+    isFooterCollapsed: boolean;
+    setIsFooterCollapsed: (collapsed: boolean) => void;
     effectiveOrderedContributions: Contribution[];
     slotContentMap: Map<number, Contribution>;
     currentContribution?: Contribution;
@@ -33,15 +35,36 @@ export default function FeedItemFooter({
     setIsDescriptionExpanded,
     isAvatarsExpanded,
     setIsAvatarsExpanded,
+    isFooterCollapsed,
+    setIsFooterCollapsed,
     effectiveOrderedContributions,
     slotContentMap,
     currentContribution,
     participantsMap
 }: FeedItemFooterProps) {
 
+    // When collapsed, show only a minimal expand button
+    if (isFooterCollapsed) {
+        return (
+            <div className="absolute bottom-0 left-0 right-0 p-4 z-10 flex justify-start">
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsFooterCollapsed(false);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-black/40 backdrop-blur-md rounded-full text-white/80 hover:text-white hover:bg-black/60 transition-all border border-white/10"
+                >
+                    <ChevronUp className="w-4 h-4" />
+                    <span className="text-xs font-medium">Show info</span>
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="absolute bottom-0 left-0 right-0 p-6 pb-6 text-white z-10">
-            <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl font-bold mb-1 font-poppins shadow-black drop-shadow-md flex items-center gap-2 flex-wrap max-w-[85%]">
                 {/* Clickable title for brand posts with product URLs */}
                 {story.productUrl ? (
                     <a
@@ -94,7 +117,7 @@ export default function FeedItemFooter({
                             )
                         )}
                     </p>
-                    {story.description.length > 50 && (
+                    {story.description.length > 120 && (
                         <button
                             type="button"
                             onClick={(e) => {
@@ -110,14 +133,7 @@ export default function FeedItemFooter({
                 </div>
             )}
 
-            {/* Timestamp */}
-            {story.created_at && (
-                <span className="text-xs text-gray-400 mb-4 block">
-                    {formatRelativeTime(new Date(story.created_at).getTime())}
-                </span>
-            )}
-
-            <div className="flex items-center mb-3 w-fit">
+            <div className="flex items-center mb-2 w-fit">
                 {/* Avatar Display - shows contributors + open count badge */}
                 <div className="flex items-center gap-0 pl-2 py-1">
                     {(() => {
@@ -233,7 +249,25 @@ export default function FeedItemFooter({
                 </div>
             </div>
 
-            {/* Hashtags are now highlighted inline within the description */}
+            {/* Timestamp with inline collapse toggle */}
+            <div className="flex items-center gap-2">
+                {story.created_at && (
+                    <span className="text-xs text-gray-400">
+                        {formatRelativeTime(new Date(story.created_at).getTime())}
+                    </span>
+                )}
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsFooterCollapsed(true);
+                    }}
+                    className="p-1 text-gray-400 hover:text-white transition-colors rounded-full hover:bg-white/10"
+                    title="Hide info"
+                >
+                    <ChevronDown className="w-4 h-4" />
+                </button>
+            </div>
         </div>
     );
 }

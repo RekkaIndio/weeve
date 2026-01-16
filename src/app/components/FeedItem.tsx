@@ -76,6 +76,7 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
     // Footer State
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
     const [isAvatarsExpanded, setIsAvatarsExpanded] = useState(false);
+    const [isFooterCollapsed, setIsFooterCollapsed] = useState(false);
 
     // Comments State
     const [commentText, setCommentText] = useState("");
@@ -499,6 +500,8 @@ export default function FeedItem({ story, isActive: propIsActive, hideOverlay = 
                         setIsDescriptionExpanded={setIsDescriptionExpanded}
                         isAvatarsExpanded={isAvatarsExpanded}
                         setIsAvatarsExpanded={setIsAvatarsExpanded}
+                        isFooterCollapsed={isFooterCollapsed}
+                        setIsFooterCollapsed={setIsFooterCollapsed}
                         effectiveOrderedContributions={effectiveOrderedContributions}
                         slotContentMap={slotContentMap}
                         currentContribution={currentContribution}
