@@ -104,6 +104,7 @@ export interface Contribution {
     reviewedAt?: string;
     reviewedBy?: string;
     slotIndex?: number;
+    mediaSource?: 'camera' | 'gallery';
 }
 
 export interface StoryComment {

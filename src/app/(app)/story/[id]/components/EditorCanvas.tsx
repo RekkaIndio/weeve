@@ -78,7 +78,7 @@ export function EditorCanvas({
                 <video
                     ref={videoRef}
                     src={mediaDraft.previewUrl}
-                    className="absolute inset-0 w-full h-full object-cover pointer-events-auto"
+                    className={`absolute inset-0 w-full h-full pointer-events-auto ${mediaDraft.source === 'gallery' ? 'object-contain bg-black' : 'object-cover'}`}
                     autoPlay
                     playsInline
                     muted={isMuted} // Use isMuted prop

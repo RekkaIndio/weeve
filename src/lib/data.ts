@@ -106,6 +106,7 @@ export interface CreateStoryContributionOptions {
     timestamp?: number;
     nextTurnUserId?: string | null;
     onProgress?: (progress: number) => void;
+    mediaSource?: 'camera' | 'gallery';
 }
 
 const parseTextStyle = (value: Json | null): TextStyle | undefined => {
@@ -214,6 +215,7 @@ const mapStoryFromSupabase = (story: StoryWithRelations): Story => {
             mediaUrl: contribution.media_url ?? undefined,
             timestamp: contribution.timestamp,
             textStyle: parseTextStyle(contribution.text_style),
+            mediaSource: (contribution.text_style as any)?.mediaSource ?? undefined,
         }));
 
     const likesArray = Array.from(new Set((story.story_likes ?? []).map((like) => like.user_id)));
@@ -623,7 +625,10 @@ export async function createStoryContribution(options: CreateStoryContributionOp
         console.warn('[Upload] File provided but lacks size metadata, skipping upload and keeping media_url undefined');
     }
 
-    const textStyleJson: Json | null = options.textStyle ? (options.textStyle as unknown as Json) : null;
+    const textStyleJson: Json | null = options.textStyle ? {
+            ...(options.textStyle as unknown as Record<string, unknown>),
+            mediaSource: options.mediaSource
+        } as unknown as Json : (options.mediaSource ? { mediaSource: options.mediaSource } as unknown as Json : null);
 
     const { data: storyData } = await supabase
         .from('stories')

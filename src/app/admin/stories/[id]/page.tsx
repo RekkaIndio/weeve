@@ -168,12 +168,62 @@ export default function AdminStoryDetailPage() {
     const handleDeleteContribution = async (contributionId: string) => {
         setActionLoading(contributionId);
         try {
-            const { error } = await supabase
+            // Get contribution details first
+            const { data: contribution, error: fetchError } = await supabase
+                .from('contributions')
+                .select('user_id, story_id, timestamp, slot_index')
+                .eq('id', contributionId)
+                .single();
+
+            if (fetchError) throw fetchError;
+            if (!contribution) throw new Error('Contribution not found');
+
+            // Delete contribution
+            const { error: deleteError } = await supabase
                 .from('contributions')
                 .delete()
                 .eq('id', contributionId);
 
-            if (error) throw error;
+            if (deleteError) throw deleteError;
+
+            // Update story status and reset turn to the contributor
+            const { error: storyError } = await supabase
+                .from('stories')
+                .update({
+                    status: 'active',
+                    current_turn_user_id: contribution.user_id
+                })
+                .eq('id', contribution.story_id);
+
+            if (storyError) {
+                console.error('Failed to update story status:', storyError);
+            }
+
+            // Calculate position to identify specific participant entry
+            let position = -1;
+            if (contribution.timestamp >= 1000000 && contribution.timestamp < 100000000) {
+                position = Math.floor(contribution.timestamp / 1000000) - 1;
+            } else if (typeof contribution.slot_index === 'number' && contribution.slot_index >= 0) {
+                position = contribution.slot_index;
+            }
+
+            // Reset specific participant status to waiting
+            if (position !== -1) {
+                const { error: participantError } = await supabase
+                    .from('story_participants')
+                    .update({ status: 'waiting' })
+                    .match({
+                        story_id: contribution.story_id,
+                        user_id: contribution.user_id,
+                        position: position
+                    });
+
+                if (participantError) {
+                    console.error('Failed to update participant status:', participantError);
+                }
+            } else {
+                console.warn('Could not determine position for deleted contribution, skipping participant status update');
+            }
 
             // Remove from local state
             if (story) {
@@ -181,8 +231,9 @@ export default function AdminStoryDetailPage() {
                 setStory({
                     ...story,
                     contributions: updatedContributions,
+                    status: 'active',
                 });
-                // Adjust selected index if needed
+
                 if (selectedContribution >= updatedContributions.length && updatedContributions.length > 0) {
                     setSelectedContribution(updatedContributions.length - 1);
                 }

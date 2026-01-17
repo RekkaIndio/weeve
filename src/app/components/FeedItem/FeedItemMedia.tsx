@@ -1,5 +1,5 @@
 import { Story, Contribution, TextStyle } from "@/lib/store";
-import { RefObject } from "react";
+import { RefObject, useState } from "react";
 
 interface FeedItemMediaProps {
     mediaType: 'video' | 'image' | 'text' | 'drawing' | 'audio';
@@ -49,6 +49,9 @@ export default function FeedItemMedia({
     const hasCustomTextStyle = currentContribution?.textStyle && Object.keys(currentContribution.textStyle).length > 0;
     const legacyTextStyle = (currentContribution?.textStyle || {}) as TextStyle;
 
+    // Auto-detect aspect ratio for legacy content
+    const [isNonPortrait, setIsNonPortrait] = useState(false);
+
     return (
         <>
             {/* Media Background */}
@@ -89,10 +92,11 @@ export default function FeedItemMedia({
                         )}
                     </div>
                     <video
+                        key={currentVideoSrc || mediaUrl}
                         ref={videoRef}
                         src={currentVideoSrc}
                         poster={story.coverImage || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3Crect width='1' height='1' fill='%23000000'/%3E%3C/svg%3E"}
-                        className="weeve-inline-video absolute inset-0 w-full h-full object-contain"
+                        className={`weeve-inline-video absolute inset-0 w-full h-full ${currentContribution?.mediaSource === 'gallery' || isNonPortrait ? 'bg-black' : ''}`}
                         autoPlay
                         playsInline
                         muted={isMuted}
@@ -122,6 +126,29 @@ export default function FeedItemMedia({
                             const video = e.currentTarget;
                             // Set volume to maximum
                             video.volume = 1.0;
+
+                            // Check aspect ratio for legacy posts
+                            const ratio = video.videoWidth / video.videoHeight;
+                            if (ratio > 0.63) { // Slightly lower threshold
+                                setIsNonPortrait(true);
+                            }
+                        }}
+                        onCanPlay={(e) => {
+                            const video = e.currentTarget;
+                            const ratio = video.videoWidth / video.videoHeight;
+                            // Redundant check in case onLoadedMetadata was missed
+                            if (ratio > 0.63 && !isNonPortrait) {
+                                setIsNonPortrait(true);
+                            }
+                        }}
+                        onTimeUpdate={(e) => {
+                            // First frame check fallback
+                            if (e.currentTarget.currentTime < 0.5 && !isNonPortrait) {
+                                const video = e.currentTarget;
+                                if (video.videoWidth > 0 && (video.videoWidth / video.videoHeight > 0.63)) {
+                                    setIsNonPortrait(true);
+                                }
+                            }
                         }}
                         onLoadedData={(e) => {
                             // Manually play the video after it's loaded to avoid browser play button
@@ -136,6 +163,7 @@ export default function FeedItemMedia({
 
                         }}
                         style={{
+                            objectFit: (currentContribution?.mediaSource === 'gallery' || isNonPortrait) ? 'contain' : 'cover',
                             opacity: isVideoVisible ? 1 : 0,
                             // CRITICAL: Use opacity transition for crossfade between primary and buffer
                             visibility: 'visible',

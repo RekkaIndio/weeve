@@ -59,7 +59,9 @@ export function useComposer(
         stageTop: number;
         stageWidth: number;
         stageHeight: number;
-        pointerId: number
+        pointerId: number;
+        startLeft: number;
+        startTop: number;
     } | null>(null);
 
     const textAreaRef = useRef<HTMLTextAreaElement>(null);
@@ -172,6 +174,8 @@ export function useComposer(
             stageWidth: stageRect.width,
             stageHeight: stageRect.height,
             pointerId: event.pointerId,
+            startLeft: elementRef.offsetLeft,
+            startTop: elementRef.offsetTop
         };
         isDragging.current = id;
         (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -194,7 +198,12 @@ export function useComposer(
 
         const rawLeft = event.clientX - dragState.stageLeft - dragState.offsetX;
         const rawTop = event.clientY - dragState.stageTop - dragState.offsetY;
-        elementRef.style.transform = `translate3d(${rawLeft}px, ${rawTop}px, 0) scale(1.05)`;
+        
+        // Subtract the initial CSS position to get the transform delta
+        const translateX = rawLeft - dragState.startLeft;
+        const translateY = rawTop - dragState.startTop;
+
+        elementRef.style.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(1.05)`;
     };
 
     const handleDragEnd = (event: React.PointerEvent<HTMLDivElement>, id: string) => {
@@ -284,7 +293,7 @@ export function useComposer(
             const file = type === 'video' ? await captureVideo(source) : await capturePhoto(source);
             if (file) {
                 const previewUrl = URL.createObjectURL(file);
-                setMediaDraft({ type, file, previewUrl });
+                setMediaDraft({ type, file, previewUrl, source });
                 setTextElements([]);
                 setStitchMode(type);
             } else {
@@ -300,7 +309,7 @@ export function useComposer(
         setImageToCrop(null);
         const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
         const previewUrl = URL.createObjectURL(file);
-        setMediaDraft({ type: 'image', file, previewUrl });
+        setMediaDraft({ type: 'image', file, previewUrl, source: 'gallery' });
         setTextElements([]);
         setStitchMode('image');
     }, []);
@@ -517,7 +526,8 @@ export function useComposer(
                 onProgress: (p) => {
                      const hasTrimmed = stitchMode === 'video' && videoFileToUpload !== mediaDraft?.file;
                      setUploadProgress(hasTrimmed ? 30 + Math.round(p * 0.7) : Math.round(p));
-                }
+                },
+                mediaSource: mediaDraft?.source
             });
 
             // Optimistic update
