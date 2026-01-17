@@ -1,4 +1,5 @@
 import { Plus } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { type Story, type User, type Contribution, isSlotImmutable } from "@/lib/store";
 import type { TimelineEntry } from "../types";
 import { VideoThumbnail } from "./VideoThumbnail";
@@ -34,10 +35,26 @@ export function StoryTimeline({
     const contributionsCount = contributions.length;
     const hasContributions = contributions.length > 0;
     const isAlreadyInvolved = story.participants.some(p => p.id === currentUser?.id);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll to the first actionable slot "Your Turn" / "Open"
+    useEffect(() => {
+        if (!scrollContainerRef.current) return;
+
+        // Small timeout to ensure rendering is complete
+        const timer = setTimeout(() => {
+            const firstAddButton = scrollContainerRef.current?.querySelector('[data-action="add-weeve"]');
+            if (firstAddButton) {
+                firstAddButton.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }
+        }, 100);
+
+        return () => clearTimeout(timer);
+    }, []);
 
     return (
         <div className="absolute bottom-0 left-0 right-0 bg-black/95 backdrop-blur-xl p-4 pb-8 border-t border-white/10 z-50 rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.5)]">
-            <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', scrollSnapType: 'x mandatory' }}>
+            <div ref={scrollContainerRef} className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide px-2 flex-nowrap" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', scrollSnapType: 'x mandatory' }}>
                 {timelineEntries.map((entry, entryIndex) => {
                     // Handle empty slot entries (waiting participants or open slots)
                     if (entry.type === 'empty') {
@@ -159,6 +176,7 @@ export function StoryTimeline({
                                     <button
                                         key={`add-${entry.position}`}
                                         id="add-weeve-button"
+                                        data-action="add-weeve"
                                         onClick={() => {
                                             try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
                                             onAddWeeve();
@@ -180,6 +198,7 @@ export function StoryTimeline({
                             return (
                                 <button
                                     key={`open-${entry.position}`}
+                                    data-action={isReservedForMe || canPublicUserAdd || canForkCreatorAdd || canContributeToPublicOpenSlot || (!isReserved && isNextSequentialSlot) ? "add-weeve" : undefined}
                                     disabled={!isReservedForMe && !canPublicUserAdd && !canForkCreatorAdd && !canContributeToPublicOpenSlot && !(!isReserved && isNextSequentialSlot)}
                                     onClick={() => {
                                         if (isReservedForMe || canPublicUserAdd || canForkCreatorAdd || canContributeToPublicOpenSlot || (!isReserved && isNextSequentialSlot)) {
@@ -255,6 +274,7 @@ export function StoryTimeline({
                                 <button
                                     key={`empty-${participant.id}-${entry.position}`}
                                     id="add-weeve-button"
+                                    data-action="add-weeve"
                                     onClick={() => {
                                         onAddWeeve(entry.position);
                                     }}

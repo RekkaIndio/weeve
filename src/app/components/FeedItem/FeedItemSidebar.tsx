@@ -133,12 +133,10 @@ export default function FeedItemSidebar({
                         <button
                             type="button"
                             onClick={() => {
-                                // If story is completed (status completed or full contributions), go to timeline
-                                const isComplete = story.status === 'completed' || (story.contributions?.length || 0) >= (story.maxWeeves || 3);
                                 // If user is a waiting participant (assigned slot), go to timeline (which handles contribution flow)
                                 const isWaitingParticipant = story.participants?.some(p => p.id === currentUser?.id && p.status === 'waiting');
 
-                                if (isComplete || isWaitingParticipant) {
+                                if (isWaitingParticipant) {
                                     router.push(`/story/${story.id}`);
                                     return;
                                 }
