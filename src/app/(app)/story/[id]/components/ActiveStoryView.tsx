@@ -387,8 +387,8 @@ export function ActiveStoryView({
                 />
             )}
 
-            {/* Context Thumbnails (Composer Mode) */}
-            {isComposerOpen && (
+            {/* Context Thumbnails (Composer Mode) - hide when crop modal is open */}
+            {isComposerOpen && !imageToCrop && (
                 <StitchContextThumbnails
                     contributions={contributions}
                     className="bottom-[70px]"
@@ -502,7 +502,12 @@ export function ActiveStoryView({
             )}
 
             {showEditModal && <EditStoryModal story={story} onClose={() => setShowEditModal(false)} />}
-            {imageToCrop && <ImageCropper imageSrc={imageToCrop} onCropComplete={handleCroppedImage} onCancel={() => setImageToCrop(null)} />}
+            {imageToCrop && (
+                <ImageCropper imageSrc={imageToCrop} onCropComplete={handleCroppedImage} onCancel={() => setImageToCrop(null)}>
+                    {/* Reuse StitchContextThumbnails in inline mode for preview functionality */}
+                    <StitchContextThumbnails contributions={contributions} inline />
+                </ImageCropper>
+            )}
             {showLeaveConfirm && <ConfirmModal isOpen={showLeaveConfirm} title="Leave Story?" message={`Are you sure you want to leave "${story.title}"? This will free up your slot for someone else.`} confirmLabel="Leave Story" onConfirm={handleLeaveStoryAction} onClose={() => setShowLeaveConfirm(false)} variant="danger" />}
             {showDeleteConfirm && <ConfirmModal isOpen={showDeleteConfirm} title="Delete Story?" message="Are you sure you want to delete this story? This action cannot be undone." confirmLabel="Delete Story" onConfirm={handleDeleteStoryAction} onClose={() => setShowDeleteConfirm(false)} variant="danger" />}
         </div>

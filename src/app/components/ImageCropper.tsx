@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { X, Check } from 'lucide-react';
@@ -10,6 +10,7 @@ interface ImageCropperProps {
     onCropComplete: (croppedImage: Blob) => void;
     onCancel: () => void;
     aspect?: number;
+    children?: React.ReactNode;
 }
 
 function centerAspectCrop(
@@ -42,7 +43,7 @@ function centerAspectCrop(
     };
 }
 
-const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect }: ImageCropperProps) => {
+const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect, children }: ImageCropperProps) => {
     const [crop, setCrop] = useState<Crop>();
     const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
     const [isProcessing, setIsProcessing] = useState(false);
@@ -108,7 +109,7 @@ const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect }: ImageCropp
     }
 
     return (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col">
+        <div className="fixed inset-0 z-[150] bg-black flex flex-col">
             {/* Crop Area */}
             <div className="flex-1 flex items-center justify-center overflow-hidden p-4">
                 <ReactCrop
@@ -125,7 +126,7 @@ const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect }: ImageCropp
                         src={imageSrc}
                         alt="Crop"
                         onLoad={onImageLoad}
-                        className="max-h-[70vh] max-w-full object-contain"
+                        className="max-h-[60vh] max-w-full object-contain"
                         crossOrigin="anonymous"
                     />
                 </ReactCrop>
@@ -137,7 +138,7 @@ const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect }: ImageCropp
             </div>
 
             {/* Controls */}
-            <div className="bg-gray-900 p-6 pb-24 safe-area-bottom">
+            <div className="bg-gray-900 px-6 py-4">
                 <div className="flex justify-between gap-4">
                     <button
                         onClick={onCancel}
@@ -162,6 +163,13 @@ const ImageCropper = ({ imageSrc, onCropComplete, onCancel, aspect }: ImageCropp
                     </button>
                 </div>
             </div>
+
+            {/* Thumbnails slot - rendered below controls */}
+            {children && (
+                <div className="bg-gray-900 pb-6 safe-area-bottom">
+                    {children}
+                </div>
+            )}
         </div>
     );
 };

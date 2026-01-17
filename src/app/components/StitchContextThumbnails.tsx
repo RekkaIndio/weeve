@@ -10,6 +10,7 @@ interface StitchContextThumbnailsProps {
     contributions: Contribution[];
     onThumbnailClick?: (index: number) => void;
     className?: string;
+    inline?: boolean; // When true, renders without fixed positioning (for use inside other modals)
 }
 
 /**
@@ -17,7 +18,7 @@ interface StitchContextThumbnailsProps {
  * Displayed during stitch composition to give users context about what's already in the story.
  * Click on a thumbnail to see a larger preview.
  */
-export default function StitchContextThumbnails({ contributions, onThumbnailClick, className }: StitchContextThumbnailsProps) {
+export default function StitchContextThumbnails({ contributions, onThumbnailClick, className, inline }: StitchContextThumbnailsProps) {
     const [previewContribution, setPreviewContribution] = useState<Contribution | null>(null);
     const isKeyboardOpen = useKeyboard();
 
@@ -57,11 +58,18 @@ export default function StitchContextThumbnails({ contributions, onThumbnailClic
         ? 'bottom-2' // Small offset from bottom of shrunken viewport
         : (className || 'bottom-[70px]');
 
+    // Check if className contains a z-index override
+    const hasZIndexOverride = className?.includes('z-[');
+    const zIndexClass = hasZIndexOverride ? '' : 'z-[100]';
+
+    // Container class depends on inline mode
+    const containerClass = inline
+        ? 'relative w-full pointer-events-auto'
+        : `fixed left-0 right-0 ${zIndexClass} pointer-events-auto transition-all duration-200 ${positionClass}`;
+
     return (
         <>
-            <div
-                className={`fixed left-0 right-0 z-[100] pointer-events-auto transition-all duration-200 ${positionClass}`}
-            >
+            <div className={containerClass}>
                 {/* Thumbnail strip - horizontal scrolling */}
                 <div
                     className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-hide"
