@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 export default function StoreInitializer() {
-    const { currentUser, setStories, setGroups, fetchStories } = useStore();
+    const { currentUser, setStories, setGroups, fetchStories, fetchReportedStories } = useStore();
     const initializedRef = useRef(false);
 
     useEffect(() => {
@@ -26,13 +26,17 @@ export default function StoreInitializer() {
                 const groups = await fetchGroups(currentUser.id);
                 console.log('Fetched groups:', groups.length);
                 setGroups(groups);
+
+                // Fetch user's reported stories so they can be filtered
+                console.log('Fetching reported stories...');
+                await fetchReportedStories();
             } catch (error) {
                 console.error('Failed to load initial data:', error);
             }
         }
 
         loadData();
-    }, [currentUser, setStories, setGroups, fetchStories]);
+    }, [currentUser, setStories, setGroups, fetchStories, fetchReportedStories]);
 
     // Set up realtime subscriptions for story updates
     useEffect(() => {

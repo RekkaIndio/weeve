@@ -50,6 +50,16 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [searching, setSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<Recipient[]>([]);
+    const [showReportMenu, setShowReportMenu] = useState(false);
+
+    // Report reason options
+    const reportReasons = [
+        { value: 'spam', label: 'Spam', desc: 'Repetitive or promotional content' },
+        { value: 'harassment', label: 'Harassment', desc: 'Bullying or targeted abuse' },
+        { value: 'inappropriate', label: 'Inappropriate', desc: 'Nudity, violence, or graphic content' },
+        { value: 'misinformation', label: 'Misinformation', desc: 'False or misleading information' },
+        { value: 'other', label: 'Other', desc: 'Something else' },
+    ];
 
     // Use global video export context instead of local stitcher
     const {
@@ -633,11 +643,7 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
 
                                     {/* Report */}
                                     <button
-                                        onClick={() => {
-                                            useStore.getState().reportStory(story.id);
-
-                                            handleClose();
-                                        }}
+                                        onClick={() => setShowReportMenu(true)}
                                         className="flex items-center justify-center gap-2 p-3 bg-gray-800/50 hover:bg-gray-800 rounded-xl transition-colors"
                                     >
                                         <Flag className="w-4 h-4 text-white" />
@@ -659,6 +665,42 @@ export default function ShareModal({ story, onClose }: ShareModalProps) {
                             </div>
                         </div>
                     </>
+                )}
+
+                {/* Report Reason Menu */}
+                {showReportMenu && (
+                    <div className="absolute inset-0 bg-gray-900 rounded-t-3xl sm:rounded-2xl flex flex-col z-10">
+                        <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+                            <h2 className="text-lg font-bold text-white">Why are you reporting this?</h2>
+                            <button onClick={() => setShowReportMenu(false)} className="text-gray-400 hover:text-white transition-colors">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                            {reportReasons.map((reason) => (
+                                <button
+                                    key={reason.value}
+                                    onClick={async () => {
+                                        await useStore.getState().reportStory(story.id, reason.value);
+                                        setShowReportMenu(false);
+                                        handleClose();
+                                    }}
+                                    className="w-full text-left p-4 bg-gray-800/50 hover:bg-gray-800 rounded-xl transition-colors"
+                                >
+                                    <div className="font-medium text-white">{reason.label}</div>
+                                    <div className="text-xs text-gray-400 mt-1">{reason.desc}</div>
+                                </button>
+                            ))}
+                        </div>
+                        <div className="p-4 border-t border-gray-800">
+                            <button
+                                onClick={() => setShowReportMenu(false)}
+                                className="w-full p-3 text-gray-400 hover:text-white transition-colors text-sm"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
                 )}
             </div>
         </div >

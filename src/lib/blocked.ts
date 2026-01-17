@@ -53,6 +53,33 @@ export async function blockUser(blockerId: string, blockedId: string): Promise<b
             return false;
         }
 
+        // Notify developer (Apple Guideline 1.2 compliance)
+        try {
+            // Fetch user names for better context
+            const { data: profiles } = await supabase
+                .from('profiles')
+                .select('user_id, name')
+                .in('user_id', [blockerId, blockedId]);
+
+            const blockerName = profiles?.find((p: { user_id: string; name: string }) => p.user_id === blockerId)?.name || 'Unknown';
+            const blockedName = profiles?.find((p: { user_id: string; name: string }) => p.user_id === blockedId)?.name || 'Unknown';
+
+            await fetch('/api/support/email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userName: blockerName,
+                    userId: blockerId,
+                    category: 'User Block',
+                    subject: `User Blocked Another User`,
+                    description: `Blocker: ${blockerName} (${blockerId})\nBlocked: ${blockedName} (${blockedId})`
+                })
+            });
+        } catch (emailErr) {
+            console.warn('[Blocked] Failed to send block notification email:', emailErr);
+            // Don't fail - block was still successful
+        }
+
         return true;
     } catch (err) {
         console.error('[Blocked] Unexpected error blocking user:', err);

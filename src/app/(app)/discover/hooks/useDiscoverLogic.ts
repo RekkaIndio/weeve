@@ -54,7 +54,7 @@ const actions = {
 };
 
 export function useDiscoverLogic() {
-    const { stories, groups, addGroup, currentUser, friends, blockedUserIds, fetchDiscoveryStories } = useStore();
+    const { stories, groups, addGroup, currentUser, friends, blockedUserIds, fetchDiscoveryStories, reportedStoryIds } = useStore();
     const searchParams = useSearchParams();
     const router = useRouter();
     
@@ -200,7 +200,7 @@ export function useDiscoverLogic() {
                         } as Story;
                     });
 
-                setGroupStoriesData(formattedStories);
+                setGroupStoriesData(formattedStories.filter(s => !reportedStoryIds.includes(s.id)));
             } catch (err) {
                 console.error('[useDiscoverLogic] Failed to fetch group stories:', err);
             }
@@ -274,7 +274,13 @@ export function useDiscoverLogic() {
     }, [currentUser?.preferences?.interests]);
 
     // Filter Stories
-    const publicStories = useMemo(() => actions.getPublicStories(stories), [stories]);
+    const publicStories = useMemo(() => {
+        const stories = actions.getPublicStories(useStore.getState().stories);
+        // Filter out reported stories
+        return reportedStoryIds.length > 0
+            ? stories.filter(s => !reportedStoryIds.includes(s.id))
+            : stories;
+    }, [stories, reportedStoryIds]);
 
     const openStories = useMemo(() => {
         return publicStories.filter(story => {

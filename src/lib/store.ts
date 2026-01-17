@@ -282,8 +282,8 @@ interface AppState {
 
     // Reported Stories (Local Only)
     reportedStoryIds: string[];
-
-    reportStory: (storyId: string) => void;
+    reportStory: (storyId: string, reason: string) => Promise<void>;
+    fetchReportedStories: () => Promise<void>;
 
     // Blocked Users
     blockedUserIds: string[];
@@ -307,8 +307,81 @@ export const useStore = create<AppState>()(
             reportedStoryIds: [],
             blockedUserIds: [],
 
-            reportStory: (storyId) =>
-                set((state) => ({ reportedStoryIds: [...state.reportedStoryIds, storyId] })),
+            reportStory: async (storyId, reason) => {
+                const { currentUser, reportedStoryIds, stories } = get();
+                if (!currentUser) return;
+                if (reportedStoryIds.includes(storyId)) return; // Already reported
+
+                // Optimistic update
+                set((state) => ({ reportedStoryIds: [...state.reportedStoryIds, storyId] }));
+
+                try {
+                    const { error } = await supabase
+                        .from('story_reports')
+                        .insert({
+                            story_id: storyId,
+                            reporter_id: currentUser.id,
+                            reason: reason
+                        });
+
+                    if (error) {
+                        console.error('[Store] Failed to report story:', error);
+                        // Revert on error
+                        set((state) => ({
+                            reportedStoryIds: state.reportedStoryIds.filter(id => id !== storyId)
+                        }));
+                        return;
+                    }
+
+                    // Notify developer (Apple Guideline 1.2 compliance)
+                    const storyTitle = stories.find(s => s.id === storyId)?.title || 'Unknown Story';
+                    try {
+                        await fetch('/api/support/email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                userName: currentUser.name,
+                                userId: currentUser.id,
+                                category: 'Content Report',
+                                subject: `Story Reported: ${reason}`,
+                                description: `Story ID: ${storyId}\nStory Title: ${storyTitle}\nReason: ${reason}\nReporter: ${currentUser.name} (${currentUser.id})`
+                            })
+                        });
+                    } catch (emailErr) {
+                        console.warn('[Store] Failed to send report notification email:', emailErr);
+                        // Don't revert - report was still saved
+                    }
+                } catch (err) {
+                    console.error('[Store] Error reporting story:', err);
+                    // Revert on error
+                    set((state) => ({
+                        reportedStoryIds: state.reportedStoryIds.filter(id => id !== storyId)
+                    }));
+                }
+            },
+
+            fetchReportedStories: async () => {
+                const { currentUser } = get();
+                if (!currentUser) return;
+
+                try {
+                    const { data, error } = await supabase
+                        .from('story_reports')
+                        .select('story_id')
+                        .eq('reporter_id', currentUser.id);
+
+                    if (error) {
+                        console.error('[Store] Failed to fetch reported stories:', error);
+                        return;
+                    }
+
+                    if (data) {
+                        set({ reportedStoryIds: data.map((item: { story_id: string }) => item.story_id) });
+                    }
+                } catch (err) {
+                    console.error('[Store] Error fetching reported stories:', err);
+                }
+            },
 
             fetchBlockedUsers: async () => {
                 const { currentUser } = get();
