@@ -60,12 +60,12 @@ export function TextEditor({
                         }}
                         className={`pointer-events-auto select-none absolute touch-none ${isEditing ? 'z-[60]' : 'z-30 hover:z-40'}`}
                         style={{
-                            left: showCentered ? '50%' : 0,
-                            top: showCentered ? '20%' : 0,
+                            left: showCentered ? '50%' : (element.position.unit === '%' ? `${element.position.left}%` : 0),
+                            top: showCentered ? '20%' : (element.position.unit === '%' ? `${element.position.top}%` : 0),
                             transform: showCentered
                                 ? 'translate3d(-50%, 0, 0)'
                                 : element.position.unit === '%'
-                                    ? `translate3d(${element.position.left}vw, ${element.position.top}vh, 0)`
+                                    ? 'translate3d(0, 0, 0)'
                                     : `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
                         }}
                         onPointerDown={(e) => {

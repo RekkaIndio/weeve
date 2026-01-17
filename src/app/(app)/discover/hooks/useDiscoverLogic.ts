@@ -132,6 +132,14 @@ export function useDiscoverLogic() {
         fetchDiscoveryStories();
     }, [fetchDiscoveryStories]);
 
+    // Sync search query with URL param to handle navigation from hashtags or external links
+    useEffect(() => {
+        const queryFromUrl = searchParam || '';
+        if (queryFromUrl !== searchQuery) {
+            setSearchQuery(queryFromUrl);
+        }
+    }, [searchParam]);
+
     // Fetch stories from user's groups (separate from discovery since group stories may be private visibility)
     useEffect(() => {
         const fetchGroupStories = async () => {

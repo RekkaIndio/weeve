@@ -208,10 +208,10 @@ export default function FeedItemMedia({
                 <>
                     {currentContribution.textStyle.elements.map((element) => (
                         <div key={element.id} className="absolute pointer-events-none" style={{
-                            left: 0,
-                            top: 0,
+                            left: element.position.unit === '%' ? `${element.position.left}%` : 0,
+                            top: element.position.unit === '%' ? `${element.position.top}%` : 0,
                             transform: element.position.unit === '%'
-                                ? `translate3d(${element.position.left}vw, ${element.position.top}vh, 0)`
+                                ? 'translate3d(0, 0, 0)'
                                 : `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
                             zIndex: 20
                         }}>

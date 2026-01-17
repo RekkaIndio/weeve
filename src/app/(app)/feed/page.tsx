@@ -21,6 +21,16 @@ export default function Home() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
+  // Pull-to-refresh state
+  const [pullProgress, setPullProgress] = useState(0);
+  const isPullingRef = useRef(false);
+  const PULL_THRESHOLD = 120; // px to trigger refresh
+
+  // Touch tracking Refs
+  const touchStartYRef = useRef(0);
+  const touchStartTimeRef = useRef(0);
+  const pullProgressRef = useRef(0);
+
   // Force refresh key - changing this forces React to re-render
   const [forceRefreshKey, setForceRefreshKey] = useState(0);
 
@@ -375,8 +385,6 @@ export default function Home() {
 
     let isScrolling = false;
     let lastWheelTime = 0;
-    let touchStartY = 0;
-    let touchStartTime = 0;
 
     const activeIndexRef = { current: activeIndex } as { current: number };
     const updateActiveIndexRef = () => { activeIndexRef.current = activeIndex; };
@@ -457,8 +465,12 @@ export default function Home() {
 
     const touchStart = (e: TouchEvent) => {
       if (e.touches && e.touches[0]) {
-        touchStartY = e.touches[0].clientY;
-        touchStartTime = Date.now();
+        touchStartYRef.current = e.touches[0].clientY;
+        touchStartTimeRef.current = Date.now();
+        // Reset pull state
+        isPullingRef.current = false;
+        pullProgressRef.current = 0;
+        setPullProgress(0);
       }
     };
 
@@ -469,16 +481,52 @@ export default function Home() {
       // Check if target or any parent is an interactive element
       const isInteractive = target.closest('button, a, input, textarea, [role="button"]');
       if (!isInteractive) {
+        const touch = e.touches[0];
+        const dy = touch.clientY - touchStartYRef.current;
+
+        // Handle Pull-to-Refresh logic
+        // Only active if we are at the very top of the feed (index 0) and pulling down
+        if (activeIndexRef.current === 0 && container.scrollTop <= 0 && dy > 0 && !isScrolling) {
+          // We are pulling down at the top
+          isPullingRef.current = true;
+          e.preventDefault(); // Prevent native scroll
+
+          // Calculate damped pull distance
+          // y = x / (1 + x/d)  where d is damping factor
+          const damp = 0.5;
+          const dampedDy = dy * damp;
+
+          // Update progress (0-100+)
+          // Cap at some reasonable max for visual feedback
+          const progress = Math.min((dampedDy / PULL_THRESHOLD) * 100, 150);
+          setPullProgress(progress);
+          pullProgressRef.current = progress;
+          return;
+        }
+
         e.preventDefault();
       }
     };
 
     const touchEnd = (e: TouchEvent) => {
+      // Handle Pull-to-Refresh release
+      if (isPullingRef.current) {
+        isPullingRef.current = false;
+        if (pullProgressRef.current >= 100) {
+          // Trigger refresh
+          handleRefresh();
+        }
+        // Animate snap back
+        setPullProgress(0);
+        pullProgressRef.current = 0;
+        return;
+      }
+
       if (isScrolling) return;
       const touch = e.changedTouches && e.changedTouches[0];
       if (!touch) return;
-      const dy = touchStartY - touch.clientY;
-      const dt = Date.now() - touchStartTime;
+      const dy = touchStartYRef.current - touch.clientY;
+      const dt = Date.now() - touchStartTimeRef.current;
       const velocity = Math.abs(dy / Math.max(1, dt));
 
       // Threshold distance of 50px or velocity of 0.3 qualifies as a swipe
@@ -506,7 +554,7 @@ export default function Home() {
       container.removeEventListener('touchmove', touchMove);
       container.removeEventListener('touchend', touchEnd);
     };
-  }, [filteredStories.length, activeIndex]); // Updated dependency
+  }, [filteredStories.length, activeIndex]); // Removed pullProgress as we use refs now
 
   // Force unlock the UI after 200ms if still stuck - show cached content immediately
   const [forceUnlock, setForceUnlock] = useState(false);
@@ -554,10 +602,31 @@ export default function Home() {
       </div>
 
       {/* Pull-to-refresh indicator */}
-      {isRefreshing && (
-        <div className="absolute top-16 left-0 right-0 z-40 flex justify-center" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-          <div className="bg-black/80 backdrop-blur-sm rounded-full p-2">
-            <div className="w-6 h-6 border-2 border-[#EC1D99] border-t-transparent rounded-full animate-spin" />
+      {/* Show if refreshing OR if user is pulling */}
+      {(isRefreshing || pullProgress > 0) && (
+        <div
+          className="absolute top-0 left-0 right-0 z-40 flex justify-center pointer-events-none transition-transform duration-200 ease-out"
+          style={{
+            marginTop: 'env(safe-area-inset-top, 0px)',
+            transform: isRefreshing
+              ? `translateY(4rem)`
+              : `translateY(${Math.max(0, (pullProgress / 100) * 4)}rem)`
+          }}
+        >
+          <div className={`bg-black/80 backdrop-blur-sm rounded-full p-2 shadow-lg transition-all duration-200 ${pullProgress >= 100 ? 'scale-110 bg-[#EC1D99]/20' : ''}`}>
+            {isRefreshing ? (
+              <div className="w-6 h-6 border-2 border-[#EC1D99] border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg
+                className={`w-6 h-6 text-[#EC1D99] transition-transform duration-200`}
+                style={{ transform: `rotate(${pullProgress * 3.6}deg)` }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </svg>
+            )}
           </div>
         </div>
       )}

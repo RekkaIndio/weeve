@@ -55,12 +55,10 @@ export function useComposer(
     const dragStateRef = useRef<{
         offsetX: number;
         offsetY: number;
-        minLeft: number;
-        maxLeft: number;
-        minTop: number;
-        maxTop: number;
-        viewportLeft: number;
-        viewportTop: number;
+        stageLeft: number;
+        stageTop: number;
+        stageWidth: number;
+        stageHeight: number;
         pointerId: number
     } | null>(null);
 
@@ -148,9 +146,10 @@ export function useComposer(
         const elementRef = draggableRefs.current.get(id);
         if (!elementRef || !stageRef.current) return;
 
+        const stageRect = stageRef.current.getBoundingClientRect();
+
         if (id === activeElementId) {
             if (!hasMovedInCurrentEdit) {
-                const stageRect = stageRef.current.getBoundingClientRect();
                 const elementRect = elementRef.getBoundingClientRect();
                 updateElement(id, {
                     position: {
@@ -168,12 +167,10 @@ export function useComposer(
         dragStateRef.current = {
             offsetX: event.clientX - rect.left,
             offsetY: event.clientY - rect.top,
-            minLeft: -rect.width / 2,
-            maxLeft: window.innerWidth - rect.width / 2,
-            minTop: 0,
-            maxTop: window.innerHeight - rect.height,
-            viewportLeft: 0,
-            viewportTop: 0,
+            stageLeft: stageRect.left,
+            stageTop: stageRect.top,
+            stageWidth: stageRect.width,
+            stageHeight: stageRect.height,
             pointerId: event.pointerId,
         };
         isDragging.current = id;
@@ -195,8 +192,8 @@ export function useComposer(
             if (moveDistance > 2) isClickRef.current = false;
         }
 
-        const rawLeft = event.clientX - dragState.viewportLeft - dragState.offsetX;
-        const rawTop = event.clientY - dragState.viewportTop - dragState.offsetY;
+        const rawLeft = event.clientX - dragState.stageLeft - dragState.offsetX;
+        const rawTop = event.clientY - dragState.stageTop - dragState.offsetY;
         elementRef.style.transform = `translate3d(${rawLeft}px, ${rawTop}px, 0) scale(1.05)`;
     };
 
@@ -218,22 +215,23 @@ export function useComposer(
                 // Don't auto-open a menu - let user choose from toolbar
                 setTimeout(() => { justSelectedRef.current = false; }, 100);
             } else {
-                let rawLeft = event.clientX - dragState.viewportLeft - dragState.offsetX;
-                let rawTop = event.clientY - dragState.viewportTop - dragState.offsetY;
+
+                let rawLeft = event.clientX - dragState.stageLeft - dragState.offsetX;
+                let rawTop = event.clientY - dragState.stageTop - dragState.offsetY;
                 
                 const width = elementRef.getBoundingClientRect().width;
                 const height = elementRef.getBoundingClientRect().height;
-                const viewW = window.innerWidth;
-                const viewH = window.innerHeight;
+                const stageW = dragState.stageWidth;
+                const stageH = dragState.stageHeight;
 
                 if (rawLeft + width < 20) rawLeft = 20 - width;
-                if (rawLeft > viewW - 20) rawLeft = viewW - 20;
-                if (rawTop < 60) rawTop = 60;
-                if (rawTop + height > viewH - 100) rawTop = viewH - 100 - height;
+                if (rawLeft > stageW - 20) rawLeft = stageW - 20;
+                if (rawTop < 20) rawTop = 20;
+                if (rawTop + height > stageH - 20) rawTop = stageH - 20 - height;
 
                 // Convert to percentages
-                const percentLeft = (rawLeft / viewW) * 100;
-                const percentTop = (rawTop / viewH) * 100;
+                const percentLeft = (rawLeft / stageW) * 100;
+                const percentTop = (rawTop / stageH) * 100;
                 
                 updateElement(id, { position: { left: percentLeft, top: percentTop, unit: '%' } });
             }
