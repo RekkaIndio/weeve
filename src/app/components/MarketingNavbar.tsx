@@ -8,7 +8,7 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 
 interface MarketingNavbarProps {
-    onWaitlistClick?: () => void;
+    onWaitlistClick?: () => void; // Kept for backward compatibility, but no longer used
 }
 
 export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProps) {
@@ -59,12 +59,12 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                         Log In
                     </Link>
 
-                    <button
-                        onClick={onWaitlistClick}
+                    <Link
+                        href="/signup"
                         className="hidden md:block px-5 py-2.5 bg-white text-black text-sm font-bold rounded-full hover:bg-gray-200 transition-colors"
                     >
-                        Join Waitlist
-                    </button>
+                        Sign Up
+                    </Link>
 
                     {/* Mobile Menu Button */}
                     <button
@@ -119,15 +119,13 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                                 Log In
                             </Link>
 
-                            <button
-                                onClick={() => {
-                                    setMobileMenuOpen(false);
-                                    onWaitlistClick?.();
-                                }}
-                                className="w-full px-5 py-3 bg-white text-black text-sm font-bold rounded-full hover:bg-gray-200 transition-colors"
+                            <Link
+                                href="/signup"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="block w-full px-5 py-3 bg-white text-black text-sm font-bold rounded-full hover:bg-gray-200 transition-colors text-center"
                             >
-                                Join Waitlist
-                            </button>
+                                Sign Up
+                            </Link>
                         </div>
                     </motion.div>
                 )}

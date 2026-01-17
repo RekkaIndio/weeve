@@ -8,7 +8,7 @@ import { ArrowRight, ChevronDown, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import MarketingNavbar from "@/app/components/MarketingNavbar";
 import MarketingFooter from "@/app/components/MarketingFooter";
-import WaitlistModal from "@/app/components/WaitlistModal";
+// WaitlistModal removed - using direct signup links now
 import WeeveTreeVisual from "@/app/components/WeeveTreeVisual";
 import PhoneDemo3D from "@/app/components/marketing/PhoneDemo3D";
 import CollaborativeFlowSection from "@/app/components/marketing/CollaborativeFlowSection";
@@ -49,14 +49,14 @@ export default function LandingPage() {
     const { user, loading } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const [waitlistOpen, setWaitlistOpen] = useState(false);
+    // Waitlist state removed - now using direct signup links
 
     if (loading) return null;
 
     return (
         <div className="min-h-screen bg-black text-white selection:bg-[#EC1D99] selection:text-white overflow-x-hidden">
             {/* Navigation */}
-            <MarketingNavbar onWaitlistClick={() => setWaitlistOpen(true)} />
+            <MarketingNavbar />
 
             {/* Hero Section */}
             <section className="relative pt-20 pb-12 sm:pt-24 sm:pb-20 lg:pt-24 lg:pb-32 overflow-hidden">
@@ -116,12 +116,12 @@ export default function LandingPage() {
                                 transition={{ delay: 0.5 }}
                                 className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4"
                             >
-                                <button
-                                    onClick={() => setWaitlistOpen(true)}
+                                <Link
+                                    href="/signup"
                                     className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-[#EC1D99] to-purple-600 hover:from-[#EC1D99]/90 hover:to-purple-600/90 text-white font-bold rounded-full transition-all shadow-[0_0_30px_rgba(236,29,153,0.3)] flex items-center justify-center gap-2"
                                 >
-                                    Join Waitlist <ArrowRight className="w-5 h-5" />
-                                </button>
+                                    Get Started <ArrowRight className="w-5 h-5" />
+                                </Link>
 
                             </motion.div>
                         </div>
@@ -199,19 +199,18 @@ export default function LandingPage() {
                             Stop scrolling. Start creating. Join a community that values authentic moments over perfect posts.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                            <button
-                                onClick={() => setWaitlistOpen(true)}
+                            <Link
+                                href="/signup"
                                 className="w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-[#EC1D99] to-purple-600 hover:from-[#EC1D99]/90 hover:to-purple-600/90 text-white font-bold text-lg rounded-full transition-all shadow-[0_0_50px_rgba(236,29,153,0.4)] hover:shadow-[0_0_80px_rgba(236,29,153,0.6)] hover:scale-105 flex items-center justify-center gap-2"
                             >
-                                Join Waitlist <ArrowRight className="w-6 h-6" />
-                            </button>
+                                Get Started <ArrowRight className="w-6 h-6" />
+                            </Link>
                         </div>
                     </motion.div>
                 </div>
             </section>
 
-            {/* Waitlist Modal */}
-            <WaitlistModal isOpen={waitlistOpen} onClose={() => setWaitlistOpen(false)} />
+
 
             {/* Footer */}
             <MarketingFooter />
