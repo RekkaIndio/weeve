@@ -64,10 +64,7 @@ const UserContributors = ({
     // Enhanced onFillSlot to show search
     const handleFillSlot = (index: number) => {
         setIsFriendSearchVisible(true);
-        // Small timeout to allow render before focusing
-        setTimeout(() => {
-            friendsInputRef.current?.focus();
-        }, 50);
+        setShowFriendDropdown(true);
         onFillSlot(index);
     };
 
