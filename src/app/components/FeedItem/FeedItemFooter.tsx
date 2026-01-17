@@ -167,10 +167,7 @@ export default function FeedItemFooter({
 
                         // For completed stories (no open slots), show all avatars
                         // For stories with open slots, limit to 3 visible avatars
-                        const isComplete = openCount === 0;
-                        const MAX_VISIBLE_AVATARS = isComplete ? filledSlots.length : 3;
-                        const visibleSlots = filledSlots.slice(0, MAX_VISIBLE_AVATARS);
-                        const hiddenAvatarCount = Math.max(0, filledSlots.length - MAX_VISIBLE_AVATARS);
+                        const visibleSlots = filledSlots;
 
                         const activeSlotIndex = currentContribution
                             ? slots.findIndex(s => s.type === 'contribution' && s.data.id === currentContribution.id)
