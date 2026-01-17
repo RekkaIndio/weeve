@@ -90,6 +90,12 @@ export function CompletedStoryView({
         return contributions[0]?.id;
     }, [contributions, story.coverImage]);
 
+    // Find user's contribution for the menu thumbnail
+    const userContribution = useMemo(() => {
+        if (!currentUser || !contributions) return undefined;
+        return contributions.find(c => c.userId === currentUser.id);
+    }, [currentUser, contributions]);
+
     return (
         <div className="h-full flex flex-col bg-black text-white relative">
             {/* Header */}
@@ -104,6 +110,7 @@ export function CompletedStoryView({
                 isUserParticipant={isUserParticipant}
                 originalStoryTitle={originalStoryTitle}
                 pointerEventsAuto={true}
+                userContribution={userContribution}
             />
 
             {/* FeedItem renders the feed-style post UI */}

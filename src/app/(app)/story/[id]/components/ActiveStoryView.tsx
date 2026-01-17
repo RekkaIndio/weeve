@@ -4,6 +4,7 @@ import {
     ChevronLeft, MoreVertical, Play, Edit2, Trash, LogOut, GitBranch,
     Sparkles, Loader2, Type, Smile, Crop, Video, Camera, FileVideo, Image as ImageIcon
 } from 'lucide-react';
+import VideoThumbnail from "@/app/components/VideoThumbnail";
 import { type Story, type Contribution, type User, type TextStyle } from '@/lib/store';
 import { leaveStory, deleteStory } from '@/lib/stories';
 import { NON_VIDEO_AUTO_ADVANCE_MS } from '@/lib/playback';
@@ -127,6 +128,11 @@ export function ActiveStoryView({
         return contributions.some(c => c.userId === currentUser.id);
     }, [currentUser, contributions]);
 
+    const userContribution = useMemo(() => {
+        if (!currentUser || !contributions) return undefined;
+        return contributions.find(c => c.userId === currentUser.id);
+    }, [currentUser, contributions]);
+
     // Handlers
     const handleNext = () => {
         // Cycle to next index, wrapping to 0 at the end
@@ -205,10 +211,46 @@ export function ActiveStoryView({
                         {showMenu && (
                             <div className="absolute top-full right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden pointer-events-auto z-50">
                                 {(story.creatorId === currentUser?.id || isUserParticipant || userHasContributed) && (
-                                    <button onClick={() => { setShowEditModal(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors">
-                                        <Edit2 className="w-4 h-4 text-gray-400" />
-                                        <span className="text-sm font-medium text-white">{story.creatorId === currentUser?.id ? 'Edit Story' : 'Manage Contribution'}</span>
-                                    </button>
+                                    <>
+                                        {story.creatorId === currentUser?.id ? (
+                                            <button onClick={() => { setShowEditModal(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors">
+                                                <Edit2 className="w-4 h-4 text-gray-400" />
+                                                <span className="text-sm font-medium text-white">Edit Story</span>
+                                            </button>
+                                        ) : userContribution ? (
+                                            <button onClick={() => { setShowEditModal(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors">
+                                                <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-800 relative flex-shrink-0 border border-gray-700">
+                                                    {userContribution.mediaType === 'video' ? (
+                                                        <div className="w-full h-full relative">
+                                                            <VideoThumbnail src={userContribution.mediaUrl || ''} className="w-full h-full object-cover" />
+                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                                                <Video className="w-3 h-3 text-white drop-shadow-sm" />
+                                                            </div>
+                                                        </div>
+                                                    ) : userContribution.mediaType === 'image' || userContribution.mediaType === 'drawing' ? (
+                                                        <div className="w-full h-full relative">
+                                                            <img src={userContribution.mediaUrl} className="w-full h-full object-cover" alt="" />
+                                                            {userContribution.mediaType === 'drawing' && (
+                                                                <div className="absolute bottom-0.5 right-0.5">
+                                                                    <ImageIcon className="w-3 h-3 text-white drop-shadow-sm" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800 text-white">
+                                                            <Type className="w-4 h-4" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <span className="text-sm font-medium text-white">Your contributions</span>
+                                            </button>
+                                        ) : (
+                                            <button onClick={() => { setShowEditModal(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors">
+                                                <Edit2 className="w-4 h-4 text-gray-400" />
+                                                <span className="text-sm font-medium text-white">Manage Contribution</span>
+                                            </button>
+                                        )}
+                                    </>
                                 )}
                                 {story.creatorId === currentUser?.id && (
                                     <button onClick={() => { setShowDeleteConfirm(true); setShowMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-t border-gray-800">

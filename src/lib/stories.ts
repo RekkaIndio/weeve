@@ -175,7 +175,18 @@ export async function leaveStory(
             return { success: false, error: 'Story creator cannot leave their own story' };
         }
 
-        // 2. Remove user from story_participants
+        // 2. Remove user's contributions (Clean up content)
+        const { error: contribError } = await supabase
+            .from('contributions')
+            .delete()
+            .match({ story_id: storyId, user_id: userId });
+
+        if (contribError) {
+            console.error('Error removing contributions:', contribError);
+            return { success: false, error: 'Failed to remove contributions' };
+        }
+
+        // 3. Remove user from story_participants
         const { error: deleteError } = await supabase
             .from('story_participants')
             .delete()
@@ -186,7 +197,7 @@ export async function leaveStory(
             return { success: false, error: 'Failed to leave story' };
         }
 
-        // 3. If this user had the current turn, reassign to next participant
+        // 4. If this user had the current turn, reassign to next participant
         if (story.current_turn_user_id === userId) {
             // Get remaining participants
             const { data: remainingParticipants } = await supabase
@@ -212,7 +223,7 @@ export async function leaveStory(
             }
         }
 
-        // 4. Notify the story creator
+        // 5. Notify the story creator
         if (story.creator_id !== userId) {
             await notifyParticipantLeft(storyId, story.title, story.creator_id, userName);
         }

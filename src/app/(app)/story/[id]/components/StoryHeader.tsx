@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ChevronLeft, MoreVertical, Edit2, LogOut, Trash, GitBranch } from "lucide-react";
-import { type Story, type User } from "@/lib/store";
+import { ChevronLeft, MoreVertical, Edit2, LogOut, Trash, GitBranch, Type, Image as ImageIcon, Video } from "lucide-react";
+import { type Story, type User, type Contribution } from "@/lib/store";
+import VideoThumbnail from "@/app/components/VideoThumbnail";
 
 interface StoryHeaderProps {
     story: Story;
@@ -15,7 +16,9 @@ interface StoryHeaderProps {
     isUserParticipant: boolean;
     originalStoryTitle?: string | null;
     pointerEventsAuto?: boolean;
+    userContribution?: Contribution;
 }
+
 
 export function StoryHeader({
     story,
@@ -27,7 +30,8 @@ export function StoryHeader({
     onDelete,
     isUserParticipant,
     originalStoryTitle,
-    pointerEventsAuto = false
+    pointerEventsAuto = false,
+    userContribution
 }: StoryHeaderProps) {
     const router = useRouter();
 
@@ -107,6 +111,56 @@ export function StoryHeader({
                                     >
                                         <Trash className="w-4 h-4 text-red-400" />
                                         <span className="text-sm font-medium text-red-400">Delete Story</span>
+                                    </button>
+                                )}
+                            </>
+                        )}
+                        {/* Manage Contributions for non-creators */}
+                        {story.creatorId !== currentUser?.id && onEdit && (
+                            <>
+                                {userContribution ? (
+                                    <button
+                                        onClick={() => {
+                                            onEdit();
+                                            setShowMenu(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-b border-gray-800"
+                                    >
+                                        <div className="w-8 h-8 rounded-lg overflow-hidden bg-gray-800 relative flex-shrink-0 border border-gray-700">
+                                            {userContribution.mediaType === 'video' ? (
+                                                <div className="w-full h-full relative">
+                                                    <VideoThumbnail src={userContribution.mediaUrl || ''} className="w-full h-full object-cover" />
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                                        <Video className="w-3 h-3 text-white drop-shadow-sm" />
+                                                    </div>
+                                                </div>
+                                            ) : userContribution.mediaType === 'image' || userContribution.mediaType === 'drawing' ? (
+                                                <div className="w-full h-full relative">
+                                                    <img src={userContribution.mediaUrl} className="w-full h-full object-cover" alt="" />
+                                                    {userContribution.mediaType === 'drawing' && (
+                                                        <div className="absolute bottom-0.5 right-0.5">
+                                                            <ImageIcon className="w-3 h-3 text-white drop-shadow-sm" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800 text-white">
+                                                    <Type className="w-4 h-4" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <span className="text-sm font-medium text-white">Your contributions</span>
+                                    </button>
+                                ) : isUserParticipant && (
+                                    <button
+                                        onClick={() => {
+                                            onEdit();
+                                            setShowMenu(false);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800 transition-colors border-b border-gray-800"
+                                    >
+                                        <Edit2 className="w-4 h-4 text-gray-400" />
+                                        <span className="text-sm font-medium text-white">Manage Contribution</span>
                                     </button>
                                 )}
                             </>
