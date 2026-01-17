@@ -212,9 +212,9 @@ export default function AdminUserDetailPage() {
             setHasChanges(false);
             fetchUser(); // Refresh data
             alert('User updated successfully!');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to update user:', error);
-            alert('Failed to update user');
+            alert(`Failed to update user: ${error.message || error.error_description || 'Unknown error'}`);
         } finally {
             setIsSaving(false);
         }
@@ -329,13 +329,14 @@ export default function AdminUserDetailPage() {
                 <h2 className="text-lg font-semibold text-white mb-4">Basic Information</h2>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm text-zinc-400 mb-1">Name</label>
+                        <label className="block text-sm text-zinc-400 mb-1">Username / Display Name</label>
                         <input
                             type="text"
                             value={formData.name}
                             onChange={(e) => handleChange('name', e.target.value)}
                             className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white focus:outline-none focus:border-pink-500"
                         />
+                        <p className="text-xs text-zinc-500 mt-1">This is the unique handle for the user.</p>
                     </div>
                     <div>
                         <label className="block text-sm text-zinc-400 mb-1">Tagline</label>
