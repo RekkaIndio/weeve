@@ -75,6 +75,7 @@ export default function DiscoveryFeedOverlay({ stories, initialIndex, onClose }:
 
         let isScrolling = false;
         let lastWheelTime = 0;
+        let touchStartX = 0;
         let touchStartY = 0;
         let touchStartTime = 0;
 
@@ -184,6 +185,7 @@ export default function DiscoveryFeedOverlay({ stories, initialIndex, onClose }:
 
         const touchStart = (e: TouchEvent) => {
             if (e.touches && e.touches[0]) {
+                touchStartX = e.touches[0].clientX;
                 touchStartY = e.touches[0].clientY;
                 touchStartTime = Date.now();
             }
@@ -204,11 +206,18 @@ export default function DiscoveryFeedOverlay({ stories, initialIndex, onClose }:
             if (isScrolling) return;
             const touch = e.changedTouches && e.changedTouches[0];
             if (!touch) return;
+            const dx = touch.clientX - touchStartX;
             const dy = touchStartY - touch.clientY;
             const dt = Date.now() - touchStartTime;
             const velocity = Math.abs(dy / Math.max(1, dt));
 
-            // Threshold distance of 50px or velocity of 0.3 qualifies as a swipe
+            // If swipe is more horizontal than vertical, let FeedItem handle it
+            // This prevents horizontal swipes from accidentally scrolling to other posts
+            if (Math.abs(dx) > Math.abs(dy)) {
+                return;
+            }
+
+            // Threshold distance of 50px or velocity of 0.3 qualifies as a vertical swipe
             if (Math.abs(dy) < 50 && velocity < 0.3) {
                 // not a confident swipe — stay on current index (no snap-back animation needed)
                 return;
