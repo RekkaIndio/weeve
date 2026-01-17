@@ -279,7 +279,7 @@ export function ActiveStoryView({
                                                 backgroundColor: element.style.backgroundColor,
                                                 padding: '0.4em 0.6em',
                                                 borderRadius: '0.5em',
-                                                backdropFilter: 'blur(4px)',
+                                                backdropFilter: element.style.backgroundColor && element.style.backgroundColor !== 'transparent' ? 'blur(4px)' : 'none',
                                                 whiteSpace: 'pre-wrap',
                                                 boxDecorationBreak: 'clone',
                                                 WebkitBoxDecorationBreak: 'clone',
