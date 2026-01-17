@@ -72,42 +72,52 @@ const UserContributors = ({
         <>
             {/* Story Visibility Selection - Hidden if groupId is present */}
             {!groupId && (
-                <div className="flex items-center justify-between p-4 bg-gray-800/50 border border-gray-700/50 rounded-2xl mb-6">
-                    <div className="flex flex-col">
-                        <span className="text-sm font-bold text-white flex items-center gap-2 font-sans">
-                            {formState.visibility === "public" ? (
-                                <>
-                                    <Globe className="w-4 h-4 text-gray-400" />
-                                    Public Story
-                                </>
-                            ) : (
-                                <>
-                                    <Lock className="w-4 h-4 text-[#EC1D99]" />
-                                    Private Story
-                                </>
-                            )}
-                        </span>
-                        <span className="text-xs text-gray-500 mt-1 font-sans">
-                            {formState.visibility === "public"
-                                ? "Anyone can view and contribute"
-                                : "Only invited friends can view and contribute"}
-                        </span>
+                <div className="flex flex-col p-4 bg-gray-800/50 border border-gray-700/50 rounded-2xl mb-6 gap-3">
+                    <div className="flex items-center justify-between w-full">
+                        <div className="flex flex-col">
+                            <span className="text-sm font-bold text-white flex items-center gap-2 font-sans">
+                                {formState.visibility === "public" ? (
+                                    <>
+                                        <Globe className="w-4 h-4 text-yellow-400" />
+                                        Public Story
+                                    </>
+                                ) : (
+                                    <>
+                                        <Lock className="w-4 h-4 text-[#EC1D99]" />
+                                        Private Story
+                                    </>
+                                )}
+                            </span>
+                            <span className="text-xs text-gray-500 mt-1 font-sans">
+                                {formState.visibility === "public"
+                                    ? "Anyone can view and contribute"
+                                    : "Only invited friends can view and contribute"}
+                            </span>
+                        </div>
+
+                        {/* Custom Toggle Switch */}
+                        <button
+                            type="button"
+                            role="switch"
+                            aria-checked={formState.visibility === "private"}
+                            onClick={() => onVisibilityChange(formState.visibility === "public" ? "private" : "public")}
+                            className={`w-12 h-7 rounded-full transition-colors duration-200 ease-in-out relative focus:outline-none focus:ring-2 focus:ring-[#EC1D99] focus:ring-offset-2 focus:ring-offset-gray-900 flex-shrink-0 ml-4 ${formState.visibility === "private" ? 'bg-[#EC1D99]' : 'bg-gray-700'
+                                }`}
+                        >
+                            <div
+                                className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ease-in-out absolute top-1 left-1 ${formState.visibility === "private" ? 'translate-x-5' : 'translate-x-0'
+                                    }`}
+                            />
+                        </button>
                     </div>
 
-                    {/* Custom Toggle Switch */}
-                    <button
-                        type="button"
-                        role="switch"
-                        aria-checked={formState.visibility === "private"}
-                        onClick={() => onVisibilityChange(formState.visibility === "public" ? "private" : "public")}
-                        className={`w-12 h-7 rounded-full transition-colors duration-200 ease-in-out relative focus:outline-none focus:ring-2 focus:ring-[#EC1D99] focus:ring-offset-2 focus:ring-offset-gray-900 ${formState.visibility === "private" ? 'bg-[#EC1D99]' : 'bg-gray-700'
-                            }`}
-                    >
-                        <div
-                            className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ease-in-out absolute top-1 left-1 ${formState.visibility === "private" ? 'translate-x-5' : 'translate-x-0'
-                                }`}
-                        />
-                    </button>
+                    <div className="text-[10px] text-gray-400 bg-gray-900/50 p-2 rounded-lg border border-gray-700/50 min-h-[34px] flex items-center">
+                        {formState.visibility === "public" ? (
+                            <span>For public stories, slots can be left open for others to join.</span>
+                        ) : (
+                            <span>For private stories, all slots must be filled by invited friends.</span>
+                        )}
+                    </div>
                 </div>
             )}
 
