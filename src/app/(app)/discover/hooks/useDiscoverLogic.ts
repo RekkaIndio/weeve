@@ -17,6 +17,38 @@ const actions = {
             // Must have at least one contribution (completed content)
             if (!story.contributions || story.contributions.length === 0) return false;
 
+            // Strict Slot 0 Check: Verify that there is an existing contribution that maps to Slot 0
+            // This replicates the logic in FeedItem.tsx to ensure we don't show "waiting" stories.
+            const hasSlot0Contribution = story.contributions.some(c => {
+                 let position = -1;
+                 // Matches FeedItem.tsx logic
+                 if (c.timestamp >= 1000000 && c.timestamp < 100000000) {
+                     position = Math.floor(c.timestamp / 1000000) - 1;
+                 } else if (typeof c.slotIndex === 'number' && c.slotIndex >= 0) {
+                     position = c.slotIndex;
+                 }
+                 return position === 0;
+            });
+
+            // Fallback: If no slot mapping exists (all -1), assume linear.
+            // But if we have mapped slots logic in FeedItem, we should rely on it.
+            // If the map fails, we check if it's purely linear AND we have content.
+            // If the story relies on slot mapping (legacy timestamp hack), and checks fail, it's safer to hide.
+            
+            // However, for safety: if we mapped ANY contribution to slot 0, it's valid.
+            // If not, and we have contributions, do they default to slot 0?
+            // If timestamp logic is used, and no one matches slot 0, then slot 0 is empty.
+            
+            // Allow if strictly has Slot 0 contribution OR if no complex slot logic matches and there's 1+ contribution (linear fallback)
+            const usesSlotLogic = story.contributions.some(c => (c.timestamp >= 1000000 && c.timestamp < 100000000) || typeof c.slotIndex === 'number');
+            if (usesSlotLogic && !hasSlot0Contribution) {
+                 return false; 
+            }
+
+            // Also check participant waiting status for redundancy
+            const p0 = story.participants.find(p => p.position === 0);
+            if (p0 && p0.status === 'waiting') return false;
+
             // Hide stories where the creator has assigned slots to themselves but hasn't filled them yet
             // These should NOT appear in the public feed yet (even for the creator)
             // Check 1: Creator has explicit 'waiting' status on any participant entry
@@ -33,6 +65,8 @@ const actions = {
             if (creatorHasWaitingSlot || creatorHasUnfilledSlots || isCreatorsTurn) {
                 return false;
             }
+
+            // Check if this is a public story with reserved slots (invited friends)
 
             // Check if this is a public story with reserved slots (invited friends)
             // Reserved slots are participants who are NOT the creator
@@ -287,10 +321,21 @@ export function useDiscoverLogic() {
              // Basic check: must be open mode
             if (story.mode !== 'open') return false;
             
-            // Should verify it's not completed? Usually open stories are ongoing.
-            // But if it's 'completed' it might not be relevant for "Open" tab unless we want to show examples.
             // Let's hide completed ones from "Open" tab so users only see actionable ones.
             if (story.status === 'completed') return false;
+
+            // Check if the next slot is blocked by an assigned user
+            // Open stories are sequential. If the next slot is assigned to someone specific, it's not "Open" for everyone.
+            const contributionsCount = story.contributions?.length || 0;
+            const nextSlotIndex = contributionsCount; 
+
+            if ((story.maxWeeves && nextSlotIndex >= story.maxWeeves)) return false; 
+
+            const isBlocked = story.participants.some(p => 
+                p.position === nextSlotIndex && p.status === 'waiting'
+            );
+
+            if (isBlocked) return false;
 
             return true;
         }).sort((a, b) => getInterestScore(b) - getInterestScore(a));

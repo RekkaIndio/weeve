@@ -220,12 +220,12 @@ export default function FeedItemFooter({
                                                 href={`/profile/${p.id}`}
                                                 onClick={(e) => e.stopPropagation()}
                                                 title={`${slot.index + 1}. Waiting for ${p.name}`}
-                                                className={`relative rounded-full flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} z-10 opacity-70 hover:opacity-90 grayscale`}
+                                                className={`relative rounded-full flex-none transition-all duration-300 ${displayIdx !== 0 ? '-ml-3' : ''} z-10 opacity-70 hover:opacity-100 grayscale hover:grayscale-0`}
                                             >
                                                 <img
                                                     src={p.avatar}
                                                     alt={p.name}
-                                                    className="w-9 h-9 min-w-[36px] aspect-square object-cover block rounded-full border-2 border-dashed border-gray-400 flex-shrink-0"
+                                                    className="w-9 h-9 min-w-[36px] aspect-square object-cover block rounded-full border-2 border-white/40 flex-shrink-0"
                                                 />
                                             </Link>
                                         );

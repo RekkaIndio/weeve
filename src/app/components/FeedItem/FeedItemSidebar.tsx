@@ -117,6 +117,13 @@ export default function FeedItemSidebar({
                 - NOT for public 'open' mode stories (these allow direct contribution to open slots)
                 - NOT for Canon/Seed posts (these have their own fork UI)
             */}
+            {/* Weeve Button */}
+            {/* Only show fork button for:
+                - Private stories you're part of
+                - Public 'invite' mode stories (traditional private-style stories that are public)
+                - NOT for public 'open' mode stories (these allow direct contribution to open slots)
+                - NOT for Canon/Seed posts (these have their own fork UI)
+            */}
             {(story.visibility === 'public' || (story.visibility === 'private' && isParticipant))
                 && !['canon', 'seed'].includes(story.postType || '')
                 && (story.mode !== 'open' || (story.contributions?.length || 0) >= (story.maxWeeves || 3)) // Hide fork button for open mode stories UNLESS they are full/complete
@@ -126,6 +133,16 @@ export default function FeedItemSidebar({
                         <button
                             type="button"
                             onClick={() => {
+                                // If story is completed (status completed or full contributions), go to timeline
+                                const isComplete = story.status === 'completed' || (story.contributions?.length || 0) >= (story.maxWeeves || 3);
+                                // If user is a waiting participant (assigned slot), go to timeline (which handles contribution flow)
+                                const isWaitingParticipant = story.participants?.some(p => p.id === currentUser?.id && p.status === 'waiting');
+
+                                if (isComplete || isWaitingParticipant) {
+                                    router.push(`/story/${story.id}`);
+                                    return;
+                                }
+
                                 if (story.monetizationCost && story.monetizationCost > 0) {
                                     if (currentUser?.preferences?.monetization_enabled === false) {
                                         setShowMonetizationModal('enable_required');
