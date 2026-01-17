@@ -71,6 +71,7 @@ export default function UserProfilePage() {
     const [showRemoveFriendConfirm, setShowRemoveFriendConfirm] = useState(false);
     const [isRemovingFriend, setIsRemovingFriend] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
+    const [showAvatarModal, setShowAvatarModal] = useState(false);
 
     // Collaboration state
     const [collabEnabled, setCollabEnabled] = useState(true);
@@ -707,13 +708,16 @@ export default function UserProfilePage() {
                 {/* Profile Header */}
                 <div className="flex items-start gap-4 mb-4">
                     {/* Avatar */}
-                    <div className="relative flex-shrink-0">
+                    <div
+                        className="relative flex-shrink-0 cursor-pointer"
+                        onClick={() => setShowAvatarModal(true)}
+                    >
                         <img
                             src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
                             alt={user.name}
                             className={`w-20 h-20 rounded-full border-2 bg-gray-800 object-cover ${user.tags?.includes('Founder')
-                                    ? 'border-amber-500'
-                                    : 'border-[#EC1D99]'
+                                ? 'border-amber-500'
+                                : 'border-[#EC1D99]'
                                 }`}
                         />
                         {user.isInfluencer && (
@@ -944,6 +948,26 @@ export default function UserProfilePage() {
                     ))
                 }
             </div >
-        </div >
+            {/* Modal for viewing avatar */}
+            {showAvatarModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+                    onClick={() => setShowAvatarModal(false)}
+                >
+                    <button
+                        onClick={() => setShowAvatarModal(false)}
+                        className="absolute top-4 right-4 text-white/80 hover:text-white z-10"
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+                    <img
+                        src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}`}
+                        alt={user.name}
+                        className="max-w-[90vw] max-h-[90vh] rounded-2xl object-contain"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>
+            )}
+        </div>
     );
 }
