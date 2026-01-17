@@ -218,9 +218,24 @@ export default function UserProfilePage() {
         if (!currentUser) return;
         (async () => {
             try {
-                // Check if TRUE friend (bidirectional)
+                // 1. Check if TRUE friend (bidirectional) FIRST
                 // We are friends if I follow them AND they follow me
-                // OR check friend_requests status='accepted'
+                const { data: reverseFriendship } = await supabase
+                    .from('friendships')
+                    .select('id')
+                    .eq('user_id', userId) // They
+                    .eq('friend_id', currentUser.id) // Follow Me
+                    .maybeSingle();
+
+                const iFollowThem = !!friends.find(f => f.id === userId);
+
+                if (iFollowThem && reverseFriendship) {
+                    setFriendStatus('friend');
+                    return; // EXIT EARLY if already friends, ignoring any stale pending requests
+                }
+
+                // 2. If not friends, check for requests
+                // Check friend_requests status='accepted'
                 // Let's use friend_requests for clarity of status
                 const { sent, received } = await getFriendRequests(currentUser.id);
 
@@ -244,27 +259,8 @@ export default function UserProfilePage() {
                     return;
                 }
 
-                // Check if TRUE friend (bidirectional) based on friendships table
-                // If I follow them AND they follow me -> Friend
-                const { data: reverseFriendship } = await supabase
-                    .from('friendships')
-                    .select('id')
-                    .eq('user_id', userId) // They
-                    .eq('friend_id', currentUser.id) // Follow Me
-                    .maybeSingle();
-
-                const iFollowThem = !!friends.find(f => f.id === userId);
-
-                if (iFollowThem && reverseFriendship) {
-                    setFriendStatus('friend');
-                } else {
-                    // Not fully friends yet
-                    // If no pending request found above, status is none (or check if accepted request exists?)
-                    // If accepted request exists, they SHOULD be friends.
-                    if (friendStatus !== 'requested' && friendStatus !== 'incoming') {
-                        setFriendStatus('none');
-                    }
-                }
+                // If no relationship found
+                setFriendStatus('none');
 
             } catch (err) {
                 console.error('[UserProfile] Failed to determine friend status:', err);
