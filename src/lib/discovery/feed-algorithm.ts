@@ -357,6 +357,36 @@ function filterByFeedType(stories: Story[], context: FeedContext): Story[] {
     if (isBrandPost(story) && (!story.contributions || story.contributions.length === 0)) {
         return false;
     }
+
+    // GENERAL SAFETY: Filter out "Phantom" Public/Open stories that have no content in Slot 0
+    // This happens if a user creates a story but fails to upload the first clip, or if the first slot is "waiting".
+    if (!isBrandPost(story)) {
+        // Must have at least one contribution
+        if (!story.contributions || story.contributions.length === 0) {
+             return false;
+        }
+
+        // Strict Slot 0 Check (matches FeedItem and Discovery logic)
+        const hasSlot0Contribution = story.contributions.some(c => {
+             let position = -1;
+             if (c.timestamp >= 1000000 && c.timestamp < 100000000) {
+                 position = Math.floor(c.timestamp / 1000000) - 1;
+             } else if (typeof c.slotIndex === 'number' && c.slotIndex >= 0) {
+                 position = c.slotIndex;
+             }
+             return position === 0;
+        });
+        
+        // If it uses slot logic (timestamp/index) but has no Slot 0, it's invalid
+        const usesSlotLogic = story.contributions.some(c => (c.timestamp >= 1000000 && c.timestamp < 100000000) || typeof c.slotIndex === 'number');
+        if (usesSlotLogic && !hasSlot0Contribution) {
+             return false;
+        }
+
+       // Redundant check for 'waiting' status on slot 0
+       const p0 = story.participants?.find(p => p.position === 0);
+       if (p0 && p0.status === 'waiting') return false; 
+    }
     
     return true;
   });
