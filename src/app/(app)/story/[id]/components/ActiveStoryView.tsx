@@ -316,7 +316,7 @@ export function ActiveStoryView({
                                             : `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
                                         zIndex: 20
                                     }}>
-                                        <div className="min-w-[200px] max-w-[80vw] text-center" style={{ ...element.style, backgroundColor: 'transparent', padding: 0 }}>
+                                        <div className="min-w-[200px] max-w-[80vw] text-center" style={{ ...element.style, color: element.style.textColor, backgroundColor: 'transparent', padding: 0 }}>
                                             <span style={{
                                                 backgroundColor: element.style.backgroundColor,
                                                 padding: '0.4em 0.6em',
