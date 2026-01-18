@@ -270,7 +270,7 @@ interface AppState {
     fetchFriends: () => Promise<void>;
     forkStory: (originalStoryId: string, slotToUserAssignments: Map<number, string>, contributionIdsToExclude?: string[], customTitle?: string, customDescription?: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
     forkBrandPost: (originalStoryId: string) => Promise<{ success: boolean; storyId?: string; error?: string }>;
-    fetchStories: (reset?: boolean) => Promise<void>;
+    fetchStories: (reset?: boolean, recursionDepth?: number) => Promise<void>;
     fetchUserStories: (userId: string) => Promise<void>;
     fetchDiscoveryStories: (reset?: boolean) => Promise<void>;
     fetchMoreStories: () => Promise<void>;
@@ -1366,12 +1366,12 @@ export const useStore = create<AppState>()(
                 }
             },
 
-            fetchStories: async (reset = true) => {
+            fetchStories: async (reset = true, recursionDepth = 0) => {
                 const PAGE_SIZE = 30;
                 const { currentUser, isStoriesLoading, storiesPage } = get();
 
-                // Deduplicate: Don't fetch if already fetching
-                if (isStoriesLoading) {
+                // Deduplicate: Don't fetch if already fetching (unless recursing)
+                if (isStoriesLoading && recursionDepth === 0) {
                     return;
                 }
 
@@ -1690,6 +1690,14 @@ export const useStore = create<AppState>()(
                                 hasMoreStories: hasMore 
                             };
                         });
+                    }
+
+                    // RECURSIVE FETCH: If we got results from DB but filtered them all out (e.g. private/blocked),
+                    // effectively getting an empty page, we should immediately try the next page
+                    // to avoid the UI getting stuck in "loading" or "infinite loop" state.
+                    if (formattedStories.length === 0 && hasMore && recursionDepth < 5) {
+                        console.log(`[Store] Page ${page} filtered to empty. Recursively fetching next page (depth ${recursionDepth + 1})...`);
+                        await get().fetchStories(false, recursionDepth + 1);
                     }
 
                 } catch (err) {
