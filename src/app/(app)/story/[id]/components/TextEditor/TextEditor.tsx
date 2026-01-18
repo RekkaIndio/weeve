@@ -93,28 +93,30 @@ export function TextEditor({
                                 </div>
                             )}
 
-                            {/* Text Content */}
-                            <div
-                                className={`
-                                    relative px-5 py-4 min-w-[200px] max-w-[80vw] text-center
-                                    ${isEditing ? '' : 'hover:ring-1 hover:ring-white/30'}
-                                    transition-all duration-200 rounded-3xl
-                                `}
-                                style={{
-                                    fontFamily: element.style.fontFamily,
-                                    fontSize: element.style.fontSize,
-                                    color: element.style.textColor,
-                                    textAlign: element.style.textAlign,
-                                    backgroundColor: isEditing ? element.style.backgroundColor : 'transparent',
-                                    cursor: isEditing ? 'text' : 'pointer',
-                                }}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!isEditing) {
-                                        onSetActiveElementId(element.id);
-                                    }
-                                }}
-                            >
+                            {/* Auto-sizing Container */}
+                            <div className="relative min-w-[200px] max-w-[80vw]">
+                                {/* Invisible Span for Auto-sizing (Always rendered to dictate size) */}
+                                <span
+                                    style={{
+                                        fontFamily: element.style.fontFamily,
+                                        fontSize: element.style.fontSize,
+                                        textAlign: element.style.textAlign,
+                                        lineHeight: '1.4',
+                                        padding: '0.3em 0.5em',
+                                        whiteSpace: 'pre-wrap',
+                                        display: 'block', // Ensure it behaves like a block for width/height
+                                        opacity: 0, // Invisible
+                                        pointerEvents: 'none',
+                                        minHeight: '1.5em', // Minimum height for empty state
+                                    }}
+                                    aria-hidden="true"
+                                >
+                                    {element.content || 'Type something...'}
+                                    {/* Add zero-width space to ensure height with trailing newlines if needed, though pre-wrap usually handles it */}
+                                    &#8203;
+                                </span>
+
+                                {/* Visible Content */}
                                 {isEditing ? (
                                     <textarea
                                         autoFocus
@@ -122,27 +124,37 @@ export function TextEditor({
                                         onChange={(e) => onUpdateContent(element.id, e.target.value)}
                                         onPointerDown={(e) => e.stopPropagation()}
                                         placeholder="Type something..."
-                                        className="w-full bg-transparent border-none outline-none resize-none text-inherit placeholder:text-white/40 placeholder:text-lg placeholder:font-light"
+                                        className="absolute inset-0 w-full h-full bg-transparent border-none outline-none resize-none overflow-hidden placeholder:text-white/40 placeholder:font-light"
                                         style={{
-                                            fontFamily: 'inherit',
-                                            fontSize: element.content ? 'inherit' : '18px',
-                                            color: 'inherit',
-                                            textAlign: element.style.textAlign as any,
-                                            minHeight: '1.5em',
+                                            fontFamily: element.style.fontFamily,
+                                            fontSize: element.style.fontSize,
+                                            color: element.style.textColor,
+                                            textAlign: element.style.textAlign,
+                                            backgroundColor: element.style.backgroundColor,
+                                            borderRadius: '0.5em',
+                                            padding: '0.3em 0.5em', // Match span padding
+                                            lineHeight: '1.4',      // Match span line-height
                                         }}
-                                        rows={3}
+                                        spellCheck={false}
                                     />
                                 ) : (
-                                    <span style={{
-                                        whiteSpace: 'pre-wrap',
-                                        backgroundColor: element.style.backgroundColor !== 'transparent' ? element.style.backgroundColor : undefined,
-                                        boxDecorationBreak: 'clone',
-                                        WebkitBoxDecorationBreak: 'clone',
-                                        padding: '0.3em 0.5em',
-                                        borderRadius: '0.5em',
-                                        lineHeight: '1.4',
-                                        display: 'inline'
-                                    }}>
+                                    <span
+                                        className={`${isEditing ? '' : 'hover:ring-1 hover:ring-white/30'} transition-all duration-200 rounded-lg absolute inset-0`}
+                                        style={{
+                                            fontFamily: element.style.fontFamily,
+                                            fontSize: element.style.fontSize,
+                                            color: element.style.textColor,
+                                            textAlign: element.style.textAlign,
+                                            backgroundColor: element.style.backgroundColor !== 'transparent' ? element.style.backgroundColor : undefined,
+                                            whiteSpace: 'pre-wrap',
+                                            boxDecorationBreak: 'clone',
+                                            WebkitBoxDecorationBreak: 'clone',
+                                            padding: '0.3em 0.5em',
+                                            lineHeight: '1.4',
+                                            cursor: 'pointer',
+                                            display: 'block' // Match sizing logic
+                                        }}
+                                    >
                                         {element.content || ''}
                                     </span>
                                 )}

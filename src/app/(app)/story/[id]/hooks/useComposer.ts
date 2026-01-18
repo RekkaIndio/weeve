@@ -149,14 +149,25 @@ export function useComposer(
         if (!elementRef || !stageRef.current) return;
 
         const stageRect = stageRef.current.getBoundingClientRect();
+        const elementRect = elementRef.getBoundingClientRect();
 
+        // If we are editing and haven't moved yet (centered state), we need to "lock in" 
+        // the current visual position as a specific % so it doesn't jump when we start dragging
         if (id === activeElementId) {
             if (!hasMovedInCurrentEdit) {
-                const elementRect = elementRef.getBoundingClientRect();
+                // Calculate current visual position in percentage
+                const visualLeftPx = elementRect.left - stageRect.left;
+                const visualTopPx = elementRect.top - stageRect.top;
+                
+                const percentLeft = (visualLeftPx / stageRect.width) * 100;
+                const percentTop = (visualTopPx / stageRect.height) * 100;
+
+                // Update state immediately so re-render keeps it here
                 updateElement(id, {
                     position: {
-                        left: elementRect.left - stageRect.left,
-                        top: elementRect.top - stageRect.top
+                        left: percentLeft,
+                        top: percentTop,
+                        unit: '%'
                     }
                 });
             }
@@ -164,18 +175,17 @@ export function useComposer(
         }
 
         isClickRef.current = true;
-        const rect = elementRef.getBoundingClientRect();
 
         dragStateRef.current = {
-            offsetX: event.clientX - rect.left,
-            offsetY: event.clientY - rect.top,
+            offsetX: event.clientX - elementRect.left,
+            offsetY: event.clientY - elementRect.top,
             stageLeft: stageRect.left,
             stageTop: stageRect.top,
             stageWidth: stageRect.width,
             stageHeight: stageRect.height,
             pointerId: event.pointerId,
-            startLeft: elementRef.offsetLeft,
-            startTop: elementRef.offsetTop
+            startLeft: 0, // Not used in new logic
+            startTop: 0   // Not used in new logic
         };
         isDragging.current = id;
         (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -196,14 +206,31 @@ export function useComposer(
             if (moveDistance > 2) isClickRef.current = false;
         }
 
-        const rawLeft = event.clientX - dragState.stageLeft - dragState.offsetX;
-        const rawTop = event.clientY - dragState.stageTop - dragState.offsetY;
+        // Calculate new position in pixels relative to stage
+        let rawLeft = event.clientX - dragState.stageLeft - dragState.offsetX;
+        let rawTop = event.clientY - dragState.stageTop - dragState.offsetY;
         
-        // Subtract the initial CSS position to get the transform delta
-        const translateX = rawLeft - dragState.startLeft;
-        const translateY = rawTop - dragState.startTop;
+        // Optional: Clamp to stage bounds (keep roughly inside)
+        const elementRect = elementRef.getBoundingClientRect();
+        // Allow some overflow but not complete loss
+        const minX = -elementRect.width * 0.5;
+        const maxX = dragState.stageWidth - elementRect.width * 0.5;
+        const minY = -elementRect.height * 0.5;
+        const maxY = dragState.stageHeight - elementRect.height * 0.5;
+        
+        rawLeft = Math.max(minX, Math.min(maxX, rawLeft));
+        rawTop = Math.max(minY, Math.min(maxY, rawTop));
 
-        elementRef.style.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(1.05)`;
+        // Convert to percentage
+        const percentLeft = (rawLeft / dragState.stageWidth) * 100;
+        const percentTop = (rawTop / dragState.stageHeight) * 100;
+
+        // Apply directly to DOM for smooth 60fps
+        elementRef.style.left = `${percentLeft}%`;
+        elementRef.style.top = `${percentTop}%`;
+        
+        // Use standard translate
+        elementRef.style.transform = 'translate3d(0, 0, 0)';
     };
 
     const handleDragEnd = (event: React.PointerEvent<HTMLDivElement>, id: string) => {
@@ -216,7 +243,7 @@ export function useComposer(
             try { (event.currentTarget as HTMLElement).releasePointerCapture(dragState.pointerId); } catch (err) { }
             
             elementRef.style.cursor = 'grab';
-            elementRef.style.transform = elementRef.style.transform.replace(' scale(1.05)', '');
+            elementRef.style.transform = 'translate3d(0, 0, 0)';
 
             if (isClickRef.current) {
                 justSelectedRef.current = true;
@@ -224,23 +251,24 @@ export function useComposer(
                 // Don't auto-open a menu - let user choose from toolbar
                 setTimeout(() => { justSelectedRef.current = false; }, 100);
             } else {
-
+                // Read final calculated percentage from DOM or recalculate
+                // Recalculating is safer to ensure sync with state logic
                 let rawLeft = event.clientX - dragState.stageLeft - dragState.offsetX;
                 let rawTop = event.clientY - dragState.stageTop - dragState.offsetY;
                 
-                const width = elementRef.getBoundingClientRect().width;
-                const height = elementRef.getBoundingClientRect().height;
-                const stageW = dragState.stageWidth;
-                const stageH = dragState.stageHeight;
+                // Applying exact same clamping as Move to ensure WYSIWYG
+                const elementRect = elementRef.getBoundingClientRect();
+                const minX = -elementRect.width * 0.5;
+                const maxX = dragState.stageWidth - elementRect.width * 0.5;
+                const minY = -elementRect.height * 0.5;
+                const maxY = dragState.stageHeight - elementRect.height * 0.5;
+                
+                rawLeft = Math.max(minX, Math.min(maxX, rawLeft));
+                rawTop = Math.max(minY, Math.min(maxY, rawTop));
 
-                if (rawLeft + width < 20) rawLeft = 20 - width;
-                if (rawLeft > stageW - 20) rawLeft = stageW - 20;
-                if (rawTop < 20) rawTop = 20;
-                if (rawTop + height > stageH - 20) rawTop = stageH - 20 - height;
-
-                // Convert to percentages
-                const percentLeft = (rawLeft / stageW) * 100;
-                const percentTop = (rawTop / stageH) * 100;
+                 // Convert to percentage
+                const percentLeft = (rawLeft / dragState.stageWidth) * 100;
+                const percentTop = (rawTop / dragState.stageHeight) * 100;
                 
                 updateElement(id, { position: { left: percentLeft, top: percentTop, unit: '%' } });
             }
