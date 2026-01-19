@@ -670,7 +670,7 @@ export default function UserProfilePage() {
 
                     {/* Dropdown Menu */}
                     {showMenu && (
-                        <div className="absolute right-0 top-full mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden z-20">
+                        <div className="absolute right-0 top-full mt-2 w-64 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden z-20">
                             {/* Remove Friend option - only show if friends */}
                             {friendStatus === 'friend' && (
                                 <button
@@ -883,7 +883,7 @@ export default function UserProfilePage() {
 
             {/* All Stories Grid */}
             {user?.isBrand && <div className="px-4 py-2 text-sm font-bold text-gray-400 uppercase tracking-wider">All Weeves</div>}
-            <div className="grid grid-cols-3 gap-0.5">
+            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-0.5">
                 {
                     regularStories.length > 0 ? (
                         regularStories.map(story => {

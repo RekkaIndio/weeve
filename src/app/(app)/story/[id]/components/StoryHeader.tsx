@@ -86,7 +86,7 @@ export function StoryHeader({
 
                 {/* Dropdown Menu */}
                 {showMenu && (
-                    <div className="absolute top-full right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden z-50">
+                    <div className="absolute top-full right-0 mt-2 w-64 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden z-50">
                         {story.creatorId === currentUser?.id && (
                             <>
                                 {onEdit && (

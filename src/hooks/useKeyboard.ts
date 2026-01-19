@@ -65,7 +65,14 @@ export function useKeyboard() {
         const isShrunk = currentHeight < initialHeight * 0.85;
         
         if (isShrunk) {
-             updateVisibility(true);
+             // Only consider it a keyboard if an input is focused (prevents desktop resize false positives)
+             const activeElement = document.activeElement;
+             const isInput = activeElement && 
+                 (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || (activeElement as HTMLElement).isContentEditable);
+             
+             if (isInput) {
+                updateVisibility(true);
+             }
         } else {
              // If restored to full height, keyboard is closed (trust this over focus)
              updateVisibility(false);

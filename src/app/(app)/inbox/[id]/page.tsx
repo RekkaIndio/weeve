@@ -297,7 +297,7 @@ export default function ConversationPage() {
                     </button>
 
                     {showMenu && (
-                        <div className="absolute right-0 top-full mt-2 w-48 bg-[#2A2A2A] rounded-xl shadow-xl border border-gray-700 overflow-hidden z-50">
+                        <div className="absolute right-0 top-full mt-2 w-64 bg-[#2A2A2A] rounded-xl shadow-xl border border-gray-700 overflow-hidden z-50">
                             <button
                                 onClick={() => {
                                     setShowMenu(false);

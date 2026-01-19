@@ -209,7 +209,7 @@ export function ActiveStoryView({
                             <MoreVertical className="w-6 h-6" />
                         </button>
                         {showMenu && (
-                            <div className="absolute top-full right-0 mt-2 w-48 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden pointer-events-auto z-50">
+                            <div className="absolute top-full right-0 mt-2 w-64 bg-gray-900 border border-gray-800 rounded-xl shadow-xl overflow-hidden pointer-events-auto z-50">
                                 {(story.creatorId === currentUser?.id || isUserParticipant || userHasContributed) && (
                                     <>
                                         {story.creatorId === currentUser?.id ? (
