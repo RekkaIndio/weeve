@@ -42,3 +42,7 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Firebase service account (sensitive)
+scripts/firebase-service-account.json
+scripts/firebase_admin_push_test.ts

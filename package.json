@@ -92,6 +92,7 @@
     "eslint-config-next": "16.0.7",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "firebase-admin": "^13.6.0",
     "happy-dom": "^2.35.0",
     "prettier": "^3.6.2",
     "tailwindcss": "^4",
