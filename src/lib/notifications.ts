@@ -655,3 +655,24 @@ export const notifyCollabDeclined = async (
         read: false,
     });
 };
+
+/**
+ * Notify user they were mentioned in a comment
+ */
+export const notifyMention = async (
+    storyId: string,
+    storyTitle: string,
+    mentionedUserId: string,
+    mentionerName: string,
+    commentText: string
+) => {
+    await createNotification({
+        user_id: mentionedUserId,
+        type: 'mention',
+        title: 'You were mentioned',
+        message: `${mentionerName} mentioned you in "${storyTitle}": ${commentText.substring(0, 50)}${commentText.length > 50 ? '...' : ''}`,
+        data: { story_id: storyId },
+        action_url: `/story/${storyId}`,
+        read: false,
+    });
+};

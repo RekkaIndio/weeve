@@ -866,6 +866,45 @@ export const useStore = create<AppState>()(
                 const story = state.stories.find((s) => s.id === storyId);
                 
                 if (story) {
+                    // 1. Handle Mentions
+                    // Extract potential mentions (@username)
+                    const mentionMatches = trimmed.match(/@(\w+)/g);
+                    
+                    if (mentionMatches && mentionMatches.length > 0) {
+                        const uniqueUsernames = new Set(mentionMatches.map(m => m.substring(1))); // Remove '@'
+                        
+                        // Async lookup - don't await blocking the UI update
+                        (async () => {
+                            try {
+                                const usernamesArray = Array.from(uniqueUsernames);
+                                const { data: mentionedUsers } = await supabase
+                                    .from('profiles')
+                                    .select('user_id, name')
+                                    .in('name', usernamesArray); // Assuming 'name' matches the @username handle. If you have separate 'username' field, use that.
+
+                                if (mentionedUsers && mentionedUsers.length > 0) {
+                                    const { notifyMention } = await import('./notifications');
+                                    
+                                    for (const user of mentionedUsers) {
+                                        // Don't notify self
+                                        if (user.user_id === currentUser.id) continue;
+
+                                        await notifyMention(
+                                            storyId,
+                                            story.title,
+                                            user.user_id,
+                                            currentUser.name,
+                                            trimmed
+                                        );
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('Failed to process mentions:', err);
+                            }
+                        })();
+                    }
+
+                    // 2. Handle Reply Notifications
                     // If this is a reply, notify the parent comment author
                     if (parentCommentId) {
                         const parentComment = story.comments.find(c => c.id === parentCommentId);

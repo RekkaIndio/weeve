@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { FirebaseMessaging } from '@capacitor-firebase/messaging';
 import { Capacitor } from '@capacitor/core';
 import { useStore } from '@/lib/store';
@@ -8,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 
 const PushNotificationInitializer = () => {
     const { currentUser } = useStore();
+    const router = useRouter();
 
     useEffect(() => {
         if (Capacitor.getPlatform() === 'web') {
@@ -23,13 +25,9 @@ const PushNotificationInitializer = () => {
                 }
 
                 if (permStatus.receive === 'granted') {
-                    // On Android, this might not be strictly necessary if auto-init is on,
-                    // but on iOS it ensures APNs registration.
-                    // For this plugin, currently we often use getToken() to force registration or register listeners.
-                    // However, we'll stick to setting up listeners which usually triggers what's needed.
                     console.log('[Push] Permissions granted');
 
-                    // Explicitly get token to ensure we have one, though the listener should catch refreshes
+                    // Explicitly get token to ensure we have one
                     const result = await FirebaseMessaging.getToken();
                     if (result.token) {
                         saveTokenToSupabase(result.token);
@@ -74,19 +72,19 @@ const PushNotificationInitializer = () => {
             // Foreground notification listener
             await FirebaseMessaging.addListener('notificationReceived', (event) => {
                 console.log('[Push] Received:', JSON.stringify(event));
-                // Note: Toast notifications removed - foreground push still logged and can be handled via other UI if needed
             });
 
             // Notification tap/action listener
             await FirebaseMessaging.addListener('notificationActionPerformed', (event) => {
                 console.log('[Push] Action performed:', JSON.stringify(event));
+
                 // Navigate to the action_url if present in notification data
                 const notificationData = event.notification?.data as { action_url?: string } | undefined;
                 const actionUrl = notificationData?.action_url;
+
                 if (actionUrl && typeof actionUrl === 'string' && actionUrl.length > 0) {
                     console.log('[Push] Navigating to:', actionUrl);
-                    // Use window.location for navigation since we don't have access to Next.js router here
-                    window.location.href = actionUrl;
+                    router.push(actionUrl);
                 }
             });
         };
@@ -95,7 +93,7 @@ const PushNotificationInitializer = () => {
         addListeners();
         registerPush();
 
-    }, [currentUser?.id]); // Re-run if user changes to ensure token is saved to new user
+    }, [currentUser?.id, router]);
 
     return null;
 };

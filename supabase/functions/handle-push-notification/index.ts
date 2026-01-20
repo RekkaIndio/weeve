@@ -102,19 +102,95 @@ Deno.serve(async (req) => {
         );
     }
 
-    // 1. Get user's push token
-    const { data: profile, error: profileError } = await supabase
+    // 1. Get user's push token AND preferences
+    const { data: userData, error: userError } = await supabase
       .from('profiles')
-      .select('push_token')
+      .select(`
+        push_token,
+        notification_preferences!user_id (
+          push_notifications,
+          email_notifications,
+          story_invites,
+          story_turns,
+          story_completed,
+          story_likes,
+          story_comments,
+          friend_requests,
+          friend_accepted,
+          group_invites,
+          group_updates
+        )
+      `)
       .eq('user_id', record.user_id)
       .single()
 
-    if (profileError || !profile?.push_token) {
+    if (userError || !userData?.push_token) {
       console.log(`[Push] No token found for user ${record.user_id}`)
       return new Response(
         JSON.stringify({ success: false, message: 'No token found' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    const prefs = userData.notification_preferences;
+
+    // Check global push toggle
+    if (prefs && prefs.push_notifications === false) {
+       console.log(`[Push] Push notifications disabled for user ${record.user_id}`);
+       return new Response(
+        JSON.stringify({ success: true, message: 'Push notifications disabled by user' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check specific preferences based on type
+    if (prefs && record.type) {
+        let shouldSend = true;
+        switch (record.type) {
+            case 'story_invite':
+                shouldSend = prefs.story_invites;
+                break;
+            case 'story_turn':
+            case 'your_turn':
+            case 'turn_skipped':
+            case 'timer_warning':
+            case 'timer_expired':
+                shouldSend = prefs.story_turns;
+                break;
+            case 'story_completed':
+                shouldSend = prefs.story_completed;
+                break;
+            case 'story_liked':
+                shouldSend = prefs.story_likes;
+                break;
+            case 'story_commented':
+            case 'story_comment': // Handle potential variations
+                shouldSend = prefs.story_comments;
+                break;
+            case 'friend_request':
+                shouldSend = prefs.friend_requests;
+                break;
+            case 'friend_accepted':
+                shouldSend = prefs.friend_accepted;
+                break;
+            case 'group_invite':
+                shouldSend = prefs.group_invites;
+                break;
+            case 'group_update':
+            case 'group_joined':
+            case 'group_new_story': // Logic mapping
+                shouldSend = prefs.group_updates;
+                break;
+            // Add other types as needed, default to true if not explicitly controlled
+        }
+
+        if (!shouldSend) {
+            console.log(`[Push] Notification type '${record.type}' disabled for user ${record.user_id}`);
+            return new Response(
+                JSON.stringify({ success: true, message: `Notification type '${record.type}' disabled by user` }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
     }
 
     // 2. Get Service Account & Access Token
@@ -135,7 +211,7 @@ Deno.serve(async (req) => {
     }
 
     // 3. Send Notification
-    const result = await sendFCMV1(accessToken, serviceAccount.project_id, profile.push_token, record)
+    const result = await sendFCMV1(accessToken, serviceAccount.project_id, userData.push_token, record)
     console.log('[Push] FCM V1 Result:', result)
 
     return new Response(
