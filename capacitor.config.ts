@@ -19,7 +19,7 @@ const server = {
 
 const config: CapacitorConfig = {
   // Development bundle id changed to personal dev id so Xcode can auto-provision
-  appId: 'com.weeve.app',
+  appId: 'com.tryweeve.app',
   appName: 'Weeve',
   webDir: 'public',
   server,
@@ -27,7 +27,7 @@ const config: CapacitorConfig = {
   appendUserAgent: ' WeeveApp',
   // Deep linking configuration
   ios: {
-    scheme: 'com.weeve.app',
+    scheme: 'com.tryweeve.app',
   },
   plugins: {
     GoogleAuth: {

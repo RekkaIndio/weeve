@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>957578527300-f79e4u41b3hqc5mj7p64lg1jn3kcj0ou.apps.googleusercontent.com</string>
+	<string>957578527300-376idavjklrrjaadfrjj5l3d7rk5vrsg.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.957578527300-f79e4u41b3hqc5mj7p64lg1jn3kcj0ou</string>
+	<string>com.googleusercontent.apps.957578527300-376idavjklrrjaadfrjj5l3d7rk5vrsg</string>
 	<key>API_KEY</key>
 	<string>AIzaSyBkOnvbuDxiXQn7pE_KKZix0ZomHMIfkQo</string>
 	<key>GCM_SENDER_ID</key>
@@ -13,7 +13,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.weeve.app</string>
+	<string>com.tryweeve.app</string>
 	<key>PROJECT_ID</key>
 	<string>weeve-edbc7</string>
 	<key>STORAGE_BUCKET</key>
@@ -29,6 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:957578527300:ios:3dfb201e7ef4b958423211</string>
+	<string>1:957578527300:ios:2d47ff27f2127d6f423211</string>
 </dict>
 </plist>
