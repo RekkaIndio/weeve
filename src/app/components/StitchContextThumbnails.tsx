@@ -113,9 +113,23 @@ export default function StitchContextThumbnails({ contributions, onThumbnailClic
                             </div>
 
                             {/* Media type indicator (top-left) */}
-                            <div className="absolute top-0.5 left-0.5 bg-black/50 rounded-md p-0.5">
+                            <div className="absolute top-0.5 left-0.5 bg-black/50 rounded-md p-0.5 z-20">
                                 {getMediaTypeIcon(contribution.mediaType)}
                             </div>
+
+                            {/* Text Overlay for Thumbnail */}
+                            {contribution.textStyle?.elements && contribution.textStyle.elements.length > 0 && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-1 text-center z-10 pointer-events-none overflow-hidden">
+                                    {contribution.textStyle.elements.map((element) => (
+                                        <div key={element.id} className="text-[6px] leading-[8px] font-semibold line-clamp-3 w-full break-words" style={{
+                                            color: element.style.textColor || 'white',
+                                            textShadow: '0 1px 1px rgba(0,0,0,0.8)'
+                                        }}>
+                                            {element.content}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </button>
                     ))}
                 </div>
@@ -143,7 +157,7 @@ export default function StitchContextThumbnails({ contributions, onThumbnailClic
                     </div>
 
                     {/* Preview content */}
-                    <div className="max-w-full max-h-[80vh] rounded-2xl overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                    <div className="relative max-w-full max-h-[80vh] rounded-2xl overflow-hidden animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
                         {previewContribution.mediaUrl && (previewContribution.mediaType === 'image' || previewContribution.mediaType === 'drawing') ? (
                             <img
                                 src={previewContribution.mediaUrl}
@@ -166,6 +180,38 @@ export default function StitchContextThumbnails({ contributions, onThumbnailClic
                                     <p className="mt-4 text-white text-lg">{previewContribution.content || 'Text stitch'}</p>
                                 </div>
                             </div>
+                        )}
+
+                        {/* Text Overlays - render if textStyle.elements exists */}
+                        {previewContribution.textStyle?.elements && previewContribution.textStyle.elements.length > 0 && (
+                            <>
+                                {previewContribution.textStyle.elements.map((element) => (
+                                    <div key={element.id} className="absolute pointer-events-none" style={{
+                                        left: element.position.unit === '%' ? `${element.position.left}%` : 0,
+                                        top: element.position.unit === '%' ? `${element.position.top}%` : 0,
+                                        transform: element.position.unit === '%'
+                                            ? 'translate3d(0, 0, 0)'
+                                            : `translate3d(${element.position.left}px, ${element.position.top}px, 0)`,
+                                        zIndex: 20
+                                    }}>
+                                        <div className="min-w-[200px] max-w-[80vw] text-center" style={{ ...element.style, backgroundColor: 'transparent', padding: 0 }}>
+                                            <span style={{
+                                                backgroundColor: element.style.backgroundColor,
+                                                padding: '0.4em 0.6em',
+                                                borderRadius: '0.5em',
+                                                backdropFilter: element.style.backgroundColor && element.style.backgroundColor !== 'transparent' ? 'blur(4px)' : 'none',
+                                                whiteSpace: 'pre-wrap',
+                                                boxDecorationBreak: 'clone',
+                                                WebkitBoxDecorationBreak: 'clone',
+                                                lineHeight: '1.5',
+                                                display: 'inline'
+                                            }}>
+                                                {element.content}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
                         )}
                     </div>
 

@@ -255,6 +255,7 @@ interface AppState {
         timestamp?: number;
     }, options?: { nextTurnUserId?: string | null }) => void;
     updateStory: (id: string, updates: Partial<Story>) => void;
+    removeStory: (id: string) => void;
     setActiveWeeve: (id: string | null) => void;
     addGroup: (group: Group) => void;
     addTokens: (amount: number) => void;
@@ -595,6 +596,15 @@ export const useStore = create<AppState>()(
                         s.id === id ? { ...s, ...updates } : s
                     ),
                 })),
+
+            removeStory: (id) =>
+                set((state) => {
+                    console.log('[Store] removeStory called for:', id);
+                    console.log('[Store] Previous story count:', state.stories.length);
+                    const updated = state.stories.filter((s) => s.id !== id);
+                    console.log('[Store] New story count:', updated.length);
+                    return { stories: updated };
+                }),
 
             setActiveWeeve: (id) => set({ activeWeeveId: id }),
 

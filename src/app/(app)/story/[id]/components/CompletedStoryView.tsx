@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import FeedItem from "@/app/components/FeedItem";
 import EditStoryModal from "@/app/components/EditStoryModal";
-import { type Story, type User, type Contribution } from "@/lib/store";
+import { type Story, type User, type Contribution, useStore } from "@/lib/store";
 import { leaveStory, deleteStory } from "@/lib/stories";
 import { StoryHeader } from "./StoryHeader";
 import { ConfirmModal } from "./Modals";
@@ -25,6 +25,7 @@ export function CompletedStoryView({
     originalStoryTitle,
 }: CompletedStoryViewProps) {
     const router = useRouter();
+    const { removeStory } = useStore();
 
     const [showMenu, setShowMenu] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -59,7 +60,11 @@ export function CompletedStoryView({
         try {
             const result = await deleteStory(story.id, currentUser.id);
 
-            if (result.success) {
+            if (result.success || result.error === 'Story not found') {
+                if (result.error === 'Story not found') {
+                    console.warn('[CompletedStoryView] Story not found on server, removing locally');
+                }
+                removeStory(story.id);
                 if (story.groupId) {
                     router.push(`/groups/${story.groupId}`);
                 } else {

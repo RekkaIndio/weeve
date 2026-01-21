@@ -1170,8 +1170,8 @@ export default function ProfilePage() {
                             src={isEditing ? editAvatar : currentUser.avatar}
                             alt={currentUser.name}
                             className={`w-20 h-20 rounded-full border-2 bg-gray-800 object-cover ${uploadingAvatar ? 'opacity-50' : ''} ${currentUser.tags?.includes('Founder')
-                                    ? 'border-amber-500'
-                                    : 'border-[#EC1D99]'
+                                ? 'border-amber-500'
+                                : 'border-[#EC1D99]'
                                 }`}
                             onError={(e) => {
                                 (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${editName}`;
@@ -1404,9 +1404,17 @@ export default function ProfilePage() {
                                         />
                                     ) : firstContribution ? (
                                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-3 text-center">
-                                            <p className="text-sm font-semibold leading-snug line-clamp-5">
-                                                {firstContribution.content}
-                                            </p>
+                                            {firstContribution.textStyle?.elements && firstContribution.textStyle.elements.length > 0 ? (
+                                                firstContribution.textStyle.elements.map((element) => (
+                                                    <p key={element.id} className="text-sm font-semibold leading-snug line-clamp-5" style={{ color: element.style.textColor || 'white' }}>
+                                                        {element.content}
+                                                    </p>
+                                                ))
+                                            ) : (
+                                                <p className="text-sm font-semibold leading-snug line-clamp-5">
+                                                    {firstContribution.content || 'Text stitch'}
+                                                </p>
+                                            )}
                                         </div>
                                     ) : (
                                         <img
@@ -1414,6 +1422,28 @@ export default function ProfilePage() {
                                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                             alt={story.title}
                                         />
+                                    )}
+
+                                    {/* Text overlay for contributions with textStyle.elements (video/image with text) */}
+                                    {firstContribution?.textStyle?.elements && firstContribution.textStyle.elements.length > 0 && (
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center z-10 pointer-events-none">
+                                            {firstContribution.textStyle.elements.map((element) => (
+                                                <p key={element.id} className="text-sm font-semibold leading-snug line-clamp-5 drop-shadow-lg" style={{
+                                                    color: element.style.textColor || 'white',
+                                                    backgroundColor: element.style.backgroundColor && element.style.backgroundColor !== 'transparent'
+                                                        ? element.style.backgroundColor
+                                                        : undefined,
+                                                    padding: element.style.backgroundColor && element.style.backgroundColor !== 'transparent'
+                                                        ? '0.25em 0.5em'
+                                                        : undefined,
+                                                    borderRadius: element.style.backgroundColor && element.style.backgroundColor !== 'transparent'
+                                                        ? '0.25em'
+                                                        : undefined
+                                                }}>
+                                                    {element.content}
+                                                </p>
+                                            ))}
+                                        </div>
                                     )}
 
                                     {story.forkedFromStoryId && (
@@ -1502,9 +1532,17 @@ export default function ProfilePage() {
                                             />
                                         ) : firstContribution ? (
                                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-3 text-center">
-                                                <p className="text-sm font-semibold leading-snug line-clamp-5">
-                                                    {firstContribution.content}
-                                                </p>
+                                                {firstContribution.textStyle?.elements && firstContribution.textStyle.elements.length > 0 ? (
+                                                    firstContribution.textStyle.elements.map((element) => (
+                                                        <p key={element.id} className="text-sm font-semibold leading-snug line-clamp-5" style={{ color: element.style.textColor || 'white' }}>
+                                                            {element.content}
+                                                        </p>
+                                                    ))
+                                                ) : (
+                                                    <p className="text-sm font-semibold leading-snug line-clamp-5">
+                                                        {firstContribution.content || 'Text stitch'}
+                                                    </p>
+                                                )}
                                             </div>
                                         ) : (
                                             <img
@@ -1512,6 +1550,28 @@ export default function ProfilePage() {
                                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                                 alt={story.title}
                                             />
+                                        )}
+
+                                        {/* Text overlay for contributions with textStyle.elements (video/image with text) */}
+                                        {firstContribution?.textStyle?.elements && firstContribution.textStyle.elements.length > 0 && (
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center z-10 pointer-events-none">
+                                                {firstContribution.textStyle.elements.map((element) => (
+                                                    <p key={element.id} className="text-sm font-semibold leading-snug line-clamp-5 drop-shadow-lg" style={{
+                                                        color: element.style.textColor || 'white',
+                                                        backgroundColor: element.style.backgroundColor && element.style.backgroundColor !== 'transparent'
+                                                            ? element.style.backgroundColor
+                                                            : undefined,
+                                                        padding: element.style.backgroundColor && element.style.backgroundColor !== 'transparent'
+                                                            ? '0.25em 0.5em'
+                                                            : undefined,
+                                                        borderRadius: element.style.backgroundColor && element.style.backgroundColor !== 'transparent'
+                                                            ? '0.25em'
+                                                            : undefined
+                                                    }}>
+                                                        {element.content}
+                                                    </p>
+                                                ))}
+                                            </div>
                                         )}
 
                                         {isMyTurn && waitingForFirstContribution && (
@@ -1648,11 +1708,19 @@ export default function ProfilePage() {
                                                     e.currentTarget.style.display = 'none';
                                                 }}
                                             />
-                                        ) : content ? (
+                                        ) : (lastContribution?.textStyle?.elements && lastContribution.textStyle.elements.length > 0) || content ? (
                                             <div className="absolute inset-0 z-10 flex items-center justify-center p-3">
-                                                <p className="text-sm font-semibold leading-snug line-clamp-5 text-white/90 drop-shadow-md text-center">
-                                                    {content}
-                                                </p>
+                                                {lastContribution?.textStyle?.elements && lastContribution.textStyle.elements.length > 0 ? (
+                                                    lastContribution.textStyle.elements.map((element) => (
+                                                        <p key={element.id} className="text-sm font-semibold leading-snug line-clamp-5 text-white/90 drop-shadow-md text-center" style={{ color: element.style.textColor || 'rgba(255,255,255,0.9)' }}>
+                                                            {element.content}
+                                                        </p>
+                                                    ))
+                                                ) : (
+                                                    <p className="text-sm font-semibold leading-snug line-clamp-5 text-white/90 drop-shadow-md text-center">
+                                                        {content}
+                                                    </p>
+                                                )}
                                             </div>
                                         ) : story.coverImage && !story.coverImage.includes('placehold.co') ? (
                                             <img
@@ -1664,6 +1732,28 @@ export default function ProfilePage() {
                                                 }}
                                             />
                                         ) : null}
+
+                                        {/* Text overlay for contributions with textStyle.elements (video/image with text) */}
+                                        {lastContribution?.textStyle?.elements && lastContribution.textStyle.elements.length > 0 && (
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-center z-10 pointer-events-none">
+                                                {lastContribution.textStyle.elements.map((element) => (
+                                                    <p key={element.id} className="text-sm font-semibold leading-snug line-clamp-5 drop-shadow-lg" style={{
+                                                        color: element.style.textColor || 'white',
+                                                        backgroundColor: element.style.backgroundColor && element.style.backgroundColor !== 'transparent'
+                                                            ? element.style.backgroundColor
+                                                            : undefined,
+                                                        padding: element.style.backgroundColor && element.style.backgroundColor !== 'transparent'
+                                                            ? '0.25em 0.5em'
+                                                            : undefined,
+                                                        borderRadius: element.style.backgroundColor && element.style.backgroundColor !== 'transparent'
+                                                            ? '0.25em'
+                                                            : undefined
+                                                    }}>
+                                                        {element.content}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        )}
 
                                         {/* Timer metadata */}
                                         {showTimerMeta && (

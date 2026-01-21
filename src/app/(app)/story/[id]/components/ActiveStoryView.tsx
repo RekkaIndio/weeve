@@ -5,7 +5,7 @@ import {
     Sparkles, Loader2, Type, Smile, Crop, Video, Camera, FileVideo, Image as ImageIcon
 } from 'lucide-react';
 import VideoThumbnail from "@/app/components/VideoThumbnail";
-import { type Story, type Contribution, type User, type TextStyle } from '@/lib/store';
+import { type Story, type Contribution, type User, type TextStyle, useStore } from '@/lib/store';
 import { leaveStory, deleteStory } from '@/lib/stories';
 import { NON_VIDEO_AUTO_ADVANCE_MS } from '@/lib/playback';
 import { TimelineEntry, PhotoSticker } from '../types';
@@ -45,6 +45,7 @@ export function ActiveStoryView({
     isMyTurn
 }: ActiveStoryViewProps) {
     const router = useRouter();
+    const { removeStory } = useStore();
     const drawingCanvasRef = useRef<DrawingCanvasRef>(null);
     const justSelectedRef = useRef(false);
 
@@ -159,13 +160,30 @@ export function ActiveStoryView({
         const navigationTarget = story.groupId ? `/groups/${story.groupId}` : '/feed';
 
         try {
+            console.log('[ActiveStoryView] Starting delete for story:', story.id);
             const result = await deleteStory(story.id, currentUser.id);
+            console.log('[ActiveStoryView] Delete result:', result);
+
             if (!result.success) {
+                // If story is not found on server, it's already deleted. 
+                // Treat as success to clean up local state (phantom story issue).
+                if (result.error === 'Story not found') {
+                    console.warn('[ActiveStoryView] Story not found on server, removing locally:', story.id);
+                    removeStory(story.id);
+                    router.replace(navigationTarget);
+                    return;
+                }
+
                 console.error('Failed to delete story:', result.error);
                 alert(result.error || 'Failed to delete story. Please try again.');
                 return;
             }
+            // Remove from local store immediately to prevent "Story not found" flash
+            console.log('[ActiveStoryView] Calling removeStory for:', story.id);
+            removeStory(story.id);
+
             // Navigate immediately using replace to avoid back-button issues
+            console.log('[ActiveStoryView] Navigating to:', navigationTarget);
             router.replace(navigationTarget);
         } catch (error) {
             console.error('Failed to delete story:', error);
