@@ -223,7 +223,7 @@ export default function PhoneDemo3D() {
 
                                             {/* Card */}
                                             <motion.div
-                                                animate={{ opacity: isVisible ? 1 : 0.25 }}
+                                                animate={{ opacity: isVisible ? 1 : 0.5 }}
                                                 className={`w-full p-1 rounded border ${isLatest ? 'bg-zinc-900 border-[#EC1D99]/40' : isVisible ? 'bg-zinc-900/70 border-zinc-700' : 'bg-zinc-900/20 border-zinc-800/40'}`}
                                             >
                                                 <div className="aspect-square rounded-sm overflow-hidden bg-zinc-800 mb-1 relative">
@@ -302,7 +302,7 @@ export default function PhoneDemo3D() {
 
                                                 {/* Card */}
                                                 <motion.div
-                                                    animate={{ opacity: isVisible ? 1 : 0.25 }}
+                                                    animate={{ opacity: isVisible ? 1 : 0.5 }}
                                                     className={`w-full p-1 rounded border ${isLatest ? 'bg-zinc-900 border-purple-500/40' : isVisible ? 'bg-zinc-900/70 border-zinc-700' : 'bg-zinc-900/20 border-zinc-800/40'}`}
                                                 >
                                                     <div className="aspect-square rounded-sm overflow-hidden bg-zinc-800 mb-1 relative">
