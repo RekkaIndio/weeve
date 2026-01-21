@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronLeft, Loader, Check, Users } from "lucide-react";
+import dynamic from "next/dynamic";
+import { ChevronLeft, Loader, Check, Users, X } from "lucide-react";
 import NotificationBell from "./NotificationBell";
 import { useCreateStory } from "./CreateStory/useCreateStory";
 import StoryDetails from "./CreateStory/StoryDetails";
@@ -8,6 +9,20 @@ import StoryContributors from "./CreateStory/StoryContributors";
 import StorySettings from "./CreateStory/StorySettings";
 import { CreateStoryFormState, Friend } from "./CreateStory/types";
 import { formatPrice } from "@/lib/collaborations";
+
+// Dynamic import to avoid SSR issues with Square's Web Payments SDK
+const SquarePayment = dynamic(
+  () => import("@/app/components/SquarePayment"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="bg-gray-900 rounded-2xl p-6 text-center">
+        <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4" />
+        <p className="text-gray-400">Loading payment form...</p>
+      </div>
+    )
+  }
+);
 
 // Re-export types for consumers
 export type { CreateStoryFormState, Friend };
@@ -61,6 +76,7 @@ const CreateStory = ({
     isSearchingHashtags,
     isLoading,
     error,
+    pendingBrandPayment,
     friendSearchInput,
     setFriendSearchInput,
     showFriendDropdown,
@@ -87,6 +103,8 @@ const CreateStory = ({
     handleBack,
     handleFillSlot,
     onRequestFriend,
+    handleBrandPaymentSuccess,
+    handleBrandPaymentCancel,
 
     // Refs
     refs
@@ -273,8 +291,36 @@ const CreateStory = ({
         </div>
       </div>
 
+      {/* Square Payment Modal for Brand Posts */}
+      {pendingBrandPayment && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="relative w-full max-w-md animate-in fade-in zoom-in duration-200">
+            <button
+              onClick={handleBrandPaymentCancel}
+              className="absolute -top-12 right-0 p-2 text-gray-400 hover:text-white transition-colors"
+              aria-label="Close"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <SquarePayment
+              type="brand"
+              postType={pendingBrandPayment.postType}
+              visibilityDays={pendingBrandPayment.visibilityDays}
+              storyId={pendingBrandPayment.storyId}
+              amount={pendingBrandPayment.amount}
+              currency={pendingBrandPayment.currency}
+              description={`${pendingBrandPayment.postType.charAt(0).toUpperCase() + pendingBrandPayment.postType.slice(1)} Post - ${pendingBrandPayment.visibilityDays} day${pendingBrandPayment.visibilityDays > 1 ? 's' : ''}`}
+              onSuccess={handleBrandPaymentSuccess}
+              onError={(err) => console.error('[CreateStory] Brand payment error:', err)}
+              onCancel={handleBrandPaymentCancel}
+            />
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
 
 export default CreateStory;
+

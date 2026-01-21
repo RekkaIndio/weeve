@@ -1,17 +1,32 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useStore } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, Coins, TrendingUp, Loader2 } from 'lucide-react';
+import { ChevronLeft, Coins, Loader2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, useCallback, useRef } from 'react';
 
+// Dynamic import to avoid SSR issues with Square's Web Payments SDK
+const SquarePayment = dynamic(
+    () => import('@/app/components/SquarePayment'),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="bg-gray-900 rounded-2xl p-6 text-center">
+                <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4" />
+                <p className="text-gray-400">Loading payment form...</p>
+            </div>
+        )
+    }
+);
+
 // Token package configuration (matches server-side)
 const TOKEN_PACKAGES = [
-    { key: 'TOKENS_100', tokens: 100, price: '£1.00', name: 'Starter Pack', emoji: '🪙' },
-    { key: 'TOKENS_550', tokens: 550, price: '£5.00', name: 'Standard Pack', emoji: '💰', popular: true },
-    { key: 'TOKENS_1000', tokens: 1000, price: '£10.00', name: 'Pro Pack', emoji: '💎' },
+    { key: 'TOKENS_100', tokens: 100, price: '£1.00', amount: 100, name: 'Starter Pack', emoji: '🪙' },
+    { key: 'TOKENS_550', tokens: 550, price: '£5.00', amount: 500, name: 'Standard Pack', emoji: '💰', popular: true },
+    { key: 'TOKENS_1000', tokens: 1000, price: '£10.00', amount: 1000, name: 'Pro Pack', emoji: '💎' },
 ];
 
 export default function WalletPage() {
@@ -20,7 +35,8 @@ export default function WalletPage() {
     const [mounted, setMounted] = useState(false);
     const [balance, setBalance] = useState(currentUser?.tokens || 0);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [purchasingPackage, setPurchasingPackage] = useState<string | null>(null);
+    const [selectedPackage, setSelectedPackage] = useState<typeof TOKEN_PACKAGES[0] | null>(null);
+    const [showPaymentModal, setShowPaymentModal] = useState(false);
     const userIdRef = useRef(currentUser?.id);
 
     // Update ref when user changes
@@ -99,6 +115,7 @@ export default function WalletPage() {
 
     // Refresh when user navigates back from payment (Capacitor app state)
     useEffect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let appStateListener: any;
 
         const setupAppStateListener = async () => {
@@ -129,35 +146,28 @@ export default function WalletPage() {
         router.back();
     };
 
-    const handlePurchase = async (packageKey: string) => {
+    const handlePurchase = (pkg: typeof TOKEN_PACKAGES[0]) => {
         if (!currentUser) return;
+        setSelectedPackage(pkg);
+        setShowPaymentModal(true);
+    };
 
-        setPurchasingPackage(packageKey);
+    const handlePaymentSuccess = (paymentId: string) => {
+        console.log('[Wallet] Payment successful:', paymentId);
+        setShowPaymentModal(false);
+        setSelectedPackage(null);
+        // Refresh balance after successful payment
+        fetchLatestBalance();
+    };
 
-        try {
-            // Create a Revolut checkout session
-            const response = await fetch('/api/create-payment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    packageKey,
-                    userId: currentUser.id,
-                }),
-            });
+    const handlePaymentError = (error: string) => {
+        console.error('[Wallet] Payment error:', error);
+        // Keep modal open to show error
+    };
 
-            if (!response.ok) {
-                throw new Error('Failed to create payment session');
-            }
-
-            const { checkoutUrl } = await response.json();
-
-            // Redirect to Revolut checkout
-            window.location.href = checkoutUrl;
-        } catch (error) {
-            console.error('[Wallet] Payment error:', error);
-            setPurchasingPackage(null);
-            // TODO: Show error toast
-        }
+    const handlePaymentCancel = () => {
+        setShowPaymentModal(false);
+        setSelectedPackage(null);
     };
 
     if (!mounted) return null;
@@ -214,8 +224,8 @@ export default function WalletPage() {
                         {TOKEN_PACKAGES.map((pkg) => (
                             <button
                                 key={pkg.key}
-                                onClick={() => handlePurchase(pkg.key)}
-                                disabled={purchasingPackage !== null}
+                                onClick={() => handlePurchase(pkg)}
+                                disabled={showPaymentModal}
                                 className={`w-full bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-[#EC1D99] rounded-xl p-4 flex items-center justify-between transition-all group relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${pkg.key === 'TOKENS_1000' ? 'bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700' : ''}`}
                             >
                                 {pkg.popular && (
@@ -233,24 +243,44 @@ export default function WalletPage() {
                                     </div>
                                 </div>
                                 <div className={`px-4 py-2 rounded-full font-bold text-sm flex items-center gap-2 ${pkg.key === 'TOKENS_1000' ? 'bg-[#EC1D99] text-white shadow-lg shadow-[#EC1D99]/20' : 'bg-white text-black'}`}>
-                                    {purchasingPackage === pkg.key ? (
-                                        <>
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                            <span>Loading...</span>
-                                        </>
-                                    ) : (
-                                        'Buy'
-                                    )}
+                                    Buy
                                 </div>
                             </button>
                         ))}
                     </div>
 
                     <p className="text-center text-xs text-gray-600 mt-8">
-                        Secured by Revolut. Tokens are added to your account immediately after payment.
+                        Secured by Square. Tokens are added to your account immediately after payment.
                     </p>
                 </div>
             </main>
+
+            {/* Payment Modal */}
+            {showPaymentModal && selectedPackage && currentUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                    <div className="relative w-full max-w-md animate-in fade-in zoom-in duration-200">
+                        <button
+                            onClick={handlePaymentCancel}
+                            className="absolute -top-12 right-0 p-2 text-gray-400 hover:text-white transition-colors"
+                            aria-label="Close"
+                        >
+                            <X className="w-6 h-6" />
+                        </button>
+                        <SquarePayment
+                            type="token"
+                            packageKey={selectedPackage.key}
+                            userId={currentUser.id}
+                            amount={selectedPackage.amount}
+                            currency="GBP"
+                            description={`${selectedPackage.tokens} Tokens - ${selectedPackage.name}`}
+                            onSuccess={handlePaymentSuccess}
+                            onError={handlePaymentError}
+                            onCancel={handlePaymentCancel}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+

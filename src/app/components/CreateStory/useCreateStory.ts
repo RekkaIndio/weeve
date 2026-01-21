@@ -2,8 +2,17 @@ import { useState, useRef, useEffect, RefObject } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { searchUsers, addFriend, sendFriendRequest } from "@/lib/friends";
 import { searchHashtags } from "@/lib/hashtags";
-import { getPaymentLink } from "@/lib/revolut-payment-links";
+import { getBrandPostPricing } from "@/lib/square-payment";
 import { CreateStoryFormState, Friend, StorySlot } from "./types";
+
+// Brand payment info for Square modal
+export interface BrandPaymentInfo {
+  storyId: string;
+  postType: 'seed' | 'canon';
+  visibilityDays: number;
+  amount: number;
+  currency: string;
+}
 
 interface UseCreateStoryProps {
   onBack?: () => void;
@@ -98,6 +107,9 @@ export const useCreateStory = ({
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  
+  // Brand payment state - when set, the parent should show Square payment modal
+  const [pendingBrandPayment, setPendingBrandPayment] = useState<BrandPaymentInfo | null>(null);
   
   const [friendSearchInput, setFriendSearchInput] = useState("");
   const [showFriendDropdown, setShowFriendDropdown] = useState(false);
@@ -517,6 +529,8 @@ export const useCreateStory = ({
     }
 
     const requiresPayment = isBrandPost && formState.visibilityDays;
+    console.log('[CreateStory] Payment check:', { isBrandPost, postType: formState.postType, visibilityDays: formState.visibilityDays, requiresPayment });
+    
     if (isBrandPost && !formState.visibilityDays) {
       setError("Please select a visibility duration for your brand post");
       if (participantsRef.current) participantsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -535,23 +549,35 @@ export const useCreateStory = ({
       };
 
       const storyId = await onCreateStory(submissionData);
+      console.log('[CreateStory] Story created:', storyId);
 
       if (requiresPayment && formState.visibilityDays) {
-        const paymentLink = await getPaymentLink(
-          formState.postType as 'seed' | 'canon',
-          formState.visibilityDays,
-          storyId
-        );
+        // Get pricing for Square payment
+        const postType = formState.postType as 'seed' | 'canon';
+        const pricing = getBrandPostPricing(postType, formState.visibilityDays);
+        console.log('[CreateStory] Pricing lookup:', { postType, visibilityDays: formState.visibilityDays, pricing });
 
-        if (paymentLink) {
-          window.location.href = paymentLink;
+        if (pricing) {
+          // Set pending payment - parent component will show Square modal
+          console.log('[CreateStory] Setting pendingBrandPayment...');
+          setPendingBrandPayment({
+            storyId,
+            postType,
+            visibilityDays: formState.visibilityDays,
+            amount: pricing.amount,
+            currency: pricing.currency,
+          });
+          setIsLoading(false);
+          loadingStartTimeRef.current = null;
+          return; // Don't redirect yet - wait for payment
         } else {
-          // Payment not configured - redirect to story instead
-          console.warn('[CreateStory] Payment link not available, redirecting to story');
+          // Pricing not configured - redirect to story
+          console.warn('[CreateStory] Pricing not available for brand post, redirecting to story');
           router.push(`/story/${storyId}`);
         }
       } else {
         // No payment required - redirect to story
+        console.log('[CreateStory] No payment required, redirecting to story');
         router.push(`/story/${storyId}`);
       }
     } catch (err) {
@@ -566,6 +592,26 @@ export const useCreateStory = ({
       setIsLoading(false);
       loadingStartTimeRef.current = null;
     }
+  };
+
+  // Handle successful brand payment
+  const handleBrandPaymentSuccess = (paymentId: string) => {
+    console.log('[CreateStory] Brand payment successful:', paymentId);
+    if (pendingBrandPayment) {
+      router.push(`/story/${pendingBrandPayment.storyId}`);
+    }
+    setPendingBrandPayment(null);
+  };
+
+  // Handle brand payment cancellation
+  const handleBrandPaymentCancel = () => {
+    console.log('[CreateStory] Brand payment cancelled');
+    // Story is already created, so redirect to it anyway
+    // The payment can be completed later via the story page
+    if (pendingBrandPayment) {
+      router.push(`/story/${pendingBrandPayment.storyId}`);
+    }
+    setPendingBrandPayment(null);
   };
 
   return {
@@ -583,6 +629,7 @@ export const useCreateStory = ({
     activeField,
     isLoading,
     error,
+    pendingBrandPayment,
     friendSearchInput,
     setFriendSearchInput,
     showFriendDropdown,
@@ -609,6 +656,8 @@ export const useCreateStory = ({
     handleCreateStory,
     handleBack,
     handleFillSlot: setSlotToFill,
+    handleBrandPaymentSuccess,
+    handleBrandPaymentCancel,
     
     // Logic wrappers
     onRequestFriend: async (friendId: string) => {
