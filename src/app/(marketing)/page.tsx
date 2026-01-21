@@ -111,26 +111,18 @@ export default function LandingPage() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.5 }}
-                                className="flex flex-col items-center lg:items-start gap-6"
+                                className="flex flex-col items-center lg:items-start gap-4"
                             >
-                                {/* Auth Buttons */}
-                                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
-                                    <Link
-                                        href="/signup"
-                                        className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-[#EC1D99] to-purple-600 hover:from-[#EC1D99]/90 hover:to-purple-600/90 text-white font-bold rounded-full transition-all shadow-[0_0_30px_rgba(236,29,153,0.3)] flex items-center justify-center gap-2"
-                                    >
-                                        Get Started <ArrowRight className="w-5 h-5" />
-                                    </Link>
-                                    <Link
-                                        href="/login"
-                                        className="w-full sm:w-auto px-8 py-4 border border-white/20 hover:border-white/40 text-white font-bold rounded-full transition-all flex items-center justify-center"
-                                    >
-                                        Log In
-                                    </Link>
-                                </div>
+                                {/* Get Started Button */}
+                                <Link
+                                    href="/signup"
+                                    className="px-8 py-4 bg-gradient-to-r from-[#EC1D99] to-purple-600 hover:from-[#EC1D99]/90 hover:to-purple-600/90 text-white font-bold rounded-full transition-all shadow-[0_0_30px_rgba(236,29,153,0.3)] flex items-center justify-center gap-2"
+                                >
+                                    Get Started <ArrowRight className="w-5 h-5" />
+                                </Link>
 
                                 {/* App Store Download Links */}
-                                <div className="flex flex-col sm:flex-row items-center gap-3">
+                                <div className="flex flex-row items-center gap-3">
                                     <a
                                         href="https://apps.apple.com/gb/app/weeve/id6757678144"
                                         target="_blank"
@@ -140,7 +132,7 @@ export default function LandingPage() {
                                         <img
                                             src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
                                             alt="Download on the App Store"
-                                            className="h-[44px]"
+                                            className="h-[40px]"
                                         />
                                     </a>
                                     <a
@@ -152,7 +144,7 @@ export default function LandingPage() {
                                         <img
                                             src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
                                             alt="Get it on Google Play"
-                                            className="h-[44px]"
+                                            className="h-[40px]"
                                         />
                                     </a>
                                 </div>
