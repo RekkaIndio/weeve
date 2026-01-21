@@ -1,10 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { useAuth } from "@/app/components/AuthProvider";
-import { ArrowRight, ChevronDown, Sparkles } from "lucide-react";
+import { ChevronDown, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import MarketingNavbar from "@/app/components/MarketingNavbar";
 import MarketingFooter from "@/app/components/MarketingFooter";
@@ -46,10 +44,8 @@ const FAQItem = ({ question, answer }: { question: string; answer: string }) => 
 };
 
 export default function LandingPage() {
-    const { user, loading } = useAuth();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    // Waitlist state removed - now using direct signup links
+    const { loading } = useAuth();
+    // Auth and routing removed - now using direct app store links
 
     if (loading) return null;
 
@@ -59,7 +55,7 @@ export default function LandingPage() {
             <MarketingNavbar />
 
             {/* Hero Section */}
-            <section className="relative pt-20 pb-12 sm:pt-24 sm:pb-20 lg:pt-24 lg:pb-32 overflow-hidden">
+            <section id="download" className="relative pt-20 pb-12 sm:pt-24 sm:pb-20 lg:pt-24 lg:pb-32 overflow-hidden">
                 {/* Background Gradients */}
                 <motion.div
                     animate={{
@@ -114,15 +110,35 @@ export default function LandingPage() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.5 }}
-                                className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4"
+                                className="flex flex-col items-center lg:items-start gap-6"
                             >
-                                <Link
-                                    href="/signup"
-                                    className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-[#EC1D99] to-purple-600 hover:from-[#EC1D99]/90 hover:to-purple-600/90 text-white font-bold rounded-full transition-all shadow-[0_0_30px_rgba(236,29,153,0.3)] flex items-center justify-center gap-2"
-                                >
-                                    Get Started <ArrowRight className="w-5 h-5" />
-                                </Link>
-
+                                {/* App Store Download Links */}
+                                <div className="flex flex-col sm:flex-row items-center gap-3">
+                                    <a
+                                        href="https://apps.apple.com/gb/app/weeve/id6757678144"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="transition-transform hover:scale-105"
+                                    >
+                                        <img
+                                            src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+                                            alt="Download on the App Store"
+                                            className="h-[44px]"
+                                        />
+                                    </a>
+                                    <a
+                                        href="https://play.google.com/store/apps/details?id=com.weeve.app.staging"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="transition-transform hover:scale-105"
+                                    >
+                                        <img
+                                            src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
+                                            alt="Get it on Google Play"
+                                            className="h-[44px]"
+                                        />
+                                    </a>
+                                </div>
                             </motion.div>
                         </div>
 
@@ -174,7 +190,7 @@ export default function LandingPage() {
                         />
                         <FAQItem
                             question="Is Weeve available on my device?"
-                            answer="Weeve will shortly be available on both iOS and Android. Join our waitlist to be notified when it's ready."
+                            answer="Yes! Weeve is available on both iOS and Android. Download it from the App Store or Google Play Store and start weaving your stories today."
                         />
                     </div>
                 </div>
@@ -199,12 +215,30 @@ export default function LandingPage() {
                             Stop scrolling. Start creating. Join a community that values authentic moments over perfect posts.
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                            <Link
-                                href="/signup"
-                                className="w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-[#EC1D99] to-purple-600 hover:from-[#EC1D99]/90 hover:to-purple-600/90 text-white font-bold text-lg rounded-full transition-all shadow-[0_0_50px_rgba(236,29,153,0.4)] hover:shadow-[0_0_80px_rgba(236,29,153,0.6)] hover:scale-105 flex items-center justify-center gap-2"
+                            <a
+                                href="https://apps.apple.com/gb/app/weeve/id6757678144"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="transition-transform hover:scale-105"
                             >
-                                Get Started <ArrowRight className="w-6 h-6" />
-                            </Link>
+                                <img
+                                    src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+                                    alt="Download on the App Store"
+                                    className="h-[52px]"
+                                />
+                            </a>
+                            <a
+                                href="https://play.google.com/store/apps/details?id=com.weeve.app.staging"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="transition-transform hover:scale-105"
+                            >
+                                <img
+                                    src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
+                                    alt="Get it on Google Play"
+                                    className="h-[52px]"
+                                />
+                            </a>
                         </div>
                     </motion.div>
                 </div>
