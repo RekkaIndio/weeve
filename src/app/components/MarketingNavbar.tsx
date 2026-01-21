@@ -52,32 +52,42 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                     animate={{ opacity: 1, x: 0 }}
                     className="flex items-center gap-4"
                 >
-                    {/* App Store Download Links - Desktop */}
-                    <div className="hidden md:flex items-center gap-3">
-                        <a
-                            href="https://apps.apple.com/gb/app/weeve/id6757678144"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="transition-transform hover:scale-105"
+                    {/* Desktop Navigation */}
+                    <div className="hidden md:flex items-center gap-6">
+                        <Link
+                            href="/login"
+                            className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
                         >
-                            <img
-                                src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
-                                alt="Download on the App Store"
-                                className="h-[36px]"
-                            />
-                        </a>
-                        <a
-                            href="https://play.google.com/store/apps/details?id=com.weeve.app.staging"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="transition-transform hover:scale-105"
-                        >
-                            <img
-                                src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
-                                alt="Get it on Google Play"
-                                className="h-[36px]"
-                            />
-                        </a>
+                            Log In
+                        </Link>
+
+                        {/* App Store Download Links */}
+                        <div className="flex items-center gap-3">
+                            <a
+                                href="https://apps.apple.com/gb/app/weeve/id6757678144"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="transition-transform hover:scale-105"
+                            >
+                                <img
+                                    src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+                                    alt="Download on the App Store"
+                                    className="h-[36px]"
+                                />
+                            </a>
+                            <a
+                                href="https://play.google.com/store/apps/details?id=com.weeve.app.staging"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="transition-transform hover:scale-105"
+                            >
+                                <img
+                                    src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
+                                    alt="Get it on Google Play"
+                                    className="h-[36px]"
+                                />
+                            </a>
+                        </div>
                     </div>
 
                     {/* Mobile Menu Button */}
@@ -125,34 +135,22 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                                 For Communities
                             </Link> */}
 
-                            <div className="flex flex-col gap-3 pt-2">
-                                <a
-                                    href="https://apps.apple.com/gb/app/weeve/id6757678144"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="transition-transform hover:scale-105"
-                                >
-                                    <img
-                                        src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
-                                        alt="Download on the App Store"
-                                        className="h-[44px]"
-                                    />
-                                </a>
-                                <a
-                                    href="https://play.google.com/store/apps/details?id=com.weeve.app.staging"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={() => setMobileMenuOpen(false)}
-                                    className="transition-transform hover:scale-105"
-                                >
-                                    <img
-                                        src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
-                                        alt="Get it on Google Play"
-                                        className="h-[44px]"
-                                    />
-                                </a>
-                            </div>
+                            {/* Auth Links */}
+                            <Link
+                                href="/login"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="block text-base font-bold text-white hover:text-gray-300 transition-colors py-2"
+                            >
+                                Log In
+                            </Link>
+
+                            <Link
+                                href="/signup"
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="block w-full px-5 py-3 bg-white text-black text-sm font-bold rounded-full hover:bg-gray-200 transition-colors text-center"
+                            >
+                                Sign Up
+                            </Link>
                         </div>
                     </motion.div>
                 )}

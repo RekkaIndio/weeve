@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/app/components/AuthProvider";
-import { ChevronDown, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronDown, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import MarketingNavbar from "@/app/components/MarketingNavbar";
 import MarketingFooter from "@/app/components/MarketingFooter";
@@ -112,6 +113,22 @@ export default function LandingPage() {
                                 transition={{ delay: 0.5 }}
                                 className="flex flex-col items-center lg:items-start gap-6"
                             >
+                                {/* Auth Buttons */}
+                                <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                                    <Link
+                                        href="/signup"
+                                        className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-[#EC1D99] to-purple-600 hover:from-[#EC1D99]/90 hover:to-purple-600/90 text-white font-bold rounded-full transition-all shadow-[0_0_30px_rgba(236,29,153,0.3)] flex items-center justify-center gap-2"
+                                    >
+                                        Get Started <ArrowRight className="w-5 h-5" />
+                                    </Link>
+                                    <Link
+                                        href="/login"
+                                        className="w-full sm:w-auto px-8 py-4 border border-white/20 hover:border-white/40 text-white font-bold rounded-full transition-all flex items-center justify-center"
+                                    >
+                                        Log In
+                                    </Link>
+                                </div>
+
                                 {/* App Store Download Links */}
                                 <div className="flex flex-col sm:flex-row items-center gap-3">
                                     <a
