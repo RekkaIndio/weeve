@@ -155,10 +155,16 @@ export function ActiveStoryView({
     const handleDeleteStoryAction = async () => {
         if (!story || !currentUser) return;
         try {
-            await deleteStory(story.id, currentUser.id);
+            const result = await deleteStory(story.id, currentUser.id);
+            if (!result.success) {
+                console.error('Failed to delete story:', result.error);
+                alert(result.error || 'Failed to delete story. Please try again.');
+                return;
+            }
             router.push(story.groupId ? `/groups/${story.groupId}` : '/feed');
         } catch (error) {
             console.error('Failed to delete story:', error);
+            alert('An unexpected error occurred. Please try again.');
         }
     };
 
