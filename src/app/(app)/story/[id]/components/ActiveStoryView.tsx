@@ -154,6 +154,10 @@ export function ActiveStoryView({
 
     const handleDeleteStoryAction = async () => {
         if (!story || !currentUser) return;
+
+        // Store navigation target before delete (story reference may become invalid)
+        const navigationTarget = story.groupId ? `/groups/${story.groupId}` : '/feed';
+
         try {
             const result = await deleteStory(story.id, currentUser.id);
             if (!result.success) {
@@ -161,7 +165,8 @@ export function ActiveStoryView({
                 alert(result.error || 'Failed to delete story. Please try again.');
                 return;
             }
-            router.push(story.groupId ? `/groups/${story.groupId}` : '/feed');
+            // Navigate immediately using replace to avoid back-button issues
+            router.replace(navigationTarget);
         } catch (error) {
             console.error('Failed to delete story:', error);
             alert('An unexpected error occurred. Please try again.');
