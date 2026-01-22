@@ -323,7 +323,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                             // Check if strict login page to ensure we redirect
                             const isStrictAuthPage = currentPath === '/login' || currentPath === '/signup' || currentPath === '/forgot-password';
 
-                            if (isPublicRoute(currentPath) || currentPath === '/auth/callback' || isStrictAuthPage) {
+                            if ((isPublicRoute(currentPath) && currentPath !== '/reset-password') || currentPath === '/auth/callback' || isStrictAuthPage) {
                                 // Prevent duplicate redirects (event can fire multiple times)
                                 const redirectKey = 'weeve_auth_redirecting';
                                 if (sessionStorage.getItem(redirectKey)) {
