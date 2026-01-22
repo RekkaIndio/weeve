@@ -482,6 +482,10 @@ export default function UserProfilePage() {
         // Exclude stories where the owner has a pending waiting slot (belongs in their "Waiting" tab)
         if (ownerParticipant?.status === 'waiting' && !ownerContributed) return false;
 
+        // Exclude stories where it's the user's turn ONLY if they haven't contributed yet
+        // If they have contributed, it should show in main tab (as history) AND in timer tab (as action item)
+        if (s.status === 'active' && s.currentTurnUserId === user?.id && !ownerContributed) return false;
+
         return true;
     }).sort((a, b) => {
         // Sort by most recent contribution (or creation date if no contributions)
