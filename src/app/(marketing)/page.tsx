@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/app/components/AuthProvider";
 import { ArrowRight, ChevronDown, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import MarketingNavbar from "@/app/components/MarketingNavbar";
 import MarketingFooter from "@/app/components/MarketingFooter";
@@ -44,9 +45,32 @@ const FAQItem = ({ question, answer }: { question: string; answer: string }) => 
     );
 };
 
+// Basic Check to see if we are in the native app
+import { Capacitor } from "@capacitor/core";
+
 export default function LandingPage() {
-    const { loading } = useAuth();
-    // Auth and routing removed - now using direct app store links
+    const { loading, user } = useAuth();
+    const router = useRouter();
+    const [isNative, setIsNative] = useState(false);
+
+    // Redirect authenticated users to the app (via login page which handles routing)
+    useEffect(() => {
+        if (!loading && user) {
+            router.replace('/login');
+        }
+    }, [user, loading, router]);
+
+    // Detect if we are in the native app to hide download buttons
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const isCapacitor = Capacitor.isNativePlatform();
+            const ua = window.navigator.userAgent;
+            const isWeeveApp = ua.includes('WeeveApp');
+            if (isCapacitor || isWeeveApp) {
+                setIsNative(true);
+            }
+        }
+    }, []);
 
     if (loading) return null;
 
@@ -121,33 +145,35 @@ export default function LandingPage() {
                                     Get Started <ArrowRight className="w-5 h-5" />
                                 </Link>
 
-                                {/* App Store Download Links */}
-                                <div className="flex flex-row items-center gap-3">
-                                    <a
-                                        href="https://apps.apple.com/gb/app/weeve/id6757678144"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="transition-transform hover:scale-105"
-                                    >
-                                        <img
-                                            src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
-                                            alt="Download on the App Store"
-                                            className="h-[40px]"
-                                        />
-                                    </a>
-                                    <a
-                                        href="https://play.google.com/store/apps/details?id=com.weeve.app.staging"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="transition-transform hover:scale-105"
-                                    >
-                                        <img
-                                            src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
-                                            alt="Get it on Google Play"
-                                            className="h-[40px]"
-                                        />
-                                    </a>
-                                </div>
+                                {/* App Store Download Links - Hide on Native App */}
+                                {!isNative && (
+                                    <div className="flex flex-row items-center gap-3">
+                                        <a
+                                            href="https://apps.apple.com/gb/app/weeve/id6757678144"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="transition-transform hover:scale-105"
+                                        >
+                                            <img
+                                                src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+                                                alt="Download on the App Store"
+                                                className="h-[40px]"
+                                            />
+                                        </a>
+                                        <a
+                                            href="https://play.google.com/store/apps/details?id=com.weeve.app.staging"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="transition-transform hover:scale-105"
+                                        >
+                                            <img
+                                                src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
+                                                alt="Get it on Google Play"
+                                                className="h-[40px]"
+                                            />
+                                        </a>
+                                    </div>
+                                )}
                             </motion.div>
                         </div>
 
