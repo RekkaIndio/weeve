@@ -2070,12 +2070,50 @@ export const useStore = create<AppState>()(
                         });
 
                     if (reset) {
-                        set({ stories: formattedStories, storiesPage: 1, hasMoreStories: hasMore });
+                        set((state) => {
+                            // Merge with existing stories to preserve local updates (like optimistic comments)
+                            // and keep other stories (e.g. from Feed) in the store.
+                            
+                            // Create map for O(1) lookup
+                            const existingStoriesMap = new Map(state.stories.map(s => [s.id, s]));
+                            
+                            const mergedStories = formattedStories.map(newStory => {
+                                const existing = existingStoriesMap.get(newStory.id);
+                                if (existing) {
+                                    // Preserve comments if existing (local/cached) has more than incoming
+                                    const mergedComments = newStory.comments.length > existing.comments.length
+                                        ? newStory.comments
+                                        : existing.comments;
+                                    
+                                    if (existing.comments.length > newStory.comments.length) {
+                                        console.log(`[Store] Preserving local comments for ${newStory.id}. Local: ${existing.comments.length}, Server: ${newStory.comments.length}`);
+                                    }
+
+                                    return { ...newStory, comments: mergedComments };
+                                }
+                                return newStory;
+                            });
+
+                             // Preserve stories from state that are NOT in the new batch.
+                             // This prevents stories from Main Feed (or other pages) from being wiped out.
+                             const newIds = new Set(formattedStories.map(s => s.id));
+                             const keptStories = state.stories.filter(s => !newIds.has(s.id));
+
+                             return { 
+                                stories: [...mergedStories, ...keptStories], 
+                                storiesPage: 1, 
+                                hasMoreStories: hasMore 
+                            };
+                        });
                     } else {
                         set((state) => {
                             const existingIds = new Set(state.stories.map(s => s.id));
                             const newStories = formattedStories.filter(s => !existingIds.has(s.id));
-                            return { stories: [...state.stories, ...newStories], storiesPage: page + 1, hasMoreStories: hasMore };
+                            return { 
+                                stories: [...state.stories, ...newStories], 
+                                storiesPage: page + 1, 
+                                hasMoreStories: hasMore 
+                            };
                         });
                     }
                 } catch (err) {
