@@ -8,9 +8,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState, useCallback, useRef } from 'react';
 
-// Dynamic import to avoid SSR issues with Square's Web Payments SDK
-const SquarePayment = dynamic(
-    () => import('@/app/components/SquarePayment'),
+// Dynamic import to avoid SSR issues with PayPal SDK
+const PayPalPayment = dynamic(
+    () => import('@/app/components/PayPalPayment'),
     {
         ssr: false,
         loading: () => (
@@ -250,23 +250,23 @@ export default function WalletPage() {
                     </div>
 
                     <p className="text-center text-xs text-gray-600 mt-8">
-                        Secured by Square. Tokens are added to your account immediately after payment.
+                        Secured by PayPal. Tokens are added to your account immediately after payment.
                     </p>
                 </div>
             </main>
 
             {/* Payment Modal */}
             {showPaymentModal && selectedPackage && currentUser && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                    <div className="relative w-full max-w-md animate-in fade-in zoom-in duration-200">
+                <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-sm overflow-y-auto py-8 px-4" style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 2rem)', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 2rem)' }}>
+                    <div className="relative w-full max-w-md animate-in fade-in zoom-in duration-200 my-auto">
                         <button
                             onClick={handlePaymentCancel}
-                            className="absolute -top-12 right-0 p-2 text-gray-400 hover:text-white transition-colors"
+                            className="absolute -top-12 right-0 p-2 text-white hover:text-gray-300 transition-colors"
                             aria-label="Close"
                         >
                             <X className="w-6 h-6" />
                         </button>
-                        <SquarePayment
+                        <PayPalPayment
                             type="token"
                             packageKey={selectedPackage.key}
                             userId={currentUser.id}

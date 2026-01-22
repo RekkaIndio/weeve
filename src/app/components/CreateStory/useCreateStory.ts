@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, RefObject } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { searchUsers, addFriend, sendFriendRequest } from "@/lib/friends";
 import { searchHashtags } from "@/lib/hashtags";
-import { getBrandPostPricing } from "@/lib/square-payment";
+import { getBrandPostPricing } from "@/lib/paypal-payment";
 import { CreateStoryFormState, Friend, StorySlot } from "./types";
 
 // Brand payment info for Square modal
@@ -606,12 +606,11 @@ export const useCreateStory = ({
   // Handle brand payment cancellation
   const handleBrandPaymentCancel = () => {
     console.log('[CreateStory] Brand payment cancelled');
-    // Story is already created, so redirect to it anyway
-    // The payment can be completed later via the story page
-    if (pendingBrandPayment) {
-      router.push(`/story/${pendingBrandPayment.storyId}`);
-    }
+    // Don't redirect to the story - payment is required for brand posts
+    // The story was created but won't be visible/active without payment
+    // User can try again by clicking Create again
     setPendingBrandPayment(null);
+    setIsLoading(false);
   };
 
   return {
