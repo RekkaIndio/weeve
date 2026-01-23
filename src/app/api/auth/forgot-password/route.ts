@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { sendEmail } from '@/lib/mailgun';
+import { sendEmail } from '@/lib/sendgrid';
 import { generateEmailHtml } from '@/lib/email-templates';
 
 export async function POST(request: Request) {

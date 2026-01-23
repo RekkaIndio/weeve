@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sendEmail } from '@/lib/mailgun';
+import { sendEmail } from '@/lib/sendgrid';
 import { createClient } from '@supabase/supabase-js';
 import { generateWaitlistConfirmationEmail } from '@/lib/email-templates';
 

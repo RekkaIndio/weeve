@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sendEmail } from '@/lib/mailgun';
+import { sendEmail } from '@/lib/sendgrid';
 import { generateEmailHtml } from '@/lib/email-templates';
 
 export async function GET(request: Request) {
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     const data = await sendEmail({
       to: toEmail,
       subject: 'Test Email from Weeve (New Design)',
-      text: 'This is a test email to verify Mailgun integration with the new design.',
+      text: 'This is a test email to verify SendGrid integration with the new design.',
       html: emailHtml,
     });
 

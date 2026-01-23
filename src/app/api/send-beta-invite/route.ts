@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { sendEmail } from '@/lib/mailgun';
+import { sendEmail } from '@/lib/sendgrid';
 
 const generateBetaInviteEmail = (): string => {
   const logoUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://tryweeve.com'}/weeve-logo.png`;

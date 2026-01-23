@@ -125,7 +125,7 @@ export default function PrivacyPage() {
                 </p>
                 <ul className="list-disc pl-5 mt-2 space-y-1 text-gray-300">
                   <li>Cloud hosting and data storage (Supabase, AWS)</li>
-                  <li>Email delivery services (Mailgun)</li>
+                  <li>Email delivery services (SendGrid)</li>
                   <li>Analytics providers</li>
                   <li>Payment processors (for monetisation features)</li>
                 </ul>
