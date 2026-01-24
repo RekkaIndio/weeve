@@ -14,8 +14,10 @@ export function middleware(request: NextRequest) {
     const { pathname } = request.nextUrl
 
     // Only handle mobile redirects for users with ref codes (app deep linking)
+    // Only handle mobile redirects for users with ref codes (app deep linking)
     // Let everyone else see the landing page normally
-    if (isMobile && request.nextUrl.searchParams.has('ref')) {
+    // Prevent redirect loop: Don't redirect if we're already on /app-redirect
+    if (isMobile && request.nextUrl.searchParams.has('ref') && pathname !== '/app-redirect') {
         const url = new URL('/app-redirect', request.url)
         url.search = request.nextUrl.search
         return NextResponse.redirect(url)
