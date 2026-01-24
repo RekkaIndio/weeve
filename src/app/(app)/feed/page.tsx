@@ -3,11 +3,17 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStore } from "@/lib/store";
-import FeedItem from "@/app/components/FeedItem";
+import dynamic from "next/dynamic";
 import { useAuth } from "@/app/components/AuthProvider";
 import { supabase } from "@/lib/supabase";
 import { fetchGroups } from "@/lib/data";
 import { rankFeedStories } from "@/lib/discovery/feed-algorithm";
+
+// Dynamic import for FeedItem - reduces initial bundle size
+const FeedItem = dynamic(() => import("@/app/components/FeedItem"), {
+  loading: () => <div className="h-full w-full bg-black" />,
+  ssr: false
+});
 
 
 export default function Home() {
@@ -396,9 +402,14 @@ export default function Home() {
     const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
 
     // Custom smooth scroll using requestAnimationFrame for consistent behavior
-    const smoothScrollTo = (targetY: number, duration: number = 400) => {
+    // Reduced duration from 400ms to 300ms for snappier feel and better INP
+    const smoothScrollTo = (targetY: number, duration: number = 300) => {
       const startY = container.scrollTop;
       const distance = targetY - startY;
+
+      // Early exit if already at target (INP optimization)
+      if (Math.abs(distance) < 1) return;
+
       const startTime = performance.now();
 
       // Temporarily disable scroll-snap to prevent it from interfering
@@ -435,7 +446,7 @@ export default function Home() {
 
       // Calculate target scroll position
       const targetY = el.offsetTop;
-      smoothScrollTo(targetY, 450);
+      smoothScrollTo(targetY, 300);
     };
 
     const wheelHandler = (e: WheelEvent) => {
@@ -445,7 +456,8 @@ export default function Home() {
       }
 
       const now = Date.now();
-      if (now - lastWheelTime < 120) {
+      // Increased throttle from 120ms to 150ms to reduce handler frequency (INP improvement)
+      if (now - lastWheelTime < 150) {
         // throttle rapid wheel events to a single action
         e.preventDefault();
         return;

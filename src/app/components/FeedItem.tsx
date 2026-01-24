@@ -1,7 +1,12 @@
 import { useState, useEffect, useRef, useMemo, FormEvent, useCallback } from "react";
 import { Story, useStore, Contribution, isSlotImmutable, isBrandPost, getSlotProgress } from "@/lib/store";
 import { useRouter } from "next/navigation";
-import ShareModal from "./ShareModal";
+import dynamic from "next/dynamic";
+
+// Dynamic import for ShareModal - only loaded when user opens share
+const ShareModal = dynamic(() => import("./ShareModal"), {
+    ssr: false
+});
 import FeedItemMedia from "./FeedItem/FeedItemMedia";
 import FeedItemOverlay from "./FeedItem/FeedItemOverlay";
 import FeedItemSidebar from "./FeedItem/FeedItemSidebar";

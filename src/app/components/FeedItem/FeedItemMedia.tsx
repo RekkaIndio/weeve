@@ -1,5 +1,6 @@
 import { Story, Contribution, TextStyle } from "@/lib/store";
 import { RefObject, useState } from "react";
+import Image from "next/image";
 
 interface FeedItemMediaProps {
     mediaType: 'video' | 'image' | 'text' | 'drawing' | 'audio';
@@ -73,21 +74,23 @@ export default function FeedItemMedia({
                         }}
                     >
                         {story.coverImage && (
-                            <img
+                            <Image
                                 src={story.coverImage}
                                 alt={story.title}
-                                className="w-full h-full object-cover opacity-50 blur-xl"
-                                loading="eager"
-                                decoding="sync"
+                                fill
+                                priority
+                                className="object-cover opacity-50 blur-xl"
+                                sizes="100vw"
                             />
                         )}
                         {story.coverImage && (
-                            <img
+                            <Image
                                 src={story.coverImage}
                                 alt={story.title}
-                                className="absolute inset-0 w-full h-full object-contain"
-                                loading="eager"
-                                decoding="sync"
+                                fill
+                                priority
+                                className="absolute inset-0 object-contain"
+                                sizes="100vw"
                             />
                         )}
                     </div>
@@ -214,11 +217,13 @@ export default function FeedItemMedia({
                     />
                 </div>
             ) : mediaType === 'image' && mediaUrl ? (
-                <img
+                <Image
                     key={mediaUrl}
                     src={mediaUrl}
                     alt={story.title}
-                    className="absolute inset-0 w-full h-full object-contain"
+                    fill
+                    className="object-contain"
+                    sizes="100vw"
                 />
             ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-[#1a1a2e] via-[#0f0f1c] to-black text-white p-6 text-center">
