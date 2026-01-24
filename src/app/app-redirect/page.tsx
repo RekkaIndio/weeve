@@ -13,15 +13,15 @@ export default function AppRedirectPage() {
     useEffect(() => {
         const detectPlatform = (): 'ios' | 'android' | 'web' => {
             const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
-            
+
             if (/iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream) {
                 return 'ios';
             }
-            
+
             if (/android/i.test(userAgent)) {
                 return 'android';
             }
-            
+
             return 'web';
         };
 
@@ -49,29 +49,28 @@ export default function AppRedirectPage() {
         if (platform === 'web') return;
 
         const ref = searchParams?.get('ref');
-        
+
         // Build deep link URLs
+        // Scheme must match Info.plist (ios) and AndroidManifest.xml (android)
         const appScheme = 'com.weeve.app://';
         const deepLinkPath = ref ? `signup?ref=${ref}` : 'feed';
         const deepLink = `${appScheme}${deepLinkPath}`;
-        
+
         // App Store URLs
-        const iosAppStoreUrl = 'https://apps.apple.com/app/weeve/idXXXXXXXXXX'; // TODO: Replace with actual App Store ID
+        const iosAppStoreUrl = 'https://apps.apple.com/gb/app/weeve/id6757678144';
         const androidPlayStoreUrl = 'https://play.google.com/store/apps/details?id=com.weeve.app';
         const storeUrl = platform === 'ios' ? iosAppStoreUrl : androidPlayStoreUrl;
 
         // Try opening the app
         const attemptAppOpen = () => {
-            // Create iframe to attempt app open (works better on some devices)
+            // 1. Try direct location change (often works best for custom schemes)
+            window.location.href = deepLink;
+
+            // 2. Fallback to iframe (legacy method, sometimes helpful)
             const iframe = document.createElement('iframe');
             iframe.style.display = 'none';
             iframe.src = deepLink;
             document.body.appendChild(iframe);
-
-            // Also try direct window location as backup
-            setTimeout(() => {
-                window.location.href = deepLink;
-            }, 100);
 
             // Clean up iframe
             setTimeout(() => {
@@ -105,6 +104,12 @@ export default function AppRedirectPage() {
     }, [platform, searchParams]);
 
     const ref = searchParams?.get('ref');
+    // Helper to get store URL for the button
+    const getStoreUrl = () => {
+        if (platform === 'ios') return 'https://apps.apple.com/gb/app/weeve/id6757678144';
+        if (platform === 'android') return 'https://play.google.com/store/apps/details?id=com.weeve.app';
+        return '/signup';
+    };
 
     if (platform === 'web') {
         return (
@@ -141,18 +146,25 @@ export default function AppRedirectPage() {
                 <p className="text-gray-400 mb-8">
                     {ref && (
                         <span className="block mb-2 text-[#EC1D99] font-semibold">
-                            Invite code detected!
+                            Invite code found!
                         </span>
                     )}
-                    If the app doesn't open automatically, you'll be redirected to the {platform === 'ios' ? 'App Store' : 'Play Store'}.
+                    If the app doesn't open automatically, tap the button below.
                 </p>
-                
-                <div className="mb-6">
-                    <div className="w-16 h-16 mx-auto border-4 border-[#EC1D99] border-t-transparent rounded-full animate-spin" />
+
+                <div className="mb-8">
+                    <div className="w-16 h-16 mx-auto border-4 border-[#EC1D99] border-t-transparent rounded-full animate-spin mb-8" />
+
+                    <a
+                        href={getStoreUrl()}
+                        className="inline-block px-8 py-4 bg-gradient-to-r from-[#EC1D99] to-purple-600 rounded-full font-bold text-white shadow-lg shadow-[#EC1D99]/20 hover:scale-105 transition-transform"
+                    >
+                        Download Weeve
+                    </a>
                 </div>
 
                 <p className="text-sm text-gray-500">
-                    Don't have the app? You'll be taken to download it.
+                    Taking you to the {platform === 'ios' ? 'App Store' : 'Play Store'} if not installed.
                 </p>
             </div>
         </div>
