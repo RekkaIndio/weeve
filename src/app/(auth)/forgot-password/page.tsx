@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowLeft, Mail, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import AuthBackground from "@/app/components/AuthBackground";
 
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState("");
@@ -37,12 +38,7 @@ export default function ForgotPasswordPage() {
     return (
         <div className="min-h-screen bg-black flex items-center justify-center p-4">
             {/* Animated Background */}
-            <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute -inset-[10px] opacity-30">
-                    <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
-                    <div className="absolute top-0 -right-4 w-72 h-72 bg-yellow-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
-                </div>
-            </div>
+            <AuthBackground />
 
             <div className="relative z-10 w-full max-w-md bg-zinc-900 border border-white/10 rounded-3xl p-8">
                 <Link href="/login" className="inline-flex items-center text-gray-400 hover:text-white mb-8 transition-colors">

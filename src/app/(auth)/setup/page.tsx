@@ -9,6 +9,7 @@ import { capturePhoto } from "@/lib/camera";
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabase";
 import { getLatestSession } from "@/lib/auth-session";
 import { Camera, Check, X, Loader2, LogOut } from "lucide-react";
+import AuthBackground from "@/app/components/AuthBackground";
 
 export default function SetupPage() {
     const router = useRouter();
@@ -266,13 +267,8 @@ export default function SetupPage() {
     return (
         <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-black pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]">
             {/* Animated Background */}
-            <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute -inset-[10px] opacity-30">
-                    <div className="absolute top-0 -left-4 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
-                    <div className="absolute top-0 -right-4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
-                    <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
-                </div>
-            </div>
+            {/* Animated Background */}
+            <AuthBackground />
 
 
 
@@ -442,54 +438,39 @@ export default function SetupPage() {
             )}
 
             <style jsx>{`
-                @keyframes blob {
-                    0% { transform: translate(0px, 0px) scale(1); }
-                    33% { transform: translate(30px, -50px) scale(1.1); }
-                    66% { transform: translate(-20px, 20px) scale(0.9); }
-                    100% { transform: translate(0px, 0px) scale(1); }
-                }
-                .animate-blob {
-                    animation: blob 7s infinite;
-                }
-                .animation-delay-2000 {
-                    animation-delay: 2s;
-                }
-                .animation-delay-4000 {
-                    animation-delay: 4s;
-                }
                 @keyframes gradient-shift {
-                    0%, 100% { background-position: 0% 50%; }
-                    50% { background-position: 100% 50%; }
+                    0 %, 100 % { background- position: 0% 50%; }
+                50% {background - position: 100% 50%; }
                 }
                 .animate-gradient-shift {
-                    background-size: 200% 200%;
-                    animation: gradient-shift 4s ease infinite;
+                    background - size: 200% 200%;
+                animation: gradient-shift 4s ease infinite;
                 }
                 @keyframes float-1 {
-                    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
-                    25% { transform: translateY(-10px) translateX(5px); opacity: 0.6; }
-                    50% { transform: translateY(-5px) translateX(-5px); opacity: 0.4; }
-                    75% { transform: translateY(-15px) translateX(3px); opacity: 0.5; }
+                    0 %, 100 % { transform: translateY(0) translateX(0); opacity: 0.3; }
+                    25% {transform: translateY(-10px) translateX(5px); opacity: 0.6; }
+                50% {transform: translateY(-5px) translateX(-5px); opacity: 0.4; }
+                75% {transform: translateY(-15px) translateX(3px); opacity: 0.5; }
                 }
                 @keyframes float-2 {
-                    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.2; }
-                    33% { transform: translateY(-12px) translateX(-8px); opacity: 0.5; }
-                    66% { transform: translateY(-6px) translateX(6px); opacity: 0.3; }
+                    0 %, 100 % { transform: translateY(0) translateX(0); opacity: 0.2; }
+                    33% {transform: translateY(-12px) translateX(-8px); opacity: 0.5; }
+                66% {transform: translateY(-6px) translateX(6px); opacity: 0.3; }
                 }
                 @keyframes float-3 {
-                    0%, 100% { transform: translateY(0) translateX(0); opacity: 0.4; }
-                    50% { transform: translateY(-8px) translateX(4px); opacity: 0.6; }
+                    0 %, 100 % { transform: translateY(0) translateX(0); opacity: 0.4; }
+                    50% {transform: translateY(-8px) translateX(4px); opacity: 0.6; }
                 }
                 .animate-float-1 {
                     animation: float-1 3s ease-in-out infinite;
                 }
                 .animate-float-2 {
                     animation: float-2 4s ease-in-out infinite;
-                    animation-delay: 0.5s;
+                animation-delay: 0.5s;
                 }
                 .animate-float-3 {
                     animation: float-3 2.5s ease-in-out infinite;
-                    animation-delay: 1s;
+                animation-delay: 1s;
                 }
             `}</style>
         </div>

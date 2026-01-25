@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { Eye, EyeOff } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
+import AuthBackground from "@/app/components/AuthBackground";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -184,13 +185,9 @@ export default function LoginPage() {
     return (
         <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-black pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]">
             {/* Animated Background */}
-            <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute -inset-[10px] opacity-30">
-                    <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-500 rounded-full mix-blend-multiply filter blur-xl animate-blob"></div>
-                    <div className="absolute top-0 -right-4 w-72 h-72 bg-yellow-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-2000"></div>
-                    <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-500 rounded-full mix-blend-multiply filter blur-xl animate-blob animation-delay-4000"></div>
-                </div>
-
+            {/* Animated Background */}
+            <AuthBackground />
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 {/* Weaving Lines Animation */}
                 <svg className="absolute inset-0 w-full h-full opacity-40" xmlns="http://www.w3.org/2000/svg">
                     <defs>
@@ -357,41 +354,25 @@ export default function LoginPage() {
             </div>
 
             <style jsx>{`
-                @keyframes blob {
-                    0% { transform: translate(0px, 0px) scale(1); }
-                    33% { transform: translate(30px, -50px) scale(1.1); }
-                    66% { transform: translate(-20px, 20px) scale(0.9); }
-                    100% { transform: translate(0px, 0px) scale(1); }
-                }
-                .animate-blob {
-                    animation: blob 7s infinite;
-                }
-                .animation-delay-2000 {
-                    animation-delay: 2s;
-                }
-                .animation-delay-4000 {
-                    animation-delay: 4s;
-                }
-
                 @keyframes weave {
-                    0% { transform: translateX(-100%) translateY(0); }
-                    50% { transform: translateX(0%) translateY(10px); }
-                    100% { transform: translateX(100%) translateY(0); }
+                    0 % { transform: translateX(-100 %) translateY(0); }
+                    50% {transform: translateX(0%) translateY(10px); }
+                100% {transform: translateX(100%) translateY(0); }
                 }
 
                 .animate-weave-1 {
                     animation: weave 8s linear infinite;
-                    transform-origin: center;
+                transform-origin: center;
                 }
                 .animate-weave-2 {
                     animation: weave 12s linear infinite;
-                    animation-delay: -4s;
-                    transform-origin: center;
+                animation-delay: -4s;
+                transform-origin: center;
                 }
-                 .animate-weave-3 {
+                .animate-weave-3 {
                     animation: weave 10s linear infinite;
-                    animation-delay: -2s;
-                    transform-origin: center;
+                animation-delay: -2s;
+                transform-origin: center;
                 }
             `}</style>
         </div>
