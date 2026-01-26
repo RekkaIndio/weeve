@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useStore } from "@/lib/store";
-import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Camera, Clock, Image as ImageIcon, GitBranch } from "lucide-react";
+import { Settings, Grid, Bookmark, Share2, Wallet, UserPlus, X, Copy, Check, Camera, Clock, Image as ImageIcon, GitBranch, Search } from "lucide-react";
 import Link from "next/link";
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/supabase";
 
@@ -442,6 +442,9 @@ export default function ProfilePage() {
     const [showAvatarModal, setShowAvatarModal] = useState(false);
     const [showAvatarPicker, setShowAvatarPicker] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -581,6 +584,33 @@ export default function ProfilePage() {
     const savedStories = useMemo(() => {
         return stories.filter(s => savedStoryIds.includes(s.id));
     }, [stories, savedStoryIds]);
+
+    // Search filtering helper
+    const matchesSearch = (story: typeof stories[0], query: string): boolean => {
+        if (!query.trim()) return true;
+        const q = query.toLowerCase();
+        // Match by title
+        if (story.title?.toLowerCase().includes(q)) return true;
+        // Match by text content in contributions
+        if (story.contributions?.some(c =>
+            c.content?.toLowerCase().includes(q) ||
+            c.textStyle?.elements?.some(el => el.content?.toLowerCase().includes(q))
+        )) return true;
+        return false;
+    };
+
+    // Filtered story arrays based on search query
+    const filteredMyStories = useMemo(() => {
+        return myStories.filter(s => matchesSearch(s, searchQuery));
+    }, [myStories, searchQuery]);
+
+    const filteredSavedStories = useMemo(() => {
+        return savedStories.filter(s => matchesSearch(s, searchQuery));
+    }, [savedStories, searchQuery]);
+
+    const filteredWaitingStories = useMemo(() => {
+        return waitingStories.filter(s => matchesSearch(s, searchQuery));
+    }, [waitingStories, searchQuery]);
 
     useEffect(() => {
         fetchSavedStories();
@@ -1139,7 +1169,39 @@ export default function ProfilePage() {
     return (
         <div className="min-h-screen bg-black text-white pb-24 relative">
             {/* Header */}
-            <div className="p-4 flex justify-end items-center">
+            <div className="p-4 flex justify-end items-center gap-2">
+                {/* Search - Expanding */}
+                <div className={`flex items-center transition-all duration-300 ease-out ${isSearchOpen ? 'flex-1' : ''}`}>
+                    {isSearchOpen ? (
+                        <div className="flex-1 flex items-center gap-2 bg-gray-800 rounded-full px-3 py-1.5 animate-in slide-in-from-right-4 fade-in duration-200">
+                            <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <input
+                                ref={searchInputRef}
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search stories..."
+                                className="flex-1 bg-transparent text-white text-sm outline-none placeholder-gray-500 min-w-0"
+                                autoFocus
+                            />
+                            <button
+                                onClick={() => { setSearchQuery(''); setIsSearchOpen(false); }}
+                                className="flex-shrink-0 p-0.5 hover:bg-gray-700 rounded-full transition-colors"
+                            >
+                                <X className="w-4 h-4 text-gray-400 hover:text-white" />
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setIsSearchOpen(true)}
+                            className="text-white hover:text-gray-300 transition-colors"
+                            aria-label="Search stories"
+                        >
+                            <Search className="w-6 h-6" />
+                        </button>
+                    )}
+                </div>
+
                 <div className="flex items-center gap-4">
                     {/* Wallet Link - HIDDEN: Monetization features temporarily disabled */}
                     {/* {!currentUser.isBrand && currentUser.preferences?.monetization_enabled !== false && (
@@ -1149,9 +1211,6 @@ export default function ProfilePage() {
                         </Link>
                     )} */}
 
-                    <button onClick={() => setShowInviteModal(true)} className="text-white hover:text-gray-300 transition-colors">
-                        <UserPlus className="w-6 h-6" />
-                    </button>
                     <Link href="/settings">
                         <Settings className="w-6 h-6 text-white hover:text-gray-300 transition-colors" />
                     </Link>
@@ -1197,16 +1256,11 @@ export default function ProfilePage() {
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    handleNativeShare();
+                                    setShowInviteModal(true);
                                 }}
-                                className={`absolute -bottom-1 -right-1 p-1 rounded-full border-2 border-black transition-colors ${copied ? 'bg-green-500 hover:bg-green-600' : 'bg-[#EC1D99] hover:bg-[#EC1D99]/90'
-                                    }`}
+                                className="absolute -bottom-1 -right-1 p-1 rounded-full border-2 border-black bg-[#EC1D99] hover:bg-[#EC1D99]/90 transition-colors"
                             >
-                                {copied ? (
-                                    <Check className="w-3 h-3 text-white" />
-                                ) : (
-                                    <Share2 className="w-3 h-3 text-white" />
-                                )}
+                                <UserPlus className="w-3 h-3 text-white" />
                             </button>
                         )}
                     </div>
@@ -1353,7 +1407,7 @@ export default function ProfilePage() {
                 >
                     <div className="relative">
                         <Clock className="w-6 h-6" />
-                        {waitingStories.length > 0 && (
+                        {filteredWaitingStories.length > 0 && (
                             <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#EC1D99] rounded-full border-2 border-black"></div>
                         )}
                     </div>
@@ -1364,7 +1418,7 @@ export default function ProfilePage() {
             <div className="grid grid-cols-3 gap-0.5">
                 {activeTab === 'weeves' && (
                     <>
-                        {myStories.map(story => {
+                        {filteredMyStories.map(story => {
                             const sortedContributions = (story.contributions || [])
                                 .slice()
                                 .sort((a, b) => a.timestamp - b.timestamp);
@@ -1461,7 +1515,7 @@ export default function ProfilePage() {
                             );
                         })}
                         {/* Fillers if needed, but now we have more stories */}
-                        {myStories.length < 6 && [1, 2, 3].map(i => (
+                        {filteredMyStories.length < 6 && [1, 2, 3].map(i => (
                             <div key={i} className="aspect-[3/4] bg-gray-900/50"></div>
                         ))}
                     </>
@@ -1469,8 +1523,8 @@ export default function ProfilePage() {
 
                 {activeTab === 'saved' && (
                     <>
-                        {savedStories.length > 0 ? (
-                            savedStories.map(story => {
+                        {filteredSavedStories.length > 0 ? (
+                            filteredSavedStories.map(story => {
                                 const sortedContributions = (story.contributions || [])
                                     .slice()
                                     .sort((a, b) => a.timestamp - b.timestamp);
@@ -1607,8 +1661,8 @@ export default function ProfilePage() {
 
                 {activeTab === 'waiting' && (
                     <>
-                        {waitingStories.length > 0 ? (
-                            waitingStories.map(story => {
+                        {filteredWaitingStories.length > 0 ? (
+                            filteredWaitingStories.map(story => {
                                 const sortedContributions = (story.contributions || [])
                                     .slice()
                                     .sort((a, b) => a.timestamp - b.timestamp);
