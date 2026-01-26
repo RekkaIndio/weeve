@@ -19,7 +19,7 @@ export default function StoryPage({ params }: { params: Promise<{ id: string }> 
 
 function StoryPageContent({ storyId }: { storyId: string }) {
     const router = useRouter();
-    const { fetchStories, stories } = useStore();
+    const { fetchStories, stories, blockedUserIds } = useStore();
     const { story, isFetchingStory, hasFetchedOnce, contributions, timelineEntries } = useStoryData(storyId);
     const { currentUser } = useStore();
 
@@ -74,6 +74,22 @@ function StoryPageContent({ storyId }: { storyId: string }) {
                 <p className="text-xl font-bold mb-4">Story not found</p>
                 <p className="text-gray-400 mb-6">This story may have been deleted or you don&apos;t have permission to view it.</p>
                 <button onClick={() => router.push('/feed')} className="px-6 py-3 bg-[#EC1D99] rounded-full font-bold hover:bg-[#D41C84] transition-colors">
+                    Go to Feed
+                </button>
+            </div>
+        );
+    }
+
+    // Blocked User Check
+    if (blockedUserIds.includes(story.creatorId)) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-4 text-center">
+                <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center mb-6">
+                    <span className="text-2xl">🚫</span>
+                </div>
+                <p className="text-xl font-bold mb-4">Content Unavailable</p>
+                <p className="text-gray-400 mb-6 font-medium">You cannot view content from this user.</p>
+                <button onClick={() => router.push('/feed')} className="px-6 py-3 bg-white/10 rounded-full font-bold hover:bg-white/20 transition-colors">
                     Go to Feed
                 </button>
             </div>

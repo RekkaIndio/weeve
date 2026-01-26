@@ -1800,10 +1800,23 @@ export const useStore = create<AppState>()(
                         
                         if (!storiesData) continue;
 
-                        // Process and add to store (share format logic if possible, but for now duplicate the mapping)
-                        // It is identical to fetchStories mapping
-                        
-                        const formattedStories: Story[] = storiesData.map((s: any) => {
+                        const { blockedUserIds, groups: userGroups, currentUser } = get();
+                        const userGroupIds = new Set(userGroups.map(g => g.id));
+
+                        const formattedStories: Story[] = storiesData
+                            .filter((s: any) => {
+                                // Filter out blocked users
+                                if (blockedUserIds.includes(s.creator_id)) return false;
+
+                                // Filter out private group stories if not a member
+                                if (s.group_id && s.groups?.is_private) {
+                                    if (!currentUser || !userGroupIds.has(s.group_id)) {
+                                        return false;
+                                    }
+                                }
+                                return true;
+                            })
+                            .map((s: any) => {
                              // Map participants
                              const participants = s.story_participants.map((sp: any) => {
                                  const profile = sp.profiles || { name: 'Unknown', avatar: '' };
@@ -1966,7 +1979,6 @@ export const useStore = create<AppState>()(
                         console.error('[Store] Error fetching discovery stories (final):', error);
                         return;
                     }
-
                     if (!storiesData) return;
 
                     const hasMore = storiesData.length === PAGE_SIZE;

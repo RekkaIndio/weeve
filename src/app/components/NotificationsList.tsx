@@ -12,6 +12,7 @@ import {
     deleteNotification,
     type Notification
 } from '@/lib/notifications';
+import { useStore } from '@/lib/store';
 import { acceptFriendRequest, declineFriendRequest, getFriendRequests, type FriendRequest } from '@/lib/friends';
 
 interface NotificationsListProps {
@@ -188,7 +189,18 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
         }
     };
 
+    const { blockedUserIds } = useStore();
+
     const filteredNotifications = notifications.filter(n => {
+        // Filter out notifications from blocked users where possible
+        // Friend requests
+        if (n.type === 'friend_request' && n.data?.sender_id && blockedUserIds.includes(n.data.sender_id)) return false;
+        // Follows
+        if (n.type === 'new_follower' && n.data?.follower_id && blockedUserIds.includes(n.data.follower_id)) return false;
+        // Collab requests
+        if (n.type === 'collab_request' && n.data?.sender_id && blockedUserIds.includes(n.data.sender_id)) return false;
+
+        // General filter
         if (filter === 'all') return true;
         if (filter === 'requests') return n.type === 'friend_request' || n.type === 'friend_accepted';
         if (filter === 'stories') return n.type.startsWith('story_');

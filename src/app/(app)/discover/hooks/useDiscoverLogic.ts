@@ -8,7 +8,6 @@ import { supabase } from '@/lib/supabase';
 export type ViewMode = 'all' | 'open' | 'groups' | 'people';
 export type FeedType = 'forYou' | 'trending' | 'new' | 'friends' | 'seeds' | 'canon';
 
-
 // Helpers
 const actions = {
     getPublicStories: (stories: Story[]) => {
