@@ -73,11 +73,15 @@ export function useStoryPermissions({
         [currentUser, story, isBrandPost, isPublicOpenStory]
     );
 
-    const isStoryComplete = story?.status === 'completed' || isAtCapacity || !isUserInvolvedInStory;
-    
-    const userHasWaitingSlot = userHasWaitingSlotRaw && !isStoryComplete;
+    // If the story has a fixed limit and we haven't reached it, we treat 'completed' status as stale 
+    // (e.g. user added a slot to a completed story).
+    // Also if the user has a pending slot (canContributeDespiteCapacity), they should be allowed in.
+    const isPhysicallyIncomplete = (maxWeeves !== null && contributionsCount < maxWeeves) || canContributeDespiteCapacity;
 
+    const isStoryComplete = (story?.status === 'completed' && !isPhysicallyIncomplete) || isAtCapacity || !isUserInvolvedInStory;
+    
     // Check if it's the user's turn
+    const userHasWaitingSlot = userHasWaitingSlotRaw && !isStoryComplete;
     const isExplicitlyMyTurn = !isStoryComplete && story?.currentTurnUserId === currentUser?.id;
     const canContributeWithWaitingSlot = !isStoryComplete && userHasWaitingSlot && !userHasContributed;
 

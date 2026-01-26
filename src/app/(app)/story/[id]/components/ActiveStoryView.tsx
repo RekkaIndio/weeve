@@ -1,5 +1,6 @@
-import { useState, useRef, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
     ChevronLeft, MoreVertical, Play, Edit2, Trash, LogOut, GitBranch,
     Sparkles, Loader2, Type, Smile, Crop, Video, Camera, FileVideo, Image as ImageIcon
@@ -87,6 +88,17 @@ export function ActiveStoryView({
     } = composer;
 
     const isComposerOpen = stitchMode !== null;
+    const searchParams = useSearchParams();
+
+    // Clean up action param from URL - user sees timeline and can pick a slot
+    useEffect(() => {
+        const action = searchParams?.get('action');
+        if (action === 'add') {
+            // Just clean up the URL - the timeline will be visible and user can pick a slot
+            const newUrl = window.location.pathname;
+            window.history.replaceState({}, '', newUrl);
+        }
+    }, [searchParams]);
 
     // Computed
     const activeSegment = useMemo(() => {
@@ -316,7 +328,7 @@ export function ActiveStoryView({
                         {activeSegment.mediaType === 'video' ? (
                             <VideoPlayer key={activeSegment.id} src={activeSegment.mediaUrl} onComplete={handleNext} isPlaying={isPlaying} />
                         ) : (activeSegment.mediaType === 'image' || activeSegment.mediaType === 'drawing') ? (
-                            <div className={`relative w-full h-full flex items-center justify-center bg-black`}>
+                            <div className="relative w-full h-full flex items-center justify-center bg-black">
                                 <img
                                     src={activeSegment.mediaUrl || "https://via.placeholder.com/400x800"}
                                     className={`w-full h-full ${activeSegment.mediaType === 'drawing' ? 'object-contain' : 'object-contain'}`}

@@ -164,12 +164,15 @@ export function StoryTimeline({
                             const canContributeToPublicOpenSlot = isPublicUserStory && !isStoryComplete &&
                                 (isAlreadyInvolved || allReservedSlotsFilled);
 
-                            const canAdd = canAddNormalStory || canPublicUserAdd || canForkCreatorAdd || isReservedForMe;
+                            const canAddAsCreator = isCreator && !isBrandPost && isNextSequentialSlot;
+
+                            const canAdd = canAddNormalStory || canPublicUserAdd || canForkCreatorAdd || isReservedForMe || canAddAsCreator;
 
                             // Determine if we should show "Your Turn" (Magenta) or "Open" (Gray) for open slots
                             // 1. If user is NOT involved in the story yet (Viewer), show "Your Turn" to encourage contribution
                             // 2. If user IS involved (Creator/Participant), show "Open" to confusing them with their actual assigned turns
-                            const showMagentaYourTurnForOpenSlot = canContributeToPublicOpenSlot && !isAlreadyInvolved;
+                            // 3. IF Creator is filling an unassigned slot, show "Your Turn"
+                            const showMagentaYourTurnForOpenSlot = (canContributeToPublicOpenSlot && !isAlreadyInvolved) || canAddAsCreator;
 
                             if (canAdd && !isBrandOwnerOnOpenSlot) {
                                 return (
@@ -179,7 +182,7 @@ export function StoryTimeline({
                                         data-action="add-weeve"
                                         onClick={() => {
                                             try { if (typeof window !== 'undefined' && currentUser?.id) { localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + currentUser.id, 'true'); localStorage.setItem('weeve_onboarding_overlay_dismissed_' + currentUser.id, 'true'); } } catch (err) { }
-                                            onAddWeeve();
+                                            onAddWeeve(entry.position);
                                         }}
                                         className="flex flex-col items-center gap-1 min-w-[64px] transition-opacity focus:outline-none"
                                         style={timelineItemSnapStyle}

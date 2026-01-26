@@ -132,12 +132,18 @@ export default function FeedItemSidebar({
                     <div className="flex flex-col items-center gap-0.5 relative">
                         <button
                             type="button"
-                            onClick={() => {
+                            onClick={(e) => {
+                                e.stopPropagation();
+
                                 // If user is a waiting participant (assigned slot), go to timeline (which handles contribution flow)
                                 const isWaitingParticipant = story.participants?.some(p => p.id === currentUser?.id && p.status === 'waiting');
 
-                                if (isWaitingParticipant) {
-                                    router.push(`/story/${story.id}`);
+                                // ALSO check if User is Creator and there are open slots (Creator can always fill open slots)
+                                const isCreator = currentUser?.id === story.creatorId;
+                                const hasOpenSlots = (story.contributions?.length || 0) < (story.maxWeeves || 3);
+
+                                if (isWaitingParticipant || (isCreator && hasOpenSlots)) {
+                                    router.push(`/story/${story.id}?action=add`);
                                     return;
                                 }
 
@@ -215,7 +221,7 @@ export default function FeedItemSidebar({
                                 if (typeof window !== 'undefined') {
                                     sessionStorage.setItem('weeve_return_to_story', story.id);
                                 }
-                                router.push(`/story/${story.id}`);
+                                router.push(`/story/${story.id}?action=add`);
                             }}
                             className="w-10 h-10 rounded-full bg-[#EC1D99] flex items-center justify-center border border-white/20 text-white shadow-lg shadow-[#EC1D99]/30 hover:scale-110 transition-transform"
                             aria-label="Add to story"

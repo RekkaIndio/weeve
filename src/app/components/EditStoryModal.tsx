@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Trash, Play, Video, Image as ImageIcon, Maximize2, PenTool, Type } from 'lucide-react';
+import { X, Trash, Play, Video, Image as ImageIcon, Maximize2, PenTool, Type, Plus } from 'lucide-react';
 import { Story, User, useStore, isSlotImmutable, MediaType } from '@/lib/store';
-import { removeParticipant } from '@/lib/stories';
+import { removeParticipant, increaseStorySlots, decreaseStorySlots } from '@/lib/stories';
+import { MAX_STORY_PARTS } from '@/lib/constants';
 import { ConfirmModal } from '../(app)/story/[id]/components/Modals';
 
 interface EditStoryModalProps {
@@ -14,8 +15,8 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
     const [isProcessing, setIsProcessing] = useState(false);
     const [previewMedia, setPreviewMedia] = useState<{ url: string, type: MediaType } | null>(null);
     const [confirmAction, setConfirmAction] = useState<{
-        type: 'remove';
-        userId: string;
+        type: 'remove' | 'remove-empty-slot';
+        userId?: string;
         userName: string;
         position?: number;
         contributionId?: string;
@@ -78,10 +79,20 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
             }
         });
 
+        // 4. Fill up to maxWeeves with empty slots if applicable
+        const maxSlots = story.maxWeeves || 0;
+        if (maxSlots > 0) {
+            for (let i = 0; i < maxSlots; i++) {
+                if (!slotsMap.has(i)) {
+                    slotsMap.set(i, {});
+                }
+            }
+        }
+
         return Array.from(slotsMap.entries())
             .map(([pos, data]) => ({ position: pos, ...data }))
             .sort((a, b) => a.position - b.position);
-    }, [story.participants, story.contributions]);
+    }, [story.participants, story.contributions, story.maxWeeves]);
 
     const handleRemoveParticipant = async (userId: string, userName: string, position?: number, contributionId?: string) => {
         setIsProcessing(true);
@@ -134,6 +145,72 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
         } finally {
             setIsProcessing(false);
             setConfirmAction(null);
+        }
+    };
+
+    const handleAddSlot = async () => {
+        if (!currentUser) return;
+        setIsProcessing(true);
+        try {
+            const result = await increaseStorySlots(story.id, currentUser.id);
+            if (result.success) {
+                // Update local store
+                const newStories = stories.map(s => {
+                    if (s.id === story.id) {
+                        return {
+                            ...s,
+                            maxWeeves: (s.maxWeeves || 0) + 1
+                        };
+                    }
+                    return s;
+                });
+                setStories(newStories);
+            } else {
+                alert(result.error || 'Failed to add slot');
+            }
+        } catch (error) {
+            console.error('Error adding slot:', error);
+            alert('Failed to add slot');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleRemoveEmptySlot = async () => {
+        if (!currentUser) return;
+        setIsProcessing(true);
+        try {
+            const result = await decreaseStorySlots(story.id, currentUser.id);
+            if (result.success) {
+                // Update local store
+                const newStories = stories.map(s => {
+                    if (s.id === story.id) {
+                        return {
+                            ...s,
+                            maxWeeves: Math.max((s.maxWeeves || 1) - 1, 1)
+                        };
+                    }
+                    return s;
+                });
+                setStories(newStories);
+            } else {
+                alert(result.error || 'Failed to remove slot');
+            }
+        } catch (error) {
+            console.error('Error removing slot:', error);
+            alert('Failed to remove slot');
+        } finally {
+            setIsProcessing(false);
+            setConfirmAction(null);
+        }
+    };
+
+    const handleConfirmAction = () => {
+        if (!confirmAction) return;
+        if (confirmAction.type === 'remove-empty-slot') {
+            handleRemoveEmptySlot();
+        } else if (confirmAction.userId) {
+            handleRemoveParticipant(confirmAction.userId, confirmAction.userName, confirmAction.position, confirmAction.contributionId);
         }
     };
 
@@ -212,7 +289,10 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
                                                     </div>
                                                 )
                                             ) : (
-                                                <img src={userAvatar} className="w-full h-full object-cover opacity-50 grayscale" alt={userName} />
+                                                // Empty slot - distinct "open slot" visual
+                                                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900 border-2 border-dashed border-gray-600">
+                                                    <Plus className="w-5 h-5 text-gray-500" />
+                                                </div>
                                             )}
 
                                             {/* Overlay Icon */}
@@ -233,7 +313,7 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
                                             </div>
                                             {!contribution && (
                                                 <p className="text-xs text-gray-500 truncate mt-0.5">
-                                                    {story.currentTurnUserId === userId ? 'Starting their turn...' : 'Waiting to post...'}
+                                                    {userId ? (story.currentTurnUserId === userId ? 'Starting their turn...' : 'Waiting to post...') : 'Open slot'}
                                                 </p>
                                             )}
                                         </div>
@@ -242,16 +322,27 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
                                     <div className="ml-3">
                                         {!isLocked && (isCreator || isMe) ? (
                                             <button
-                                                onClick={() => setConfirmAction({
-                                                    type: 'remove',
-                                                    userId: userId,
-                                                    userName: userName,
-                                                    position: position,
-                                                    contributionId: contribution?.id
-                                                })}
+                                                onClick={() => {
+                                                    // If no userId, this is an empty slot - use special action
+                                                    if (!userId) {
+                                                        setConfirmAction({
+                                                            type: 'remove-empty-slot',
+                                                            userName: 'Open Slot',
+                                                            position: position
+                                                        });
+                                                    } else {
+                                                        setConfirmAction({
+                                                            type: 'remove',
+                                                            userId: userId,
+                                                            userName: userName,
+                                                            position: position,
+                                                            contributionId: contribution?.id
+                                                        });
+                                                    }
+                                                }}
                                                 disabled={isProcessing}
                                                 className="p-2.5 bg-gray-800 text-gray-400 hover:text-red-400 hover:bg-red-900/20 rounded-xl transition-all border border-transparent hover:border-red-900/30 group"
-                                                title="Delete this part"
+                                                title={userId ? "Delete this part" : "Remove this slot"}
                                             >
                                                 <Trash className="w-5 h-5 group-hover:scale-110 transition-transform" />
                                             </button>
@@ -268,51 +359,69 @@ export default function EditStoryModal({ story, onClose }: EditStoryModalProps) 
                                 No parts found.
                             </div>
                         )}
+
+                        {/* Add Slot Button */}
+                        {story.creatorId === currentUser?.id && (story.maxWeeves || 0) < MAX_STORY_PARTS && (
+                            <button
+                                onClick={handleAddSlot}
+                                disabled={isProcessing}
+                                className="w-full p-3 bg-gray-800/30 hover:bg-gray-800 border-2 border-dashed border-gray-800 hover:border-gray-700 text-gray-400 hover:text-white rounded-xl transition-all flex items-center justify-center gap-2 group"
+                            >
+                                <div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <Plus className="w-4 h-4" />
+                                </div>
+                                <span className="font-medium">Add Part</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
 
             {/* Media Preview Overlay */}
-            {previewMedia && (
-                <div className="fixed inset-0 z-[60] bg-black/95 flex flex-col items-center justify-center animate-in fade-in duration-200" onClick={() => setPreviewMedia(null)}>
-                    <button
-                        onClick={() => setPreviewMedia(null)}
-                        className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-                    >
-                        <X className="w-8 h-8" />
-                    </button>
+            {
+                previewMedia && (
+                    <div className="fixed inset-0 z-[60] bg-black/95 flex flex-col items-center justify-center animate-in fade-in duration-200" onClick={() => setPreviewMedia(null)}>
+                        <button
+                            onClick={() => setPreviewMedia(null)}
+                            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+                        >
+                            <X className="w-8 h-8" />
+                        </button>
 
-                    <div className="w-full max-w-4xl h-full col-span-1 p-4 flex items-center justify-center p-8" onClick={(e) => e.stopPropagation()}>
-                        {previewMedia.type === 'video' ? (
-                            <video
-                                key={previewMedia.url}
-                                src={previewMedia.url}
-                                controls
-                                autoPlay
-                                playsInline
-                                className="max-w-full max-h-[85vh] rounded-lg shadow-2xl bg-black"
-                            />
-                        ) : previewMedia.type === 'image' || previewMedia.type === 'drawing' ? (
-                            <img src={previewMedia.url} className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl" alt="Preview" />
-                        ) : (
-                            <div className="bg-white text-black p-8 rounded-2xl max-w-2xl text-xl font-medium shadow-2xl text-center min-w-[300px]">
-                                {story.contributions.find(c => c.mediaUrl === previewMedia.url)?.content}
-                            </div>
-                        )}
+                        <div className="w-full max-w-4xl h-full col-span-1 p-4 flex items-center justify-center p-8" onClick={(e) => e.stopPropagation()}>
+                            {previewMedia.type === 'video' ? (
+                                <video
+                                    key={previewMedia.url}
+                                    src={previewMedia.url}
+                                    controls
+                                    autoPlay
+                                    playsInline
+                                    className="max-w-full max-h-[85vh] rounded-lg shadow-2xl bg-black"
+                                />
+                            ) : previewMedia.type === 'image' || previewMedia.type === 'drawing' ? (
+                                <img src={previewMedia.url} className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl" alt="Preview" />
+                            ) : (
+                                <div className="bg-white text-black p-8 rounded-2xl max-w-2xl text-xl font-medium shadow-2xl text-center min-w-[300px]">
+                                    {story.contributions.find(c => c.mediaUrl === previewMedia.url)?.content}
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Confirmation Modal */}
             <ConfirmModal
                 isOpen={!!confirmAction}
-                title="Delete this part?"
-                message={`Are you sure you want to delete this contribution by ${confirmAction?.userName}? This action cannot be undone.`}
-                confirmLabel={isProcessing ? "Deleting..." : "Delete Part"}
-                onConfirm={() => confirmAction && handleRemoveParticipant(confirmAction.userId, confirmAction.userName, confirmAction.position, confirmAction.contributionId)}
+                title={confirmAction?.type === 'remove-empty-slot' ? 'Remove this slot?' : 'Delete this part?'}
+                message={confirmAction?.type === 'remove-empty-slot'
+                    ? 'Are you sure you want to remove this empty slot? This will reduce the number of parts in your story.'
+                    : `Are you sure you want to delete this contribution by ${confirmAction?.userName}? This action cannot be undone.`}
+                confirmLabel={isProcessing ? "Removing..." : (confirmAction?.type === 'remove-empty-slot' ? 'Remove Slot' : 'Delete Part')}
+                onConfirm={handleConfirmAction}
                 onClose={() => setConfirmAction(null)}
                 variant="danger"
             />
-        </div>
+        </div >
     );
 }

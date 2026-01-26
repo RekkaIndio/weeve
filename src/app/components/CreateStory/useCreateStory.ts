@@ -3,6 +3,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { searchUsers, addFriend, sendFriendRequest } from "@/lib/friends";
 import { searchHashtags } from "@/lib/hashtags";
 import { getBrandPostPricing } from "@/lib/paypal-payment";
+import { MAX_STORY_PARTS } from "@/lib/constants";
 import { CreateStoryFormState, Friend, StorySlot } from "./types";
 
 // Brand payment info for Square modal
@@ -409,7 +410,7 @@ export const useCreateStory = ({
   const handleSlotCountChange = (increment: boolean) => {
     const current = formState.inviteCount + 1;
     if (increment) {
-        if (current < 11) {
+        if (current < MAX_STORY_PARTS) {
             const newTotal = current + 1;
             const newCount = newTotal - 1;
             setSlots(prev => [...prev, { id: generateId(), friend: null }]);

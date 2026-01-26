@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { User } from './store';
 import { notifyParticipantLeft } from './notifications';
+import { MAX_STORY_PARTS } from './constants';
 
 /**
  * Skip a user's turn (used when timer expires or manual skip)
@@ -300,6 +301,114 @@ export async function deleteStory(
         return { success: true };
     } catch (error) {
         console.error('Unexpected error deleting story:', error);
+        return { success: false, error: 'An unexpected error occurred' };
+    }
+}
+
+/**
+ * Increase the number of slots (max_weeves) for a story
+ * Only the creator can do this, and there is a hard limit (e.g. 12)
+ */
+export async function increaseStorySlots(
+    storyId: string,
+    userId: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        // 1. Get story details
+        const { data: story, error: storyError } = await supabase
+            .from('stories')
+            .select('creator_id, max_weeves')
+            .eq('id', storyId)
+            .single();
+
+        if (storyError || !story) {
+            return { success: false, error: 'Story not found' };
+        }
+
+        // 2. Verify creator
+        if (story.creator_id !== userId) {
+            return { success: false, error: 'Only the creator can add slots' };
+        }
+
+        // 3. Check limit
+        if ((story.max_weeves || 0) >= MAX_STORY_PARTS) {
+            return { success: false, error: `Maximum of ${MAX_STORY_PARTS} slots reached` };
+        }
+
+        // 4. Increment
+        const { error: updateError } = await supabase
+            .from('stories')
+            .update({ max_weeves: (story.max_weeves || 0) + 1 })
+            .eq('id', storyId);
+
+        if (updateError) {
+            console.error('Error increasing slots:', updateError);
+            return { success: false, error: 'Failed to update story' };
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('Unexpected error increasing slots:', error);
+        return { success: false, error: 'An unexpected error occurred' };
+    }
+}
+
+/**
+ * Decrease the number of slots (max_weeves) for a story
+ * Only the creator can do this, and only if the slot is truly empty
+ * (no participant assigned and no contribution at that position)
+ */
+export async function decreaseStorySlots(
+    storyId: string,
+    userId: string
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        // 1. Get story details
+        const { data: story, error: storyError } = await supabase
+            .from('stories')
+            .select('creator_id, max_weeves')
+            .eq('id', storyId)
+            .single();
+
+        if (storyError || !story) {
+            return { success: false, error: 'Story not found' };
+        }
+
+        // 2. Verify creator
+        if (story.creator_id !== userId) {
+            return { success: false, error: 'Only the creator can remove slots' };
+        }
+
+        // 3. Check we have slots to remove (minimum 1)
+        if ((story.max_weeves || 0) <= 1) {
+            return { success: false, error: 'Cannot have fewer than 1 slot' };
+        }
+
+        // 4. Count current contributions to ensure there's room
+        const { count: contributionsCount } = await supabase
+            .from('contributions')
+            .select('id', { count: 'exact', head: true })
+            .eq('story_id', storyId);
+
+        // Can only remove slot if there's at least one empty slot
+        if ((contributionsCount || 0) >= (story.max_weeves || 0)) {
+            return { success: false, error: 'Cannot remove slot - all slots are filled' };
+        }
+
+        // 5. Decrement
+        const { error: updateError } = await supabase
+            .from('stories')
+            .update({ max_weeves: (story.max_weeves || 1) - 1 })
+            .eq('id', storyId);
+
+        if (updateError) {
+            console.error('Error decreasing slots:', updateError);
+            return { success: false, error: 'Failed to update story' };
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error('Unexpected error decreasing slots:', error);
         return { success: false, error: 'An unexpected error occurred' };
     }
 }
