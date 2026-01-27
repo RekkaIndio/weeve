@@ -165,10 +165,10 @@ export function calculateRecencyScore(story: Story): number {
   const hoursOld = (Date.now() - createdAt) / 3600000;
 
   // Gentle decay curve - fresh is good but not overwhelming
-  if (hoursOld < 1) return 70;    // Just posted - very fresh
-  if (hoursOld < 6) return 60;    // <6 hours - fresh
-  if (hoursOld < 24) return 50;   // Today
-  if (hoursOld < 72) return 30;   // This week
+  if (hoursOld < 1) return 200;    // Just posted - very fresh (Was 70)
+  if (hoursOld < 6) return 150;    // <6 hours - fresh (Was 60)
+  if (hoursOld < 24) return 100;   // Today (Was 50)
+  if (hoursOld < 72) return 50;   // This week (Was 30)
 
   return 10; // Older content can still rank if other factors are strong
 }

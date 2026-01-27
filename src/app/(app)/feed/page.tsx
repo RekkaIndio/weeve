@@ -30,7 +30,7 @@ export default function Home() {
   // Pull-to-refresh state
   const [pullProgress, setPullProgress] = useState(0);
   const isPullingRef = useRef(false);
-  const PULL_THRESHOLD = 120; // px to trigger refresh
+  const PULL_THRESHOLD = 70; // px to trigger refresh
 
   // Touch tracking Refs
   const touchStartYRef = useRef(0);
