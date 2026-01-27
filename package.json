@@ -68,6 +68,7 @@
     "multer": "^2.0.2",
     "next": "16.0.7",
     "next-auth": "^4.24.13",
+    "obscenity": "^0.4.6",
     "prisma": "^6.19.0",
     "react": "19.2.1",
     "react-dom": "19.2.1",

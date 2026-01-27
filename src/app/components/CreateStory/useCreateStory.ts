@@ -4,6 +4,7 @@ import { searchUsers, addFriend, sendFriendRequest } from "@/lib/friends";
 import { searchHashtags } from "@/lib/hashtags";
 import { getBrandPostPricing } from "@/lib/paypal-payment";
 import { MAX_STORY_PARTS } from "@/lib/constants";
+import { validateStoryContent } from "@/lib/profanity-filter";
 import { CreateStoryFormState, Friend, StorySlot } from "./types";
 
 // Brand payment info for Square modal
@@ -500,6 +501,14 @@ export const useCreateStory = ({
   const handleCreateStory = async () => {
     if (formState.title.trim().length === 0) {
       setError("Story title is required");
+      if (titleInputRef.current) titleInputRef.current.focus();
+      return;
+    }
+
+    // Check for profanity in title and description
+    const profanityCheck = validateStoryContent(formState.title, formState.description);
+    if (!profanityCheck.isValid) {
+      setError(profanityCheck.error || "Your story contains inappropriate language. Please revise and try again.");
       if (titleInputRef.current) titleInputRef.current.focus();
       return;
     }

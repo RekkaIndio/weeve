@@ -6,6 +6,7 @@ import CreateStory, { CreateStoryFormState, Friend } from '@/app/components/Crea
 import { useStore, Story, User } from '@/lib/store';
 import { supabase } from '@/lib/supabase';
 import { getCollabPrice, formatPrice } from '@/lib/collaborations';
+import { containsProfanity } from '@/lib/profanity-filter';
 
 
 function CreateStoryContent() {
@@ -128,6 +129,11 @@ function CreateStoryContent() {
 
   const handleCreateStory = async (data: CreateStoryFormState): Promise<string> => {
     if (!currentUser) throw new Error('User not authenticated'); // Safety check
+
+    // Server-side profanity check (safety net for bypassed client validation)
+    if (containsProfanity(data.title) || containsProfanity(data.description)) {
+      throw new Error('Content contains inappropriate language. Please revise and try again.');
+    }
 
     try {
       // Ensure description is never empty (database requires NOT NULL)
