@@ -21,12 +21,12 @@ const GroupCard: React.FC<GroupCardProps> = ({ group, onJoin, onShare, onClick }
     return (
         <div
             onClick={() => onClick(group.id)}
-            className="group relative bg-gradient-to-br from-gray-900 to-gray-900/50 border border-gray-800 rounded-2xl p-4 hover:border-[#EC1D99]/50 hover:shadow-lg hover:shadow-[#EC1D99]/5 transition-all duration-300 cursor-pointer overflow-hidden"
+            className="group relative h-full flex flex-col bg-gradient-to-br from-gray-900 to-gray-900/50 border border-gray-800 rounded-2xl p-4 hover:border-[#EC1D99]/50 hover:shadow-lg hover:shadow-[#EC1D99]/5 transition-all duration-300 cursor-pointer overflow-hidden"
         >
             {/* Hover Gradient Effect */}
             <div className="absolute inset-0 bg-gradient-to-br from-[#EC1D99]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
-            <div className="relative z-10 flex items-start gap-4">
+            <div className="relative z-10 flex-1 flex gap-4 w-full">
                 {/* Avatar Column */}
                 <div className="flex-shrink-0 flex flex-col items-center gap-3">
                     <img
@@ -46,44 +46,46 @@ const GroupCard: React.FC<GroupCardProps> = ({ group, onJoin, onShare, onClick }
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start gap-2">
-                        <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                                <h3 className="font-bold text-lg text-white leading-tight group-hover:text-[#EC1D99] transition-colors">
-                                    {group.name}
-                                </h3>
-                                {group.ownerIsVerified && (
-                                    <VerificationBadge
-                                        isVerified={true}
-                                        tier={group.ownerVerificationTier}
-                                        size="sm"
-                                    />
-                                )}
+                <div className="flex-1 min-w-0 flex flex-col justify-between">
+                    <div>
+                        <div className="flex justify-between items-start gap-2 w-full">
+                            <div className="flex-1 min-w-0 pr-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    <h3 className="font-bold text-lg text-white leading-tight group-hover:text-[#EC1D99] transition-colors truncate w-full" title={group.name}>
+                                        {group.name}
+                                    </h3>
+                                    {group.ownerIsVerified && (
+                                        <VerificationBadge
+                                            isVerified={true}
+                                            tier={group.ownerVerificationTier}
+                                            size="sm"
+                                        />
+                                    )}
+                                </div>
                             </div>
+
+                            {/* Action Button (Join) */}
+                            {!group.isMember && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onJoin(group.id, group.isPrivate, group.name);
+                                    }}
+                                    className="flex-shrink-0 bg-[#EC1D99] hover:bg-[#d61a88] text-white text-xs font-bold px-4 py-1.5 rounded-full transition-colors shadow-lg shadow-[#EC1D99]/20"
+                                >
+                                    Join
+                                </button>
+                            )}
                         </div>
 
-                        {/* Action Button (Join) */}
-                        {!group.isMember && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onJoin(group.id, group.isPrivate, group.name);
-                                }}
-                                className="flex-shrink-0 bg-[#EC1D99] hover:bg-[#d61a88] text-white text-xs font-bold px-4 py-1.5 rounded-full transition-colors shadow-lg shadow-[#EC1D99]/20"
-                            >
-                                Join
-                            </button>
-                        )}
+                        <p className="text-sm text-gray-400 mt-1 line-clamp-2 leading-relaxed h-10">
+                            {group.description || "No description provided."}
+                        </p>
                     </div>
 
-                    <p className="text-sm text-gray-400 mt-1 line-clamp-2 leading-relaxed">
-                        {group.description || "No description provided."}
-                    </p>
-
                     {/* Footer / Stats */}
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
-                        <div className="flex items-center gap-4 text-xs text-gray-500 font-medium">
+                    <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/5">
+                        <div className="flex items-center gap-4 text-xs text-gray-500 font-medium whitespace-nowrap">
                             <div className="flex items-center gap-1.5">
                                 <Users className="w-3.5 h-3.5 text-[#EC1D99]" />
                                 <span>{formatCount(group.memberCount || 0)} Members</span>
