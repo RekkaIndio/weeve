@@ -10,7 +10,7 @@ import MarketingNavbar from "@/app/components/MarketingNavbar";
 import MarketingFooter from "@/app/components/MarketingFooter";
 // WaitlistModal removed - using direct signup links now
 import WeeveTreeVisual from "@/app/components/WeeveTreeVisual";
-import PhoneDemo3D from "@/app/components/marketing/PhoneDemo3D";
+import HeroVisual3D from "@/app/components/marketing/HeroVisual3D";
 import CollaborativeFlowSection from "@/app/components/marketing/CollaborativeFlowSection";
 import FeatureShowcase3D from "@/app/components/marketing/FeatureShowcase3D";
 import ComparisonSection3D from "@/app/components/marketing/ComparisonSection3D";
@@ -177,14 +177,14 @@ export default function LandingPage() {
                             </motion.div>
                         </div>
 
-                        {/* Dynamic Weeve Tree Visual */}
+                        {/* 3D Hero Visual */}
                         <motion.div
                             initial={{ opacity: 0, scale: 0.9 }}
                             animate={{ opacity: 1, scale: 1 }}
                             transition={{ delay: 0.6, duration: 0.8 }}
-                            className="flex-[1.2] relative min-h-[500px] flex items-center"
+                            className="flex-[1.2] relative"
                         >
-                            <PhoneDemo3D />
+                            <HeroVisual3D />
                         </motion.div>
                     </div>
                 </div>
