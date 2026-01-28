@@ -18,16 +18,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Weeve",
   description: "Weeve - Social Media Reimagined",
-  icons: {
-    icon: '/weeve-logo.png',
-    shortcut: '/weeve-logo.png',
-    apple: '/weeve-logo.png',
-  },
-  openGraph: {
-    title: 'Weeve',
-    description: 'Weeve - Social Media Reimagined',
-    images: ['/weeve-logo.png'],
-  },
 };
 
 export const viewport = {
