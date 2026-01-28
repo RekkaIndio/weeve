@@ -5,7 +5,7 @@ import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { getLatestSession } from '@/lib/auth-session';
 import { useAuth } from '@/app/components/AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
-import NotificationBell from "@/app/components/NotificationBell";
+
 import { useStore } from '@/lib/store';
 import { fetchGroups as fetchGroupsData } from '@/lib/data';
 import GroupShareModal from '@/app/components/GroupShareModal';
@@ -267,30 +267,24 @@ export default function GroupsPage() {
     });
 
     return (
-        <div className="min-h-screen bg-black text-white p-4 md:p-6 pb-24">
+        <div className="min-h-screen bg-black text-white px-4 md:px-6 pb-24 pt-4">
             <div className="max-w-7xl mx-auto space-y-6">
                 {/* Header Section */}
                 <div className="flex justify-between items-center gap-4">
                     <h1 className="text-3xl font-bold font-poppins tracking-tight">Community</h1>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 mr-12">
                         {activeTab === 'groups' && (
                             <button
                                 onClick={() => setShowCreateGroup(true)}
-                                className="flex items-center gap-2 bg-[#EC1D99] hover:bg-[#d61a88] text-white px-4 py-2 rounded-full font-semibold transition-all shadow-lg shadow-[#EC1D99]/20 active:scale-95 text-sm"
+                                className="flex items-center gap-2 bg-[#EC1D99] hover:bg-[#d61a88] text-white px-5 h-11 rounded-full font-semibold transition-all shadow-lg shadow-[#EC1D99]/20 active:scale-95 text-sm"
                             >
                                 <Plus className="w-4 h-4" />
                                 Create
                             </button>
                         )}
 
-                        {user && (
-                            <NotificationBell
-                                userId={user.id}
-                                className="bg-[#121212] border border-gray-800"
-                                badgeClassName="bg-[#EC1D99]"
-                            />
-                        )}
+
                     </div>
                 </div>
 

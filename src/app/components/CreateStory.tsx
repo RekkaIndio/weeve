@@ -169,7 +169,7 @@ const CreateStory = ({
       </header>
 
       <main className="flex-1 px-4 py-8 pb-32 overflow-y-auto overflow-x-hidden hidden-scrollbar">
-        <div className="max-w-xl mx-auto space-y-8 overflow-visible">
+        <div className="w-full max-w-7xl mx-auto space-y-8 overflow-visible">
 
           {/* Error Message */}
           {error && (
@@ -257,7 +257,7 @@ const CreateStory = ({
 
       {/* Footer Actions */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent z-50 pb-[calc(env(safe-area-inset-bottom,0px)+24px)]">
-        <div className="max-w-xl mx-auto flex gap-3">
+        <div className="w-full max-w-7xl mx-auto flex gap-3">
           <button
             onClick={handleBack}
             className="flex-1 px-6 py-3 border border-gray-800 rounded-2xl text-gray-300 font-bold hover:bg-gray-900 hover:text-white transition-colors flex items-center justify-center bg-black/50 backdrop-blur-md"

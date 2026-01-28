@@ -50,7 +50,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         { label: "Profile", href: "/profile", icon: User },
     ];
 
-    const showHomeNotification = currentUser && pathname === "/feed";
+    const showHomeNotification = currentUser && (pathname === "/feed" || pathname === "/groups");
     const isHome = pathname === "/feed";
 
     // Hide bottom nav on create-story page and conversation pages for full screen experience
@@ -66,7 +66,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="w-full lg:max-w-5xl bg-black h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden border-x border-gray-800 safe-area-pt transition-all duration-300">
 
                 {showHomeNotification && (
-                    <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-2 flex justify-end gap-3 pointer-events-none">
+                    <div className="absolute top-0 left-0 right-0 z-10 px-4 md:px-6 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-2 flex justify-end gap-3 pointer-events-none">
                         <NotificationBell
                             userId={currentUser?.id}
                             className="bg-black/70 border border-white/10 backdrop-blur-md shadow-lg pointer-events-auto"

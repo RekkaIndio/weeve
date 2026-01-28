@@ -223,7 +223,7 @@ export default function NotificationsList({ userId, onNotificationCountChange }:
     }
 
     return (
-        <div className="w-full max-w-2xl mx-auto px-4 py-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)]">
+        <div className="w-full max-w-7xl mx-auto px-4 py-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)]">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl font-bold text-white">Notifications</h1>
