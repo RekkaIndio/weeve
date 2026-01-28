@@ -168,7 +168,7 @@ export default function SettingsPage() {
             items: [
                 { label: "Account Information", icon: IdCard, action: () => router.push('/settings/account') },
                 { label: "Account Privacy", icon: Lock, toggle: true, description: "When enabled, only approved friends can see your profile and stories" },
-                { label: "Collaboration Settings", icon: Users, action: () => router.push('/settings/collaboration'), description: "Manage who can collaborate with you and set your pricing" },
+                ...(!currentUser?.isBrand ? [{ label: "Collaboration Settings", icon: Users, action: () => router.push('/settings/collaboration'), description: "Manage who can collaborate with you and set your pricing" }] : []),
                 { label: "Blocked Users", icon: Ban, action: () => router.push('/settings/blocked-users') },
             ]
         },
