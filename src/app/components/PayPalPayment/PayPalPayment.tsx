@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { PayPalScriptProvider, PayPalButtons, usePayPalScriptReducer } from '@paypal/react-paypal-js';
 import styles from './PayPalPayment.module.css';
 
@@ -52,14 +52,6 @@ function PayPalButtonWrapper({
     const [{ isPending }] = usePayPalScriptReducer();
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    const formatAmount = (amountInMinor: number, currencyCode: string) => {
-        const majorUnits = amountInMinor / 100;
-        return new Intl.NumberFormat('en-GB', {
-            style: 'currency',
-            currency: currencyCode,
-        }).format(majorUnits);
-    };
 
     const createOrderHandler = useCallback(async (): Promise<string> => {
         setError(null);
@@ -224,6 +216,13 @@ export default function PayPalPayment(props: PayPalPaymentProps) {
         }).format(majorUnits);
     };
 
+    const paypalOptions = useMemo(() => ({
+        clientId: config?.clientId || '',
+        currency: currency,
+        intent: 'capture',
+        disableFunding: 'card', // Disable inline card fields to avoid COMPLIANCE_VIOLATION in Sandbox
+    }), [config?.clientId, currency]);
+
     if (loading) {
         return (
             <div className={styles.container}>
@@ -258,13 +257,7 @@ export default function PayPalPayment(props: PayPalPaymentProps) {
                 </div>
             </div>
 
-            <PayPalScriptProvider
-                options={{
-                    clientId: config.clientId,
-                    currency: currency,
-                    intent: 'capture',
-                }}
-            >
+            <PayPalScriptProvider options={paypalOptions}>
                 <PayPalButtonWrapper {...props} />
             </PayPalScriptProvider>
         </div>

@@ -6,6 +6,11 @@ export async function GET() {
     const config = getPayPalConfig();
     
     if (!config.clientId) {
+      console.error('[PayPal Config] Missing clientId. Environment variables check:', {
+        hasNextPublicId: !!process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID,
+        hasStandardId: !!process.env.PAYPAL_CLIENT_ID,
+        env: config.environment
+      });
       return NextResponse.json(
         { error: 'PayPal is not configured' },
         { status: 500 }

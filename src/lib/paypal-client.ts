@@ -55,7 +55,7 @@ function getApiBase(): string {
 }
 
 function getClientId(): string {
-  const clientId = process.env.PAYPAL_CLIENT_ID;
+  const clientId = process.env.PAYPAL_CLIENT_ID || process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
   if (!clientId) {
     throw new Error('PAYPAL_CLIENT_ID environment variable is not set');
   }
@@ -135,20 +135,8 @@ export async function createOrder(params: CreateOrderParams): Promise<PayPalOrde
           },
         },
       ],
-      payment_source: {
-        paypal: {
-          experience_context: {
-            payment_method_preference: 'UNRESTRICTED',
-            shipping_preference: 'NO_SHIPPING',
-            brand_name: 'Weeve',
-            locale: 'en-GB',
-            landing_page: 'BILLING',
-            user_action: 'CONTINUE',
-            return_url: `${process.env.NEXT_PUBLIC_WEB_APP_URL || 'http://localhost:3000'}/wallet?payment=success`,
-            cancel_url: `${process.env.NEXT_PUBLIC_WEB_APP_URL || 'http://localhost:3000'}/wallet?payment=cancelled`,
-          },
-        },
-      },
+      // Note: Removed payment_source block to use classic Orders API flow
+      // The payment_source.paypal block triggers stricter compliance checks in UK Sandbox
     }),
   });
 
