@@ -10,6 +10,7 @@ import {
     Film,
     Users,
     UsersRound,
+    Building2,
     ChevronLeft,
     ChevronRight,
     LogOut,
@@ -25,6 +26,7 @@ interface AdminUser {
 
 const navItems = [
     { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+    { href: '/admin/communities', icon: Building2, label: 'Communities' },
     { href: '/admin/reports', icon: AlertTriangle, label: 'Reports' },
     { href: '/admin/stories', icon: Film, label: 'Stories' },
     { href: '/admin/users', icon: Users, label: 'Users' },

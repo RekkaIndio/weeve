@@ -11,12 +11,20 @@ export default function WelcomePage() {
     const { user } = useAuth();
 
     const handleComplete = async () => {
-        // Update database to advance onboarding step
+        // Update database to advance onboarding step via API (Bypasses RLS)
         if (user) {
-            await supabase
-                .from('profiles')
-                .update({ onboarding_step: 2 })
-                .eq('user_id', user.id);
+            try {
+                await fetch('/api/auth/update-onboarding', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: user.id,
+                        onboardingStep: 2
+                    }),
+                });
+            } catch (err) {
+                console.error('[WelcomePage] API Update failed:', err);
+            }
 
             // Update store to prevent race condition with AuthProvider
             const { setCurrentUser, currentUser: storeUser } = useStore.getState();
@@ -61,14 +69,19 @@ export default function WelcomePage() {
             window.location.href = "/feed";
         }
 
-        // Update database in the background (fire and forget)
+        // Update database in the background via API (Bypasses RLS)
         if (user) {
-            supabase
-                .from('profiles')
-                .update({ onboarding_step: null, completed_onboarding: true })
-                .eq('user_id', user.id)
-                .then(() => console.log('[WelcomePage] Database updated for skip'))
-                .catch((err: Error) => console.error('[WelcomePage] Skip db update error:', err));
+            fetch('/api/auth/update-onboarding', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: user.id,
+                    onboardingStep: null,
+                    completedOnboarding: true
+                }),
+            })
+                .then(() => console.log('[WelcomePage] Database updated for skip via API'))
+                .catch((err: Error) => console.error('[WelcomePage] Skip API update error:', err));
         }
     };
 

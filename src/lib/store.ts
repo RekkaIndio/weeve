@@ -46,6 +46,8 @@ export interface User {
         website?: string;
         [key: string]: any;
     };
+    // Community multi-tenancy
+    communityId?: string;
     // Brand account fields
     isBrand?: boolean;
     brandWebsite?: string;
@@ -168,6 +170,7 @@ export interface Story {
     collabInitiatorId?: string;
     collabTargetId?: string;
     collabPriceCents?: number; // Price paid for this collab (in cents)
+    communityId?: string;
 }
 
 /**
@@ -1083,7 +1086,9 @@ export const useStore = create<AppState>()(
                             // Always link to the ROOT original story, not the immediate parent
                             // If the story we're forking from is itself a fork, use its original reference
                             // This ensures all weeves in a chain point back to the originating post
-                            forked_from_story_id: originalStory.forked_from_story_id || originalStoryId
+                            forked_from_story_id: originalStory.forked_from_story_id || originalStoryId,
+                            // Use creator's community for content isolation
+                            community_id: currentUser.communityId || null
                         })
                         .select()
                         .single();
@@ -1418,6 +1423,8 @@ export const useStore = create<AppState>()(
             fetchStories: async (reset = true, recursionDepth = 0) => {
                 const PAGE_SIZE = 30;
                 const { currentUser, isStoriesLoading, storiesPage } = get();
+                const userCommunityId = currentUser?.communityId;
+                const defaultCommunityId = '00000000-0000-0000-0000-000000000001';
 
                 // Deduplicate: Don't fetch if already fetching (unless recursing)
                 if (isStoriesLoading && recursionDepth === 0) {
@@ -1439,13 +1446,27 @@ export const useStore = create<AppState>()(
                 try {
                     // Helper to run query with timeout and pagination
                     const runQuery = async (timeoutMs: number) => {
-                        const storiesQueryPromise = supabase
+                        // Start building the query
+                        let query = supabase
                             .from('stories')
                             .select(STORY_SELECT_QUERY)
                             .order('created_at', { ascending: false })
-                            .range(offset, offset + PAGE_SIZE - 1); // Pagination limit
+                            .range(offset, offset + PAGE_SIZE - 1);
+
+                        // Community filter: Show stories from user's community only
+                        // Default public community (WEEVE) sees all stories for backward compatibility
+                        
+                        console.log('[Store] Fetching stories. User Community:', userCommunityId, 'Default:', defaultCommunityId);
+
+                        if (userCommunityId && userCommunityId !== defaultCommunityId) {
+                            console.log('[Store] Applying community filter:', userCommunityId);
+                            query = query.eq('community_id', userCommunityId);
+                        } else {
+                            console.log('[Store] No specific community filter applied (Public Feed)');
+                        }
+
                         return Promise.race([
-                            storiesQueryPromise,
+                            query,
                             new Promise<{ data: any[] | null; error: any }>((resolve) => 
                                 setTimeout(() => resolve({ data: null, error: new Error(`Stories query timeout (${timeoutMs}ms)`) }), timeoutMs)
                             ),
@@ -1684,7 +1705,8 @@ export const useStore = create<AppState>()(
                             brandId: s.brand_id ?? undefined,
                             isFeatured: s.is_featured ?? false,
                             scheduledFor: s.scheduled_for ?? undefined,
-                            forksCount: (s.forks && s.forks[0]) ? s.forks[0].count : 0
+                            forksCount: (s.forks && s.forks[0]) ? s.forks[0].count : 0,
+                            communityId: s.community_id ?? undefined
 };
                     });
 
@@ -1721,7 +1743,29 @@ export const useStore = create<AppState>()(
                              // This prevents older stories (that were loaded individually via useStoryData)
                              // from being dropped when the feed refreshes Page 1.
                              const newIds = new Set(formattedStories.map(s => s.id));
-                             const keptStories = state.stories.filter(s => !newIds.has(s.id));
+                             const keptStories = state.stories.filter(s => {
+                                 // 1. Must not be in the new batch
+                                 if (newIds.has(s.id)) return false;
+
+                                 // 2. Must match the current community filter
+                                 // If user has a specific community, only keep stories from that community
+                                 if (userCommunityId && userCommunityId !== defaultCommunityId) {
+                                     // Check if story belongs to this community
+                                     // Note: 'community_id' property might be camelCase 'communityId' depending on map logic
+                                     const storyCommunityId = (s as any).community_id || (s as any).communityId; 
+                                     if (storyCommunityId && storyCommunityId !== userCommunityId) {
+                                         return false;
+                                     }
+                                     // Strict Check for private community:
+                                     // If the story has NO community ID (undefined), it's likely a legacy public story.
+                                     // If we are in a private community, we should hide it.
+                                     if (!storyCommunityId && userCommunityId !== defaultCommunityId) {
+                                         return false;
+                                     }
+                                 }
+                                 
+                                 return true;
+                             });
 
                              return { 
                                 stories: [...mergedStories, ...keptStories], 
@@ -1927,8 +1971,12 @@ export const useStore = create<AppState>()(
                 const { blockedUserIds } = get();
 
                 try {
+                    const { currentUser } = get();
+                    const userCommunityId = currentUser?.communityId;
+                    const defaultCommunityId = '00000000-0000-0000-0000-000000000001';
+
                     const runQuery = async (timeoutMs: number) => {
-                        const storiesQueryPromise = supabase
+                        let storiesQueryPromise = supabase
                             .from('stories')
                             .select(`
                                 id, title, description, creator_id, visibility, mode, status,
@@ -1936,7 +1984,8 @@ export const useStore = create<AppState>()(
                                 forked_from_story_id, post_type, canon_slots, brand_id, 
                                 is_featured, group_id, current_turn_user_id, allow_comments, 
                                 allow_reuse, turn_timer_hours, monetization_cost,
-                                scheduled_for, visibility_days,
+                                allow_reuse, turn_timer_hours, monetization_cost,
+                                scheduled_for, visibility_days, community_id,
                                 groups (name, avatar, is_private),
                                 contributions (id, user_id, user_name, content, media_type, media_url, timestamp, text_style),
                                 story_participants (user_id, status, position, profiles:user_id (id, name, avatar, is_influencer, is_private, is_brand)),
@@ -1951,6 +2000,14 @@ export const useStore = create<AppState>()(
                             .eq('visibility', 'public')
                             .order('created_at', { ascending: false })
                             .range(offset, offset + PAGE_SIZE - 1);
+                        
+                        // Community Filter for Discover
+                        if (userCommunityId && userCommunityId !== defaultCommunityId) {
+                            storiesQueryPromise = storiesQueryPromise.eq('community_id', userCommunityId);
+                        } else {
+                            // Public feed: Default or Null community
+                            storiesQueryPromise = storiesQueryPromise.or(`community_id.eq.${defaultCommunityId},community_id.is.null`);
+                        }
 
                         return Promise.race([
                             storiesQueryPromise,

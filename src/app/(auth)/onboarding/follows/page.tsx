@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/components/AuthProvider";
 import { useStore } from "@/lib/store";
@@ -53,6 +53,13 @@ export default function FollowsPage() {
     const [loadingGroups, setLoadingGroups] = useState(true);
     const [completing, setCompleting] = useState(false);
     const [activeTab, setActiveTab] = useState<TabType>("creators");
+
+    // Track mount status to prevent updates after unmount
+    const isMounted = useRef(true);
+
+    useEffect(() => {
+        return () => { isMounted.current = false; };
+    }, []);
 
     useEffect(() => {
         loadSuggestedUsers();
@@ -233,14 +240,23 @@ export default function FollowsPage() {
 
         setCompleting(true);
         try {
-            // Mark onboarding as complete
-            await supabase
-                .from('profiles')
-                .update({
-                    onboarding_step: null,
-                    completed_onboarding: true,
-                })
-                .eq('user_id', user.id);
+            // Mark onboarding as complete via API (Bypasses RLS)
+            const response = await fetch('/api/auth/update-onboarding', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: user.id,
+                    onboardingStep: null,
+                    completedOnboarding: true
+                }),
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                console.error('[Follows] API update failed:', errData);
+                // We don't throw here to allow optimistic UI navigation to proceed
+                // as the user is effectively done anyway
+            }
 
             // CRITICAL: Update the store BEFORE navigating to prevent AuthProvider
             // from seeing stale onboardingStep and redirecting back to /onboarding
@@ -256,23 +272,23 @@ export default function FollowsPage() {
             // Respect local dismissal flags so tutorials don't reappear
             try { if (typeof window !== 'undefined' && user?.id) { localStorage.setItem('weeve_onboarding_overlay_dismissed_' + user.id, 'true'); localStorage.setItem('weeve_onboarding_story_overlay_dismissed_' + user.id, 'true'); } } catch (err) { }
 
-            // Navigate to feed with fallback to ensure we navigate
+            // Navigate to feed
+            // Use router.push for SPA navigation, but also force a router refresh to ensure data is up to date
             try {
                 router.push('/feed');
-                // Fallback after short delay
-                setTimeout(() => {
-                    window.location.replace('/feed');
-                }, 500);
+                router.refresh();
             } catch (navErr) {
                 console.warn('[Follows] router.push failed, using fallback:', navErr);
-                window.location.replace('/feed');
+                window.location.href = '/feed';
             }
         } catch (err) {
             console.error('[Follows] Error completing onboarding:', err);
-            // Even on error, try to navigate to feed
-            window.location.replace('/feed');
+            // On error, we still want to let them into the app rather than blocking
+            window.location.href = '/feed';
         } finally {
-            setCompleting(false);
+            if (isMounted.current) {
+                setCompleting(false);
+            }
         }
     };
 
@@ -297,16 +313,16 @@ export default function FollowsPage() {
                 <button
                     onClick={() => setActiveTab("creators")}
                     className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-semibold transition-all relative ${activeTab === "creators"
-                            ? "text-white"
-                            : "text-gray-500 hover:text-gray-300"
+                        ? "text-white"
+                        : "text-gray-500 hover:text-gray-300"
                         }`}
                 >
                     <UserPlus className="w-4 h-4" />
                     Creators
                     {suggestedUsers.length > 0 && (
                         <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === "creators"
-                                ? "bg-[#EC1D99] text-white"
-                                : "bg-gray-800 text-gray-400"
+                            ? "bg-[#EC1D99] text-white"
+                            : "bg-gray-800 text-gray-400"
                             }`}>
                             {suggestedUsers.length}
                         </span>
@@ -318,16 +334,16 @@ export default function FollowsPage() {
                 <button
                     onClick={() => setActiveTab("groups")}
                     className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-semibold transition-all relative ${activeTab === "groups"
-                            ? "text-white"
-                            : "text-gray-500 hover:text-gray-300"
+                        ? "text-white"
+                        : "text-gray-500 hover:text-gray-300"
                         }`}
                 >
                     <Users className="w-4 h-4" />
                     Groups
                     {suggestedGroups.length > 0 && (
                         <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === "groups"
-                                ? "bg-[#EC1D99] text-white"
-                                : "bg-gray-800 text-gray-400"
+                            ? "bg-[#EC1D99] text-white"
+                            : "bg-gray-800 text-gray-400"
                             }`}>
                             {suggestedGroups.length}
                         </span>

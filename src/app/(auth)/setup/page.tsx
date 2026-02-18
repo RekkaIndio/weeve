@@ -190,45 +190,35 @@ export default function SetupPage() {
                 }
             }
 
-            // First clear the name change restriction (for initial setup)
-            await fetch(
-                `${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${encodeURIComponent(user.id)}`,
-                {
-                    method: 'PATCH',
-                    headers: {
-                        'apikey': SUPABASE_ANON_KEY,
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=minimal',
-                    },
-                    body: JSON.stringify({
-                        last_name_change_at: null,
-                    }),
-                }
-            );
+            // Assign user to community based on stored code
+            // Retrieve community code from User Metadata (preferred) or Local Storage (fallback)
+            const metadataCode = user.user_metadata?.community_code;
+            const communityCode = metadataCode || localStorage.getItem('weeve_community_code') || 'WEEVE';
+            console.log(`[Setup] Resolving community code for API. Metadata: ${metadataCode}, LocalStorage: ${localStorage.getItem('weeve_community_code')} -> Final: ${communityCode}`);
 
-            // Now update profile with name, avatar, onboarding_step
-            const response = await fetch(
-                `${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${encodeURIComponent(user.id)}`,
-                {
-                    method: 'PATCH',
-                    headers: {
-                        'apikey': SUPABASE_ANON_KEY,
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=minimal',
-                    },
-                    body: JSON.stringify({
-                        name: displayName.trim(),
-                        avatar: finalAvatar,
-                        onboarding_step: 1,
-                    }),
-                }
-            );
+            // Call Server-Side API to complete profile and assign community (Bypasses RLS)
+            const apiResponse = await fetch('/api/auth/complete-profile', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    userId: user.id,
+                    name: displayName.trim(),
+                    avatar: finalAvatar,
+                    communityCode: communityCode,
+                }),
+            });
 
-            if (!response.ok) {
-                throw new Error('Failed to update profile. Please try again.');
+            if (!apiResponse.ok) {
+                const errorData = await apiResponse.json();
+                throw new Error(errorData.error || 'Failed to complete profile via API');
             }
+
+            const { profile: updatedProfile } = await apiResponse.json();
+            const assignedCommunityId = updatedProfile.community_id;
+
+            localStorage.removeItem('weeve_community_code');
 
             // CRITICAL: Update the store BEFORE redirecting to prevent AuthProvider
             // from seeing stale onboardingStep and bouncing back to /setup
@@ -239,6 +229,7 @@ export default function SetupPage() {
                     name: displayName.trim(),
                     avatar: finalAvatar,
                     onboardingStep: 1,
+                    communityId: assignedCommunityId,
                 });
             }
 

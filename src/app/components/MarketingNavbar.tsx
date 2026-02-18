@@ -54,12 +54,7 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                 >
                     {/* Desktop Navigation */}
                     <div className="hidden md:flex items-center gap-6">
-                        <Link
-                            href="/login"
-                            className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
-                        >
-                            Log In
-                        </Link>
+
 
                         {/* App Store Download Links */}
                         <div className="flex items-center gap-3">
@@ -136,13 +131,7 @@ export default function MarketingNavbar({ onWaitlistClick }: MarketingNavbarProp
                             </Link> */}
 
                             {/* Auth Links */}
-                            <Link
-                                href="/login"
-                                onClick={() => setMobileMenuOpen(false)}
-                                className="block text-base font-bold text-white hover:text-gray-300 transition-colors py-2"
-                            >
-                                Log In
-                            </Link>
+
 
                             <Link
                                 href="/signup"

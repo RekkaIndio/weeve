@@ -56,9 +56,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     // Hide bottom nav on create-story page and conversation pages for full screen experience
     const hideBottomNav = pathname === "/create-story" || pathname?.startsWith("/inbox/");
     // Also hide nav during initial load when there are no stories yet (prevents flash)
-    const isInitialLoad = pathname === "/feed" && stories.length === 0;
+    // REMOVED: isInitialLoad check. We want to show nav even if feed is empty (e.g. new community)
+    // const isInitialLoad = pathname === "/feed" && stories.length === 0;
     const isKeyboardOpen = useKeyboard();
-    const showNavigation = !!user && !hideBottomNav && !isInitialLoad && !isKeyboardOpen;
+    const showNavigation = !!user && !hideBottomNav && !isKeyboardOpen;
 
     return (
         <div className="flex justify-center min-h-[100dvh] bg-black text-white">

@@ -46,12 +46,13 @@ export interface AuthUser {
         [key: string]: any;
     };
     tags?: string[];  // Profile tags like "OG", "Beta Tester", etc.
+    communityId?: string; // Community multi-tenancy
 }
 
 /**
  * Sign up a new user with email and password
  */
-export async function signUp(email: string, password: string, name?: string, dateOfBirth?: string): Promise<{ user: User | null; error: Error | null }> {
+export async function signUp(email: string, password: string, name?: string, dateOfBirth?: string, communityCode?: string): Promise<{ user: User | null; error: Error | null }> {
     try {
         // Create auth user
         const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -61,8 +62,13 @@ export async function signUp(email: string, password: string, name?: string, dat
                 data: {
                     name, // Store name in auth metadata if provided
                     date_of_birth: dateOfBirth,
+                    community_code: communityCode, // Store community code in metadata
                 },
-            } : undefined,
+            } : (communityCode ? {
+                data: {
+                    community_code: communityCode,
+                }
+            } : undefined),
         });
 
         if (authError) throw authError;
@@ -274,7 +280,7 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
     try {
         const { data, error } = await supabase
             .from('profiles')
-            .select('user_id, name, avatar, tagline, tokens, invite_code, is_private, onboarding_step, completed_onboarding, last_name_change_at, is_brand, brand_website, brand_subscription_status, is_influencer, interaction_cost, preferences, tags')
+            .select('user_id, name, avatar, tagline, tokens, invite_code, is_private, onboarding_step, completed_onboarding, last_name_change_at, is_brand, brand_website, brand_subscription_status, is_influencer, interaction_cost, preferences, tags, community_id')
             .eq('user_id', userId)
             .maybeSingle();
 
@@ -302,6 +308,7 @@ export async function getUserProfile(userId: string): Promise<AuthUser | null> {
             interactionCost: data.interaction_cost || null,
             preferences: data.preferences as any || {},
             tags: data.tags || [],
+            communityId: data.community_id || undefined,
         };
     } catch (error) {
         console.error('[Auth] Get profile error:', (error as Error).message);
@@ -318,7 +325,7 @@ export async function fetchProfileWithAccessToken(accessToken: string, userId: s
         if (!accessToken) return null;
         const restUrl = new URL(`${SUPABASE_URL}/rest/v1/profiles`);
         restUrl.searchParams.set('user_id', `eq.${encodeURIComponent(userId)}`);
-        restUrl.searchParams.set('select', 'user_id,name,avatar,tagline,tokens,invite_code,is_private,onboarding_step,completed_onboarding,last_name_change_at,is_brand,brand_website,brand_subscription_status,is_influencer,interaction_cost,preferences,tags');
+        restUrl.searchParams.set('select', 'user_id,name,avatar,tagline,tokens,invite_code,is_private,onboarding_step,completed_onboarding,last_name_change_at,is_brand,brand_website,brand_subscription_status,is_influencer,interaction_cost,preferences,tags,community_id');
 
 
         const controller = new AbortController();
@@ -364,6 +371,7 @@ export async function fetchProfileWithAccessToken(accessToken: string, userId: s
             interactionCost: row.interaction_cost || null,
             preferences: row.preferences || {},
             tags: row.tags || [],
+            communityId: row.community_id || undefined,
         };
     } catch (err) {
         console.warn('[Auth] fetchProfileWithAccessToken error:', (err as Error).message);
@@ -382,103 +390,26 @@ export async function createUserProfile(
     referrerCode?: string,
     dateOfBirth?: string
 ): Promise<{ data: ProfileRow | null; error: Error | null }> {
-    const attemptCreate = async (candidateName: string, isRetry = false): Promise<{ data: ProfileRow | null; error: any }> => {
-        try {
-            const profileData: ProfileInsert = {
-                user_id: userId,
-                name: candidateName,
-                avatar: avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
-                tokens: 100,
-                // Regenerate invite code if name changed or if it's a retry, to ensure uniqueness there too
-                invite_code: inviteCode && !isRetry ? inviteCode : `${candidateName.toUpperCase().slice(0, 3).replace(/[^A-Z]/g, 'U')}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-                onboarding_step: 0, // Start at 0 to send user to /setup for username/avatar
-                completed_onboarding: false,
-                date_of_birth: dateOfBirth,
-                // Set to null so the 14-day restriction doesn't apply to the first name set on /setup
-                last_name_change_at: null,
-            };
-
-            // Split upsert and select to debug 406 error
-            // We use upsert, but if the conflict is on 'user_id', it updates. 
-            // If the conflict is on 'name' (unique_display_name), it throws 23505.
-            const { error: insertError } = await supabase
-                .from('profiles')
-                .upsert(profileData, { onConflict: 'user_id' });
-
-            if (insertError) throw insertError;
-
-            return { data: null, error: null }; // Success (data fetched separately)
-        } catch (err) {
-            return { data: null, error: err };
-        }
-    };
-
     try {
-        // Retry loop for unique name constraint
-        let currentName = name;
-        let success = false;
-        let lastError = null;
+        console.log('[Auth] creating profile via API for:', userId);
+        const response = await fetch('/api/auth/create-profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, email: '', name, avatar, dateOfBirth, referrerCode, inviteCode }) 
+        });
 
-        for (let i = 0; i < 3; i++) {
-            const result = await attemptCreate(currentName, i > 0);
-            if (!result.error) {
-                success = true;
-                break;
-            }
+        const result = await response.json();
 
-            // Check if it's a unique constraint violation on the name
-            // Postgres error code 23505 = unique_violation
-            if (result.error?.code === '23505' && (result.error?.message?.includes('unique_display_name') || result.error?.message?.includes('name'))) {
-                // Append random 4 characters
-                currentName = `${name.slice(0, 20)}_${Math.random().toString(36).substr(2, 4)}`;
-                lastError = result.error;
-            } else if (result.error?.message?.includes('14 days')) {
-                // If we hit the 14-day name change restriction, it means the profile exists.
-                // We should just accept it and NOT fail the login/creation.
-                console.warn('[Auth] Hit 14-day name change limit during create/upsert. fetching existing profile instead.');
-                success = true; // Pretend success to fall through to select
-                break;
-            } else {
-                // Some other error, rethrow immediately
-                console.error('[Auth] Create profile INSERT error:', (result.error as Error).message);
-                throw result.error;
-            }
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to create profile via API');
         }
 
-        if (!success) {
-            console.error('[Auth] Failed to generate unique name after retries.');
-            throw lastError || new Error('Failed to generate unique name');
-        }
-
-        // Fetch the profile we just created/updated
-         const { data: insertedProfile, error: selectError } = await supabase
-            .from('profiles')
-            .select()
-            .eq('user_id', userId)
-            .maybeSingle();
-
-        if (selectError) {
-             console.error('[Auth] Create profile SELECT error:', (selectError as Error).message);
-             throw selectError;
-        }
-
-        // Handle referrer
-        if (referrerCode) {
-            const { data: referrer } = await supabase
-                .from('profiles')
-                .select('user_id')
-                .eq('invite_code', referrerCode)
-                .single();
-
-            if (referrer) {
-                await addFriend(userId, referrer.user_id);
-            }
-        }
-
-        return { data: insertedProfile ?? null, error: null };
-    } catch (error) {
-        console.error('[Auth] Create profile error (full):', (error as Error).message);
-        return { data: null, error: error as Error };
+        // Map response to ProfileRow if needed, or assume it matches
+        // The API returns the inserted row directly
+        return { data: result.profile, error: null };
+    } catch (err) {
+        console.error('[Auth] Create profile API error:', err);
+        return { data: null, error: err as Error };
     }
 }
 

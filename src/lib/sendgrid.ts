@@ -11,7 +11,7 @@ interface SendEmailParams {
 }
 
 export const sendEmail = async ({ to, subject, text, html, from }: SendEmailParams) => {
-  const defaultFrom = from || 'Weeve <postmaster@tryweeve.com>';
+  const defaultFrom = from || 'Weeve <hello@tryweeve.com>';
 
   try {
     const msg = {

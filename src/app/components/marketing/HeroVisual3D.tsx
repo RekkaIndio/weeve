@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-import { Heart, MessageCircle, Bookmark, Share2, X, Check } from "lucide-react";
+import { Heart, MessageCircle, Bookmark, Share2, X, Check, Users, GitBranch } from "lucide-react";
 
 // Story data with 5 parts
 const storyData = {
@@ -34,7 +34,7 @@ export default function HeroVisual3D() {
     const [stage, setStage] = useState<Stage>("viewing");
     const [activeSlide, setActiveSlide] = useState(0);
     const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
-    const [currentCarouselSlot, setCurrentCarouselSlot] = useState(2); // Start at middle slot (index 2)
+    const [currentCarouselSlot, setCurrentCarouselSlot] = useState(2);
 
     // Auto-advance the demo stages
     useEffect(() => {
@@ -42,7 +42,7 @@ export default function HeroVisual3D() {
             viewing: 2500,
             wButton: 1800,
             slotSelection: 1200,
-            scrolling: 2400, // Time to scroll through carousel
+            scrolling: 2400,
             slotSelected: 2000,
             complete: 2500,
         };
@@ -59,17 +59,16 @@ export default function HeroVisual3D() {
                     setStage("scrolling");
                     break;
                 case "scrolling":
-                    setSelectedSlot(3); // Select slot 4 (index 3) where we end up
+                    setSelectedSlot(3);
                     setStage("slotSelected");
                     break;
                 case "slotSelected":
                     setStage("complete");
                     break;
                 case "complete":
-                    // Reset and loop
                     setStage("viewing");
                     setSelectedSlot(null);
-                    setCurrentCarouselSlot(2); // Reset to middle
+                    setCurrentCarouselSlot(2);
                     break;
             }
         }, timings[stage]);
@@ -81,7 +80,6 @@ export default function HeroVisual3D() {
     useEffect(() => {
         if (stage !== "scrolling") return;
 
-        // Scroll: middle (2) -> left (1) -> back to middle (2) -> right (3) to show both directions
         const scrollSequence = [1, 2, 3];
         let index = 0;
 
@@ -106,31 +104,76 @@ export default function HeroVisual3D() {
         return () => clearInterval(interval);
     }, [stage]);
 
-    const totalSlots = storyData.slides.length;
-
     return (
-        <div className="relative w-full h-[600px] sm:h-[680px] flex items-center justify-center overflow-visible">
-            {/* Ambient glow */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-[#EC1D99]/15 rounded-full blur-[100px] pointer-events-none" />
+        <div className="relative w-full h-[580px] sm:h-[680px] flex items-center justify-center overflow-visible">
+            {/* Multi-layered ambient glow */}
+            <motion.div
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-[#EC1D99]/10 rounded-full blur-[120px] pointer-events-none"
+                animate={{ scale: [1, 1.15, 1], opacity: [0.6, 1, 0.6] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.div
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[400px] bg-purple-600/15 rounded-full blur-[80px] pointer-events-none"
+                animate={{ scale: [1.1, 1, 1.1], opacity: [0.5, 0.8, 0.5] }}
+                transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+            />
+
+            {/* Floating feature pills — orbit around the phone */}
+            <div className="hidden sm:block">
+                <FloatingPill
+                    icon={<Users className="w-3 h-3" />}
+                    label="5 Contributors"
+                    className="absolute top-8 left-0 lg:-left-4"
+                    delay={1.5}
+                    bobDelay={0}
+                />
+                <FloatingPill
+                    icon={<GitBranch className="w-3 h-3" />}
+                    label="3 Branches"
+                    className="absolute top-28 right-0 lg:-right-4"
+                    delay={2.0}
+                    bobDelay={1.5}
+                />
+                <FloatingPill
+                    icon={<Heart className="w-3 h-3 text-pink-400" />}
+                    label="247 Likes"
+                    className="absolute bottom-32 left-2 lg:-left-2"
+                    delay={2.5}
+                    bobDelay={0.8}
+                />
+            </div>
 
             {/* Main phone mockup */}
-            <div className="relative scale-[0.75] sm:scale-90 lg:scale-100">
+            <div className="relative scale-[0.82] sm:scale-95 lg:scale-100">
+                {/* Reflection/surface effect below phone */}
+                <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-[260px] h-[60px] bg-[#EC1D99]/8 blur-[30px] rounded-full pointer-events-none" />
+
                 {/* Phone frame */}
                 <motion.div
-                    className="relative bg-zinc-900 rounded-[2.5rem] p-2 shadow-2xl"
+                    className="relative bg-zinc-900 rounded-[2.5rem] p-2"
                     style={{
-                        boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5), 0 0 60px rgba(236,29,153,0.2)",
+                        boxShadow: "0 25px 60px -12px rgba(0,0,0,0.6), 0 0 80px rgba(236,29,153,0.15), inset 0 1px 0 rgba(255,255,255,0.05)",
                     }}
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6 }}
                 >
-                    {/* Screen */}
-                    <div className="relative bg-black rounded-[2rem] overflow-hidden w-[240px] sm:w-[280px] aspect-[9/16]">
-                        {/* Notch */}
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-b-2xl z-50" />
+                    {/* Phone border shimmer */}
+                    <motion.div
+                        className="absolute inset-0 rounded-[2.5rem] pointer-events-none"
+                        style={{ background: "linear-gradient(135deg, transparent 40%, rgba(236,29,153,0.15) 50%, transparent 60%)", backgroundSize: "200% 200%" }}
+                        animate={{ backgroundPosition: ["0% 0%", "200% 200%"] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: "linear", repeatDelay: 2 }}
+                    />
 
-                        {/* Story content (always visible behind overlays) */}
+                    {/* Screen */}
+                    <div className="relative bg-black rounded-[2rem] overflow-hidden w-[260px] sm:w-[290px] aspect-[9/16]">
+                        {/* Notch */}
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-7 bg-black rounded-b-2xl z-50">
+                            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-3 bg-zinc-900 rounded-full" />
+                        </div>
+
+                        {/* Story content */}
                         <div className="absolute inset-0">
                             {storyData.slides.map((slide, idx) => (
                                 <motion.img
@@ -140,29 +183,21 @@ export default function HeroVisual3D() {
                                     className="absolute inset-0 w-full h-full object-cover"
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: idx === activeSlide ? 1 : 0 }}
-                                    transition={{ duration: 0.4 }}
+                                    transition={{ duration: 0.5 }}
                                 />
                             ))}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                         </div>
 
                         {/* Slide indicators (5 slots) */}
-                        <div className="absolute top-8 left-3 right-3 flex gap-1 z-30">
-                            {storyData.slides.map((_, idx) => (
-                                <div
-                                    key={idx}
-                                    className={`flex-1 h-0.5 rounded-full transition-all duration-300 ${idx === activeSlide ? "bg-white" : "bg-white/30"
-                                        }`}
-                                />
-                            ))}
-                        </div>
 
-                        {/* Footer info (always visible) */}
+
+                        {/* Footer info */}
                         <div className="absolute bottom-0 left-0 right-14 p-4 z-20">
                             <h3 className="text-white text-sm font-bold mb-2 drop-shadow-lg">
                                 {storyData.title}
                             </h3>
-                            {/* Contributors stack (5 avatars) */}
+                            {/* Contributors stack */}
                             <div className="flex items-center">
                                 {storyData.contributors.map((contributor, idx) => (
                                     <motion.div
@@ -205,7 +240,7 @@ export default function HeroVisual3D() {
                                 <Share2 className="w-4 h-4" />
                             </div>
 
-                            {/* THE W BUTTON */}
+                            {/* THE W BUTTON — with pulse ring */}
                             <motion.div
                                 className="flex flex-col items-center gap-0.5"
                                 animate={stage === "wButton" ? {
@@ -213,15 +248,25 @@ export default function HeroVisual3D() {
                                 } : {}}
                                 transition={{ duration: 0.5, repeat: stage === "wButton" ? Infinity : 0, repeatDelay: 0.3 }}
                             >
-                                <motion.div
-                                    className={`w-9 h-9 rounded-full flex items-center justify-center border transition-all ${stage === "wButton" || stage === "slotSelection" || stage === "scrolling" || stage === "slotSelected"
-                                        ? "bg-[#EC1D99] border-[#EC1D99] text-white scale-110"
-                                        : "bg-gray-800/50 backdrop-blur-sm border-white/20 text-[#EC1D99]"
-                                        }`}
-                                    whileHover={{ scale: 1.1 }}
-                                >
-                                    <span className="font-black text-base">W</span>
-                                </motion.div>
+                                <div className="relative">
+                                    {/* Pulse ring when active */}
+                                    {stage === "wButton" && (
+                                        <motion.div
+                                            className="absolute inset-0 rounded-full border-2 border-[#EC1D99]"
+                                            animate={{ scale: [1, 1.8], opacity: [0.6, 0] }}
+                                            transition={{ duration: 1, repeat: Infinity }}
+                                        />
+                                    )}
+                                    <motion.div
+                                        className={`w-9 h-9 rounded-full flex items-center justify-center border transition-all ${stage === "wButton" || stage === "slotSelection" || stage === "scrolling" || stage === "slotSelected"
+                                            ? "bg-[#EC1D99] border-[#EC1D99] text-white scale-110 shadow-[0_0_20px_rgba(236,29,153,0.6)]"
+                                            : "bg-gray-800/50 backdrop-blur-sm border-white/20 text-[#EC1D99]"
+                                            }`}
+                                        whileHover={{ scale: 1.1 }}
+                                    >
+                                        <span className="font-black text-base">W</span>
+                                    </motion.div>
+                                </div>
                                 <span className={`text-[10px] font-bold ${stage === "wButton" ? "text-[#EC1D99]" : "text-white"}`}>
                                     Weeve
                                 </span>
@@ -266,48 +311,27 @@ export default function HeroVisual3D() {
                                             let zIndex = 0;
 
                                             if (isCenter) {
-                                                translateX = "0%";
-                                                scale = 1;
-                                                opacity = 1;
-                                                zIndex = 30;
+                                                translateX = "0%"; scale = 1; opacity = 1; zIndex = 30;
                                             } else if (isLeft) {
-                                                translateX = "-70%";
-                                                scale = 0.75;
-                                                opacity = 0.6;
-                                                zIndex = 20;
+                                                translateX = "-70%"; scale = 0.75; opacity = 0.6; zIndex = 20;
                                             } else if (isRight) {
-                                                translateX = "70%";
-                                                scale = 0.75;
-                                                opacity = 0.6;
-                                                zIndex = 20;
+                                                translateX = "70%"; scale = 0.75; opacity = 0.6; zIndex = 20;
                                             } else if (isFarLeft) {
-                                                translateX = "-120%";
-                                                scale = 0.5;
-                                                opacity = 0.3;
-                                                zIndex = 10;
+                                                translateX = "-120%"; scale = 0.5; opacity = 0.3; zIndex = 10;
                                             } else if (isFarRight) {
-                                                translateX = "120%";
-                                                scale = 0.5;
-                                                opacity = 0.3;
-                                                zIndex = 10;
+                                                translateX = "120%"; scale = 0.5; opacity = 0.3; zIndex = 10;
                                             }
 
                                             return (
                                                 <motion.div
                                                     key={idx}
                                                     className="absolute flex flex-col items-center"
-                                                    animate={{
-                                                        x: translateX,
-                                                        scale,
-                                                        opacity,
-                                                        zIndex,
-                                                    }}
+                                                    animate={{ x: translateX, scale, opacity, zIndex }}
                                                     transition={{ duration: 0.4, ease: "easeOut" }}
                                                 >
-                                                    {/* Slot card - selection overlay only on this */}
                                                     <div
                                                         className={`relative w-24 h-24 rounded-xl overflow-hidden border-2 transition-all ${isSelected
-                                                            ? "border-[#EC1D99] border-solid"
+                                                            ? "border-[#EC1D99] border-solid shadow-[0_0_15px_rgba(236,29,153,0.5)]"
                                                             : "border-dashed border-white/30"
                                                             }`}
                                                     >
@@ -316,7 +340,6 @@ export default function HeroVisual3D() {
                                                             alt={`Slot ${idx + 1}`}
                                                             className="w-full h-full object-cover"
                                                         />
-                                                        {/* Contributor badge */}
                                                         <div className="absolute bottom-1 right-1 w-5 h-5 rounded-full border-2 border-black overflow-hidden">
                                                             <img
                                                                 src={storyData.contributors[slide.contributor].avatar}
@@ -325,7 +348,6 @@ export default function HeroVisual3D() {
                                                             />
                                                         </div>
 
-                                                        {/* Selection overlay - ONLY on the slot card */}
                                                         {isSelected && (
                                                             <motion.div
                                                                 className="absolute inset-0 bg-[#EC1D99]/40 backdrop-blur-[2px] flex items-center justify-center"
@@ -345,7 +367,6 @@ export default function HeroVisual3D() {
                                                             </motion.div>
                                                         )}
                                                     </div>
-                                                    {/* Slot label - OUTSIDE the slot card */}
                                                     <p className={`text-[9px] mt-1.5 font-bold ${isSelected ? "text-[#EC1D99]" : "text-white/70"}`}>
                                                         Slot {idx + 1}
                                                     </p>
@@ -370,7 +391,7 @@ export default function HeroVisual3D() {
                                     {/* Continue button */}
                                     <motion.button
                                         className={`w-[75%] py-2.5 rounded-xl font-bold text-sm transition-all ${selectedSlot !== null
-                                            ? "bg-[#EC1D99] text-white"
+                                            ? "bg-[#EC1D99] text-white shadow-[0_0_20px_rgba(236,29,153,0.4)]"
                                             : "bg-gray-800 text-gray-500"
                                             }`}
                                         animate={selectedSlot !== null ? { scale: [1, 1.02, 1] } : {}}
@@ -391,13 +412,29 @@ export default function HeroVisual3D() {
                                     animate={{ opacity: 1 }}
                                     exit={{ opacity: 0 }}
                                 >
+                                    {/* Celebration particles */}
+                                    {[...Array(6)].map((_, i) => (
+                                        <motion.div
+                                            key={i}
+                                            className="absolute w-1.5 h-1.5 rounded-full bg-[#EC1D99]"
+                                            style={{ top: "50%", left: "50%" }}
+                                            initial={{ scale: 0, x: 0, y: 0 }}
+                                            animate={{
+                                                scale: [0, 1, 0],
+                                                x: [0, Math.cos((i * 60 * Math.PI) / 180) * 60],
+                                                y: [0, Math.sin((i * 60 * Math.PI) / 180) * 60],
+                                            }}
+                                            transition={{ duration: 0.8, delay: 0.2 }}
+                                        />
+                                    ))}
+
                                     <motion.div
-                                        className="w-14 h-14 rounded-full bg-[#EC1D99] flex items-center justify-center mb-3"
-                                        initial={{ scale: 0 }}
-                                        animate={{ scale: 1 }}
+                                        className="w-16 h-16 rounded-full bg-gradient-to-br from-[#EC1D99] to-purple-600 flex items-center justify-center mb-3 shadow-[0_0_30px_rgba(236,29,153,0.5)]"
+                                        initial={{ scale: 0, rotate: -180 }}
+                                        animate={{ scale: 1, rotate: 0 }}
                                         transition={{ type: "spring", bounce: 0.5 }}
                                     >
-                                        <Check className="w-7 h-7 text-white" />
+                                        <Check className="w-8 h-8 text-white" />
                                     </motion.div>
                                     <motion.h3
                                         className="text-white text-base font-bold mb-1"
@@ -421,19 +458,19 @@ export default function HeroVisual3D() {
                     </div>
                 </motion.div>
 
-                {/* Callout annotations - hidden on mobile */}
+                {/* Stage-specific callout annotations */}
                 <AnimatePresence>
                     {stage === "wButton" && (
                         <motion.div
-                            className="hidden sm:block absolute -right-28 bottom-[32px]"
+                            className="hidden sm:block absolute left-full ml-8 bottom-[40px]"
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
                         >
                             <div className="flex items-center gap-2">
-                                <div className="w-8 h-0.5 bg-[#EC1D99]" />
-                                <div className="px-3 py-1.5 bg-[#EC1D99] rounded-lg text-white text-xs font-medium whitespace-nowrap">
-                                    Tap W to Weeve
+                                <div className="w-8 h-0.5 bg-gradient-to-r from-transparent to-[#EC1D99]" />
+                                <div className="px-4 py-2 bg-gradient-to-r from-[#EC1D99] to-pink-600 rounded-xl text-white text-xs font-bold whitespace-nowrap shadow-[0_0_20px_rgba(236,29,153,0.4)]">
+                                    Tap W. Replace a slot. Create your version.
                                 </div>
                             </div>
                         </motion.div>
@@ -443,15 +480,15 @@ export default function HeroVisual3D() {
                 <AnimatePresence>
                     {(stage === "slotSelection" || stage === "scrolling") && !selectedSlot && (
                         <motion.div
-                            className="hidden sm:block absolute -right-32 top-[45%] -translate-y-1/2"
+                            className="hidden sm:block absolute left-full ml-8 top-[45%] -translate-y-1/2"
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
                         >
                             <div className="flex items-center gap-2">
-                                <div className="w-6 h-0.5 bg-purple-500" />
-                                <div className="px-3 py-1.5 bg-purple-600 rounded-lg text-white text-xs font-medium whitespace-nowrap">
-                                    Swipe to browse
+                                <div className="w-6 h-0.5 bg-gradient-to-r from-transparent to-purple-500" />
+                                <div className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl text-white text-xs font-bold whitespace-nowrap shadow-[0_0_15px_rgba(168,85,247,0.4)]">
+                                    Swipe to browse slots
                                 </div>
                             </div>
                         </motion.div>
@@ -461,14 +498,14 @@ export default function HeroVisual3D() {
                 <AnimatePresence>
                     {stage === "slotSelected" && (
                         <motion.div
-                            className="hidden sm:block absolute -right-32 top-[45%] -translate-y-1/2"
+                            className="hidden sm:block absolute left-full ml-8 top-[45%] -translate-y-1/2"
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: -20 }}
                         >
                             <div className="flex items-center gap-2">
-                                <div className="w-6 h-0.5 bg-green-500" />
-                                <div className="px-3 py-1.5 bg-green-600 rounded-lg text-white text-xs font-medium whitespace-nowrap">
+                                <div className="w-6 h-0.5 bg-gradient-to-r from-transparent to-green-500" />
+                                <div className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl text-white text-xs font-bold whitespace-nowrap shadow-[0_0_15px_rgba(16,185,129,0.4)]">
                                     Add your content!
                                 </div>
                             </div>
@@ -477,19 +514,46 @@ export default function HeroVisual3D() {
                 </AnimatePresence>
             </div>
 
-            {/* Bottom tagline */}
+            {/* Bottom tagline — redesigned as a pill */}
             <motion.div
-                className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 z-10 w-[90%] sm:w-auto"
+                className="absolute bottom-0 sm:bottom-2 left-1/2 -translate-x-1/2 z-10 w-[90%] sm:w-auto"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1, duration: 0.6 }}
             >
-                <span className="inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-full bg-zinc-900/90 backdrop-blur-md border border-white/10 text-[9px] sm:text-xs text-white/80 text-center">
-                    <span className="font-black text-[#EC1D99]">W</span>
+                <span className="inline-flex items-center justify-center gap-1.5 sm:gap-2 px-4 py-2 rounded-full bg-zinc-900/90 backdrop-blur-md border border-white/10 text-[10px] sm:text-xs text-white/80 text-center shadow-lg">
+                    <span className="font-black text-[#EC1D99] text-sm">W</span>
                     <span className="hidden sm:inline">Tap W. Replace a slot. Create your version.</span>
                     <span className="sm:hidden">Tap W to create your version</span>
                 </span>
             </motion.div>
         </div>
+    );
+}
+
+// Floating pill component that orbits around the phone
+function FloatingPill({ icon, label, className, delay, bobDelay }: {
+    icon: React.ReactNode;
+    label: string;
+    className: string;
+    delay: number;
+    bobDelay: number;
+}) {
+    return (
+        <motion.div
+            className={className}
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ delay, duration: 0.5 }}
+        >
+            <motion.div
+                className="flex items-center gap-2 px-3 py-2 rounded-full bg-zinc-900/80 backdrop-blur-md border border-white/10 shadow-xl"
+                animate={{ y: [0, -6, 0] }}
+                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: bobDelay }}
+            >
+                <span className="text-[#EC1D99]">{icon}</span>
+                <span className="text-xs font-semibold text-white whitespace-nowrap">{label}</span>
+            </motion.div>
+        </motion.div>
     );
 }

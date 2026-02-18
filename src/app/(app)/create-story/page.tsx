@@ -216,6 +216,8 @@ function CreateStoryContent() {
           collab_initiator_id: isCollabMode ? currentUser.id : null,
           collab_target_id: isCollabMode ? collaboratorId : null,
           collab_price_cents: isCollabMode ? collabPriceCents : null,
+          // Community multi-tenancy: assign story to creator's community
+          community_id: currentUser.communityId || null,
         })
         .select()
         .single();

@@ -51,7 +51,8 @@ export default function GroupsPage() {
                 setLoading(false);
             }
 
-            const fetchedGroups = await fetchGroupsData(user.id);
+            const { currentUser } = useStore.getState();
+            const fetchedGroups = await fetchGroupsData(user.id, currentUser?.communityId);
 
             if (isActive) {
                 setGroups(fetchedGroups);

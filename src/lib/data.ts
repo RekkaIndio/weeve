@@ -1033,7 +1033,7 @@ export async function createStoryContribution(options: CreateStoryContributionOp
     return { contribution };
 }
 
-export async function fetchGroups(userId?: string): Promise<Group[]> {
+export async function fetchGroups(userId?: string, communityId?: string): Promise<Group[]> {
     try {
         // If userId is provided, we can skip the session check!
         let user: { id: string } | null = userId ? { id: userId } : null;
@@ -1062,13 +1062,24 @@ export async function fetchGroups(userId?: string): Promise<Group[]> {
         // Query groups with timeout to avoid stuck UI when network or backend is slow
         // Join with profiles to get owner verification status
         const runQuery = async (timeoutMs: number) => {
-            const groupsQueryPromise = supabase
+            let groupsQuery = supabase
                 .from('groups')
                 .select('*, owner:owner_id(is_verified, verification_tier, is_brand, brand_verified)')
                 .order('created_at', { ascending: false });
             
+            // Apply Community Filter
+            const defaultCommunityId = '00000000-0000-0000-0000-000000000001';
+            
+            if (communityId && communityId !== defaultCommunityId) {
+                // Private Community: Strict filter
+                groupsQuery = groupsQuery.eq('community_id', communityId);
+            } else {
+                // Public Community: Show public groups (null or default)
+                groupsQuery = groupsQuery.or(`community_id.eq.${defaultCommunityId},community_id.is.null`);
+            }
+
             return Promise.race([
-                groupsQueryPromise,
+                groupsQuery,
                 new Promise<{ data: any[] | null; error: any }>((resolve) => 
                     setTimeout(() => resolve({ data: null, error: new Error(`Groups query timeout (${timeoutMs}ms)`) }), timeoutMs)
                 ),

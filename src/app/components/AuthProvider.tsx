@@ -112,6 +112,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     website: (profile.preferences as any)?.website,
                     preferences: profile.preferences,
                     tags: profile.tags || [],
+                    communityId: profile.communityId,
                 };
                 setCurrentUser(appUser);
                 return appUser;
@@ -156,20 +157,23 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
         const initialize = async () => {
             try {
-                // 1. Get initial session with iOS retry logic
-                // On iOS, Capacitor Preferences may need time to load after cold start
+                // 1. Get initial session with retry logic (Web & Native)
+                // Sometimes localStorage/Preferences isn't ready immediately, or there's a race condition
                 let session = null;
-                const maxAttempts = Capacitor.isNativePlatform() ? 3 : 1;
+                const maxAttempts = 3; // Always retry a few times to be safe
 
                 for (let attempt = 0; attempt < maxAttempts; attempt++) {
                     const result = await supabase.auth.getSession();
                     session = result.data?.session;
 
-                    if (session) break;
+                    if (session) {
+                        console.log(`[AuthProvider] Session found on attempt ${attempt + 1}`);
+                        break;
+                    }
 
-                    // On iOS, wait and retry if no session found
+                    // Wait and retry if no session found
                     if (attempt < maxAttempts - 1) {
-                        console.log(`[AuthProvider] iOS: No session on attempt ${attempt + 1}, retrying...`);
+                        console.log(`[AuthProvider] No session on attempt ${attempt + 1}, retrying...`);
                         await new Promise(resolve => setTimeout(resolve, 300));
                     }
                 }
@@ -270,6 +274,12 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         try {
             const { data } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
                 if (!mounted) return;
+
+                console.log(`[AuthProvider] Auth State Change: ${event}`, {
+                    hasSession: !!session,
+                    userId: session?.user?.id,
+                    expiresAt: session?.expires_at
+                });
 
                 if (session?.user) {
                     setUser(session.user);
@@ -384,6 +394,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                     }
 
                 } else {
+                    console.warn('[AuthProvider] Auth State Change: NO SESSION (Logging out)');
                     setUser(null);
                     setLatestSession(null);
                     logoutUser();
@@ -402,6 +413,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
 
                 // Handle redirects on change
                 if (event === 'SIGNED_OUT') {
+                    console.log('[AuthProvider] SIGNED_OUT event received, redirecting to login');
                     // For logout, full refresh is safer to clear memory
                     window.location.href = '/login';
                 }

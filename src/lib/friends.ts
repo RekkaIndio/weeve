@@ -17,7 +17,7 @@ export interface Friend extends User {
     friendRequestStatus?: 'none' | 'pending_sent' | 'pending_received' | 'accepted';
 }
 
-export const fetchPublicUsers = async (currentUserId: string, limit = 50): Promise<Friend[]> => {
+export const fetchPublicUsers = async (currentUserId: string, limit = 50, communityId?: string): Promise<Friend[]> => {
     // Run all queries in parallel to eliminate N+1 pattern
     const [profilesResult, friendshipsResult, sentRequestsResult, receivedRequestsResult] = await Promise.all([
         // Query 1: Get public profiles
@@ -26,6 +26,8 @@ export const fetchPublicUsers = async (currentUserId: string, limit = 50): Promi
             .select('*')
             .neq('user_id', currentUserId)
             .eq('is_private', false)
+            // Filter by community if provided (and not default)
+            .match(communityId && communityId !== '00000000-0000-0000-0000-000000000001' ? { community_id: communityId } : {})
             .limit(limit),
         
         // Query 2: Get friendships
@@ -87,12 +89,12 @@ export const fetchPublicUsers = async (currentUserId: string, limit = 50): Promi
     });
 };
 
-export const searchUsers = async (query: string, currentUserId: string): Promise<Friend[]> => {
-    if (!query || query.length < 2) return fetchPublicUsers(currentUserId);
+export const searchUsers = async (query: string, currentUserId: string, communityId?: string): Promise<Friend[]> => {
+    if (!query || query.length < 2) return fetchPublicUsers(currentUserId, 50, communityId);
 
     // Sanitize query to prevent PostgREST filter manipulation
     const sanitizedQuery = sanitizeSearchQuery(query);
-    if (!sanitizedQuery) return fetchPublicUsers(currentUserId);
+    if (!sanitizedQuery) return fetchPublicUsers(currentUserId, 50, communityId);
 
     // Run all queries in parallel to eliminate N+1 pattern
     const [profilesResult, friendshipsResult, sentRequestsResult, receivedRequestsResult] = await Promise.all([
@@ -102,6 +104,8 @@ export const searchUsers = async (query: string, currentUserId: string): Promise
             .select('*')
             .or(`name.ilike.%${sanitizedQuery}%,invite_code.eq.${sanitizedQuery}`)
             .neq('user_id', currentUserId)
+            // Filter by community if provided
+             .match(communityId && communityId !== '00000000-0000-0000-0000-000000000001' ? { community_id: communityId } : {})
             .limit(50),
         
         // Query 2: Get friendships

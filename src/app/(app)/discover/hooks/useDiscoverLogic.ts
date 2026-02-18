@@ -534,14 +534,15 @@ export function useDiscoverLogic() {
             setIsSearchingPeople(true);
             try {
                 const uid = currentUser?.id ?? '';
+                const communityId = currentUser?.communityId;
                 let results: FriendType[] = [];
 
                 if (!q || q.length < 2) {
-                    results = await fetchPublicUsers(uid);
+                    results = await fetchPublicUsers(uid, 50, communityId);
                 } else {
-                    results = await searchUsers(q, uid);
+                    results = await searchUsers(q, uid, communityId);
                     if (!results || results.length === 0) {
-                        results = await fetchPublicUsers(uid);
+                        results = await fetchPublicUsers(uid, 50, communityId);
                     }
                 }
 

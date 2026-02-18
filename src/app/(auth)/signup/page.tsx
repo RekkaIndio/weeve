@@ -6,6 +6,15 @@ import { signUp, signInWithGoogle, signInWithApple } from "@/lib/auth";
 import { Eye, EyeOff, Check, X } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import AuthBackground from "@/app/components/AuthBackground";
+import { supabase } from "@/lib/supabase";
+
+interface CommunityInfo {
+    name: string;
+    logo_url: string | null;
+    primary_color: string;
+    description: string | null;
+    rules: string | null;
+}
 
 export default function SignUpPage() {
     const router = useRouter();
@@ -38,11 +47,31 @@ export default function SignUpPage() {
         return null;
     });
 
-    // Store ref code from URL parameter
+    // Community branding state
+    const [communityInfo, setCommunityInfo] = useState<CommunityInfo | null>(null);
+
+    // Store ref code from URL parameter and fetch community info
     useEffect(() => {
         const ref = searchParams?.get('ref');
+        const community = searchParams?.get('community');
         if (ref) {
             localStorage.setItem('weeve_invite_code', ref);
+        }
+        if (community) {
+            const code = community.toUpperCase();
+            localStorage.setItem('weeve_community_code', code);
+            // Fetch community info for branding
+            supabase
+                .from('communities')
+                .select('name, logo_url, primary_color, description, rules')
+                .eq('code', code)
+                .eq('is_active', true)
+                .single()
+                .then(({ data }: { data: CommunityInfo | null }) => {
+                    if (data) {
+                        setCommunityInfo(data);
+                    }
+                });
         }
         // Prefetch feed for faster navigation after signup
         router.prefetch('/feed');
@@ -99,7 +128,8 @@ export default function SignUpPage() {
 
         try {
             const formattedDob = `${dobYear}-${dobMonth.padStart(2, '0')}-${dobDay.padStart(2, '0')}`;
-            const { user, error: authError } = await signUp(email, password, undefined, formattedDob);
+            const communityCode = localStorage.getItem('weeve_community_code') || undefined;
+            const { user, error: authError } = await signUp(email, password, undefined, formattedDob, communityCode);
 
             if (authError) throw authError;
             if (!user) throw new Error('Signup failed');
@@ -253,29 +283,80 @@ export default function SignUpPage() {
                 </svg>
             </div>
 
-            {/* Signup Form */}
-            <div className="relative z-10 w-full max-w-md px-6 flex flex-col items-center">
-                <div className="mb-6">
-                    <img
-                        src="/weeve-logo.png"
-                        alt="Weeve Logo"
-                        className="w-24 h-24 object-contain"
-                    />
-                </div>
-                <h1 className="mb-8 text-center text-4xl font-bold text-white">
-                    Create Your Account
-                </h1>
+            {/* Content Wrapper - Side-by-side layout for community info */}
+            <div className={`relative z-10 w-full flex flex-col lg:flex-row items-center lg:items-start justify-center gap-12 lg:gap-24 transition-all duration-500 ${communityInfo ? 'max-w-6xl px-6' : 'max-w-md px-4'}`}>
 
-                <div className="space-y-4">
-                    {/* Error Message */}
-                    {error && (
-                        <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm">
-                            {error}
+                {/* Community Info Side Panel */}
+                {communityInfo && (
+                    <div className={`hidden lg:block w-full max-w-md shrink-0 pt-8 animate-in fade-in slide-in-from-left-8 duration-700 ${!communityInfo.description && !communityInfo.rules ? 'hidden' : ''}`}>
+                        <div className="bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 rounded-3xl p-8 shadow-2xl">
+                            <h2 className="text-3xl font-bold text-white mb-6">About {communityInfo.name}</h2>
+
+                            {communityInfo.description && (
+                                <div className="mb-8">
+                                    <h3 className="text-xs font-bold text-pink-500 uppercase tracking-widest mb-3">About</h3>
+                                    <p className="text-zinc-300 leading-relaxed whitespace-pre-wrap text-lg">{communityInfo.description}</p>
+                                </div>
+                            )}
+
+                            {communityInfo.rules && (
+                                <div>
+                                    <h3 className="text-xs font-bold text-cyan-400 uppercase tracking-widest mb-3">Community Rules</h3>
+                                    <div className="text-zinc-300 leading-relaxed whitespace-pre-wrap rounded-xl bg-zinc-950/50 p-5 border border-zinc-800/50 text-sm">
+                                        {communityInfo.rules}
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
+                )}
 
-                    {/* Social Logins */}
-                    {/* Social Logins - Temporarily Disabled
+                {/* Signup Form */}
+                <div className="w-full max-w-md flex flex-col items-center shrink-0">
+                    {/* Logo Section */}
+                    <div className="mb-6">
+                        {communityInfo?.logo_url ? (
+                            // Dual logo design - Weeve + Community connected
+                            <div className="flex items-center gap-3">
+                                <img
+                                    src="/weeve-logo.png"
+                                    alt="Weeve"
+                                    className="w-16 h-16 object-contain rounded-xl"
+                                />
+                                <div className="flex items-center gap-1">
+                                    <div className="w-8 h-[2px] bg-gradient-to-r from-pink-500 to-cyan-400 rounded-full" />
+                                    <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse" />
+                                    <div className="w-8 h-[2px] bg-gradient-to-r from-cyan-400 to-pink-500 rounded-full" />
+                                </div>
+                                <img
+                                    src={communityInfo.logo_url}
+                                    alt={communityInfo.name}
+                                    className="w-16 h-16 object-contain rounded-xl border border-zinc-700"
+                                />
+                            </div>
+                        ) : (
+                            // Single Weeve logo for non-community signup
+                            <img
+                                src="/weeve-logo.png"
+                                alt="Weeve"
+                                className="w-24 h-24 object-contain rounded-xl"
+                            />
+                        )}
+                    </div>
+                    <h1 className="mb-8 text-center text-4xl font-bold text-white">
+                        {communityInfo ? `Join ${communityInfo.name}` : "Create Your Account"}
+                    </h1>
+
+                    <div className="space-y-4">
+                        {/* Error Message */}
+                        {error && (
+                            <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm">
+                                {error}
+                            </div>
+                        )}
+
+                        {/* Social Logins */}
+                        {/* Social Logins - Temporarily Disabled
                     <div className="w-full flex gap-3">
                         <button
                             onClick={handleGoogleSignUp}
@@ -320,143 +401,143 @@ export default function SignUpPage() {
                     </div>
                     */}
 
-                    <input
-                        type="email"
-                        className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
-                        placeholder="Email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
-                        disabled={loading}
-                    />
-                    <div className="relative">
                         <input
-                            type={showPassword ? "text" : "password"}
-                            className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all pr-12"
-                            placeholder="Password (8+ chars, number, uppercase, special char)"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                            type="email"
+                            className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all"
+                            placeholder="Email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
                             disabled={loading}
                         />
-                        <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-gray-400 hover:text-white transition-colors"
-                        >
-                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                    </div>
-
-                    {/* Password Criteria Checklist */}
-                    {password && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                            {passwordCriteria.map((criterion, index) => (
-                                <div key={index} className={`flex items-center gap-1.5 ${criterion.met ? 'text-green-400' : 'text-gray-400'}`}>
-                                    {criterion.met ? (
-                                        <Check className="w-3 h-3" />
-                                    ) : (
-                                        <div className="w-3 h-3 rounded-full border border-gray-500" />
-                                    )}
-                                    <span>{criterion.label}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    <div className="relative">
-                        <input
-                            type={showConfirmPassword ? "text" : "password"}
-                            className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all pr-12"
-                            placeholder="Confirm Password"
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
-                            disabled={loading}
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-gray-400 hover:text-white transition-colors"
-                        >
-                            {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
-                    </div>
-
-                    {/* Date of Birth Selection */}
-                    <div className="space-y-2">
-                        <label className="text-sm text-gray-300 ml-1">Date of Birth</label>
-                        <div className="grid grid-cols-3 gap-2">
-                            <select
-                                value={dobMonth}
-                                onChange={(e) => setDobMonth(e.target.value)}
-                                className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-3 py-4 text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all appearance-none cursor-pointer"
+                        <div className="relative">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all pr-12"
+                                placeholder="Password (8+ chars, number, uppercase, special char)"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
                                 disabled={loading}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-gray-400 hover:text-white transition-colors"
                             >
-                                <option value="" className="text-black">Month</option>
-                                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                                    <option key={m} value={m} className="text-black">
-                                        {new Date(0, m - 1).toLocaleString('default', { month: 'short' })}
-                                    </option>
-                                ))}
-                            </select>
-                            <input
-                                type="number"
-                                placeholder="Day"
-                                min="1"
-                                max="31"
-                                value={dobDay}
-                                onChange={(e) => setDobDay(e.target.value)}
-                                className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-4 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all text-center"
-                                disabled={loading}
-                            />
-                            <input
-                                type="number"
-                                placeholder="Year"
-                                min="1900"
-                                max={new Date().getFullYear()}
-                                value={dobYear}
-                                onChange={(e) => setDobYear(e.target.value)}
-                                className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-4 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all text-center"
-                                disabled={loading}
-                            />
+                                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
                         </div>
-                    </div>
 
-                    {/* Terms Checkbox */}
-                    <label className="flex items-start gap-3 cursor-pointer p-3 bg-white/5 rounded-lg border border-white/10 mt-4">
-                        <input
-                            type="checkbox"
-                            checked={acceptTerms}
-                            onChange={(e) => setAcceptTerms(e.target.checked)}
-                            className="mt-1 w-4 h-4 rounded border-gray-600 text-teal-500 focus:ring-teal-500 focus:ring-offset-0 bg-transparent"
+                        {/* Password Criteria Checklist */}
+                        {password && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                                {passwordCriteria.map((criterion, index) => (
+                                    <div key={index} className={`flex items-center gap-1.5 ${criterion.met ? 'text-green-400' : 'text-gray-400'}`}>
+                                        {criterion.met ? (
+                                            <Check className="w-3 h-3" />
+                                        ) : (
+                                            <div className="w-3 h-3 rounded-full border border-gray-500" />
+                                        )}
+                                        <span>{criterion.label}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="relative">
+                            <input
+                                type={showConfirmPassword ? "text" : "password"}
+                                className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all pr-12"
+                                placeholder="Confirm Password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleEmailSignUp()}
+                                disabled={loading}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 z-10 text-gray-400 hover:text-white transition-colors"
+                            >
+                                {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            </button>
+                        </div>
+
+                        {/* Date of Birth Selection */}
+                        <div className="space-y-2">
+                            <label className="text-sm text-gray-300 ml-1">Date of Birth</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <select
+                                    value={dobMonth}
+                                    onChange={(e) => setDobMonth(e.target.value)}
+                                    className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-3 py-4 text-white focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all appearance-none cursor-pointer"
+                                    disabled={loading}
+                                >
+                                    <option value="" className="text-black">Month</option>
+                                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                                        <option key={m} value={m} className="text-black">
+                                            {new Date(0, m - 1).toLocaleString('default', { month: 'short' })}
+                                        </option>
+                                    ))}
+                                </select>
+                                <input
+                                    type="number"
+                                    placeholder="Day"
+                                    min="1"
+                                    max="31"
+                                    value={dobDay}
+                                    onChange={(e) => setDobDay(e.target.value)}
+                                    className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-4 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all text-center"
+                                    disabled={loading}
+                                />
+                                <input
+                                    type="number"
+                                    placeholder="Year"
+                                    min="1900"
+                                    max={new Date().getFullYear()}
+                                    value={dobYear}
+                                    onChange={(e) => setDobYear(e.target.value)}
+                                    className="w-full rounded-lg bg-white/10 backdrop-blur-md border border-white/20 px-4 py-4 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent transition-all text-center"
+                                    disabled={loading}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Terms Checkbox */}
+                        <label className="flex items-start gap-3 cursor-pointer p-3 bg-white/5 rounded-lg border border-white/10 mt-4">
+                            <input
+                                type="checkbox"
+                                checked={acceptTerms}
+                                onChange={(e) => setAcceptTerms(e.target.checked)}
+                                className="mt-1 w-4 h-4 rounded border-gray-600 text-teal-500 focus:ring-teal-500 focus:ring-offset-0 bg-transparent"
+                                disabled={loading}
+                            />
+                            <span className="text-sm text-gray-300">
+                                I agree to Weeve's <a href="/terms" className="text-teal-400 hover:text-teal-300 underline">Terms of Service</a>.
+                            </span>
+                        </label>
+
+                        <button
+                            onClick={handleEmailSignUp}
                             disabled={loading}
-                        />
-                        <span className="text-sm text-gray-300">
-                            I agree to Weeve's <a href="/terms" className="text-teal-400 hover:text-teal-300 underline">Terms of Service</a>.
-                        </span>
-                    </label>
-
-                    <button
-                        onClick={handleEmailSignUp}
-                        disabled={loading}
-                        className="w-full rounded-lg bg-white text-black py-4 font-bold text-lg transition-all hover:bg-gray-100 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loading ? "Creating account..." : "Sign Up"}
-                    </button>
-
-
-                    <p className="mt-6 text-center text-sm text-gray-300">
-                        Already have an account?{" "}
-                        <a
-                            href="/login"
-                            className="text-white font-semibold underline hover:text-gray-200 transition-colors"
+                            className="w-full rounded-lg bg-white text-black py-4 font-bold text-lg transition-all hover:bg-gray-100 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Log in
-                        </a>
-                    </p>
+                            {loading ? "Creating account..." : "Sign Up"}
+                        </button>
 
-                    {/* <p className="mt-4 text-center text-sm text-gray-400">
+
+                        <p className="mt-6 text-center text-sm text-gray-300">
+                            Already have an account?{" "}
+                            <a
+                                href="/login"
+                                className="text-white font-semibold underline hover:text-gray-200 transition-colors"
+                            >
+                                Log in
+                            </a>
+                        </p>
+
+                        {/* <p className="mt-4 text-center text-sm text-gray-400">
                         Are you a brand?{" "}
                         <a
                             href="/brand-signup"
@@ -465,6 +546,7 @@ export default function SignUpPage() {
                             Create a Brand Account
                         </a>
                     </p> */}
+                    </div>
                 </div>
             </div>
 
@@ -490,6 +572,6 @@ export default function SignUpPage() {
                 transform-origin: center;
                 }
             `}</style>
-        </div>
+        </div >
     );
 }
