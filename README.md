@@ -18,3 +18,17 @@ Brand accounts: brand sign-up, content approval, pricing and subscription paymen
 Referrals and deep links: invite codes that connect new users as friends and route mobile visitors into the native app
 Notifications: in-app and push (Firebase Cloud Messaging)
 Admin console: user, story, group, community and report management under /admin
+
+
+Tech stack
+Layer	Technology
+Framework	Next.js 16 (App Router), React 19, TypeScript
+Styling	Tailwind CSS 4, Framer Motion
+State	Zustand
+Backend and database	Supabase (Postgres, Auth, Row Level Security, Edge Functions)
+Push and crash reporting	Firebase (Cloud Messaging, Crashlytics)
+Mobile	Capacitor 7 (iOS and Android)
+Payments	PayPal, Square, Revolut
+Email	SendGrid
+Testing	Vitest, Testing Library
+Hosting	Vercel
